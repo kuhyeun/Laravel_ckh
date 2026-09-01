@@ -86,12 +86,12 @@
                             <p v-if="errors.parent_menu_code" class="text-xs text-red-500 mt-1">{{ errors.parent_menu_code[0] }}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1">모듈 코드 <span class="text-red-400">*</span></label>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">모듈 코드 ( 추후 모듈화 시 필요한 그룹 코드 ) <span class="text-red-400">*</span></label>
                             <BaseInput v-model="form.module_code" class="w-full" placeholder="예: Basic, Order ..." />
                             <p v-if="errors.module_code" class="text-xs text-red-500 mt-1">{{ errors.module_code[0] }}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1">라우트명</label>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">라우트명 ( 미들웨어 설정 등 route 설정시 필요한 변수명칭 )</label>
                             <BaseInput v-model="form.menu_route_name" class="w-full" placeholder="예: basic.menu" />
                         </div>
                         <div>
@@ -100,7 +100,7 @@
                             <p v-if="errors.url_path" class="text-xs text-red-500 mt-1">{{ errors.url_path[0] }}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1">페이지 컴포넌트</label>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">페이지 컴포넌트 ( 실제 Vue 파일 위치 )</label>
                             <BaseInput v-model="form.page_component" class="w-full" placeholder="예: Basic/MenuManage" />
                             <p v-if="errors.page_component" class="text-xs text-red-500 mt-1">{{ errors.page_component[0] }}</p>
                         </div>
@@ -274,8 +274,9 @@ watch(() => form.parent_menu_code, (code) => {
     }
     const parent = menus.value.find(m => m.menu_code === code);
     if (parent) {
+        form.module_code   = parent.module_code ?? '';
         form.top_menu_code = (parent.top_menu_code && parent.top_menu_code !== '****') ? parent.top_menu_code : parent.menu_code;
-        form.menu_depth = (parent.menu_depth || 1) + 1;
+        form.menu_depth    = (parent.menu_depth || 1) + 1;
     }
 });
 
