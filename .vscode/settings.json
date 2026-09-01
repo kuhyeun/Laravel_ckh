@@ -1,0 +1,7 @@
+{
+    "css.lint.unknownAtRules": "ignore",
+    "intelephense.environment.includePaths": [
+        "packages/mes-core/src",
+        "packages/mes-core/database"
+    ]
+}

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p app/Modules/__TRACKED_VAR__/Controllers app/Modules/__TRACKED_VAR__/Models app/Modules/__TRACKED_VAR__/Services)",
+      "Bash(touch app/Modules/__TRACKED_VAR__/Controllers/.gitkeep app/Modules/__TRACKED_VAR__/Models/.gitkeep app/Modules/__TRACKED_VAR__/Services/.gitkeep)",
+      "Bash(touch app/Modules/__TRACKED_VAR__/routes.php)",
+      "Bash(rm -f app/Http/Controllers/Controller.php)",
+      "Bash(rm -f app/Http/Controllers/MenuController.php)",
+      "Bash(rm -rf app/Http/Controllers/User)",
+      "Bash(rm -f app/Http/Middleware/AdminAuth.php)",
+      "Bash(rm -f app/Http/Middleware/GuestAuth.php)",
+      "Bash(find /c/Users/PC/Desktop/laravel_project/packages/mes-core/src -type f -name \"*.php\" -exec sed -i 's/App\\\\\\\\Core\\\\\\\\/MesCore\\\\\\\\/g' {} +)",
+      "Bash(find /c/Users/PC/Desktop/laravel_project/packages/mes-core/src -type f -name \"*.php\" -exec sed -i 's/App\\\\\\\\\\\\\\\\Core\\\\\\\\\\\\\\\\/MesCore\\\\\\\\\\\\\\\\/g' {} +)",
+      "Bash(find /c/Users/PC/Desktop/laravel_project/packages/mes-core/resources/js -type f \\\\\\( -name \"*.vue\" -o -name \"*.js\" \\\\\\) -exec sed -i \"s|@/Core/|@core/|g\" {} +)"
+    ]
+  }
+}

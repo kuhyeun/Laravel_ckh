@@ -1,0 +1,113 @@
+.checkbox {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.hidden-input[type="checkbox"] {
+  display: none;
+}
+
+.custom-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.custom-input:before {
+  content: "";
+  width: 16px;
+  height: 16px;
+  display: block;
+  background: #fff;
+  border: 1.5px solid #c4c4c4;
+  border-radius: 3px;
+  transition: all 0.15s ease-out;
+}
+
+.custom-input:hover:before {
+  border-color: #4596ED;
+  background: #f0f7f9;
+}
+
+.tui-grid-cell-disabled .custom-input:before {
+  background: #e8e8e8;
+  border-color: #d0d0d0;
+}
+
+.tui-grid-cell-disabled .custom-input {
+  cursor: not-allowed;
+}
+
+.custom-input:after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 9px;
+  left: 6px;
+  top: 2px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  opacity: 0;
+  transition: opacity 0.15s ease-out;
+}
+
+input[type="checkbox"]:checked ~ .custom-input:before {
+  background: #4596ED;
+  border-color: #4596ED;
+}
+
+input[type="checkbox"]:checked ~ .custom-input:after {
+  opacity: 1;
+}
+
+input[type="checkbox"][disabled] ~ .custom-input {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Grid Checkbox 셀 수직 중앙 정렬 */
+.tui-grid-row-header-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0 !important;
+}
+
+.tui-grid-cell-row-header {
+  padding: 0 !important;
+}
+
+.tui-grid-cell-row-header .tui-grid-cell-content {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 100% !important;
+  padding: 0 !important;
+}
+
+/* Grid Header(전체선택) Checkbox 수직 중앙 정렬 */
+.tui-grid-cell-header.tui-grid-cell-row-header {
+  padding: 0 !important;
+  height: 100%;
+}
+
+.tui-grid-cell-header.tui-grid-cell-row-header > span {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 100% !important;
+  vertical-align: middle !important;
+}
+
+.tui-grid-cell-header.tui-grid-cell-row-header > span > .checkbox {
+  margin: 0 !important;
+  padding: 0 !important;
+}

@@ -1,0 +1,7 @@
+@import '@core-css/core.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 업체 전용 스타일은 여기에 추가 */

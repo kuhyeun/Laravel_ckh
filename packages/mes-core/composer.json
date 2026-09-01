@@ -1,0 +1,26 @@
+{
+    "name": "your-org/mes-core",
+    "description": "MES Core Package - Auth, Menu, Basic modules",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.2",
+        "laravel/framework": "^11.0",
+        "inertiajs/inertia-laravel": "^3.0",
+        "tightenco/ziggy": "^2.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "MesCore\\": "src/",
+            "MesCore\\Database\\Factories\\": "database/factories/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "MesCore\\CoreServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable"
+}
