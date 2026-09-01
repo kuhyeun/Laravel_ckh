@@ -51,6 +51,20 @@ npm run dev
 
 `npm run dev`를 켜면 실시간 반영(HMR), 끄면 빌드된 정적 에셋(`public/build`)을 서빙합니다.
 
+## IDE 자동완성 (vendor 로컬 복사)
+
+성능을 위해 `vendor`는 **컨테이너 내부(익명 볼륨)** 에만 두고 호스트에는 두지 않습니다. (Windows에서 호스트↔컨테이너 동기화가 느려서) 그래서 호스트 IDE가 Laravel/패키지 클래스를 인식하지 못해 **자동완성·정의로 이동이 안 됩니다.**
+
+IDE에서 코드 탐색이 되게 하려면, 컨테이너의 vendor를 호스트로 한 번 복사합니다:
+
+```bash
+docker cp laravel_php:/var/www/html/vendor ./src/vendor
+```
+
+- 이 복사본은 **IDE 참조용**입니다. 컨테이너는 여전히 내부 vendor로 동작하고, 호스트 `src/vendor`는 `.gitignore`로 제외되어 커밋되지 않습니다.
+- `composer require`로 패키지를 추가한 뒤에는 **다시 복사**하면 IDE에 반영됩니다.
+- (프론트) `node_modules`는 위 Vite 단계의 `npm install`로 호스트에 생기므로 별도 복사가 필요 없습니다.
+
 ## 자주 쓰는 명령
 
 ```bash
