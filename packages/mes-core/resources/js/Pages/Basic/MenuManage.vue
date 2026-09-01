@@ -95,6 +95,16 @@
                             <BaseInput v-model="form.menu_route_name" class="w-full" placeholder="예: basic.menu" />
                         </div>
                         <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">URL 경로</label>
+                            <BaseInput v-model="form.url_path" class="w-full" placeholder="예: /basic/menu (페이지 없으면 비움)" />
+                            <p v-if="errors.url_path" class="text-xs text-red-500 mt-1">{{ errors.url_path[0] }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">페이지 컴포넌트</label>
+                            <BaseInput v-model="form.page_component" class="w-full" placeholder="예: Basic/MenuManage" />
+                            <p v-if="errors.page_component" class="text-xs text-red-500 mt-1">{{ errors.page_component[0] }}</p>
+                        </div>
+                        <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">아이콘</label>
                             <BaseInput v-model="form.menu_icon" class="w-full" placeholder="아이콘 클래스/이름" />
                         </div>
@@ -243,6 +253,8 @@ const blankForm = () => ({
     menu_depth: 1,
     module_code: '',
     menu_route_name: '',
+    url_path: '',
+    page_component: '',
     menu_icon: '',
     is_use: 'Y',
     is_display: 'Y',
@@ -289,6 +301,8 @@ function selectMenu(m) {
         menu_depth: m.menu_depth,
         module_code: m.module_code || '',
         menu_route_name: m.menu_route_name || '',
+        url_path: m.url_path || '',
+        page_component: m.page_component || '',
         menu_icon: m.menu_icon || '',
         is_use: m.is_use || 'Y',
         is_display: m.is_display || 'Y',
@@ -339,6 +353,8 @@ function menuPayload() {
         menu_depth: form.menu_depth,
         module_code: form.module_code,
         menu_route_name: form.menu_route_name || null,
+        url_path: form.url_path || null,
+        page_component: form.page_component || null,
         menu_icon: form.menu_icon || null,
         is_use: form.is_use,
         is_display: form.is_display,

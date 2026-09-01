@@ -35,8 +35,9 @@ class MenuSeeder extends Seeder {
 
     private function seedMenu( Array $menuData, String $topMenuCode, String $parentMenuCode = "", int $depth = 1 ): void {
         $routeName = $menuData['menu_route_name'] ?? '';
-        // url_path 는 route_name 에서 유도 ( 'chart.bar' → '/chart/bar' ), 없으면 null
-        $urlPath = $routeName !== '' ? '/' . str_replace('.', '/', $routeName) : null;
+        // config 에 url_path/page_component 가 명시돼 있으면 그대로, 없으면 route_name 에서 유도/매핑
+        $urlPath = $menuData['url_path'] ?? ( $routeName !== '' ? '/' . str_replace('.', '/', $routeName) : null );
+        $pageComponent = $menuData['page_component'] ?? ( $this->componentMap[$routeName] ?? null );
 
         $menu = Menu::updateOrCreate(
             ['menu_code' => $menuData['menu_code']],
@@ -49,7 +50,7 @@ class MenuSeeder extends Seeder {
                 'module_code' => $menuData['module_code'] ?? '',
                 'menu_route_name' => $menuData['menu_route_name'],
                 'url_path' => $urlPath,
-                'page_component' => $this->componentMap[$routeName] ?? null,
+                'page_component' => $pageComponent,
                 'is_use' => 'Y',
                 'is_display' => 'Y',
                 // 레벨 1 이하( 0 시스템 · 1 관리자 )까지만 노출되는 메뉴 = 관리자 메뉴

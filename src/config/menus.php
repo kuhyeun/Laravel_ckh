@@ -58,6 +58,16 @@ return [
                         'module_code' => 'Debug',
                         'menu_route_name' => 'dev.api',
                         'menu_level' => 0
+                    ],
+                    [
+                        'menu_code' => '90003',
+                        'menu_name' => 'UI Kit',
+                        'menu_icon' => null,
+                        'module_code' => 'Debug',
+                        'menu_route_name' => '',
+                        'url_path' => '/dev/uikit',
+                        'page_component' => 'Dev/UiKit',
+                        'menu_level' => 0
                     ]
                 ]
             ],

@@ -19,9 +19,4 @@ class BasicController extends Controller {
 
         return response()->json( [ 'configData' => $configData ] );
     }
-
-    // UI Kit ( 메뉴에 없는 개발 도구 )
-    public function uiKit() {
-        return Inertia::render( 'Basic/UiKit' );
-    }
 }
