@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Database\Seeders\Menu\MenuSeeder;
 use Illuminate\Database\Seeder;
 use Database\Seeders\User\UserSeeder;
+use Database\Seeders\Config\SystemConfigSeeder;
 
 /**
  * php artisan db:seed 명령어를 통해 기초 데이터 입력 가능 ( ex 사용자 정보 )
@@ -14,6 +15,7 @@ class DatabaseSeeder extends Seeder {
         $this->call([
             UserSeeder::class,
             MenuSeeder::class,
+            SystemConfigSeeder::class,
             // 추후 추가되는 Seeder 추가
         ]);
     }

@@ -62,7 +62,7 @@ return [
                     [
                         'menu_code' => '90003',
                         'menu_name' => 'UI Kit',
-                        'menu_icon' => null,
+                        'menu_icon' => 'RectangleGroupIcon',
                         'module_code' => 'Debug',
                         'menu_route_name' => '',
                         'url_path' => '/dev/uikit',
