@@ -38,6 +38,9 @@ class MenuPermissionService {
             $sig('system_menu'),
             $sig('system_menu_option'),
             $sig('account_menu_permission'),
+            // 활성 모듈/디버그 변경도 감지 ( config 만 바꿔도 사이드바 자동 갱신 )
+            json_encode(config('mes.modules', [])),
+            config('app.debug') ? '1' : '0',
         ]));
     }
 
