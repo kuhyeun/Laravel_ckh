@@ -63,8 +63,8 @@
                             <span class="text-sm font-normal text-gray-400">[ {{ activeTab === 'admin' ? '관리자' : '사용자' }} 메뉴 ]</span>
                         </h3>
                         <div class="flex gap-2">
-                            <BaseButton v-if="form.menu_idx" size="sm" variant="danger" @click="remove">삭제</BaseButton>
-                            <BaseButton size="sm" variant="primary" :disabled="saving" @click="save">저장</BaseButton>
+                            <BaseButton v-if="form.menu_idx" size="sm" variant="danger" :disabled="!canDelete" @click="remove">삭제</BaseButton>
+                            <BaseButton size="sm" variant="primary" :disabled="saving || !canWrite" @click="save">저장</BaseButton>
                         </div>
                     </div>
 
@@ -135,7 +135,7 @@
                 <div class="border border-gray-200 rounded-lg p-5 mt-4">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="text-base font-bold tracking-tight">레벨별 권한</h3>
-                        <BaseButton size="sm" variant="primary" :disabled="!form.menu_idx" @click="savePerm">권한 저장</BaseButton>
+                        <BaseButton size="sm" variant="primary" :disabled="!form.menu_idx || !canWrite" @click="savePerm">권한 저장</BaseButton>
                     </div>
 
                     <p v-if="!form.menu_idx" class="text-sm text-gray-400">메뉴를 먼저 저장하면 레벨별 권한을 설정할 수 있습니다.</p>
@@ -144,9 +144,12 @@
                         <thead>
                             <tr class="text-gray-500 border-b">
                                 <th class="text-left font-medium py-2 w-24">레벨</th>
-                                <th class="font-medium py-2">노출(읽기)</th>
-                                <th class="font-medium py-2">등록·수정</th>
-                                <th class="font-medium py-2">삭제</th>
+                                <th class="font-medium py-2 cursor-pointer select-none hover:text-blue-500"
+                                    @click="toggleColumn('can_read')">노출(읽기)</th>
+                                <th class="font-medium py-2 cursor-pointer select-none hover:text-blue-500"
+                                    @click="toggleColumn('can_write')">등록·수정</th>
+                                <th class="font-medium py-2 cursor-pointer select-none hover:text-blue-500"
+                                    @click="toggleColumn('can_delete')">삭제</th>
                                 <th class="font-medium py-2 w-28">정렬</th>
                             </tr>
                         </thead>
@@ -154,13 +157,22 @@
                             <tr v-for="row in perm" :key="row.menu_level" class="border-b last:border-0">
                                 <td class="py-2 text-gray-700">Level {{ row.menu_level }}</td>
                                 <td class="py-2 text-center">
-                                    <input type="checkbox" :checked="row.can_read === 'Y'" @change="row.can_read = $event.target.checked ? 'Y' : 'N'" />
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" :checked="row.can_read === 'Y'" @change="row.can_read = $event.target.checked ? 'Y' : 'N'">
+                                        <span></span>
+                                    </label>
                                 </td>
                                 <td class="py-2 text-center">
-                                    <input type="checkbox" :checked="row.can_write === 'Y'" @change="row.can_write = $event.target.checked ? 'Y' : 'N'" />
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" :checked="row.can_write === 'Y'" @change="row.can_write = $event.target.checked ? 'Y' : 'N'">
+                                        <span></span>
+                                    </label>
                                 </td>
                                 <td class="py-2 text-center">
-                                    <input type="checkbox" :checked="row.can_delete === 'Y'" @change="row.can_delete = $event.target.checked ? 'Y' : 'N'" />
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" :checked="row.can_delete === 'Y'" @change="row.can_delete = $event.target.checked ? 'Y' : 'N'">
+                                        <span></span>
+                                    </label>
                                 </td>
                                 <td class="py-2 text-center">
                                     <BaseInput type="number" v-model="row.menu_sort" size="sm" class="w-20" />
@@ -178,7 +190,8 @@
 
 <script setup>
 import { ref, reactive, computed, watch, onMounted } from 'vue';
-import { router } from '@inertiajs/vue3';
+import { router, usePage } from '@inertiajs/vue3';
+import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -188,27 +201,34 @@ defineOptions({
     layout: AppLayout
 });
 
+// 이 페이지( 메뉴관리 ) 자신의 권한 — 제네릭 렌더러가 넘겨준 menuCode + 공유 prop permissions
+const page      = usePage();
+const menuCode  = page.props.menuCode;
+const myPerm    = computed(() => page.props.permissions?.[menuCode] ?? {});
+const canWrite  = computed(() => myPerm.value.can_write  === true);   // 등록·수정
+const canDelete = computed(() => myPerm.value.can_delete === true);   // 삭제
+
 const menus = ref([]);
 
 async function loadMenus() {
     try {
-        const { data } = await window.axios.get('/menu/list');
+        const { data } = await window.axios.get( route( 'menu.list' ) );
         menus.value = data.menus ?? [];
     } catch (e) {
-        showFlash('메뉴 목록을 불러오지 못했습니다', true);
+        showFlash( '메뉴 목록을 불러오지 못했습니다', true );
     }
 }
 
 // 좌측 사이드바( 공유 prop )만 부분 리로드해서 변경 즉시 반영
 function refreshSidebar() {
-    router.reload({ only: ['userMenu', 'adminMenu'] });
+    router.reload({ only: ['userMenu', 'adminMenu', 'permissions'] });
 }
 
 const tabs = [
     { value: 'user',  label: '사용자 메뉴' },
     { value: 'admin', label: '관리자 메뉴' }
 ];
-const activeTab = ref('user');
+const activeTab   = ref('user');
 const isAdminFlag = computed(() => activeTab.value === 'admin' ? 'Y' : 'N');
 
 // 현재 탭의 메뉴만
@@ -333,6 +353,15 @@ function loadPermDefault() {
     perm.value = levelSet.value.map(lv => ({ menu_level: lv, can_read: 'Y', can_write: 'N', can_delete: 'N', menu_sort: 99 }));
 }
 
+function allChecked(field) {
+    return perm.value.length > 0 && perm.value.every(r => r[field] === 'Y');
+}
+
+function toggleColumn(field) {
+    const next = allChecked(field) ? 'N' : 'Y';
+    perm.value.forEach(r => { r[field] = next; });
+}
+
 // ---- 플래시 메시지 ----
 const flash = reactive({ text: '', error: false });
 let flashTimer = null;
@@ -370,8 +399,8 @@ async function save() {
     const isUpdate = !!form.menu_idx;
     const admin = isAdminFlag.value === 'Y';
     const url = isUpdate
-        ? (admin ? '/menu/updateAdminMenu' : '/menu/updateUserMenu')
-        : (admin ? '/menu/insertAdminMenu' : '/menu/insertUserMenu');
+        ? route(admin ? 'menu.upt.admin' : 'menu.upt.user')
+        : route(admin ? 'menu.ins.admin' : 'menu.ins.user');
 
     try {
         const { data } = await window.axios.post(url, menuPayload());
@@ -398,7 +427,7 @@ async function remove() {
     if (!form.menu_idx) return;
     if (!window.confirm('이 메뉴를 삭제하시겠습니까?')) return;
 
-    const url = isAdminFlag.value === 'Y' ? '/menu/deleteAdminMenu' : '/menu/deleteUserMenu';
+    const url = route(isAdminFlag.value === 'Y' ? 'menu.del.admin' : 'menu.del.user');
 
     try {
         await window.axios.post(url, { menu_idx: form.menu_idx });
@@ -419,7 +448,7 @@ async function savePerm() {
     if (!form.menu_idx) return;
 
     try {
-        await window.axios.post('/menu/saveMenuOptions', {
+        await window.axios.post(route('menu.opt.save'), {
             menu_idx: form.menu_idx,
             options: perm.value.map(r => ({
                 menu_level: r.menu_level,
