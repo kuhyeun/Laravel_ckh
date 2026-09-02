@@ -1,19 +1,29 @@
+<!-- 검색 헤더 : 검색 대상 select + 키워드 input + 검색 버튼 -->
+<!-- 스타일은 Base 컴포넌트( BaseSelect/BaseInput/BaseButton )에 위임해 톤을 통일 -->
 <template>
-    <div class="relative inline-block h-full mr-1">
-        <select v-model="selectedValue" class="border rounded h-full pl-2 pr-8 appearance-none cursor-pointer text-[14px] focus:border-blue-400">
-            <option v-for="option in selectMenuOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-            </option>
-        </select>
-        <ChevronDownIcon class="w-4 h-4 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500" />
+    <div class="flex items-center gap-2">
+        <BaseSelect
+            v-model="selectedValue"
+            :options="selectMenuOptions"
+            class="w-[120px]"
+        />
+        <BaseInput
+            ref="searchInput"
+            v-model="keyword"
+            class="w-[200px]"
+            placeholder="/ 를 눌러 검색하세요"
+            autocomplete="off"
+            @keyup.enter="searchSubmit"
+        />
+        <BaseButton variant="" @click="searchSubmit">검색</BaseButton>
     </div>
-    <input ref="searchInput" class="w-[200px] h-full border rounded px-2 mr-1 text-[14px] focus:border-blue-400" type="text" name="searchValue" placeholder="/ 를 눌러 검색하세요" @keyup.enter="searchSubmit" autocomplete="off" />
-    <button class="basic-btn searchBtn h-full" type="button" name="searchBtn" @click="searchSubmit">검색</button>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue';
-import { ChevronDownIcon } from '@heroicons/vue/24/solid';
+import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseButton from '@core/Components/Base/BaseButton.vue';
 
 const props = defineProps({
     selectMenuOptions: { type: Array, required: true },
@@ -21,27 +31,29 @@ const props = defineProps({
 
 const defaultOption = props.selectMenuOptions.find(o => o.selected);
 const selectedValue = ref(defaultOption ? defaultOption.value : props.selectMenuOptions[0]?.value);
+const keyword = ref('');
 
-const emit = defineEmits( ["searchClick"] );
+// 검색 대상(field)과 키워드(keyword)를 함께 전달 ( 기존 이벤트명 유지 )
+const emit = defineEmits(['searchClick']);
 
-const searchInput = ref( null );
+const searchInput = ref(null);
 
-const searchSubmit = (ev) => {
-    emit( "searchClick", ev );
+const searchSubmit = () => {
+    emit('searchClick', { field: selectedValue.value, keyword: keyword.value });
 };
 
 const handleKeyup = (ev) => {
-    if( ev.key === "/" ) {
+    if (ev.key === '/') {
         ev.preventDefault();
         searchInput.value?.focus();
-    };
+    }
 };
 
 onMounted(() => {
-    document.addEventListener( "keyup", handleKeyup );
+    document.addEventListener('keyup', handleKeyup);
 });
 
 onUnmounted(() => {
-    document.removeEventListener( "keyup", handleKeyup );
+    document.removeEventListener('keyup', handleKeyup);
 });
 </script>

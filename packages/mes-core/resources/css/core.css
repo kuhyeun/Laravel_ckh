@@ -41,10 +41,6 @@ html.sidebar-collapsed #app-sidebar {
     outline: none;
   }
 
-  .basic-btn {
-    @apply text-[14px] font-bold px-4 rounded border transition-colors duration-300 hover:bg-gray-300;
-  }
-
   .font-inter {
     font-family: 'Inter,sans-serif';
   }
@@ -87,6 +83,192 @@ html.sidebar-collapsed #app-sidebar {
 
   .toggle-switch input:checked + span::before {
     transform: translateX(20px);
+  }
+
+  .toggle-switch input:disabled + span {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* 일반 체크박스 : 네이티브 체크박스에 강조색·크기만 지정 */
+  .base-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: #2563eb;
+    cursor: pointer;
+  }
+  .base-checkbox:disabled {
+    cursor: not-allowed;
+  }
+
+  /* 공용 인풋 : base-select 와 동일한 톤( 보더·포커스링·색 ). size 로 높이/여백 조절 */
+  .base-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 12px;
+
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+
+    font-size: 14px;
+    color: #374151;
+
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .base-input::placeholder {
+    color: #9ca3af;
+  }
+  .base-input:hover:not(:disabled) {
+    border-color: #9ca3af;
+  }
+  .base-input:focus {
+    border-color: #6b7280;
+    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.12);
+  }
+  .base-input:disabled {
+    background: #f3f4f6;
+    color: #9ca3af;
+    cursor: not-allowed;
+  }
+
+  /* size 변형 : 높이·여백·폰트 ( md 가 기본값과 동일 ) */
+  .base-input.sm {
+    height: 30px;
+    padding: 0 10px;
+    font-size: 13px;
+  }
+  .base-input.lg {
+    height: 42px;
+    padding: 0 14px;
+    font-size: 15px;
+  }
+
+  .base-select {
+    height: 36px;
+    padding: 0 36px 0 12px;
+
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background-color: #fff;
+
+    font-size: 14px;
+    color: #374151;
+
+    cursor: pointer;
+    outline: none;
+
+    appearance: none;
+
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+
+  .base-select:hover {
+      border-color: #9ca3af;
+  }
+
+  .base-select:focus {
+      border-color: #6b7280;
+      box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.12);
+  }
+  .base-btn {
+    height: 36px;
+    padding: 0 14px;
+
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+
+    background: #fff;
+    color: #374151;
+
+    font-size: 14px;
+    font-weight: 500;
+
+    cursor: pointer;
+    transition: all 0.15s ease;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .base-btn:not(:disabled):hover {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+  }
+
+  .base-btn:not(:disabled):active {
+    background: #e5e7eb;
+  }
+
+  .base-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.15);
+  }
+
+  /* disabled : 모든 variant 공통 - 흐리게 + 상호작용 차단 ( hover/active 는 :not(:disabled) 로 이미 차단됨 ) */
+  .base-btn:disabled,
+  .base-btn[disabled] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* 색상 variant : 기본(.base-btn)은 secondary 톤이며, variant 로 강조색을 덧입힌다 */
+  .base-btn.primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+  }
+  .base-btn.primary:not(:disabled):hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+  }
+  .base-btn.primary:not(:disabled):active {
+    background: #1e40af;
+    border-color: #1e40af;
+  }
+  .base-btn.primary:focus-visible {
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+  }
+
+  /* secondary : 슬레이트 채움 버튼( 기본 outline 톤과 구분되는 별도 색 ) */
+  .base-btn.secondary {
+    background: #64748b;
+    border-color: #64748b;
+    color: #fff;
+  }
+  .base-btn.secondary:not(:disabled):hover {
+    background: #475569;
+    border-color: #475569;
+  }
+  .base-btn.secondary:not(:disabled):active {
+    background: #334155;
+    border-color: #334155;
+  }
+  .base-btn.secondary:focus-visible {
+    box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.25);
+  }
+
+  .base-btn.danger {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #fff;
+  }
+  .base-btn.danger:not(:disabled):hover {
+    background: #b91c1c;
+    border-color: #b91c1c;
+  }
+  .base-btn.danger:not(:disabled):active {
+    background: #991b1b;
+    border-color: #991b1b;
+  }
+  .base-btn.danger:focus-visible {
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
   }
 }
 

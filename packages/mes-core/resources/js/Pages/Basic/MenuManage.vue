@@ -109,14 +109,8 @@
                             <BaseInput v-model="form.menu_icon" class="w-full" placeholder="아이콘 클래스/이름" />
                         </div>
                         <div class="flex items-end gap-6">
-                            <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
-                                <input type="checkbox" :checked="form.is_use === 'Y'" @change="form.is_use = $event.target.checked ? 'Y' : 'N'" />
-                                사용
-                            </label>
-                            <label class="inline-flex items-center gap-2 text-sm cursor-pointer">
-                                <input type="checkbox" :checked="form.is_display === 'Y'" @change="form.is_display = $event.target.checked ? 'Y' : 'N'" />
-                                메뉴 표시
-                            </label>
+                            <BaseCheckbox v-model="form.is_use" true-value="Y" false-value="N">사용</BaseCheckbox>
+                            <BaseCheckbox v-model="form.is_display" true-value="Y" false-value="N">메뉴 표시</BaseCheckbox>
                             <span class="text-xs text-gray-400">depth {{ form.menu_depth }} · top {{ form.top_menu_code }}</span>
                         </div>
                         <div class="md:col-span-2">
@@ -157,22 +151,13 @@
                             <tr v-for="row in perm" :key="row.menu_level" class="border-b last:border-0">
                                 <td class="py-2 text-gray-700">Level {{ row.menu_level }}</td>
                                 <td class="py-2 text-center">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" :checked="row.can_read === 'Y'" @change="row.can_read = $event.target.checked ? 'Y' : 'N'">
-                                        <span></span>
-                                    </label>
+                                    <BaseCheckbox variant="switch" v-model="row.can_read" true-value="Y" false-value="N" />
                                 </td>
                                 <td class="py-2 text-center">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" :checked="row.can_write === 'Y'" @change="row.can_write = $event.target.checked ? 'Y' : 'N'">
-                                        <span></span>
-                                    </label>
+                                    <BaseCheckbox variant="switch" v-model="row.can_write" true-value="Y" false-value="N" />
                                 </td>
                                 <td class="py-2 text-center">
-                                    <label class="toggle-switch">
-                                        <input type="checkbox" :checked="row.can_delete === 'Y'" @change="row.can_delete = $event.target.checked ? 'Y' : 'N'">
-                                        <span></span>
-                                    </label>
+                                    <BaseCheckbox variant="switch" v-model="row.can_delete" true-value="Y" false-value="N" />
                                 </td>
                                 <td class="py-2 text-center">
                                     <BaseInput type="number" v-model="row.menu_sort" size="sm" class="w-20" />
@@ -196,6 +181,7 @@ import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 
 defineOptions({
     layout: AppLayout

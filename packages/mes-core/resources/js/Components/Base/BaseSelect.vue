@@ -3,8 +3,7 @@
 <template>
     <select
         :value="modelValue"
-        :disabled="disabled"
-        class="border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition disabled:bg-gray-100 disabled:text-gray-400"
+        :disabled="disabled" class="base-select"
         :class="sizeClass"
         @change="$emit('update:modelValue', $event.target.value)"
     >

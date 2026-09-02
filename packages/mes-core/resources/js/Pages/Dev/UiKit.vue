@@ -31,10 +31,6 @@
                     <ShowcaseCard title="기본 (md)" :code="code.selectBasic">
                         <BaseSelect v-model="demoVal" :options="demoOptions" class="w-56" />
                     </ShowcaseCard>
-                    <ShowcaseCard title="사이즈 (sm / lg)" :code="code.selectSizes">
-                        <BaseSelect size="sm" v-model="demoVal" :options="demoOptions" class="w-40" />
-                        <BaseSelect size="lg" v-model="demoVal" :options="demoOptions" class="w-56" />
-                    </ShowcaseCard>
                     <ShowcaseCard title="placeholder" :code="code.selectPlaceholder">
                         <BaseSelect v-model="emptyVal" :options="demoOptions" placeholder="선택하세요" class="w-56" />
                     </ShowcaseCard>
@@ -58,11 +54,26 @@
                         <BaseInput size="sm" v-model="text" placeholder="sm" class="w-40" />
                         <BaseInput size="lg" v-model="text" placeholder="lg" class="w-56" />
                     </ShowcaseCard>
-                    <ShowcaseCard title="숫자 (type=number)" :code="code.inputNumber">
-                        <BaseInput type="number" v-model="num" class="w-40" />
+                    <ShowcaseCard title="숫자 / Focus 여부 (select-on-focus)" :code="code.inputNumber">
+                        <BaseInput type="number" v-model="num" class="w-40" :select-on-focus="true" />
                     </ShowcaseCard>
                     <ShowcaseCard title="비활성 (disabled)" :code="code.inputDisabled">
                         <BaseInput v-model="text" placeholder="비활성" disabled class="w-56" />
+                    </ShowcaseCard>
+                </div>
+            </section>
+            <!-- Checkbox -->
+            <section id="checkbox" class="scroll-mt-4">
+                <div class="flex items-baseline gap-3 mb-3">
+                    <h3 class="text-base font-bold text-gray-800 tracking-tight">Checkbox</h3>
+                    <code class="text-xs text-gray-400">import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue'</code>
+                </div>
+                <div class="grid gap-4 md:grid-cols-2">
+                    <ShowcaseCard title="기본" :code="code.checkbox">
+                        <BaseCheckbox variant="checkbox" true-value="Y" false-value="N">사용</BaseCheckbox>
+                    </ShowcaseCard>
+                    <ShowcaseCard title="Toggle" :code="code.toggle">
+                        <BaseCheckbox variant="switch" true-value="Y" false-value="N" />
                     </ShowcaseCard>
                 </div>
             </section>
@@ -75,15 +86,10 @@
                 </div>
                 <div class="grid gap-4 md:grid-cols-2">
                     <ShowcaseCard title="유형 (variant)" :code="code.buttonVariants">
+                        <BaseButton>Basic</BaseButton>
                         <BaseButton variant="primary">Primary</BaseButton>
                         <BaseButton variant="secondary">Secondary</BaseButton>
                         <BaseButton variant="danger">Danger</BaseButton>
-                        <BaseButton variant="ghost">Ghost</BaseButton>
-                    </ShowcaseCard>
-                    <ShowcaseCard title="사이즈 (sm / md / lg)" :code="code.buttonSizes">
-                        <BaseButton size="sm">Small</BaseButton>
-                        <BaseButton size="md">Medium</BaseButton>
-                        <BaseButton size="lg">Large</BaseButton>
                     </ShowcaseCard>
                     <ShowcaseCard title="비활성 (disabled)" :code="code.buttonDisabled">
                         <BaseButton disabled>Disabled</BaseButton>
@@ -102,6 +108,7 @@ import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import ShowcaseCard from '@core/Components/Base/ShowcaseCard.vue';
 
 defineOptions({
@@ -122,41 +129,40 @@ const num = ref(0);
 // 복사용 코드 스니펫
 const code = {
     selectBasic:
-`<BaseSelect v-model="value" :options="options" class="w-56" />`,
-    selectSizes:
-`<BaseSelect size="sm" v-model="value" :options="options" class="w-40" />
-<BaseSelect size="lg" v-model="value" :options="options" class="w-56" />`,
+        `<BaseSelect v-model="value" :options="options" class="w-56" />`,
     selectPlaceholder:
-`<BaseSelect v-model="value" :options="options" placeholder="선택하세요" class="w-56" />`,
+        `<BaseSelect v-model="value" :options="options" placeholder="선택하세요" class="w-56" />`,
     selectDisabled:
-`<BaseSelect v-model="value" :options="options" disabled class="w-56" />`,
+        `<BaseSelect v-model="value" :options="options" disabled class="w-56" />`,
 
     inputBasic:
-`<BaseInput v-model="text" placeholder="값을 입력하세요" class="w-56" />`,
+        `<BaseInput v-model="text" placeholder="값을 입력하세요" class="w-56" />`,
     inputSizes:
-`<BaseInput size="sm" v-model="text" placeholder="sm" class="w-40" />
-<BaseInput size="lg" v-model="text" placeholder="lg" class="w-56" />`,
+        `<BaseInput size="sm" v-model="text" placeholder="sm" class="w-40" />
+         <BaseInput size="lg" v-model="text" placeholder="lg" class="w-56" />`,
     inputNumber:
-`<BaseInput type="number" v-model="num" class="w-40" />`,
+        `<BaseInput type="number" v-model="num" class="w-40" :select-on-focus="true" />`,
     inputDisabled:
-`<BaseInput v-model="text" placeholder="비활성" disabled class="w-56" />`,
+        `<BaseInput v-model="text" placeholder="비활성" disabled class="w-56" />`,
+
+    checkbox:
+        `<BaseCheckbox variant="checkbox" true-value="Y" false-value="N">사용</BaseCheckbox>`,
+    toggle:
+        `<BaseCheckbox variant="switch" true-value="Y" false-value="N" />`,
 
     buttonVariants:
-`<BaseButton variant="primary">Primary</BaseButton>
-<BaseButton variant="secondary">Secondary</BaseButton>
-<BaseButton variant="danger">Danger</BaseButton>
-<BaseButton variant="ghost">Ghost</BaseButton>`,
-    buttonSizes:
-`<BaseButton size="sm">Small</BaseButton>
-<BaseButton size="md">Medium</BaseButton>
-<BaseButton size="lg">Large</BaseButton>`,
+        `<BaseButton variant="primary">Primary</BaseButton>
+         <BaseButton variant="secondary">Secondary</BaseButton>
+         <BaseButton variant="danger">Danger</BaseButton>
+         <BaseButton variant="ghost">Ghost</BaseButton>`,
     buttonDisabled:
-`<BaseButton disabled>Disabled</BaseButton>`
+        `<BaseButton disabled>Disabled</BaseButton>`
 };
 
 const sections = [
     { id: 'select', label: 'Select' },
     { id: 'input',  label: 'Input' },
+    { id: 'checkbox', label: 'Checkbox' },
     { id: 'button', label: 'Button' }
 ];
 </script>
