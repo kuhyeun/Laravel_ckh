@@ -1,0 +1,21 @@
+{
+    "compilerOptions": {
+        "baseUrl": ".",
+        "module": "esnext",
+        "moduleResolution": "bundler",
+        "checkJs": false,
+        "paths": {
+            "@/*": ["src/resources/js/*"],
+            "@core/*": ["packages/mes-core/resources/js/*"],
+            "@core-css/*": ["packages/mes-core/resources/css/*"]
+        }
+    },
+    "include": [
+        "src/resources/js/**/*",
+        "packages/mes-core/resources/js/**/*"
+    ],
+    "exclude": [
+        "**/node_modules",
+        "**/public"
+    ]
+}
