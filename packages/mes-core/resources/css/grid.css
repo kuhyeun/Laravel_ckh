@@ -111,3 +111,40 @@ input[type="checkbox"][disabled] ~ .custom-input {
   margin: 0 !important;
   padding: 0 !important;
 }
+
+/* ===== 그리드 커스텀 룩 =====
+   applyTheme( useGrid.js )가 런타임에 주입하는 규칙을 확실히 덮기 위해,
+   테마와 겹치는 배경/보더 속성엔 !important 를 사용한다. */
+
+/* 전체 폰트/색 */
+.tui-grid-container {
+  font-family: 'Inter', system-ui, -apple-system, 'Malgun Gothic', sans-serif;
+  font-size: 13px;
+  color: #374151;
+}
+
+/* 헤더 : 옅은 회색 배경 + 부드러운 라벨 */
+.tui-grid-container .tui-grid-cell-header {
+  background-color: #f8fafc !important;
+  border-color: #eef2f6 !important;
+}
+.tui-grid-container .tui-grid-cell-header .tui-grid-cell-content {
+  color: #64748b !important;
+  font-weight: 600;
+}
+
+/* 바디 셀 : 옅은 보더 */
+.tui-grid-container .tui-grid-cell {
+  border-color: #e6e6e6 !important;
+  color: #374151;
+}
+
+/* 행 hover ( 선택 행 제외 ) */
+.tui-grid-container .tui-grid-body-area tr:hover > .tui-grid-cell:not(.row-selected) {
+  background-color: #f8fafc !important;
+}
+
+/* 선택 행 ( JS: addRowClassName('row-selected') ) */
+.tui-grid-cell.row-selected {
+  background-color: #e0f2fe !important;
+}

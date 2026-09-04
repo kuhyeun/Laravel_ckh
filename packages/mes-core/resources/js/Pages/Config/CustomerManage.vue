@@ -1,8 +1,6 @@
-<!-- 환경설정 / 권한 레벨 99 -->
-
 <template>
     <div class="h-[50px] font-bold text-lg text-center">
-        <span>환경설정 - Level 1 ~ 10</span>
+        <span>거래처 관리 - Level 1 ~ 10</span>
     </div>
 </template>
 

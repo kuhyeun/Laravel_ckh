@@ -11,29 +11,36 @@ use MesCore\Auth\Middleware\MenuAuth;
 //   MenuAuth 가 page_component 로 menu_code 를 조회 → menu_code 가 바뀌어도 여기 수정 불필요
 
 Route::prefix('menu')->name('menu.')->group(function() {
+    $menuWrite  = MenuAuth::class . ':Basic/MenuManage,can_write';
+    $menuDelete = MenuAuth::class . ':Basic/MenuManage,can_delete';
 
-    Route::middleware([AdminAuth::class])->group(function() {
+    Route::middleware([AdminAuth::class])->group(function() use ($menuWrite, $menuDelete) {
         // 조회는 AdminAuth 로 충분 (읽기)
         Route::get('/list', [MenuController::class, 'list'])->name('list');
 
-        Route::post('/insertAdminMenu', [MenuController::class, 'insertAdminMenu'])
-            ->middleware(MenuAuth::class . ':Basic/MenuManage,can_write')->name('ins.admin');
-        Route::post('/updateAdminMenu', [MenuController::class, 'updateAdminMenu'])
-            ->middleware(MenuAuth::class . ':Basic/MenuManage,can_write')->name('upt.admin');
-        Route::post('/deleteAdminMenu', [MenuController::class, 'deleteAdminMenu'])
-            ->middleware(MenuAuth::class . ':Basic/MenuManage,can_delete')->name('del.admin');
+        // 등록·수정·권한저장 = can_write
+        Route::middleware($menuWrite)->group(function() {
+            Route::post('/insertAdminMenu', [MenuController::class, 'insertAdminMenu'])->name('ins.admin');
+            Route::post('/updateAdminMenu', [MenuController::class, 'updateAdminMenu'])->name('upt.admin');
+            Route::post('/saveMenuOptions', [MenuController::class, 'saveMenuOptions'])->name('opt.save');
+        });
 
-        // 레벨별 권한 저장도 "수정" 동작이므로 can_write
-        Route::post('/saveMenuOptions', [MenuController::class, 'saveMenuOptions'])
-            ->middleware(MenuAuth::class . ':Basic/MenuManage,can_write')->name('opt.save');
+        // 삭제 = can_delete
+        Route::middleware($menuDelete)->group(function() {
+            Route::post('/deleteAdminMenu', [MenuController::class, 'deleteAdminMenu'])->name('del.admin');
+        });
     });
 
-    Route::middleware([UserAuth::class])->group(function() {
-        Route::post('/insertUserMenu', [MenuController::class, 'insertUserMenu'])
-            ->middleware(MenuAuth::class . ':Basic/MenuManage,can_write')->name('ins.user');
-        Route::post('/updateUserMenu', [MenuController::class, 'updateUserMenu'])
-            ->middleware(MenuAuth::class . ':Basic/MenuManage,can_write')->name('upt.user');
-        Route::post('/deleteUserMenu', [MenuController::class, 'deleteUserMenu'])
-            ->middleware(MenuAuth::class . ':Basic/MenuManage,can_delete')->name('del.user');
+    Route::middleware([UserAuth::class])->group(function() use ($menuWrite, $menuDelete) {
+        // 등록·수정 = can_write
+        Route::middleware($menuWrite)->group(function() {
+            Route::post('/insertUserMenu', [MenuController::class, 'insertUserMenu'])->name('ins.user');
+            Route::post('/updateUserMenu', [MenuController::class, 'updateUserMenu'])->name('upt.user');
+        });
+
+        // 삭제 = can_delete
+        Route::middleware($menuDelete)->group(function() {
+            Route::post('/deleteUserMenu', [MenuController::class, 'deleteUserMenu'])->name('del.user');
+        });
     });
 });

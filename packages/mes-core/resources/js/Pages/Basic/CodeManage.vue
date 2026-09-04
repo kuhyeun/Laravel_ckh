@@ -26,8 +26,8 @@
                         </h3>
                         <div class="flex gap-1.5">
                             <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="newGroup">신규</BaseButton>
-                            <BaseButton v-if="canDelete && groupForm.system_code_group_idx" size="sm" variant="danger" @click="deleteGroup">삭제</BaseButton>
                             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="saveGroup">저장</BaseButton>
+                            <BaseButton v-if="canDelete && groupForm.system_code_group_idx" size="sm" variant="danger" @click="deleteGroup">삭제</BaseButton>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 gap-2">
@@ -68,7 +68,7 @@
 
             <!-- 우 : 코드 목록 ( 툴바 + 그리드가 전체 채움 ) -->
             <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
-                <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
+                <div class="flex items-center justify-between px-3 py-2 border-b-0 bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">
                         코드 목록
                         <span class="text-gray-400 font-normal">[ {{ selectedGroupKey ? selectedGroupName : '전체' }} ]</span>
@@ -76,8 +76,8 @@
                     </span>
                     <div class="flex gap-1.5">
                         <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="newCode">신규</BaseButton>
-                        <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0" @click="deleteCode">삭제</BaseButton>
                         <BaseButton v-if="canWrite" size="sm" variant="primary" @click="saveCode">저장</BaseButton>
+                        <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0" @click="deleteCode">삭제</BaseButton>
                     </div>
                 </div>
                 <div class="flex-1 min-h-0">
@@ -119,6 +119,7 @@ const codeColumns = [
 
 const codeOptions = {
     rowHeaders: "checkbox",
+    oneClickEdit: true,
 };
 
 // 이 페이지(코드관리) 자신의 권한

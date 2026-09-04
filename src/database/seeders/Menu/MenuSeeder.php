@@ -17,7 +17,6 @@ class MenuSeeder extends Seeder {
         'dev.api'      => 'Sample/ApiSample',
         'basic.conf'   => 'Basic/SystemConfig',
         'basic.menu'   => 'Basic/MenuManage',
-        'basic.pref'   => 'Basic/Preferences',
         'basic.mem'    => 'Basic/Member',
         'basic.auth'   => 'Basic/MemberAuth',
         'basic.code'   => 'Basic/CodeManage',

@@ -97,14 +97,6 @@ return [
                     ],
                     [
                         'menu_code' => '0003',
-                        'menu_name' => '환경설정',
-                        'menu_icon' => null,
-                        'module_code' => 'Basic',
-                        'menu_route_name' => 'basic.pref',
-                        'menu_level' => 1,
-                    ],
-                    [
-                        'menu_code' => '0004',
                         'menu_name' => '사용자관리',
                         'menu_icon' => null,
                         'module_code' => 'Basic',
@@ -112,7 +104,7 @@ return [
                         'menu_level' => 1
                     ],
                     [
-                        'menu_code' => '0005',
+                        'menu_code' => '0004',
                         'menu_name' => '사용자권한관리',
                         'menu_icon' => null,
                         'module_code' => 'Basic',
@@ -120,7 +112,7 @@ return [
                         'menu_level' => 1
                     ],
                     [
-                        'menu_code' => '0006',
+                        'menu_code' => '0005',
                         'menu_name' => '코드관리',
                         'menu_icon' => null,
                         'module_code' => 'Basic',

@@ -15,29 +15,47 @@
                 class="absolute top-2 right-2 z-10 text-xs px-2 py-1 rounded bg-gray-700 text-gray-200 hover:bg-gray-600 transition-colors"
                 @click="copy"
             >{{ copied ? '복사됨 ✓' : '복사' }}</button>
-            <pre class="p-4 pr-16 text-xs leading-relaxed text-gray-100 overflow-x-auto"><code>{{ code }}</code></pre>
+            <pre class="p-4 pr-16 text-xs leading-relaxed text-gray-100 overflow-x-auto"><code>{{ normalized }}</code></pre>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 
 const props = defineProps({
     code:  { type: String, default: '' },
     title: { type: String, default: '' }
 });
 
+// 소스 문자열에 섞인 JS 들여쓰기 제거 → 왼쪽 라인 정렬 ( 표시/복사 공통 사용 )
+const normalized = computed(() => dedent(props.code));
+
+function dedent(src) {
+    if (!src) return '';
+    let lines = src.replace(/\t/g, '    ').split('\n');
+    while (lines.length && lines[0].trim() === '') lines.shift();
+    while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+    if (lines.length <= 1) return lines.join('\n');
+
+    // 첫 줄은 보통 백틱 바로 뒤라 들여쓰기가 0 → min 계산에서 제외하고,
+    // 나머지 줄들의 최소 들여쓰기만큼만 왼쪽을 잘라 정렬한다.
+    const rest = lines.slice(1).filter(l => l.trim() !== '');
+    const min = rest.length ? Math.min(...rest.map(l => l.match(/^ */)[0].length)) : 0;
+
+    return [lines[0], ...lines.slice(1).map(l => l.slice(min))].join('\n');
+}
+
 const copied = ref(false);
 let timer = null;
 
 async function copy() {
     try {
-        await navigator.clipboard.writeText(props.code);
+        await navigator.clipboard.writeText(normalized.value);
     } catch (e) {
         // clipboard API 불가 환경 폴백
         const ta = document.createElement('textarea');
-        ta.value = props.code;
+        ta.value = normalized.value;
         document.body.appendChild(ta);
         ta.select();
         document.execCommand('copy');

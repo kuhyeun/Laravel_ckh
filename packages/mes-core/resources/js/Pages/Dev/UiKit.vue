@@ -86,10 +86,10 @@
                 </div>
                 <div class="grid gap-4 md:grid-cols-2">
                     <ShowcaseCard title="유형 (variant)" :code="code.buttonVariants">
-                        <BaseButton>Basic</BaseButton>
-                        <BaseButton variant="primary">Primary</BaseButton>
-                        <BaseButton variant="secondary">Secondary</BaseButton>
-                        <BaseButton variant="danger">Danger</BaseButton>
+                        <BaseButton>Btn1</BaseButton>
+                        <BaseButton variant="primary">Btn2</BaseButton>
+                        <BaseButton variant="secondary">Btn3</BaseButton>
+                        <BaseButton variant="danger">Btn4</BaseButton>
                     </ShowcaseCard>
                     <ShowcaseCard title="비활성 (disabled)" :code="code.buttonDisabled">
                         <BaseButton disabled>Disabled</BaseButton>
@@ -151,10 +151,10 @@ const code = {
         `<BaseCheckbox variant="switch" true-value="Y" false-value="N" />`,
 
     buttonVariants:
-        `<BaseButton variant="primary">Primary</BaseButton>
-         <BaseButton variant="secondary">Secondary</BaseButton>
-         <BaseButton variant="danger">Danger</BaseButton>
-         <BaseButton variant="ghost">Ghost</BaseButton>`,
+        `<BaseButton>Btn1</BaseButton>
+         <BaseButton variant="primary">Btn2</BaseButton>
+         <BaseButton variant="secondary">Btn3</BaseButton>
+         <BaseButton variant="danger">Btn4</BaseButton>`,
     buttonDisabled:
         `<BaseButton disabled>Disabled</BaseButton>`
 };
