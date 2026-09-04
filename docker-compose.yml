@@ -25,7 +25,6 @@ services:
       - /var/www/html/vendor
     working_dir: /var/www/html
     environment:
-      - APP_ENV=local
       - APP_DEBUG=true
     depends_on:
       - mysql
