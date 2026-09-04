@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
 use MesCore\Auth\Models\User;
 use Illuminate\Http\RedirectResponse;
+use MesCore\Basic\Models\SystemConfig;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -25,6 +26,8 @@ class UserController extends Controller {
 
     // 로그인 처리
     public function processLogin( Request $request ): RedirectResponse {
+        $landing_page = SystemConfig::get( 'Common', 'landing_page', '/user/dashboard' );
+
         $request->validate([
             'user_id' => ['required'],
             'password' => ['required']
@@ -46,7 +49,7 @@ class UserController extends Controller {
             Session::put( 'user_type', $user->user_type );
             Session::put( 'user_level', $user->user_level );
 
-            return redirect()->route( 'user.dashboard' );
+            return redirect( $landing_page );
         }
 
         return back()->withErrors([

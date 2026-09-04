@@ -272,10 +272,6 @@ html.sidebar-collapsed #app-sidebar {
   }
 }
 
-.tui-grid-cell.row-selected {
-  background-color: #c6e7ff;
-}
-
 /* SweetAlert2 Styles */
 .swal2-container .swal2-toast * {
   cursor: pointer;

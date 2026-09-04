@@ -36,10 +36,10 @@ export function showAlert(title = '', text = '', icon = 'info', type = 'alert', 
             icon: 'swal2-icon-hide',
         },
         customClass: {
-            confirmButton: 'basic-btn h-[40px]',
+            confirmButton: 'basic-btn',
             cancelButton: 'basic-btn'
         },
-        buttonsStyling: false
+        buttonsStyling: true
     };
 
     if (type === 'confirm') {

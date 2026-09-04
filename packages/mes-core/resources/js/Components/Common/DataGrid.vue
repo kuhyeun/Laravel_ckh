@@ -24,6 +24,11 @@ defineExpose({ gridInstance });
 
 onMounted(() => {
     setGrid(gridContainer, {
+        // useGrid 기본값은 scroll 이 꺼져 있어( scrollX/Y:false ) 여기서 켠다.
+        // bodyHeight:'fitToParent' → 부모(컨테이너) 높이에 맞추고 넘치면 내부 스크롤
+        scrollX: true,
+        scrollY: true,
+        bodyHeight: 'fitToParent',
         columns: props.columns,
         data: props.data ?? [],
         ...props.options,

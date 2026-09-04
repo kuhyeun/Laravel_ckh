@@ -61,6 +61,7 @@
                         <h3 class="text-base font-bold tracking-tight">
                             {{ form.menu_idx ? '메뉴 수정' : '신규 메뉴 등록' }}
                             <span class="text-sm font-normal text-gray-400">[ {{ activeTab === 'admin' ? '관리자' : '사용자' }} 메뉴 ]</span>
+                            <span class="text-xs text-gray-400 ml-2">Depth: {{ form.menu_depth }} · Top: {{ form.top_menu_code }}</span>
                         </h3>
                         <div class="flex gap-2">
                             <BaseButton v-if="form.menu_idx" size="sm" variant="danger" :disabled="!canDelete" @click="remove">삭제</BaseButton>
@@ -91,8 +92,9 @@
                             <p v-if="errors.module_code" class="text-xs text-red-500 mt-1">{{ errors.module_code[0] }}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1">라우트명 ( 미들웨어 설정 등 route 설정시 필요한 변수명칭 )</label>
-                            <BaseInput v-model="form.menu_route_name" class="w-full" placeholder="예: basic.menu" />
+                            <label class="block text-sm font-medium text-gray-600 mb-1">페이지 컴포넌트 ( 실제 Vue 파일 위치 )</label>
+                            <BaseInput v-model="form.page_component" class="w-full" placeholder="예: Basic/MenuManage" />
+                            <p v-if="errors.page_component" class="text-xs text-red-500 mt-1">{{ errors.page_component[0] }}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">URL 경로</label>
@@ -100,18 +102,16 @@
                             <p v-if="errors.url_path" class="text-xs text-red-500 mt-1">{{ errors.url_path[0] }}</p>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-600 mb-1">페이지 컴포넌트 ( 실제 Vue 파일 위치 )</label>
-                            <BaseInput v-model="form.page_component" class="w-full" placeholder="예: Basic/MenuManage" />
-                            <p v-if="errors.page_component" class="text-xs text-red-500 mt-1">{{ errors.page_component[0] }}</p>
-                        </div>
-                        <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">아이콘</label>
                             <BaseInput v-model="form.menu_icon" class="w-full" placeholder="아이콘 클래스/이름" />
                         </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-600 mb-1">라우트명 ( 미들웨어 설정 등 route 설정시 필요한 변수명칭 )</label>
+                            <BaseInput v-model="form.menu_route_name" class="w-full" placeholder="예: basic.menu" />
+                        </div>
                         <div class="flex items-end gap-6">
-                            <BaseCheckbox v-model="form.is_use" true-value="Y" false-value="N">사용</BaseCheckbox>
-                            <BaseCheckbox v-model="form.is_display" true-value="Y" false-value="N">메뉴 표시</BaseCheckbox>
-                            <span class="text-xs text-gray-400">depth {{ form.menu_depth }} · top {{ form.top_menu_code }}</span>
+                            <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N">사용</BaseCheckbox>
+                            <BaseCheckbox variant="switch" v-model="form.is_display" true-value="Y" false-value="N">메뉴 표시</BaseCheckbox>
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-600 mb-1">비고</label>

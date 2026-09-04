@@ -12,102 +12,73 @@
             <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
         </div>
 
-        <!-- ===== 상단(2) : 폼 영역 ===== -->
-        <div class="flex gap-4 shrink-0 basis-1/5 min-h-[190px] pb-3 border-b overflow-y-auto">
-
-            <!-- 그룹 폼 ( 좌 3 ) -->
-            <div class="w-[30%] shrink-0 border border-gray-200 p-4 flex flex-col">
-                <div class="flex items-center justify-between mb-1">
-                    <h3 class="text-sm font-bold tracking-tight">
-                        {{ groupForm.system_code_group_idx ? '코드 그룹 수정' : '코드 그룹 등록' }}
-                    </h3>
-                    <div class="flex gap-1.5">
-                        <BaseButton size="sm" variant="secondary" @click="newGroup">신규</BaseButton>
-                        <BaseButton v-if="groupForm.system_code_group_idx" size="sm" variant="danger" :disabled="!canDelete" @click="deleteGroup">삭제</BaseButton>
-                        <BaseButton size="sm" variant="primary" :disabled="!canWrite" @click="saveGroup">저장</BaseButton>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 gap-2">
-                    <div>
-                        <BaseInput v-model="groupForm.system_code_group_key" class="w-full" size="sm" placeholder="그룹키 * (예: prod_status)" />
-                        <p v-if="groupErrors.system_code_group_key" class="text-xs text-red-500 mt-0.5">{{ groupErrors.system_code_group_key[0] }}</p>
-                    </div>
-                    <div>
-                        <BaseInput v-model="groupForm.system_code_group_name" class="w-full" size="sm" placeholder="그룹명 *" />
-                        <p v-if="groupErrors.system_code_group_name" class="text-xs text-red-500 mt-0.5">{{ groupErrors.system_code_group_name[0] }}</p>
-                    </div>
-                    <BaseInput v-model="groupForm.system_code_group_desc" class="w-full" size="sm" placeholder="설명" />
-                </div>
-            </div>
-
-            <!-- 코드 폼 ( 우 7 ) -->
-            <div class="flex-1 min-w-0 border border-gray-200 p-4 flex flex-col">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-sm font-bold tracking-tight">
-                        {{ codeForm.system_code_idx ? '코드 수정' : '코드 등록' }}
-                    </h3>
-                    <div class="flex gap-1.5">
-                        <BaseButton size="sm" variant="secondary" @click="newCode">신규</BaseButton>
-                        <BaseButton v-if="codeForm.system_code_idx" size="sm" variant="danger" :disabled="!canDelete" @click="deleteCode">삭제</BaseButton>
-                        <BaseButton size="sm" variant="primary" :disabled="!canWrite" @click="saveCode">저장</BaseButton>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                    <div>
-                        <BaseSelect v-model="codeForm.system_code_group_key" :options="groupOptions" class="w-full" size="md" placeholder="그룹 선택 *" />
-                        <p v-if="codeErrors.system_code_group_key" class="text-xs text-red-500 mt-0.5">{{ codeErrors.system_code_group_key[0] }}</p>
-                    </div>
-                    <div>
-                        <BaseInput v-model="codeForm.system_code_key" class="w-full" size="md" placeholder="코드키 *" />
-                        <p v-if="codeErrors.system_code_key" class="text-xs text-red-500 mt-0.5">{{ codeErrors.system_code_key[0] }}</p>
-                    </div>
-                    <div>
-                        <BaseInput v-model="codeForm.system_code_name" class="w-full" size="md" placeholder="코드명 *" />
-                        <p v-if="codeErrors.system_code_name" class="text-xs text-red-500 mt-0.5">{{ codeErrors.system_code_name[0] }}</p>
-                    </div>
-                    <div>
-                        <BaseInput v-model="codeForm.system_code_value" class="w-full" size="md" placeholder="코드값" />
-                    </div>
-                    <div class="col-span-2">
-                        <BaseInput v-model="codeForm.system_code_desc" class="w-full" size="md" placeholder="설명" />
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ===== 하단(8) : 리스트 영역 ===== -->
+        <!-- ===== 본문 : 좌( 그룹 폼 + 그룹 리스트 ) / 우( 코드 목록 전체 ) ===== -->
         <div class="flex flex-1 min-h-0 gap-4 pt-3">
 
-            <!-- 좌(3) : 그룹 리스트 -->
-            <div class="w-[30%] shrink-0 flex flex-col border border-gray-200 overflow-hidden">
-                <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <span class="text-sm font-semibold text-gray-600">코드 그룹</span>
-                    <span class="text-xs text-gray-400">클릭 = 필터 / 재클릭 = 해제</span>
+            <!-- 좌 : 그룹 폼(상단) + 그룹 리스트(하단) -->
+            <div class="w-[30%] shrink-0 flex flex-col gap-4 min-h-0">
+
+                <!-- 그룹 폼 -->
+                <div class="shrink-0 border border-gray-200 p-4 flex flex-col">
+                    <div class="flex items-center justify-between mb-1">
+                        <h3 class="text-sm font-bold tracking-tight">
+                            {{ groupForm.system_code_group_idx ? '코드 그룹 수정' : '코드 그룹 등록' }}
+                        </h3>
+                        <div class="flex gap-1.5">
+                            <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="newGroup">신규</BaseButton>
+                            <BaseButton v-if="canDelete && groupForm.system_code_group_idx" size="sm" variant="danger" @click="deleteGroup">삭제</BaseButton>
+                            <BaseButton v-if="canWrite" size="sm" variant="primary" @click="saveGroup">저장</BaseButton>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 gap-2">
+                        <div>
+                            <BaseInput v-model="groupForm.system_code_group_key" class="w-full" size="sm" placeholder="그룹키 * (예: prod_status)" />
+                            <p v-if="groupErrors.system_code_group_key" class="text-xs text-red-500 mt-0.5">{{ groupErrors.system_code_group_key[0] }}</p>
+                        </div>
+                        <div>
+                            <BaseInput v-model="groupForm.system_code_group_name" class="w-full" size="sm" placeholder="그룹명 *" />
+                            <p v-if="groupErrors.system_code_group_name" class="text-xs text-red-500 mt-0.5">{{ groupErrors.system_code_group_name[0] }}</p>
+                        </div>
+                        <BaseInput v-model="groupForm.system_code_group_desc" class="w-full" size="sm" placeholder="설명" />
+                    </div>
                 </div>
-                <div class="flex-1 min-h-0 overflow-y-auto py-1">
-                    <p v-if="!groups.length" class="px-3 py-4 text-sm text-gray-400">코드 그룹이 없습니다.</p>
-                    <button
-                        v-for="g in groups"
-                        :key="g.system_code_group_idx"
-                        type="button"
-                        class="w-full text-left px-3 py-1.5 text-sm flex items-center justify-between gap-2 transition-colors"
-                        :class="selectedGroupKey === g.system_code_group_key ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50 text-gray-700'"
-                        @click="toggleGroup(g)"
-                    >
-                        <span class="truncate">{{ g.system_code_group_name }}</span>
-                        <span class="text-xs text-gray-400 shrink-0">{{ g.system_code_group_key }}</span>
-                    </button>
+
+                <!-- 그룹 리스트 -->
+                <div class="flex-1 min-h-0 flex flex-col border border-gray-200 overflow-hidden">
+                    <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
+                        <span class="text-sm font-semibold text-gray-600">코드 그룹</span>
+                        <span class="text-xs text-gray-400">클릭 = 필터 / 재클릭 = 해제</span>
+                    </div>
+                    <div class="flex-1 min-h-0 overflow-y-auto py-1">
+                        <p v-if="!groups.length" class="px-3 py-4 text-sm text-gray-400">코드 그룹이 없습니다.</p>
+                        <button
+                            v-for="g in groups"
+                            :key="g.system_code_group_idx"
+                            type="button"
+                            class="w-full text-left px-3 py-1.5 text-sm flex items-center justify-between gap-2 transition-colors"
+                            :class="selectedGroupKey === g.system_code_group_key ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50 text-gray-700'"
+                            @click="toggleGroup(g)"
+                        >
+                            <span class="truncate">{{ g.system_code_group_name }}</span>
+                            <span class="text-xs text-gray-400 shrink-0">{{ g.system_code_group_key }}</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- 우(7) : 코드 리스트 -->
-            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 border-b-0 overflow-hidden">
-                <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
+            <!-- 우 : 코드 목록 ( 툴바 + 그리드가 전체 채움 ) -->
+            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+                <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">
                         코드 목록
                         <span class="text-gray-400 font-normal">[ {{ selectedGroupKey ? selectedGroupName : '전체' }} ]</span>
+                        <span class="text-xs text-gray-400 ml-1">{{ codes.length }} 건</span>
                     </span>
-                    <span class="text-xs text-gray-400">{{ codes.length }} 건</span>
+                    <div class="flex gap-1.5">
+                        <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="newCode">신규</BaseButton>
+                        <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0" @click="deleteCode">삭제</BaseButton>
+                        <BaseButton v-if="canWrite" size="sm" variant="primary" @click="saveCode">저장</BaseButton>
+                    </div>
                 </div>
                 <div class="flex-1 min-h-0">
                     <DataGrid
@@ -115,7 +86,9 @@
                         class="h-full"
                         :data="codes"
                         :columns="codeColumns"
+                        :options="codeOptions"
                         @row-click="selectCode"
+                        @grid-mounted="onGridMounted"
                     />
                 </div>
             </div>
@@ -138,11 +111,15 @@ defineOptions({ layout: AppLayout });
 // 코드 목록 그리드 컬럼 ( TUI Grid )
 const codeColumns = [
     { header: '그룹키', name: 'system_code_group_key', minWidth: 120, className: 'cursor-pointer' },
-    { header: '코드키', name: 'system_code_key', minWidth: 120, className: 'cursor-pointer' },
-    { header: '코드명', name: 'system_code_name', minWidth: 160, className: 'cursor-pointer' },
-    { header: '코드값', name: 'system_code_value', minWidth: 120, className: 'cursor-pointer' },
-    { header: '설명',   name: 'system_code_desc', minWidth: 220, className: 'cursor-pointer' },
+    { header: '코드키', name: 'system_code_key', minWidth: 120, className: 'cursor-pointer', editor: "text" },
+    { header: '코드명', name: 'system_code_name', minWidth: 160, className: 'cursor-pointer', editor: "text" },
+    { header: '코드값', name: 'system_code_value', minWidth: 120, className: 'cursor-pointer', editor: "text" },
+    { header: '설명',   name: 'system_code_desc', minWidth: 220, className: 'cursor-pointer', editor: "text" },
 ];
+
+const codeOptions = {
+    rowHeaders: "checkbox",
+};
 
 // 이 페이지(코드관리) 자신의 권한
 const page      = usePage();
@@ -156,6 +133,7 @@ const groups = ref([]);
 const codes  = ref([]);
 const selectedGroupKey = ref(null);   // 하단 좌측 필터 ( 토글 )
 const selectedCodeIdx  = ref(null);
+const checkedCount     = ref(0);      // 그리드 체크박스 선택 개수 → 삭제 버튼 활성화 기준
 
 // DataGrid 컴포넌트 ref → TUI Grid 인스턴스 접근용
 const gridRef = ref(null);
@@ -163,6 +141,14 @@ const gridRef = ref(null);
 function grid() {
     const g = gridRef.value?.gridInstance;
     return g?.value ?? g ?? null;   // 언랩 안 된 환경까지 안전하게 처리
+}
+
+// 그리드 마운트 시 체크 이벤트 연결 → 체크 개수 동기화
+function onGridMounted(g) {
+    ['check', 'uncheck', 'checkAll', 'uncheckAll'].forEach(ev => g.on(ev, refreshChecked));
+}
+function refreshChecked() {
+    checkedCount.value = grid()?.getCheckedRows().length ?? 0;
 }
 
 const groupOptions = computed(() =>
@@ -194,6 +180,7 @@ async function loadCodes() {
         const params = selectedGroupKey.value ? { group_key: selectedGroupKey.value } : {};
         const { data } = await window.axios.get(route('basic.code.codes'), { params });
         codes.value = data.codes ?? [];
+        checkedCount.value = 0;   // 데이터 리셋 → 체크 해제됨
     } catch (e) {
         showFlash('코드 목록을 불러오지 못했습니다', true);
     }
@@ -229,10 +216,21 @@ function newCode() {
     Object.assign(codeForm, blankCode());
     selectedCodeIdx.value = null;
     codeErrors.value = {};
+
+    addCodeRow();
 }
-function selectCode(c) {
+
+function addCodeRow() {
     const g_grid = grid();
 
+    if( g_grid != null ) {
+        const p = blankCode();
+
+        g_grid.prependRow( p );
+    };
+};
+
+function selectCode(c) {
     selectedCodeIdx.value = c.system_code_idx;
     codeErrors.value = {};
     Object.assign(codeForm, {
@@ -243,26 +241,6 @@ function selectCode(c) {
         system_code_value: c.system_code_value ?? '',
         system_code_desc: c.system_code_desc ?? ''
     });
-
-    if( g_grid != null ) {
-        const row_data = g_grid.getData();
-
-        row_data.forEach(function(row) {
-            const row_key = row.rowKey;
-
-            if( row_key != c.rowKey ) {
-                g_grid.removeRowClassName( row_key, "row-selected" );
-            } else {
-                g_grid.addRowClassName( row_key, "row-selected" );
-            };
-        });
-    };
-
-    // 그 외 예시:
-    //   grid()?.getCheckedRows();      // 체크된 행들
-    //   grid()?.appendRow({ ... });    // 행 추가
-    //   grid()?.removeRow(c.rowKey);   // 행 삭제
-    //   grid()?.resetData([]);         // 전체 교체
 }
 
 // ---- 플래시 ----
@@ -339,13 +317,21 @@ async function saveCode() {
     }
 }
 async function deleteCode() {
-    if (!codeForm.system_code_idx) return;
-    if (!window.confirm('이 코드를 삭제하시겠습니까?')) return;
+    const g = grid();
+    const rows = g?.getCheckedRows() ?? [];
+    if (!rows.length) return;
+    if (!window.confirm(`선택한 ${rows.length}건을 삭제하시겠습니까?`)) return;
+
+    // 저장된 행( system_code_idx 있음 )만 서버에서 삭제.
+    // 미저장(신규) 행은 loadCodes 로 그리드가 리셋되며 함께 사라짐.
+    const saved = rows.filter(r => r.system_code_idx);
+
     try {
-        await window.axios.post(route('basic.code.code.del'), { system_code_idx: codeForm.system_code_idx });
+        await Promise.all(saved.map(r =>
+            window.axios.post(route('basic.code.code.del'), { system_code_idx: r.system_code_idx })
+        ));
         await loadCodes();
-        newCode();
-        showFlash('코드가 삭제되었습니다');
+        showFlash('삭제되었습니다');
     } catch (e) {
         showFlash('코드 삭제에 실패했습니다', true);
     }
