@@ -2,8 +2,10 @@
 
 use Illuminate\Support\Facades\Route;
 use MesCore\Auth\Controllers\UserController;
+use MesCore\Basic\Controllers\MemberController;
 use MesCore\Auth\Middleware\GuestAuth;
 use MesCore\Auth\Middleware\UserAuth;
+use MesCore\Auth\Middleware\MenuAuth;
 
 Route::get('/', function () {
     return redirect( '/user' );

@@ -103,14 +103,16 @@ class MenuPermissionService {
                 ->get()
                 ->keyBy('menu_idx');
 
-            // 노출 여부 = can_read. 개인 override 가 있으면 우선, 없으면 레벨 옵션( menu_option )값.
+            // 노출 여부: 레벨 cap 이 우선. 레벨에서 읽기 N 이면 무조건 숨김.
+            // 레벨이 Y 여도 개인 override 가 있으면 그 값( N 이면 숨김 )을 따른다.
             $menus = $menus->filter(function ($menu) use ($overrides) {
-                $row = $overrides->get($menu->menu_idx);
-                if ($row) {
-                    return $row->can_read === 'Y';
-                }
                 $opt = $menu->menuOptions->first();
-                return $opt && $opt->can_read === 'Y';
+                $capRead = $opt && $opt->can_read === 'Y';
+                if (!$capRead) {
+                    return false;
+                }
+                $row = $overrides->get($menu->menu_idx);
+                return $row ? $row->can_read === 'Y' : true;
             })->values();
         } else {
             $overrides = collect();
@@ -128,22 +130,25 @@ class MenuPermissionService {
                 continue;
             }
 
+            // 레벨 옵션( menu_option ) = 상한(cap)
+            $opt = $menu->menuOptions->first();
+            $cap = [
+                'can_read'   => $opt && $opt->can_read   === 'Y',
+                'can_write'  => $opt && $opt->can_write  === 'Y',
+                'can_delete' => $opt && $opt->can_delete === 'Y',
+            ];
+
             $row = $overrides->get($menu->menu_idx);
             if ($row) {
-                // 개인별 override 우선
+                // 개인 override 우선 — 단 레벨 cap 을 넘을 수 없음 ( 런타임 클램프: cap AND override )
                 $permissions[$menu->menu_code] = [
-                    'can_read'   => $row->can_read   === 'Y',
-                    'can_write'  => $row->can_write  === 'Y',
-                    'can_delete' => $row->can_delete === 'Y',
+                    'can_read'   => $cap['can_read']   && $row->can_read   === 'Y',
+                    'can_write'  => $cap['can_write']  && $row->can_write  === 'Y',
+                    'can_delete' => $cap['can_delete'] && $row->can_delete === 'Y',
                 ];
             } else {
-                // 레벨 옵션( menu_option )의 rwx 를 기본값으로
-                $opt = $menu->menuOptions->first();
-                $permissions[$menu->menu_code] = [
-                    'can_read'   => $opt && $opt->can_read   === 'Y',
-                    'can_write'  => $opt && $opt->can_write  === 'Y',
-                    'can_delete' => $opt && $opt->can_delete === 'Y',
-                ];
+                // override 없으면 레벨값 그대로
+                $permissions[$menu->menu_code] = $cap;
             }
         }
 

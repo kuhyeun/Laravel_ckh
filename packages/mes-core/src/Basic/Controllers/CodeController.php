@@ -11,8 +11,6 @@ use Illuminate\Validation\Rule;
 
 class CodeController extends Controller {
 
-    // ---- 조회 ----
-
     // 코드 그룹 전체
     public function groups() {
         $groups = SystemCodeGroup::orderBy('system_code_group_key')->get();
@@ -32,8 +30,6 @@ class CodeController extends Controller {
 
         return response()->json(['codes' => $query->get()]);
     }
-
-    // ---- 코드 그룹 ----
 
     public function saveGroup(Request $request) {
         $idx = $request->input('system_code_group_idx');
@@ -82,8 +78,6 @@ class CodeController extends Controller {
             return response()->json(['message' => 'Failed'], 500);
         }
     }
-
-    // ---- 코드 ----
 
     public function saveCode(Request $request) {
         $idx = $request->input('system_code_idx');

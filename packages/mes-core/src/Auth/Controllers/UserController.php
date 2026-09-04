@@ -26,8 +26,6 @@ class UserController extends Controller {
 
     // 로그인 처리
     public function processLogin( Request $request ): RedirectResponse {
-        $landing_page = SystemConfig::get( 'Common', 'landing_page', '/user/dashboard' );
-
         $request->validate([
             'user_id' => ['required'],
             'password' => ['required']
@@ -41,6 +39,8 @@ class UserController extends Controller {
 
         if( Auth::attempt( $credentials ) ) {
             $request->session()->regenerate();
+            
+            $landing_page = SystemConfig::get( 'Common', 'landing_page', '/user/dashboard' );
 
             $user = Auth::user();
             Session::put( 'user_idx', $user->account_idx );

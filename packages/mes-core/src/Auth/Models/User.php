@@ -44,6 +44,14 @@ class User extends Authenticatable {
         ];
     }
 
+    // 저장 시 권한 레벨로 user_type 자동 결정 ( 0,1 → admin / 그 외 → user )
+    // 모든 저장 경로( 등록·수정·회원가입·시더 )에서 일관되게 적용됨
+    protected static function booted(): void {
+        static::saving(function (self $user) {
+            $user->user_type = in_array((int) $user->user_level, [0, 1], true) ? 'admin' : 'user';
+        });
+    }
+
     public function username(): string {
         return 'user_id';
     }
