@@ -2,26 +2,26 @@
     <div class="flex flex-col h-full">
         <div class="flex w-full h-[35px]">
             <div>
-                <button class="basic-btn alert-btn h-full mr-2" type="button" @click="buttonClick">Alert</button>
-                <button class="basic-btn confirm-btn h-full mr-2" type="button" @click="buttonClick2">Confirm</button>
-                <button class="basic-btn toast-btn h-full" type="button" @click="buttonClick3">Toast</button>
+                <BaseButton class="mr-1" size="sm" variant="" @click="buttonClick">Alert</BaseButton>
+                <BaseButton class="mr-1" size="sm" variant="" @click="buttonClick2">Confirm</BaseButton>
+                <BaseButton size="sm" variant="" @click="buttonClick3">Toast</BaseButton>
             </div>
             <div class="flex-1"></div>
             <div class="flex">
-                <basic-select
+                <BasicSelect
                     :selectMenuOptions="selectMenuOptions"
                     @searchClick="handleSearch">
-                </basic-select>
+                </BasicSelect>
             </div>
         </div>
-        <grid-sample
+        <GridSample
             :dataSource="gridDataSource"
             :gridColumns="gridColumnsData"
             :gridOptions="gridOptionsData"
             @grid-updated="onGridUpdated"
             @grid-mounted="onGridMounted"
             @grid-click="onGridClick">
-        </grid-sample>
+        </GridSample>
     </div>
 </template>
 
@@ -31,6 +31,7 @@ import AppLayout from '@core/Layouts/AppLayout.vue';
 import { showAlert } from '@core/Utils/message.js';
 import GridSample from '@core/Components/Common/GridSample.vue';
 import BasicSelect from '@core/Components/Basic/BasicSelect.vue';
+import BaseButton from '@core/Components/Base/BaseButton.vue';
 
 defineOptions({
     layout: AppLayout
@@ -106,13 +107,7 @@ const buttonClick = async () => {
 };
 
 const buttonClick2 = async () => {
-    let options = {
-        buttonsStyling: true
-    };
-
-    const result = await showAlert( 'Confirm', 'Confirm Message', 'question', 'confirm', options );
-
-    // console.log( result );
+    const result = await showAlert( 'Confirm', 'Confirm Message', 'question', 'confirm' );
 };
 
 const buttonClick3 = async () => {

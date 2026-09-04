@@ -1,6 +1,6 @@
 <?php
 
-namespace MesCore\Config\Models;
+namespace MesCore\Basic\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -29,6 +29,7 @@ class SystemConfig extends Model {
     protected $fillable = [
         'system_config_group_key',
         'system_config_key',
+        'system_config_name',
         'system_config_value',
         'system_config_remark',
         'system_config_etc',
@@ -38,6 +39,11 @@ class SystemConfig extends Model {
 
     protected $attributes = [
         'system_config_value' => '',
+    ];
+
+    // etc 는 UI 메타( type, options 등 )를 담는 JSON → 배열로 자동 변환
+    protected $casts = [
+        'system_config_etc' => 'array',
     ];
 
     // 등록자/수정자 자동 채움 ( Auth 없으면 0 = 시스템, 시더 등에서 안전 )
@@ -80,7 +86,17 @@ class SystemConfig extends Model {
     public static function getGroup(string $group): array {
         return static::query()
             ->where('system_config_group_key', $group)
-            ->pluck('system_config_value', 'system_config_key')
+            ->pluck('system_config_value', 'system_config_key') // SQL 빌더가 사용하는 pluck ( query를 실행하기때문에 ->get() 대체 )
+            ->toArray();
+    }
+
+    /** 전체 설정 → { 그룹: { 키: 값 } } ( 화면이 기대하는 중첩 형태 ) */
+    public static function getAll(): array {
+        return static::query()
+            ->orderBy('system_config_group_key')
+            ->get()
+            ->groupBy('system_config_group_key') // SQL GROUP_BY 가 아닌 laravel 메서드 groupBy 이므로 참고
+            ->map(fn ($rows) => $rows->pluck('system_config_value', 'system_config_key')) // SQL 빌더 pluck 과 별개, 배열 가공 메서드
             ->toArray();
     }
 
