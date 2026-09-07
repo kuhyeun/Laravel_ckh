@@ -19,7 +19,7 @@ return [
     'Common' => [
         'landing_page' => [
             'name'   => '시작 메뉴',
-            'value'  => 'user.dashboard',
+            'value'  => '/user/dashboard',
             'remark' => 'MES 로그인 후 열리는 첫 메뉴 링크',
             'etc'    => [ 'type' => 'text' ],
         ],
