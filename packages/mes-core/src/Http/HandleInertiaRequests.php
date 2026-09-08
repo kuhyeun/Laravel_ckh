@@ -16,6 +16,14 @@ class HandleInertiaRequests extends Middleware {
         $payload = $this->getMenuPayload();
 
         return array_merge(parent::share($request), [
+            'auth' => [
+                'user' => Auth::check() ? [
+                    'account_idx' => Auth::user()->account_idx,
+                    'user_id'     => Auth::user()->user_id,
+                    'user_level'  => Auth::user()->user_level,
+                    'user_name'   => Auth::user()->user_name
+                ] : null,
+            ],
             'userMenu'    => $payload['menus'],
             'adminMenu'   => $payload['adminMenus'] ?? [],
             'permissions' => $payload['permissions'],

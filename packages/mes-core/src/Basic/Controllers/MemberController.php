@@ -23,7 +23,8 @@ class MemberController extends Controller {
                 'user_type',
                 'user_level',
                 'is_use',
-                'create_datetime'
+                'create_datetime',
+                'update_datetime'
             )
             ->where('user_level', '>=', $myLevel)
             ->orderBy('account_idx')

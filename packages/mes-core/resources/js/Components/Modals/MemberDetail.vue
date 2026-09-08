@@ -9,12 +9,12 @@
         <div class="grid grid-cols-2 gap-x-4 gap-y-3">
             <div>
                 <label class="block text-gray-500 font-medium mb-1">아이디 <span class="text-red-400">*</span></label>
-                <BaseInput v-model="form.user_id" class="w-full" size="sm" placeholder="로그인 아이디" />
+                <BaseInput v-model="form.user_id" class="w-full" size="md" placeholder="로그인 아이디" />
                 <p v-if="errors.user_id" class="text-xs text-red-500 mt-0.5">{{ errors.user_id[0] }}</p>
             </div>
             <div>
                 <label class="block text-gray-500 font-medium mb-1">이름 <span class="text-red-400">*</span></label>
-                <BaseInput v-model="form.user_name" class="w-full" size="sm" placeholder="사용자 이름" />
+                <BaseInput v-model="form.user_name" class="w-full" size="md" placeholder="사용자 이름" />
                 <p v-if="errors.user_name" class="text-xs text-red-500 mt-0.5">{{ errors.user_name[0] }}</p>
             </div>
             <div>
@@ -24,7 +24,7 @@
             </div>
             <div>
                 <label class="block text-gray-500 font-medium mb-1">비밀번호 <span v-if="!isEdit" class="text-red-400">*</span></label>
-                <BaseInput v-model="form.user_pw" type="password" class="w-full" size="sm" :placeholder="isEdit ? '변경 시에만 입력' : '8자 이상'" />
+                <BaseInput v-model="form.user_pw" type="password" class="w-full" size="md" :placeholder="isEdit ? '변경 시에만 입력' : '8자 이상'" />
                 <p v-if="errors.user_pw" class="text-xs text-red-500 mt-0.5">{{ errors.user_pw[0] }}</p>
             </div>
             <div class="flex items-end">
@@ -33,7 +33,7 @@
         </div>
 
         <!-- 액션 -->
-        <div class="flex items-center justify-end gap-2 mt-5 pt-4 border-t">
+        <div class="flex items-center justify-end gap-2 mt-3 pt-4 border-t">
             <BaseButton v-if="isEdit && canDelete" variant="danger" size="sm" @click="remove">삭제</BaseButton>
             <div class="flex-1"></div>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">취소</BaseButton>
@@ -46,11 +46,13 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
+import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import { showAlert } from '@core/Utils/message.js';
 
 const props = defineProps({
     member:    { type: Object,   default: null },   // 있으면 수정, 없으면 등록
@@ -62,12 +64,18 @@ const emit = defineEmits(['close']);
 
 const isEdit = computed(() => !!props.member?.account_idx);
 
-const levelOptions = [
+// 로그인 사용자 레벨 ( 공유 prop )
+const page    = usePage();
+const myLevel = computed(() => page.props.auth?.user?.user_level ?? 99);
+
+const ALL_LEVELS = [
     { value: 0,  label: '시스템관리자 (0)' },
     { value: 1,  label: '관리자 (1)' },
     { value: 10, label: '중간관리자 (10)' },
     { value: 99, label: '사용자 (99)' },
 ];
+// 본인 레벨 이상( 숫자 ≥ 내 레벨 = 내 권한 이하 )만 부여 가능
+const levelOptions = computed(() => ALL_LEVELS.filter(o => o.value >= myLevel.value));
 
 const form = reactive({
     account_idx: props.member?.account_idx ?? null,
@@ -83,6 +91,15 @@ const errorMsg = ref('');
 const saving   = ref(false);
 
 async function save() {
+    // 비밀번호를 입력한 경우엔 변경됨을 한번 더 안내
+    if (form.user_pw) {
+        const msg = isEdit.value
+            ? '입력한 비밀번호로 이 사용자의 비밀번호가 변경됩니다. 저장하시겠습니까?'
+            : '입력한 비밀번호로 계정을 등록합니다. 등록하시겠습니까?';
+        const result = await showAlert('비밀번호 확인', msg, 'question', 'confirm');
+        if (!result.isConfirmed) return;
+    }
+
     saving.value = true;
     errors.value = {};
     errorMsg.value = '';
@@ -104,7 +121,8 @@ async function save() {
 }
 
 async function remove() {
-    if (!window.confirm('이 사용자를 삭제하시겠습니까?')) return;
+    const result = await showAlert('사용자 삭제', '이 사용자를 삭제하시겠습니까?', 'warning', 'confirm');
+    if (!result.isConfirmed) return;
     errorMsg.value = '';
     try {
         await window.axios.post(route('basic.mem.del'), { account_idx: form.account_idx });

@@ -24,7 +24,7 @@ class MemberAuthController extends Controller {
     }
 
     // 선택 사용자의 메뉴별 [ 레벨 cap + 현재값(override 클램프) ]
-    public function menus($accountIdx) {
+    public function menus(int $accountIdx) {
         $user = User::find($accountIdx);
         if (!$user) {
             return response()->json(['message' => 'NotFound'], 404);

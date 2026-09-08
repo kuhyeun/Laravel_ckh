@@ -14,7 +14,7 @@
         <!-- 목록 ( 그리드가 화면 대부분 차지 ) -->
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
-                <span class="text-sm font-semibold text-gray-600">사용자 목록</span>
+                <span class=""></span>
                 <span class="text-xs text-gray-400">{{ members.length }} 명 · 행 클릭 = 수정</span>
             </div>
             <div class="flex-1 min-h-0">
@@ -67,6 +67,7 @@ const memberColumns = [
     { header: '레벨', name: 'user_level', width: 150, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => LEVELS[value] ?? value },
     { header: '사용여부', name: 'is_use', width: 100, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => (value ? '사용' : '미사용') },
     { header: '가입일', name: 'create_datetime', width: 180, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => fmtDateTime(value) },
+    { header: '최근 수정일', name: 'update_datetime', width: 180, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => fmtDateTime(value) },
 ];
 
 const members = ref([]);

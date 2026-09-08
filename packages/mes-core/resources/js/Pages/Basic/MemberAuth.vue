@@ -15,7 +15,7 @@
             <!-- 좌: 사용자 목록 -->
             <div class="w-72 shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
                 <div class="px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <span class="text-sm font-semibold text-gray-600">사용자 ( 레벨 10·99 )</span>
+                    <span class="text-sm font-semibold text-gray-600">사용자 ( 중간관리자 및 일반사용자 )</span>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto py-1">
                     <p v-if="!users.length" class="px-3 py-4 text-sm text-gray-400">대상 사용자가 없습니다.</p>

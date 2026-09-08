@@ -7,7 +7,7 @@
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 헤더 -->
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">공통 코드관리</h2>
+            <h2 class="font-bold text-lg tracking-tight">코드관리</h2>
             <div class="flex-1"></div>
             <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
         </div>
@@ -110,7 +110,7 @@ defineOptions({ layout: AppLayout });
 
 // 코드 목록 그리드 컬럼 ( TUI Grid )
 const codeColumns = [
-    { header: '그룹키', name: 'system_code_group_key', minWidth: 120, className: 'cursor-pointer' },
+    { header: '그룹키', name: 'system_code_group_key', minWidth: 120, className: 'cursor-pointer', align: 'center', formatter: ({value}) => value ? value : "-" },
     { header: '코드키', name: 'system_code_key', minWidth: 120, className: 'cursor-pointer', editor: "text" },
     { header: '코드명', name: 'system_code_name', minWidth: 160, className: 'cursor-pointer', editor: "text" },
     { header: '코드값', name: 'system_code_value', minWidth: 120, className: 'cursor-pointer', editor: "text" },
@@ -321,13 +321,20 @@ async function deleteCode() {
     const g = grid();
     const rows = g?.getCheckedRows() ?? [];
     if (!rows.length) return;
-    if (!window.confirm(`선택한 ${rows.length}건을 삭제하시겠습니까?`)) return;
 
-    // 저장된 행( system_code_idx 있음 )만 서버에서 삭제.
-    // 미저장(신규) 행은 loadCodes 로 그리드가 리셋되며 함께 사라짐.
-    const saved = rows.filter(r => r.system_code_idx);
+    const saved = rows.filter(r => r.system_code_idx);   // 저장된 행만 서버 삭제 대상
+
+    // 전부 미저장(신규) 행이면 서버 호출 없이 그리드에서만 제거
+    if( saved.length == 0 ) {
+        rows.forEach(r => g.removeRow(r.rowKey));
+        checkedCount.value = 0;
+        return;
+    };
+
+    if( !window.confirm(`선택한 ${rows.length}건을 삭제하시겠습니까?`) ) return;
 
     try {
+        // 미저장(신규) 행은 loadCodes 로 그리드가 리셋되며 함께 사라짐
         await Promise.all(saved.map(r =>
             window.axios.post(route('basic.code.code.del'), { system_code_idx: r.system_code_idx })
         ));
