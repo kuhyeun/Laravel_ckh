@@ -3,6 +3,7 @@
 namespace MesCore\Page\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Auth\Middleware\HandlesUnauthenticated;
 use MesCore\Menu\Models\Menu;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -11,11 +12,12 @@ use Inertia\Inertia;
 
 // 제네릭 페이지 렌더러: 매칭되는 라우트가 없을 때 url_path 로 메뉴를 찾아 page_component 를 렌더한다.
 class PageController extends Controller {
+    use HandlesUnauthenticated;
 
     public function show( Request $request ) {
-        // 로그인 필요
+        // 로그인 필요 → XHR/Inertia 는 401 ( 프론트가 안내 후 리다이렉트 )
         if( !Auth::check() ) {
-            return redirect()->route('user.login');
+            return $this->unauthenticated($request);
         }
 
         $path = '/' . ltrim( $request->path(), '/' );

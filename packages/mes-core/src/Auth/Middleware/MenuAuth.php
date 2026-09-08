@@ -11,6 +11,7 @@ use MesCore\Menu\Services\MenuPermissionService;
 use Symfony\Component\HttpFoundation\Response;
 
 class MenuAuth {
+    use HandlesUnauthenticated;
 
     public function __construct(private MenuPermissionService $menuPermissionService) {}
 
@@ -21,13 +22,9 @@ class MenuAuth {
      *   - '/' 가 없으면 menu_code 그대로 사용한다 ( 하위호환 ).
      */
     public function handle(Request $request, Closure $next, string $menuRef, string $action = 'can_read'): Response {
-        // 세션 만료 → 로그인으로 리다이렉트
+        // 세션 만료 → XHR/Inertia 는 401, 그 외는 로그인으로 리다이렉트
         if( !$request->session()->has('user_id') ) {
-            if( $request->header('X-Inertia') ) {
-                return response()->json(['message' => 'Unauthenticated.'], 409)
-                    ->header('X-Inertia-Location', route('user.login'));
-            }
-            return redirect()->route('user.login');
+            return $this->unauthenticated($request);
         }
 
         $menuCode = $this->resolveMenuCode($menuRef);
