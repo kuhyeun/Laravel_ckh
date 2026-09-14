@@ -76,6 +76,7 @@ class CoreServiceProvider extends ServiceProvider {
             $this->loadRoutesFrom(__DIR__ . '/../routes/auth.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/menu.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/basic.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/common.php');
 
             // 모듈 라우트 자동 로딩
             foreach (config('mes.modules', []) as $module) {

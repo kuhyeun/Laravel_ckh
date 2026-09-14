@@ -20,6 +20,8 @@ class SystemCode extends Model {
         'system_code_name',
         'system_code_value',
         'system_code_desc',
+        'is_use',
+        'sort_order',
         'create_account_idx',
         'update_account_idx',
     ];

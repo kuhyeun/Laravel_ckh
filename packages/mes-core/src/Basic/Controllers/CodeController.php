@@ -25,6 +25,7 @@ class CodeController extends Controller {
     public function codes(Request $request) {
         $query = SystemCode::query()
             ->orderBy('system_code_group_key')
+            ->orderBy('sort_order')
             ->orderBy('system_code_key');
 
         if ($request->filled('group_key')) {
@@ -46,6 +47,18 @@ class CodeController extends Controller {
             'system_code_group_name' => 'required|string|max:200',
             'system_code_group_desc' => 'nullable|string|max:200',
         ]);
+
+        // 그룹키는 등록 후 변경 불가
+        //   system_code 가 그룹키 문자열로 참조( FK 아님 )하고, 업무 코드에서도 'UNIT' 처럼 키를 직접 쓰므로
+        //   바꾸면 하위 코드가 고아가 되거나 화면 참조가 끊긴다 → 필요하면 새 그룹을 만들고 옮긴다
+        if ($idx) {
+            $currentKey = SystemCodeGroup::where('system_code_group_idx', $idx)->value('system_code_group_key');
+            if ($currentKey !== null && $currentKey !== $validated['system_code_group_key']) {
+                throw ValidationException::withMessages([
+                    'system_code_group_key' => ['그룹키는 등록 후 변경할 수 없습니다.'],
+                ]);
+            }
+        }
 
         try {
             $group = $idx ? SystemCodeGroup::findOrFail($idx) : new SystemCodeGroup();
@@ -97,6 +110,8 @@ class CodeController extends Controller {
             'system_code_name'  => 'required|string|max:200',
             'system_code_value' => 'nullable|string|max:200',
             'system_code_desc'  => 'nullable|string|max:200',
+            'is_use'            => 'sometimes|in:Y,N',
+            'sort_order'        => 'sometimes|integer|min:0|max:9999',
         ]);
 
         try {
@@ -125,6 +140,8 @@ class CodeController extends Controller {
             'system_code_name'      => '코드명',
             'system_code_value'     => '코드값',
             'system_code_desc'      => '설명',
+            'is_use'                => '사용 여부',
+            'sort_order'            => '정렬',
         ];
 
         $errors    = [];
@@ -146,6 +163,8 @@ class CodeController extends Controller {
                 'system_code_name'  => 'required|string|max:200',
                 'system_code_value' => 'nullable|string|max:200',
                 'system_code_desc'  => 'nullable|string|max:200',
+                'is_use'            => 'required|in:Y,N',
+                'sort_order'        => 'nullable|integer|min:0|max:9999',
             ], [], $attributes);
 
             if ($validator->fails()) {
@@ -175,6 +194,7 @@ class CodeController extends Controller {
                 foreach ($validated as $data) {
                     $code = !empty($data['system_code_idx']) ? SystemCode::findOrFail($data['system_code_idx']) : new SystemCode();
                     unset($data['system_code_idx']);
+                    $data['sort_order'] = $data['sort_order'] ?? 0;
                     $code->fill($data)->save();
                 }
             });

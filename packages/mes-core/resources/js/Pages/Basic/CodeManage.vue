@@ -32,7 +32,14 @@
                     </div>
                     <div class="grid grid-cols-1 gap-2">
                         <div>
-                            <BaseInput v-model="groupForm.system_code_group_key" class="w-full" size="sm" placeholder="그룹키 * (예: prod_status)" />
+                            <!-- 그룹키는 등록 후 변경 불가 ( 하위 코드·업무 화면이 키로 참조 ) -->
+                            <BaseInput
+                                v-model="groupForm.system_code_group_key"
+                                class="w-full" size="sm"
+                                placeholder="그룹키 * (예: prod_status)"
+                                :disabled="!!groupForm.system_code_group_idx"
+                                :title="groupForm.system_code_group_idx ? '그룹키는 등록 후 변경할 수 없습니다' : ''"
+                            />
                             <p v-if="groupErrors.system_code_group_key" class="text-xs text-red-500 mt-0.5">{{ groupErrors.system_code_group_key[0] }}</p>
                         </div>
                         <div>
@@ -106,6 +113,8 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import { clearCommonCodeCache } from '@core/Composables/useCommonCode';
+import { ToggleRenderer } from '@core/Composables/gridClass';
 
 defineOptions({ layout: AppLayout });
 
@@ -117,6 +126,18 @@ const codeColumns = [
     { header: '코드명', name: 'system_code_name', minWidth: 160, className: 'cursor-pointer', editor: "text", validation: { required: true } },
     { header: '코드값', name: 'system_code_value', minWidth: 120, className: 'cursor-pointer', editor: "text" },
     { header: '설명',   name: 'system_code_desc', minWidth: 220, className: 'cursor-pointer', editor: "text" },
+    // 정렬: 드롭다운 표시 순서 ( 오름차순, 같으면 코드키 순 )
+    { header: '정렬',   name: 'sort_order', width: 70, align: 'center', className: 'cursor-pointer', editor: "text", validation: { dataType: 'number', min: 0, max: 9999 } },
+    // 사용: 미사용( N )은 업무 화면 드롭다운에서 제외, 과거 데이터에는 그대로 표시 ( ADR 0019 )
+    //   클릭 = 토글 ( 쓰기 권한 없으면 비활성 )
+    {
+        header: '사용', name: 'is_use', width: 110, align: 'center',
+        renderer: {
+            type: ToggleRenderer,
+            options: { onValue: 'Y', offValue: 'N', disabled: () => !canWrite.value },
+        },
+        validation: { required: true },
+    },
 ];
 
 const codeOptions = {
@@ -163,7 +184,7 @@ const selectedGroupName = computed(() =>
 
 // ---- 폼 ----
 const blankGroup = () => ({ system_code_group_idx: null, system_code_group_key: '', system_code_group_name: '', system_code_group_desc: '' });
-const blankCode  = () => ({ system_code_idx: null, system_code_group_key: selectedGroupKey.value ?? '', system_code_key: '', system_code_name: '', system_code_value: '', system_code_desc: '' });
+const blankCode  = () => ({ system_code_idx: null, system_code_group_key: selectedGroupKey.value ?? '', system_code_key: '', system_code_name: '', system_code_value: '', system_code_desc: '', is_use: 'Y', sort_order: 0 });
 const groupForm  = reactive(blankGroup());
 const codeForm   = reactive(blankCode());
 const groupErrors = ref({});
@@ -278,6 +299,7 @@ async function saveGroup() {
             system_code_group_desc: saved.system_code_group_desc ?? ''
         });
         codeForm.system_code_group_key = saved.system_code_group_key;
+        clearCommonCodeCache();   // 업무 화면용 공통코드 캐시 무효화
         await loadCodes();
         showFlash('그룹이 저장되었습니다');
     } catch (e) {
@@ -300,6 +322,7 @@ async function deleteGroup() {
         await window.axios.post(route('basic.code.group.del'), { system_code_group_idx: groupForm.system_code_group_idx });
         selectedGroupKey.value = null;
         newGroup();
+        clearCommonCodeCache();
         await loadGroups();
         await loadCodes();
         showFlash('그룹이 삭제되었습니다');
@@ -315,7 +338,7 @@ async function deleteGroup() {
 // ---- 코드 액션 ----
 // 그리드에서 추가·수정된 행을 일괄 저장
 //   ( 기존 codeForm 은 행 클릭 시점의 복사본이라 셀 편집값이 반영되지 않음 → 그리드 데이터를 직접 전송 )
-const CODE_FIELDS = ['system_code_idx', 'system_code_group_key', 'system_code_key', 'system_code_name', 'system_code_value', 'system_code_desc'];
+const CODE_FIELDS = ['system_code_idx', 'system_code_group_key', 'system_code_key', 'system_code_name', 'system_code_value', 'system_code_desc', 'is_use', 'sort_order'];
 
 async function saveCode() {
     const g = grid();
@@ -337,10 +360,13 @@ async function saveCode() {
     const invalid = g.validate().filter(v => rows.some(r => r.rowKey === v.rowKey));
     if (invalid.length) {
         const first = invalid[0];
-        const col   = first.errors[0]?.columnName;
+        const err   = first.errors[0] ?? {};
+        const col   = err.columnName;
         const label = codeColumns.find(c => c.name === col)?.header ?? col;
+        // errorCode: REQUIRED / TYPE_NUMBER / MIN / MAX ...
+        const code  = Array.isArray(err.errorCode) ? err.errorCode[0] : err.errorCode;
         g.focus(first.rowKey, col);
-        showFlash(`필수값을 입력하세요 : ${label}`, true);
+        showFlash(code === 'REQUIRED' ? `필수값을 입력하세요 : ${label}` : `입력값을 확인하세요 : ${label}`, true);
         return;
     }
 
@@ -348,6 +374,7 @@ async function saveCode() {
         const { data } = await window.axios.post(route('basic.code.saveMany'), {
             rows: rows.map(r => Object.fromEntries(CODE_FIELDS.map(f => [f, r[f] ?? null]))),
         });
+        clearCommonCodeCache();
         await loadCodes();
         showFlash(`${data.saved ?? rows.length}건이 저장되었습니다`);
     } catch (e) {
@@ -388,6 +415,7 @@ async function deleteCode() {
         await Promise.all(saved.map(r =>
             window.axios.post(route('basic.code.del'), { system_code_idx: r.system_code_idx })
         ));
+        clearCommonCodeCache();
         await loadCodes();
         showFlash('삭제되었습니다');
     } catch (e) {
