@@ -95,37 +95,6 @@ class CodeController extends Controller {
         }
     }
 
-    public function saveCode(Request $request) {
-        $idx = $request->input('system_code_idx');
-
-        $validated = $request->validate([
-            'system_code_group_key' => 'required|string|max:100|exists:system_code_group,system_code_group_key',
-            'system_code_key' => [
-                'required', 'string', 'max:100',
-                // 같은 그룹 내 코드키 유일
-                Rule::unique('system_code', 'system_code_key')
-                    ->where('system_code_group_key', $request->input('system_code_group_key'))
-                    ->ignore($idx, 'system_code_idx'),
-            ],
-            'system_code_name'  => 'required|string|max:200',
-            'system_code_value' => 'nullable|string|max:200',
-            'system_code_desc'  => 'nullable|string|max:200',
-            'is_use'            => 'sometimes|in:Y,N',
-            'sort_order'        => 'sometimes|integer|min:0|max:9999',
-        ]);
-
-        try {
-            $code = $idx ? SystemCode::findOrFail($idx) : new SystemCode();
-            $code->fill($validated)->save();
-
-            return response()->json(['message' => 'Success', 'code' => $code], 200);
-        } catch (\Throwable $e) {
-            Log::error('코드 저장 실패 : ' . $e->getMessage());
-
-            return response()->json(['message' => 'Failed'], 500);
-        }
-    }
-
     // 그리드 일괄 저장 ( 추가·수정 행 ). 한 행이라도 검증 실패하면 전부 저장하지 않음
     //   검증 오류 키: rows.{index}.{field} → 프론트가 해당 행/컬럼으로 포커스
     public function saveCodes(Request $request) {
@@ -207,16 +176,25 @@ class CodeController extends Controller {
         }
     }
 
-    public function deleteCode(Request $request) {
+    // 선택 삭제 ( 그리드 체크박스 ). 한 트랜잭션으로 처리 → 일부만 삭제되는 상황 없음
+    //   이미 없는 코드는 건너뛰고, 하나도 없으면 404
+    //   ※ 업무 테이블이 코드를 참조하기 시작하면 사용 중 코드는 삭제 차단 → 미사용( is_use = N )으로 내리도록 할 것 ( ADR 0019 )
+    public function deleteCodes(Request $request) {
+        $validated = $request->validate([
+            'system_code_idxs'   => 'required|array|min:1',
+            'system_code_idxs.*' => 'integer',
+        ]);
+
         try {
-            $code = SystemCode::find($request->input('system_code_idx'));
-            if (!$code) {
+            $deleted = DB::transaction(function () use ($validated) {
+                return SystemCode::whereIn('system_code_idx', array_unique($validated['system_code_idxs']))->delete();
+            });
+
+            if ($deleted === 0) {
                 return response()->json(['message' => 'NotFound'], 404);
             }
 
-            $code->delete();
-
-            return response()->json(['message' => 'Success'], 200);
+            return response()->json(['message' => 'Success', 'deleted' => $deleted], 200);
         } catch (\Throwable $e) {
             Log::error('코드 삭제 실패 : ' . $e->getMessage());
 

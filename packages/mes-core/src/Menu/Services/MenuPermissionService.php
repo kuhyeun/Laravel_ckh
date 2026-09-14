@@ -14,17 +14,19 @@ class MenuPermissionService {
     private const CACHE_TTL = 86400;
 
     public function getForUser(User $user): array {
-        // 메뉴/옵션/권한이 바뀌면 버전이 달라져 캐시 키가 바뀜 → 자동 재빌드.
-        // 변경이 없으면 동일 키 → 캐시 히트 ( 불필요한 재빌드 없음 ).
-        // 레벨/템플릿 지정이 바뀌면 계산 결과가 달라지므로 키에 포함
-        $key = $user->getMenuCacheKey()
+        return Cache::remember($this->cacheKey($user), self::CACHE_TTL, function () use ($user) {
+            return $this->buildPayload($user);
+        });
+    }
+
+    // 메뉴/옵션/권한이 바뀌면 버전이 달라져 캐시 키가 바뀜 → 자동 재빌드.
+    // 변경이 없으면 동일 키 → 캐시 히트 ( 불필요한 재빌드 없음 ).
+    // 레벨/템플릿 지정이 바뀌면 계산 결과가 달라지므로 키에 포함
+    private function cacheKey(User $user): string {
+        return $user->getMenuCacheKey()
             . '_l' . $user->user_level
             . '_t' . ($user->permission_template_idx ?? 0)
             . '_v' . $this->menuVersion();
-
-        return Cache::remember($key, self::CACHE_TTL, function () use ($user) {
-            return $this->buildPayload($user);
-        });
     }
 
     // 변경 감지 서명: 행 수(삭제) + MAX(update)(수정) + MAX(create)(추가) 조합.
@@ -64,8 +66,10 @@ class MenuPermissionService {
         return (bool)($perm[$action] ?? false);
     }
 
+    // 현재 버전의 캐시를 즉시 제거 ( getForUser 와 같은 키 사용 )
+    //   보통은 버전 기반 자동 무효화로 충분하고, 캐시를 강제로 다시 계산해야 할 때만 사용
     public function forgetForUser(User $user): void {
-        Cache::forget($user->getMenuCacheKey());
+        Cache::forget($this->cacheKey($user));
     }
 
     // 템플릿 권한 ( menu_idx => row ).

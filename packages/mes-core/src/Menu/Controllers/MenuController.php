@@ -153,7 +153,7 @@ class MenuController extends Controller {
                 }
             });
 
-            // 참고: 메뉴 권한 캐시는 per-user( TTL 60s )라 변경은 최대 60초 내 반영됨.
+            // 참고: 메뉴 권한 캐시는 테이블 변경 감지( 버전 키 )로 자동 무효화 → 다음 요청부터 즉시 반영됨.
             return response()->json([ 'message' => 'Success' ], 200 );
         } catch( \Throwable $e ) {
             Log::error( '메뉴 권한 저장 실패 : '. $e->getMessage() );

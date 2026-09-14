@@ -177,6 +177,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { router, usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
+import { showAlert } from '@core/Utils/message';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -411,7 +412,9 @@ async function save() {
 
 async function remove() {
     if (!form.menu_idx) return;
-    if (!window.confirm('이 메뉴를 삭제하시겠습니까?')) return;
+
+    const cfm = await showAlert('삭제', '이 메뉴를 삭제하시겠습니까?', 'question', 'confirm');
+    if (!cfm.isConfirmed) return;
 
     const url = route(isAdminFlag.value === 'Y' ? 'menu.del.admin' : 'menu.del.user');
 

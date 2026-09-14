@@ -14,7 +14,7 @@ return new class extends Migration {
             $table->string('parent_menu_code', 30)->nullable()->comment('부모 메뉴 코드');
             $table->string('menu_name', 50)->comment('메뉴 이름');
             $table->integer('menu_depth')->default(1)->comment('메뉴 깊이');
-            $table->string('module_code', 50)->nullbale()->comment('메뉴 모듈코드');
+            $table->string('module_code', 50)->comment('메뉴 모듈코드');
             $table->string('menu_route_name', 50)->nullable()->comment('메뉴 라우팅');
             $table->enum('is_use', ['Y', 'N'])->default('Y')->comment('사용 여부');
             $table->enum('is_display', ['Y', 'N'])->default('Y')->comment('메뉴표시 여부');

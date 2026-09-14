@@ -33,13 +33,12 @@ Route::middleware([AdminAuth::class])->group(function() {
 
             Route::middleware($codeWrite)->group(function() {
                 Route::post('/saveGroup', [CodeController::class, 'saveGroup'])->name('group.save');
-                Route::post('/saveCode',  [CodeController::class, 'saveCode'])->name('save');
                 Route::post('/saveCodes', [CodeController::class, 'saveCodes'])->name('saveMany');
             });
 
             Route::middleware($codeDelete)->group(function() {
                 Route::post('/deleteGroup', [CodeController::class, 'deleteGroup'])->name('group.del');
-                Route::post('/deleteCode',  [CodeController::class, 'deleteCode'])->name('del');
+                Route::post('/deleteCodes', [CodeController::class, 'deleteCodes'])->name('del');
             });
         });
 

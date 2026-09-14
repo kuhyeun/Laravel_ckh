@@ -411,15 +411,21 @@ async function deleteCode() {
     if( !cfm.isConfirmed ) return;
 
     try {
+        // 한 번의 요청으로 일괄 삭제 ( 서버 트랜잭션 → 일부만 삭제되는 상황 없음 )
         // 미저장(신규) 행은 loadCodes 로 그리드가 리셋되며 함께 사라짐
-        await Promise.all(saved.map(r =>
-            window.axios.post(route('basic.code.del'), { system_code_idx: r.system_code_idx })
-        ));
+        const { data } = await window.axios.post(route('basic.code.del'), {
+            system_code_idxs: saved.map(r => r.system_code_idx),
+        });
         clearCommonCodeCache();
         await loadCodes();
-        showFlash('삭제되었습니다');
+        showFlash(`${data.deleted ?? saved.length}건이 삭제되었습니다`);
     } catch (e) {
-        showFlash('코드 삭제에 실패했습니다', true);
+        if (e.response?.status === 404) {
+            showFlash('이미 삭제된 코드입니다', true);
+            await loadCodes();
+        } else {
+            showFlash('코드 삭제에 실패했습니다', true);
+        }
     }
 }
 
