@@ -29,27 +29,62 @@ class MenuPermissionService {
             . '_v' . $this->menuVersion();
     }
 
-    // 변경 감지 서명: 행 수(삭제) + MAX(update)(수정) + MAX(create)(추가) 조합.
-    // DB 직접 변경도 자동 감지된다. ( 작은 집계 쿼리 3개 = 전체 트리 재빌드보다 훨씬 저렴 )
+    // 변경 감지 대상 테이블 => 권한/메뉴 트리 계산에 쓰이는 컬럼
+    //   이 컬럼 값이 하나라도 바뀌면 서명이 달라진다
+    private const VERSION_COLUMNS = [
+        'system_menu' => [
+            'menu_idx', 'menu_code', 'parent_menu_code', 'menu_name', 'menu_depth', 'module_code',
+            'menu_route_name', 'url_path', 'page_component', 'menu_icon', 'is_use', 'is_display', 'is_admin',
+        ],
+        'system_menu_option'       => ['menu_option_idx', 'menu_idx', 'menu_level', 'menu_sort', 'can_read', 'can_write', 'can_delete'],
+        'account_menu_permission'  => ['permission_idx', 'account_idx', 'menu_idx', 'can_read', 'can_write', 'can_delete'],
+        'permission_template'      => ['template_idx', 'is_use'],
+        'permission_template_menu' => ['template_menu_idx', 'template_idx', 'menu_idx', 'can_read', 'can_write', 'can_delete'],
+    ];
+
+    // 요청 단위 메모 ( 한 요청에서 Inertia 공유·MenuAuth·Gate 가 여러 번 호출해도 서명 쿼리는 1회 )
+    private static ?string $versionMemo = null;
+    private static ?int $versionMemoRequest = null;
+
+    // 변경 감지 서명: 테이블별 행 수 + 행 내용 체크섬( SUM(CRC32(행)) )
+    //   update_datetime( 초 단위 )만 보면 같은 초 안의 두 번째 수정을 놓치므로 내용 자체를 해시한다.
+    //   DB 직접 변경도 감지된다. ( 권한 테이블은 작아서 집계 비용 < 트리 재빌드 비용 )
     private function menuVersion(): string {
-        $sig = function (string $table) {
+        // 콘솔( 배치·tinker )은 요청 경계가 없으므로 메모하지 않음
+        $requestId = app()->runningInConsole() ? null : spl_object_id(request());
+        if ($requestId !== null && self::$versionMemoRequest === $requestId) {
+            return self::$versionMemo;
+        }
+
+        $sigs = [];
+        foreach (self::VERSION_COLUMNS as $table => $columns) {
+            // NULL 을 구분값으로 치환 ( CONCAT_WS 는 NULL 을 건너뛰어 ( a,NULL,b ) 와 ( a,b,NULL ) 이 같아짐 )
+            $rowExpr = 'CONCAT_WS(0x1F, ' . implode(', ', array_map(fn ($c) => "COALESCE(CAST(`{$c}` AS CHAR), 0x00)", $columns)) . ')';
             $row = DB::table($table)
-                ->selectRaw('COUNT(*) c, MAX(update_datetime) u, MAX(create_datetime) cr')
+                ->selectRaw("COUNT(*) c, COALESCE(SUM(CRC32({$rowExpr})), 0) h")
                 ->first();
 
-            return $row->c . ':' . $row->u . ':' . $row->cr;
-        };
+            $sigs[] = $table . ':' . $row->c . ':' . $row->h;
+        }
 
-        return md5(implode('|', [
-            $sig('system_menu'),
-            $sig('system_menu_option'),
-            $sig('account_menu_permission'),
-            $sig('permission_template'),
-            $sig('permission_template_menu'),
-            // 활성 모듈/디버그 변경도 감지 ( config 만 바꿔도 사이드바 자동 갱신 )
-            json_encode(config('mes.modules', [])),
-            config('app.debug') ? '1' : '0',
-        ]));
+        // 활성 모듈/디버그 변경도 감지 ( config 만 바꿔도 사이드바 자동 갱신 )
+        $sigs[] = json_encode(config('mes.modules', []));
+        $sigs[] = config('app.debug') ? '1' : '0';
+
+        $version = md5(implode('|', $sigs));
+
+        if ($requestId !== null) {
+            self::$versionMemo        = $version;
+            self::$versionMemoRequest = $requestId;
+        }
+
+        return $version;
+    }
+
+    // 같은 요청 안에서 권한을 바꾼 뒤 바로 다시 계산해야 할 때 메모 초기화
+    public function resetVersionMemo(): void {
+        self::$versionMemo        = null;
+        self::$versionMemoRequest = null;
     }
 
     public function can(User $user, string $menuCode, string $action): bool {
@@ -69,6 +104,7 @@ class MenuPermissionService {
     // 현재 버전의 캐시를 즉시 제거 ( getForUser 와 같은 키 사용 )
     //   보통은 버전 기반 자동 무효화로 충분하고, 캐시를 강제로 다시 계산해야 할 때만 사용
     public function forgetForUser(User $user): void {
+        $this->resetVersionMemo();
         Cache::forget($this->cacheKey($user));
     }
 

@@ -94,7 +94,6 @@
                         :data="codes"
                         :columns="codeColumns"
                         :options="codeOptions"
-                        @row-click="selectCode"
                         @grid-mounted="onGridMounted"
                     />
                 </div>
@@ -110,7 +109,6 @@ import { route } from 'ziggy-js';
 import { showAlert } from '@core/Utils/message';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
 import { clearCommonCodeCache } from '@core/Composables/useCommonCode';
@@ -156,8 +154,7 @@ const canDelete = computed(() => myPerm.value.can_delete === true);
 const groups = ref([]);
 const codes  = ref([]);
 const selectedGroupKey = ref(null);   // 하단 좌측 필터 ( 토글 )
-const selectedCodeIdx  = ref(null);
-const checkedCount     = ref(0);      // 그리드 체크박스 선택 개수 → 삭제 버튼 활성화 기준
+const checkedCount     = ref(0);     // 그리드 체크박스 선택 개수 → 삭제 버튼 활성화 기준
 
 // DataGrid 컴포넌트 ref → TUI Grid 인스턴스 접근용
 const gridRef = ref(null);
@@ -175,20 +172,16 @@ function refreshChecked() {
     checkedCount.value = grid()?.getCheckedRows().length ?? 0;
 }
 
-const groupOptions = computed(() =>
-    groups.value.map(g => ({ value: g.system_code_group_key, label: `${g.system_code_group_name} [${g.system_code_group_key}]` }))
-);
 const selectedGroupName = computed(() =>
     groups.value.find(g => g.system_code_group_key === selectedGroupKey.value)?.system_code_group_name ?? ''
 );
 
 // ---- 폼 ----
 const blankGroup = () => ({ system_code_group_idx: null, system_code_group_key: '', system_code_group_name: '', system_code_group_desc: '' });
+// 그리드 신규 행 기본값 ( 그룹키 = 좌측 선택 그룹 )
 const blankCode  = () => ({ system_code_idx: null, system_code_group_key: selectedGroupKey.value ?? '', system_code_key: '', system_code_name: '', system_code_value: '', system_code_desc: '', is_use: 'Y', sort_order: 0 });
 const groupForm  = reactive(blankGroup());
-const codeForm   = reactive(blankCode());
 const groupErrors = ref({});
-const codeErrors  = ref({});
 
 // ---- 데이터 로드 ----
 async function loadGroups() {
@@ -226,7 +219,6 @@ function toggleGroup(g) {
             system_code_group_desc: g.system_code_group_desc ?? ''
         });
         groupErrors.value = {};
-        codeForm.system_code_group_key = g.system_code_group_key;   // 코드 등록 기본 그룹
     }
     loadCodes();
 }
@@ -236,15 +228,8 @@ function newGroup() {
     Object.assign(groupForm, blankGroup());
     groupErrors.value = {};
 }
+// 신규 → 그리드 맨 위에 빈 행 추가
 function newCode() {
-    Object.assign(codeForm, blankCode());
-    selectedCodeIdx.value = null;
-    codeErrors.value = {};
-
-    addCodeRow();
-}
-
-function addCodeRow() {
     // 그룹키는 그리드에서 편집하지 않으므로( 좌측 선택 그룹으로 채움 ) 그룹 선택이 선행돼야 함
     if( !selectedGroupKey.value ) {
         showFlash('좌측에서 코드 그룹을 먼저 선택하세요', true);
@@ -259,19 +244,6 @@ function addCodeRow() {
         g_grid.prependRow( p );
     };
 };
-
-function selectCode(c) {
-    selectedCodeIdx.value = c.system_code_idx;
-    codeErrors.value = {};
-    Object.assign(codeForm, {
-        system_code_idx: c.system_code_idx,
-        system_code_group_key: c.system_code_group_key,
-        system_code_key: c.system_code_key,
-        system_code_name: c.system_code_name,
-        system_code_value: c.system_code_value ?? '',
-        system_code_desc: c.system_code_desc ?? ''
-    });
-}
 
 // ---- 플래시 ----
 const flash = reactive({ text: '', error: false });
@@ -298,7 +270,6 @@ async function saveGroup() {
             system_code_group_name: saved.system_code_group_name,
             system_code_group_desc: saved.system_code_group_desc ?? ''
         });
-        codeForm.system_code_group_key = saved.system_code_group_key;
         clearCommonCodeCache();   // 업무 화면용 공통코드 캐시 무효화
         await loadCodes();
         showFlash('그룹이 저장되었습니다');
@@ -336,8 +307,7 @@ async function deleteGroup() {
 }
 
 // ---- 코드 액션 ----
-// 그리드에서 추가·수정된 행을 일괄 저장
-//   ( 기존 codeForm 은 행 클릭 시점의 복사본이라 셀 편집값이 반영되지 않음 → 그리드 데이터를 직접 전송 )
+// 그리드에서 추가·수정된 행을 일괄 저장 ( 셀 편집값은 그리드에만 있으므로 그리드 데이터를 직접 전송 )
 const CODE_FIELDS = ['system_code_idx', 'system_code_group_key', 'system_code_key', 'system_code_name', 'system_code_value', 'system_code_desc', 'is_use', 'sort_order'];
 
 async function saveCode() {
