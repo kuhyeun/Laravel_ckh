@@ -345,7 +345,7 @@ async function saveCode() {
     }
 
     try {
-        const { data } = await window.axios.post(route('basic.code.code.saveMany'), {
+        const { data } = await window.axios.post(route('basic.code.saveMany'), {
             rows: rows.map(r => Object.fromEntries(CODE_FIELDS.map(f => [f, r[f] ?? null]))),
         });
         await loadCodes();
@@ -386,7 +386,7 @@ async function deleteCode() {
     try {
         // 미저장(신규) 행은 loadCodes 로 그리드가 리셋되며 함께 사라짐
         await Promise.all(saved.map(r =>
-            window.axios.post(route('basic.code.code.del'), { system_code_idx: r.system_code_idx })
+            window.axios.post(route('basic.code.del'), { system_code_idx: r.system_code_idx })
         ));
         await loadCodes();
         showFlash('삭제되었습니다');
