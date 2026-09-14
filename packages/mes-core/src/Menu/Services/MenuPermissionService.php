@@ -16,7 +16,11 @@ class MenuPermissionService {
     public function getForUser(User $user): array {
         // 메뉴/옵션/권한이 바뀌면 버전이 달라져 캐시 키가 바뀜 → 자동 재빌드.
         // 변경이 없으면 동일 키 → 캐시 히트 ( 불필요한 재빌드 없음 ).
-        $key = $user->getMenuCacheKey() . '_v' . $this->menuVersion();
+        // 레벨/템플릿 지정이 바뀌면 계산 결과가 달라지므로 키에 포함
+        $key = $user->getMenuCacheKey()
+            . '_l' . $user->user_level
+            . '_t' . ($user->permission_template_idx ?? 0)
+            . '_v' . $this->menuVersion();
 
         return Cache::remember($key, self::CACHE_TTL, function () use ($user) {
             return $this->buildPayload($user);
@@ -38,6 +42,8 @@ class MenuPermissionService {
             $sig('system_menu'),
             $sig('system_menu_option'),
             $sig('account_menu_permission'),
+            $sig('permission_template'),
+            $sig('permission_template_menu'),
             // 활성 모듈/디버그 변경도 감지 ( config 만 바꿔도 사이드바 자동 갱신 )
             json_encode(config('mes.modules', [])),
             config('app.debug') ? '1' : '0',
@@ -60,6 +66,39 @@ class MenuPermissionService {
 
     public function forgetForUser(User $user): void {
         Cache::forget($user->getMenuCacheKey());
+    }
+
+    // 템플릿 권한 ( menu_idx => row ).
+    // 템플릿 미지정 / 사용 중지된 템플릿은 빈 컬렉션 → 기본값 권한 없음 ( 개인 지정한 메뉴만 권한 )
+    public function templatePermissions(?int $templateIdx): Collection {
+        if (!$templateIdx) {
+            return collect();
+        }
+
+        $isUse = DB::table('permission_template')->where('template_idx', $templateIdx)->value('is_use');
+        if ($isUse !== 'Y') {
+            return collect();
+        }
+
+        return DB::table('permission_template_menu')
+            ->where('template_idx', $templateIdx)
+            ->get(['menu_idx', 'can_read', 'can_write', 'can_delete'])
+            ->keyBy('menu_idx');
+    }
+
+    // 최종 권한 = 레벨 상한(cap) AND ( 개인 override ?? 템플릿 행 )
+    //   레벨 옵션은 상한일 뿐 권한을 주지 않는다 → 템플릿 행도 override 도 없으면 전부 N
+    public function resolve(?object $levelOption, Collection $templateBase, ?object $override, int $menuIdx): array {
+        $actions = ['can_read', 'can_write', 'can_delete'];
+        $value   = $override ?? $templateBase->get($menuIdx);
+
+        $result = [];
+        foreach ($actions as $action) {
+            $cap = $levelOption && $levelOption->{$action} === 'Y';
+            $result[$action] = $cap && $value && $value->{$action} === 'Y';
+        }
+
+        return $result;
     }
 
     private function buildPayload(User $user): array {
@@ -96,60 +135,38 @@ class MenuPermissionService {
             }])
             ->get();
 
-        if (!$isBypass) {
+        $permissions = [];
+
+        if ($isBypass) {
+            // Bypass 계정의 경우 모든 권한획득 ( ex. system, admin )
+            foreach ($menus as $menu) {
+                $permissions[$menu->menu_code] = [
+                    'can_read'   => true,
+                    'can_write'  => true,
+                    'can_delete' => true,
+                ];
+            }
+        } else {
             $overrides = DB::table('account_menu_permission')
                 ->where('account_idx', $user->account_idx)
                 ->whereIn('menu_idx', $menus->pluck('menu_idx'))
                 ->get()
                 ->keyBy('menu_idx');
 
-            // 노출 여부: 레벨 cap 이 우선. 레벨에서 읽기 N 이면 무조건 숨김.
-            // 레벨이 Y 여도 개인 override 가 있으면 그 값( N 이면 숨김 )을 따른다.
-            $menus = $menus->filter(function ($menu) use ($overrides) {
-                $opt = $menu->menuOptions->first();
-                $capRead = $opt && $opt->can_read === 'Y';
-                if (!$capRead) {
-                    return false;
-                }
-                $row = $overrides->get($menu->menu_idx);
-                return $row ? $row->can_read === 'Y' : true;
-            })->values();
-        } else {
-            $overrides = collect();
-        }
+            $templateBase = $this->templatePermissions($user->permission_template_idx);
 
-        $permissions = [];
-        foreach ($menus as $menu) {
-            // Bypass 계정의 경우 모든 권한획득 ( ex. system, admin )
-            if ($isBypass) {
-                $permissions[$menu->menu_code] = [
-                    'can_read'   => true,
-                    'can_write'  => true,
-                    'can_delete' => true,
-                ];
-                continue;
+            foreach ($menus as $menu) {
+                $permissions[$menu->menu_code] = $this->resolve(
+                    $menu->menuOptions->first(),
+                    $templateBase,
+                    $overrides->get($menu->menu_idx),
+                    $menu->menu_idx
+                );
             }
 
-            // 레벨 옵션( menu_option ) = 상한(cap)
-            $opt = $menu->menuOptions->first();
-            $cap = [
-                'can_read'   => $opt && $opt->can_read   === 'Y',
-                'can_write'  => $opt && $opt->can_write  === 'Y',
-                'can_delete' => $opt && $opt->can_delete === 'Y',
-            ];
-
-            $row = $overrides->get($menu->menu_idx);
-            if ($row) {
-                // 개인 override 우선 — 단 레벨 cap 을 넘을 수 없음 ( 런타임 클램프: cap AND override )
-                $permissions[$menu->menu_code] = [
-                    'can_read'   => $cap['can_read']   && $row->can_read   === 'Y',
-                    'can_write'  => $cap['can_write']  && $row->can_write  === 'Y',
-                    'can_delete' => $cap['can_delete'] && $row->can_delete === 'Y',
-                ];
-            } else {
-                // override 없으면 레벨값 그대로
-                $permissions[$menu->menu_code] = $cap;
-            }
+            // 읽기 권한 없는 메뉴는 트리에서 제외 ( 권한 맵에서도 제거 )
+            $menus = $menus->filter(fn ($menu) => $permissions[$menu->menu_code]['can_read'])->values();
+            $permissions = array_filter($permissions, fn ($p) => $p['can_read']);
         }
 
         $sorted = $menus->sortBy(function ($menu) {

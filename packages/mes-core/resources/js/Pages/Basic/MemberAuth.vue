@@ -1,7 +1,8 @@
 <!-- 사용자 권한 관리 / 권한레벨 1 ~ 10
      - 좌: 사용자(레벨 10·99) 목록 / 우: 선택 사용자의 메뉴별 R/W/D 권한
      - 레벨(메뉴관리)에서 허용한 것(cap)만 토글 가능 → cap N 이면 비활성
-     - 레벨과 동일하면 override 미저장( 레벨 따라감 ) -->
+     - 권한 템플릿 적용 시 템플릿이 기본값( 개인 override 초기화 ), 미지정이면 기본값 = 권한 없음
+     - 기본값과 동일하면 override 미저장( 기본값 따라감 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 헤더 -->
@@ -36,13 +37,29 @@
             <!-- 우: 권한 그리드 -->
             <div class="flex-1 min-w-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <span class="text-sm font-semibold text-gray-600">
-                        메뉴 권한
-                        <span v-if="selectedUser" class="text-gray-400 font-normal">
+                    <span class="flex items-center gap-1 h-7 min-w-0 text-sm font-semibold text-gray-600">
+                        <span class="shrink-0">메뉴 권한</span>
+                        <span v-if="selectedUser" class="truncate text-gray-400 font-normal">
                             [ {{ selectedUser.user_name || selectedUser.user_id }} · {{ LEVELS[selectedUser.user_level] ?? selectedUser.user_level }} ]
                         </span>
+                        <span
+                            v-if="noPermission"
+                            class="shrink-0 ml-1 leading-none text-[10px] font-medium px-1.5 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200 cursor-help"
+                            title="권한 템플릿이 지정되지 않았습니다. 템플릿을 적용하거나, 필요한 메뉴만 직접 켜고 저장하세요."
+                        >⚠ 권한 없음</span>
                     </span>
-                    <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="!selectedUser || saving" @click="save">권한 저장</BaseButton>
+                    <div class="flex items-center gap-2">
+                        <BaseSelect
+                            v-if="selectedUser"
+                            v-model="templateSel"
+                            size="sm"
+                            class="w-48"
+                            :options="templateOptions"
+                            :disabled="!canWrite || saving"
+                        />
+                        <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!selectedUser || saving" @click="applyTemplate">템플릿 적용</BaseButton>
+                        <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="!selectedUser || saving" @click="save">권한 저장</BaseButton>
+                    </div>
                 </div>
 
                 <div class="flex-1 min-h-0 overflow-y-auto">
@@ -53,19 +70,23 @@
                         <thead>
                             <tr class="text-gray-500">
                                 <th class="sticky top-0 z-10 bg-white px-3 py-2 shadow-[inset_0_-1px_0_0_#e5e7eb]"></th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_#e5e7eb]">노출(읽기)</th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_#e5e7eb]">등록·수정</th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-24 shadow-[inset_0_-1px_0_0_#e5e7eb]">삭제</th>
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_#e5e7eb] cursor-pointer select-none hover:text-blue-500"
+                                    @click="toggleColumn('can_read')">노출(읽기)</th>
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_#e5e7eb] cursor-pointer select-none hover:text-blue-500"
+                                    @click="toggleColumn('can_write')">등록·수정</th>
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-24 shadow-[inset_0_-1px_0_0_#e5e7eb] cursor-pointer select-none hover:text-blue-500"
+                                    @click="toggleColumn('can_delete')">삭제</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="row in perm" :key="row.menu_idx" class="border-t first:border-t-0 last:border-0" :class="{ 'bg-gray-50/60': row._depth === 0 }">
+                            <tr v-for="row in perm" :key="row.menu_idx" class="border-t first:border-t-0 last:border-0 transition-colors hover:bg-blue-50/70" :class="{ 'bg-gray-50/60': row._depth === 0 }">
                                 <td class="px-3 py-1.5 text-gray-700">
                                     <span :style="{ paddingLeft: (row._depth * 16) + 'px' }" class="inline-flex items-center gap-1.5">
                                         <span v-if="row._depth > 0" class="text-gray-300">└</span>
                                         <span :class="row._depth === 0 ? 'font-semibold' : ''">{{ row.menu_name }}</span>
                                         <span class="text-[11px] text-gray-400">[{{ row.menu_code }}]</span>
                                         <span v-if="row.url_path" class="text-[11px] text-gray-300">{{ row.url_path }}</span>
+                                        <span v-if="row.is_override === 'Y'" class="text-[11px] px-1 rounded bg-amber-50 text-amber-600" title="템플릿/레벨 기본값과 다르게 개인 지정됨">개인</span>
                                     </span>
                                 </td>
                                 <td class="px-3 py-1.5 text-center">
@@ -96,9 +117,11 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
+import { showAlert } from '@core/Utils/message.js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -114,6 +137,22 @@ const users        = ref([]);
 const selectedUser = ref(null);
 const perm         = ref([]);   // [{ menu_idx, menu_name, menu_depth, is_admin, cap_*, can_* }]
 const saving       = ref(false);
+
+// ---- 권한 템플릿 ----
+const templates   = ref([]);
+const templateSel = ref('');   // '' = 템플릿 없음( 개인 지정한 메뉴만 권한 )
+const templateOptions = computed(() => [
+    { value: '', label: '템플릿 없음' },
+    ...templates.value.map(t => ({ value: String(t.template_idx), label: t.template_name })),
+]);
+
+// 권한 부여 수단이 하나도 없음 = 템플릿 미지정 + 켜진 토글 없음 ( 저장 전 화면 값 기준 → 토글 즉시 반영 )
+//   템플릿이 없으면 기본값이 전부 N 이라, 켜진 토글은 곧 개인 지정 권한
+const noPermission = computed(() =>
+    !!selectedUser.value
+    && !selectedUser.value.permission_template_idx
+    && !perm.value.some(r => r.can_read === 'Y' || r.can_write === 'Y' || r.can_delete === 'Y')
+);
 
 // ---- 플래시 ----
 const flash = reactive({ text: '', error: false });
@@ -131,6 +170,15 @@ async function loadUsers() {
         users.value = data.users ?? [];
     } catch (e) {
         showFlash('사용자 목록을 불러오지 못했습니다', true);
+    }
+}
+
+async function loadTemplates() {
+    try {
+        const { data } = await window.axios.get(route('basic.memauth.templates'));
+        templates.value = data.templates ?? [];
+    } catch (e) {
+        showFlash('권한 템플릿을 불러오지 못했습니다', true);
     }
 }
 
@@ -158,6 +206,8 @@ async function selectUser(u) {
     selectedUser.value = u;
     try {
         const { data } = await window.axios.get(route('basic.memauth.menus', u.account_idx));
+        templateSel.value = data.permission_template_idx ? String(data.permission_template_idx) : '';
+        u.permission_template_idx = data.permission_template_idx;
         applyPerm(orderTree(data.menus ?? []));
     } catch (e) {
         showFlash('메뉴 권한을 불러오지 못했습니다', true);
@@ -177,6 +227,7 @@ function applyPerm(next) {
             r.can_read = n.can_read;   r.cap_read = n.cap_read;
             r.can_write = n.can_write; r.cap_write = n.cap_write;
             r.can_delete = n.can_delete; r.cap_delete = n.cap_delete;
+            r.is_override = n.is_override;
         });
     } else {
         perm.value = next;
@@ -195,6 +246,17 @@ function setRead(row, v) {
         if (p.cap_read === 'Y') p.can_read = 'Y';   // 레벨이 허용한 경우만
         parentCode = p.parent_menu_code;
     }
+}
+
+// 헤더 클릭 → 컬럼 전체 Y/N 토글 ( 레벨 상한(cap)이 Y 인 행만 대상 )
+const CAP_FIELD = { can_read: 'cap_read', can_write: 'cap_write', can_delete: 'cap_delete' };
+
+function toggleColumn(field) {
+    const targets = perm.value.filter(r => r[CAP_FIELD[field]] === 'Y');
+    if (!targets.length) return;
+
+    const next = targets.every(r => r[field] === 'Y') ? 'N' : 'Y';
+    targets.forEach(r => { r[field] = next; });
 }
 
 async function save() {
@@ -221,5 +283,34 @@ async function save() {
     }
 }
 
-onMounted(loadUsers);
+// 템플릿 적용 → 템플릿 권한 그대로 사용 ( 개인 지정 초기화 )
+async function applyTemplate() {
+    if (!selectedUser.value) return;
+    const name = templateOptions.value.find(o => o.value === templateSel.value)?.label;
+
+    const confirm = await showAlert( '확인', `'${name}' 을(를) 적용합니다.\n이 사용자의 개인 지정 권한은 초기화됩니다`, 'question', 'confirm' );
+
+    if( !confirm.isConfirmed ) {
+        return;
+    };
+
+    try {
+        await window.axios.post(route('basic.memauth.template.apply'), {
+            account_idx: selectedUser.value.account_idx,
+            permission_template_idx: templateSel.value === '' ? null : Number(templateSel.value),
+        });
+        await selectUser(selectedUser.value);
+        showFlash('템플릿이 적용되었습니다');
+    } catch (e) {
+        if (e.response?.status === 403)      showFlash('저장 권한이 없습니다', true);
+        else                                 showFlash('템플릿 적용에 실패했습니다', true);
+    } finally {
+        saving.value = false;
+    }
+}
+
+onMounted(() => {
+    loadUsers();
+    loadTemplates();
+});
 </script>

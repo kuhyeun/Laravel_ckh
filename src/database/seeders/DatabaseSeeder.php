@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Database\Seeders\Menu\MenuSeeder;
+use Database\Seeders\Menu\PermissionTemplateSeeder;
 use Illuminate\Database\Seeder;
 use Database\Seeders\User\UserSeeder;
 use Database\Seeders\Config\SystemConfigSeeder;
@@ -15,6 +16,7 @@ class DatabaseSeeder extends Seeder {
         $this->call([
             UserSeeder::class,
             MenuSeeder::class,
+            PermissionTemplateSeeder::class,
             SystemConfigSeeder::class,
             // 추후 추가되는 Seeder 추가
         ]);

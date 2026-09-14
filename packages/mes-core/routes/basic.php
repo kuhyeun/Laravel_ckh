@@ -13,8 +13,6 @@ use MesCore\Auth\Middleware\MenuAuth;
 // 페이지 렌더는 제네릭 라우터( url_path 기반, CoreServiceProvider 의 Route::fallback )가 처리한다.
 // 이 파일에는 데이터/도구 엔드포인트만 남긴다.
 
-
-
 Route::middleware([AdminAuth::class])->group(function() {
     Route::prefix('basic')->name('basic.')->middleware(LevelAuth::class . ':1')->group(function() {
 
@@ -36,6 +34,7 @@ Route::middleware([AdminAuth::class])->group(function() {
             Route::middleware($codeWrite)->group(function() {
                 Route::post('/saveGroup', [CodeController::class, 'saveGroup'])->name('group.save');
                 Route::post('/saveCode',  [CodeController::class, 'saveCode'])->name('code.save');
+                Route::post('/saveCodes', [CodeController::class, 'saveCodes'])->name('code.saveMany');
             });
 
             Route::middleware($codeDelete)->group(function() {
@@ -58,6 +57,7 @@ Route::middleware([AdminAuth::class])->group(function() {
             });
             Route::middleware($memDelete)->group(function() {
                 Route::post('/member/delete', [MemberController::class, 'delete'])->name('del');
+                Route::post('/member/deleteMany', [MemberController::class, 'deleteMany'])->name('del.many');
             });
         });
 
@@ -69,9 +69,11 @@ Route::middleware([AdminAuth::class])->group(function() {
             Route::middleware($authRead)->group(function() {
                 Route::get('/users', [MemberAuthController::class, 'users'])->name('users');
                 Route::get('/menus/{accountIdx}', [MemberAuthController::class, 'menus'])->name('menus');
+                Route::get('/templates', [MemberAuthController::class, 'templates'])->name('templates');
             });
             Route::middleware($authWrite)->group(function() {
                 Route::post('/save', [MemberAuthController::class, 'save'])->name('save');
+                Route::post('/applyTemplate', [MemberAuthController::class, 'applyTemplate'])->name('template.apply');
             });
         });
     });

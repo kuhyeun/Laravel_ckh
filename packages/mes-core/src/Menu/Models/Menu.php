@@ -83,11 +83,13 @@ class Menu extends Model {
                 'create_account_idx' => Auth::id()
             ]));
 
+            // 사용자 메뉴의 레벨 옵션 = 상한(cap)이므로 전부 Y. 실제 권한은 템플릿/개인 지정으로 부여
+            // ( 새 메뉴는 템플릿에 행이 없으므로 누구에게도 자동 노출되지 않음 )
             $menu->menuOptions()->createMany([
-                ['menu_level' => 0,  'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'N', 'can_delete' => 'N', 'create_account_idx' => Auth::id()],
-                ['menu_level' => 1,  'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'N', 'can_delete' => 'N', 'create_account_idx' => Auth::id()],
-                ['menu_level' => 10, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'N', 'can_delete' => 'N', 'create_account_idx' => Auth::id()],
-                ['menu_level' => 99, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'N', 'can_delete' => 'N', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 0,  'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 1,  'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 10, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 99, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
             ]);
 
             return $menu;

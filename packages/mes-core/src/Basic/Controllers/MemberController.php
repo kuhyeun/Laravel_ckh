@@ -6,6 +6,7 @@ use MesCore\Http\Controller;
 use MesCore\Auth\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
@@ -13,7 +14,9 @@ class MemberController extends Controller {
 
     // 사용자(회원) 목록 ( 비밀번호는 모델 $hidden 으로 자동 제외 )
     // 레벨 체계: 0=시스템관리자 1=관리자 10=중간관리자 99=사용자 ( 숫자 클수록 하위 권한 )
+    // 자기 권한보다 낮은 계정만 표시 및 본인 계정은 숨김처리
     public function list() {
+        $myIdx   = Auth::user()->account_idx;
         $myLevel = Auth::user()->user_level;
 
         $members = User::select(
@@ -27,6 +30,7 @@ class MemberController extends Controller {
                 'update_datetime'
             )
             ->where('user_level', '>=', $myLevel)
+            ->where('account_idx', '!=', $myIdx)
             ->orderBy('account_idx')
             ->get();
 
@@ -103,6 +107,45 @@ class MemberController extends Controller {
             return response()->json(['message' => 'Success'], 200);
         } catch (\Throwable $e) {
             Log::error('사용자 삭제 실패 : ' . $e->getMessage());
+            return response()->json(['message' => 'Failed'], 500);
+        }
+    }
+
+    // 선택 삭제 ( 그리드 체크박스 ). 전부 삭제 가능할 때만 삭제 ( 일부만 지워지는 상황 방지 )
+    public function deleteMany(Request $request) {
+        $validated = $request->validate([
+            'account_idxs'   => ['required', 'array', 'min:1'],
+            'account_idxs.*' => ['integer'],
+        ]);
+
+        $myLevel = Auth::user()->user_level;
+        $users   = User::whereIn('account_idx', array_unique($validated['account_idxs']))->get();
+
+        if ($users->isEmpty()) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        // 자기 자신 포함 → 차단
+        if ($users->contains('account_idx', Auth::id())) {
+            return response()->json(['message' => 'SelfDelete'], 409);
+        }
+        // 상위 권한자 포함 → 차단 ( 대상 아이디 반환 )
+        $forbidden = $users->filter(fn ($u) => $u->user_level < $myLevel);
+        if ($forbidden->isNotEmpty()) {
+            return response()->json([
+                'message'  => 'Forbidden',
+                'user_ids' => $forbidden->pluck('user_id')->values(),
+            ], 403);
+        }
+
+        try {
+            DB::transaction(function () use ($users) {
+                // 개인 메뉴 권한( account_menu_permission )은 FK cascade 로 함께 삭제
+                User::whereIn('account_idx', $users->pluck('account_idx'))->delete();
+            });
+
+            return response()->json(['message' => 'Success', 'deleted' => $users->count()], 200);
+        } catch (\Throwable $e) {
+            Log::error('사용자 선택 삭제 실패 : ' . $e->getMessage());
             return response()->json(['message' => 'Failed'], 500);
         }
     }

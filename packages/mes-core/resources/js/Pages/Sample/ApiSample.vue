@@ -3,9 +3,9 @@
         <div class="mb-4">
             <h2 class="font-bold text-lg mb-2">GET 요청</h2>
             <div class="flex gap-2">
-                <input v-model="getLink" type="text" class="border rounded px-2 h-[35px] w-[180px]" placeholder="Get Link Url" />
-                <button class="basic-btn h-[35px]" @click="fetchData">데이터 조회</button>
-                <button class="basic-btn h-[35px]" @click="clearGetData">초기화</button>
+                <BaseInput v-model="getLink" placeholder="Get Link URL" class="w-56 text-base" />
+                <BaseButton class="mr-1 font-bold" size="sm" @click="fetchData">데이터 조회</BaseButton>
+                <BaseButton class="font-bold" size="sm" @click="clearGetData">초기화</BaseButton>
             </div>
             <pre v-if="getData" class="mt-2 p-3 bg-gray-100 rounded text-sm">{{ getData }}</pre>
         </div>
@@ -13,15 +13,15 @@
         <div class="mb-4">
             <h2 class="font-bold text-lg mb-2">POST 요청</h2>
             <div class="flex gap-2 mb-2">
-                <input v-model="postLink" type="text" class="border rounded px-2 h-[35px] w-[180px]" placeholder="Post Link Url"  />
-                <button class="basic-btn h-[35px]" @click="addField">+ 필드 추가</button>
-                <button class="basic-btn h-[35px]" @click="submitData">전송</button>
-                <button class="basic-btn h-[35px]" @click="clearPostData">초기화</button>
+                <BaseInput v-model="postLink" placeholder="Post Link URL" class="w-56 text-base" />
+                <BaseButton class="mr-1 font-bold" size="sm" @click="addField">+ 필드 추가</BaseButton>
+                <BaseButton class="mr-1 font-bold" size="sm" @click="submitData">전송</BaseButton>
+                <BaseButton class="font-bold" size="sm" @click="clearPostData">초기화</BaseButton>
             </div>
             <div v-for="(field, index) in postFields" :key="index" class="flex items-center gap-2 mb-2">
-                <input v-model="field.key" type="text" placeholder="key" class="border rounded px-2 h-[35px] w-[150px]" />
-                <input v-model="field.value" type="text" placeholder="value" class="border rounded px-2 h-[35px] w-[200px]" />
-                <button class="basic-btn h-[35px] text-red-500" @click="removeField(index)">X</button>
+                <BaseInput v-model="field.key" placeholder="key" class="w-56 text-base" />
+                <BaseInput v-model="field.value" placeholder="value" class="w-56 text-base" />
+                <BaseButton class="text-red-500" @click="removeField(index)">X</BaseButton>
             </div>
             <pre v-if="postResult" class="mt-2 p-3 bg-gray-100 rounded text-sm">{{ postResult }}</pre>
         </div>
@@ -34,12 +34,14 @@
 import { ref } from 'vue';
 import axios from 'axios';
 import AppLayout from '@core/Layouts/AppLayout.vue';
+import BaseButton from '@core/Components/Base/BaseButton.vue';
+import BaseInput from '@core/Components/Base/BaseInput.vue';
 
 defineOptions({
     layout: AppLayout
 });
 
-const getLink  = ref( '/dev/apiGet' );
+const getLink  = ref( '/dev/apiGet?param=A' );
 const postLink = ref( '/dev/apiPost' );
 const getData  = ref(null);
 const postResult  = ref(null);

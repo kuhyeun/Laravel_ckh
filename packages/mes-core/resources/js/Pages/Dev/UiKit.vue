@@ -73,7 +73,7 @@
                         <BaseCheckbox variant="checkbox" true-value="Y" false-value="N">사용</BaseCheckbox>
                     </ShowcaseCard>
                     <ShowcaseCard title="Toggle" :code="code.toggle">
-                        <BaseCheckbox variant="switch" true-value="Y" false-value="N" />
+                        <BaseCheckbox variant="switch" true-value="Y" false-value="N">사용</BaseCheckbox>
                     </ShowcaseCard>
                 </div>
             </section>
@@ -148,7 +148,7 @@ const code = {
     checkbox:
         `<BaseCheckbox variant="checkbox" true-value="Y" false-value="N">사용</BaseCheckbox>`,
     toggle:
-        `<BaseCheckbox variant="switch" true-value="Y" false-value="N" />`,
+        `<BaseCheckbox variant="switch" true-value="Y" false-value="N">사용</BaseCheckbox>`,
 
     buttonVariants:
         `<BaseButton>Btn1</BaseButton>

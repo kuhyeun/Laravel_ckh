@@ -1,7 +1,7 @@
 import { ref, onUnmounted } from 'vue';
 import Grid from 'tui-grid';
 import 'tui-grid/dist/tui-grid.css';
-import { CheckboxRenderer } from '@core/Composables/gridClass';
+import { CheckboxRenderer, RequiredHeaderRenderer } from '@core/Composables/gridClass';
 
 export function useGrid() {
     const gridInstance = ref(null);
@@ -61,6 +61,20 @@ export function useGrid() {
             el: gridContainerRef.value, // 필수: 그리드가 그려질 실제 DOM 엘리먼트
             ...defaultOptions,
             ...componentOptions
+        };
+
+        // 필수 컬럼( validation.required ) 헤더에 빨간 * 표시
+        //   컴포넌트가 header.columns 로 렌더러를 직접 지정한 컬럼은 건드리지 않음
+        const headerColumns = [ ...( componentOptions?.header?.columns ?? [] ) ];
+        ( finalOptions.columns ?? [] ).forEach( col => {
+            if( col.validation?.required && !headerColumns.some( h => h.name === col.name ) ) {
+                headerColumns.push( { name: col.name, renderer: RequiredHeaderRenderer } );
+            };
+        });
+        finalOptions.header = {
+            ...defaultOptions.header,
+            ...componentOptions?.header,
+            columns: headerColumns
         };
 
         Grid.setLanguage('ko'); // Grid 생성전 호출해야함

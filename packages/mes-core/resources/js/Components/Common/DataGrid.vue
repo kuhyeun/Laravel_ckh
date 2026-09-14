@@ -36,8 +36,8 @@ onMounted(() => {
     autoResizeGrid(gridContainer, gridInstance.value);
 
     gridInstance.value?.on('click', (ev) => {
-        // 헤더/빈영역 클릭( rowKey null )은 무시
-        if (ev.rowKey == null) return;
+        // 헤더/빈영역 클릭( rowKey null ) · 행 헤더( _checked 체크박스, _number 등 ) 클릭은 무시
+        if (ev.rowKey == null || ev.columnName?.startsWith('_')) return;
         const row = gridInstance.value.getRow(ev.rowKey);
         if (row) emit('row-click', row);
     });

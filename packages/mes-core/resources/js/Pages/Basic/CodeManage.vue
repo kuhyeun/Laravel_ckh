@@ -100,6 +100,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
+import { showAlert } from '@core/Utils/message';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -109,10 +110,11 @@ import DataGrid from '@core/Components/Common/DataGrid.vue';
 defineOptions({ layout: AppLayout });
 
 // 코드 목록 그리드 컬럼 ( TUI Grid )
+//   validation.required → 헤더에 빨간 * ( useGrid ) + 저장 전 grid.validate() 검사 대상
 const codeColumns = [
-    { header: '그룹키', name: 'system_code_group_key', minWidth: 120, className: 'cursor-pointer', align: 'center', formatter: ({value}) => value ? value : "-" },
-    { header: '코드키', name: 'system_code_key', minWidth: 120, className: 'cursor-pointer', editor: "text" },
-    { header: '코드명', name: 'system_code_name', minWidth: 160, className: 'cursor-pointer', editor: "text" },
+    { header: '그룹키', name: 'system_code_group_key', minWidth: 120, className: 'cursor-pointer', align: 'center', formatter: ({value}) => value ? value : "-", validation: { required: true } },
+    { header: '코드키', name: 'system_code_key', minWidth: 120, className: 'cursor-pointer', editor: "text", validation: { required: true } },
+    { header: '코드명', name: 'system_code_name', minWidth: 160, className: 'cursor-pointer', editor: "text", validation: { required: true } },
     { header: '코드값', name: 'system_code_value', minWidth: 120, className: 'cursor-pointer', editor: "text" },
     { header: '설명',   name: 'system_code_desc', minWidth: 220, className: 'cursor-pointer', editor: "text" },
 ];
@@ -222,6 +224,12 @@ function newCode() {
 }
 
 function addCodeRow() {
+    // 그룹키는 그리드에서 편집하지 않으므로( 좌측 선택 그룹으로 채움 ) 그룹 선택이 선행돼야 함
+    if( !selectedGroupKey.value ) {
+        showFlash('좌측에서 코드 그룹을 먼저 선택하세요', true);
+        return;
+    };
+
     const g_grid = grid();
 
     if( g_grid != null ) {
@@ -283,7 +291,11 @@ async function saveGroup() {
 }
 async function deleteGroup() {
     if (!groupForm.system_code_group_idx) return;
-    if (!window.confirm('이 코드 그룹을 삭제하시겠습니까?')) return;
+
+    const cfm = await showAlert( '삭제', '이 코드 그룹을 삭제하시겠습니까?', 'question', 'confirm' );
+
+    if( !cfm.isConfirmed ) return;
+
     try {
         await window.axios.post(route('basic.code.group.del'), { system_code_group_idx: groupForm.system_code_group_idx });
         selectedGroupKey.value = null;
@@ -301,17 +313,53 @@ async function deleteGroup() {
 }
 
 // ---- 코드 액션 ----
+// 그리드에서 추가·수정된 행을 일괄 저장
+//   ( 기존 codeForm 은 행 클릭 시점의 복사본이라 셀 편집값이 반영되지 않음 → 그리드 데이터를 직접 전송 )
+const CODE_FIELDS = ['system_code_idx', 'system_code_group_key', 'system_code_key', 'system_code_name', 'system_code_value', 'system_code_desc'];
+
 async function saveCode() {
-    codeErrors.value = {};
+    const g = grid();
+    if (!g) return;
+
+    // 편집 중인 셀 값 확정 ( 입력 후 바로 저장 버튼을 누른 경우 )
+    //   인자 없는 finishEditing 은 에디터 제거를 예약만 하고, 값은 다음 렌더에서 반영되므로 한 틱 대기
+    g.finishEditing();
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const { createdRows = [], updatedRows = [] } = g.getModifiedRows();
+    const rows = [...createdRows, ...updatedRows];
+    if (!rows.length) {
+        showFlash('변경된 내용이 없습니다', true);
+        return;
+    }
+
+    // 필수값( validation.required ) 클라이언트 검사 → 첫 오류 셀로 포커스
+    const invalid = g.validate().filter(v => rows.some(r => r.rowKey === v.rowKey));
+    if (invalid.length) {
+        const first = invalid[0];
+        const col   = first.errors[0]?.columnName;
+        const label = codeColumns.find(c => c.name === col)?.header ?? col;
+        g.focus(first.rowKey, col);
+        showFlash(`필수값을 입력하세요 : ${label}`, true);
+        return;
+    }
+
     try {
-        await window.axios.post(route('basic.code.code.save'), { ...codeForm });
+        const { data } = await window.axios.post(route('basic.code.code.saveMany'), {
+            rows: rows.map(r => Object.fromEntries(CODE_FIELDS.map(f => [f, r[f] ?? null]))),
+        });
         await loadCodes();
-        newCode();
-        showFlash('코드가 저장되었습니다');
+        showFlash(`${data.saved ?? rows.length}건이 저장되었습니다`);
     } catch (e) {
         if (e.response?.status === 422) {
-            codeErrors.value = e.response.data.errors || {};
-            showFlash('입력값을 확인하세요', true);
+            // 오류 키 rows.{index}.{field} → 해당 행/컬럼 포커스 + 첫 메시지 표시
+            const errors = e.response.data.errors || {};
+            const [key, messages] = Object.entries(errors)[0] ?? [];
+            const m = key?.match(/^rows\.(\d+)\.(\w+)$/);
+            if (m && rows[m[1]]) {
+                g.focus(rows[m[1]].rowKey, m[2]);
+            }
+            showFlash(messages?.[0] ?? '입력값을 확인하세요', true);
         } else {
             showFlash('코드 저장에 실패했습니다', true);
         }
@@ -331,7 +379,9 @@ async function deleteCode() {
         return;
     };
 
-    if( !window.confirm(`선택한 ${rows.length}건을 삭제하시겠습니까?`) ) return;
+    const cfm = await showAlert( '삭제', `선택한 ${rows.length}건을 삭제하시겠습니까?`, 'question', 'confirm' );
+
+    if( !cfm.isConfirmed ) return;
 
     try {
         // 미저장(신규) 행은 loadCodes 로 그리드가 리셋되며 함께 사라짐

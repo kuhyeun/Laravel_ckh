@@ -58,7 +58,7 @@ class MenuSeeder extends Seeder {
             ]
         );
 
-        $this->seedMenuOptions( $menu, $menuData['menu_level'] );
+        $this->seedMenuOptions( $menu, $menuData['menu_level'], $menu->is_admin === 'N' );
 
         if( !empty( $menuData['children'] ) ) {
             $childLevel     = ++$depth;
@@ -70,7 +70,7 @@ class MenuSeeder extends Seeder {
         }
     }
 
-    private function seedMenuOptions( Menu $menu, int $menuLevel ): void {
+    private function seedMenuOptions( Menu $menu, int $menuLevel, bool $isUserMenu ): void {
         $menuLevels    = [ 0, 1, 10, 99 ];
         $setMenuLevels = [];
 
@@ -81,15 +81,19 @@ class MenuSeeder extends Seeder {
         }
 
         foreach( $setMenuLevels as $level ) {
-            $menu->menuOptions()->updateOrCreate(
-                [
-                    'menu_level' => $level
-                ],
-                [
-                    'menu_sort' => 1,
-                    'create_account_idx' => 1,
-                ]
-            );
+            $option = $menu->menuOptions()->firstOrNew( [ 'menu_level' => $level ] );
+
+            // 사용자 메뉴의 레벨 옵션 = 상한(cap) → 신규 생성 시에만 전부 Y
+            // ( 재실행 시 메뉴관리에서 조정한 상한을 덮어쓰지 않음. 실제 권한은 템플릿/개인 지정으로 부여 )
+            if( !$option->exists && $isUserMenu ) {
+                $option->can_read   = 'Y';
+                $option->can_write  = 'Y';
+                $option->can_delete = 'Y';
+            }
+
+            $option->menu_sort          = 1;
+            $option->create_account_idx = $option->create_account_idx ?? 1;
+            $option->save();
         }
 
         // menu_level 축소 시 범위를 벗어난 옵션 정리 ( 예: 10 → 1 이면 레벨 10 옵션 제거 )

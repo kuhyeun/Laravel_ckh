@@ -9,12 +9,12 @@
             </div>
         </div>
         <div class="h-[35px] mt-2 text-center">
-            <button class="basic-btn h-full mr-2" type="button" @click="onClickRandomize">Randomize</button>
-            <button class="basic-btn h-full mr-2" type="button" @click="onClickColorRandomize">Color Random</button>
-            <button class="basic-btn h-full mr-2" type="button" @click="onClickAddDataset">Add Dataset</button>
-            <button class="basic-btn h-full mr-2" type="button" @click="onClickAddData">Add Data</button>
-            <button class="basic-btn h-full mr-2" type="button" @click="onClickRemoveDataset">Remove Dataset</button>
-            <button class="basic-btn h-full" type="button" @click="onClickRemoveData">Remove Data</button>
+            <BaseButton class="mr-2 font-bold" size="sm" @click="randomize">Randomize</BaseButton>
+            <BaseButton class="mr-2 font-bold" size="sm" @click="colorRandomize">Color Randomize</BaseButton>
+            <BaseButton class="mr-2 font-bold" size="sm" @click="addDataset">Add Dataset</BaseButton>
+            <BaseButton class="mr-2 font-bold" size="sm" @click="addData">Add Data</BaseButton>
+            <BaseButton class="mr-2 font-bold" size="sm" @click="removeDataset">Remove Dataset</BaseButton>
+            <BaseButton class="font-bold" size="sm" @click="removeData">Remove Data</BaseButton>
         </div>
     </div>
 </template>
@@ -24,6 +24,7 @@ import { ref, onMounted } from 'vue';
 import { getRandomColor } from '@core/Utils/common';
 import { useChartDebug } from '@core/Composables/useChartDebug';
 import BasicChart from '@core/Components/Basic/BasicChart.vue';
+import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 
 defineOptions({
