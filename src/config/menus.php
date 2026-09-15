@@ -128,7 +128,18 @@ return [
                 'module_code' => 'Config',
                 'menu_route_name' => '',
                 'menu_level' => 99,
-                'children' => []
+                'children' => [
+                    [
+                        'menu_code' => '1001',
+                        'menu_name' => '품목관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/item',
+                        'page_component' => 'Config/ItemManage',
+                        'menu_level' => 99,
+                    ],
+                ]
             ],
             [
                 'menu_code' => '2000',

@@ -78,7 +78,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">메뉴 코드 <span class="text-red-400">*</span></label>
-                            <BaseInput v-model="form.menu_code" class="w-full" placeholder="고유 코드 (예: basic_menu)" />
+                            <BaseInput v-model="form.menu_code" class="w-full" placeholder="고유 코드 (예: 1000, 1001)" />
                             <p v-if="errors.menu_code" class="text-xs text-red-500 mt-1">{{ errors.menu_code[0] }}</p>
                         </div>
                         <div>

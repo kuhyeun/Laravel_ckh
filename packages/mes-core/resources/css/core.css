@@ -150,6 +150,15 @@ html.sidebar-collapsed #app-sidebar {
     font-size: 15px;
   }
 
+  /* 여러 줄 입력( textarea ) : 고정 높이 대신 rows 로 높이 결정 + 위아래 여백으로 커서 위치 맞춤
+     ( 기본 .base-input 은 한 줄 기준이라 height 36px · 상하 padding 0 → 커서가 위로 붙음 ) */
+  textarea.base-input {
+    height: auto;
+    min-height: calc(2 * 1.5em + 16px + 2px);   /* 최소 2줄 = 줄높이 × 2 + 상하 padding + border */
+    padding: 8px 12px;
+    line-height: 1.5;
+  }
+
   .base-select {
     height: 36px;
     padding: 0 36px 0 12px;
