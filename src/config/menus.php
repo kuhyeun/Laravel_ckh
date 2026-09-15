@@ -149,6 +149,26 @@ return [
                         'page_component' => 'Config/PartnerManage',
                         'menu_level' => 99,
                     ],
+                    [
+                        'menu_code' => '1003',
+                        'menu_name' => '공정관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/process',
+                        'page_component' => 'Config/ProcessManage',
+                        'menu_level' => 99,
+                    ],
+                    [
+                        'menu_code' => '1004',
+                        'menu_name' => '설비관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/equipment',
+                        'page_component' => 'Config/EquipmentManage',
+                        'menu_level' => 99,
+                    ],
                 ]
             ],
             [

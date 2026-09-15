@@ -8,6 +8,7 @@ use Illuminate\Database\Seeder;
 use Database\Seeders\User\UserSeeder;
 use Database\Seeders\Config\SystemConfigSeeder;
 use Database\Seeders\Config\SystemCodeSeeder;
+use Database\Seeders\Config\ProcessSeeder;
 
 /**
  * php artisan db:seed 명령어를 통해 기초 데이터 입력 가능 ( ex 사용자 정보 )
@@ -20,6 +21,7 @@ class DatabaseSeeder extends Seeder {
             PermissionTemplateSeeder::class,
             SystemConfigSeeder::class,
             SystemCodeSeeder::class,
+            ProcessSeeder::class,
             // 추후 추가되는 Seeder 추가
         ]);
     }
