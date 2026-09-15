@@ -139,6 +139,16 @@ return [
                         'page_component' => 'Config/ItemManage',
                         'menu_level' => 99,
                     ],
+                    [
+                        'menu_code' => '1002',
+                        'menu_name' => '거래처관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/partner',
+                        'page_component' => 'Config/PartnerManage',
+                        'menu_level' => 99,
+                    ],
                 ]
             ],
             [

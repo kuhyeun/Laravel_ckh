@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use MesCore\Config\Controllers\ItemController;
+use MesCore\Config\Controllers\PartnerController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -29,6 +30,26 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($itemDelete)->group(function() {
             Route::post('/delete', [ItemController::class, 'deleteMany'])->name('del');
+        });
+    });
+
+    // 거래처관리 ( Config/PartnerManage )
+    Route::prefix('partner')->name('partner.')->group(function() {
+        $partnerRead   = MenuAuth::class . ':Config/PartnerManage,can_read';
+        $partnerWrite  = MenuAuth::class . ':Config/PartnerManage,can_write';
+        $partnerDelete = MenuAuth::class . ':Config/PartnerManage,can_delete';
+
+        Route::middleware($partnerRead)->group(function() {
+            Route::get('/list', [PartnerController::class, 'list'])->name('list');
+            Route::get('/show/{partnerIdx}', [PartnerController::class, 'show'])->whereNumber('partnerIdx')->name('show');
+        });
+
+        Route::middleware($partnerWrite)->group(function() {
+            Route::post('/save', [PartnerController::class, 'save'])->name('save');
+        });
+
+        Route::middleware($partnerDelete)->group(function() {
+            Route::post('/delete', [PartnerController::class, 'deleteMany'])->name('del');
         });
     });
 });

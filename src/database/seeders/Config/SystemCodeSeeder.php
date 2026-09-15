@@ -25,6 +25,16 @@ class SystemCodeSeeder extends Seeder {
                 'L'   => '리터',
             ],
         ],
+        'PARTNER_CONTACT_TYPE' => [
+            'name'  => '거래처 담당자 구분',
+            'desc'  => '거래처 담당자의 역할 ( 소속 출고지와는 별도 축 )',
+            'codes' => [
+                'HQ'    => '본사',
+                'SITE'  => '출고지',
+                'SALES' => '영업담당',
+                'ACCT'  => '회계담당',
+            ],
+        ],
     ];
 
     public function run(): void {
