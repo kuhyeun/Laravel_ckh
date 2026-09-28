@@ -6,9 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
 // 거래처 출고지 ( 거래처 1 : N )
-class CustomerSite extends Model {
+class PartnerSite extends Model {
 
-    protected $table      = 'customer_site';
+    protected $table      = 'partner_site';
     protected $primaryKey = 'site_idx';
     public $incrementing  = true;
 
@@ -16,7 +16,7 @@ class CustomerSite extends Model {
     const UPDATED_AT = 'update_datetime';
 
     protected $fillable = [
-        'customer_idx',
+        'partner_idx',
         'site_name',
         'address',
         'tel',

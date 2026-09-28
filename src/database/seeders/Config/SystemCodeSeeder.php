@@ -25,7 +25,7 @@ class SystemCodeSeeder extends Seeder {
                 'L'   => '리터',
             ],
         ],
-        'CUSTOMER_CONTACT_TYPE' => [
+        'PARTNER_CONTACT_TYPE' => [
             'name'  => '거래처 담당자 구분',
             'desc'  => '거래처 담당자의 역할 ( 소속 출고지와는 별도 축 )',
             'codes' => [
