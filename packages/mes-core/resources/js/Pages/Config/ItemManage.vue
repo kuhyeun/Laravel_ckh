@@ -168,8 +168,10 @@ function openModal(item) {
         {
             item,
             canWrite: canWrite.value,
-            onSaved: () => {
-                showFlash(item ? '수정되었습니다.' : '등록되었습니다.');
+            onSaved: (saved, warnings = []) => {
+                // BOM 자동 생성 · 주 자재 관련 안내를 함께 보여준다
+                const base = item ? '수정되었습니다.' : '등록되었습니다.';
+                showFlash(warnings.length ? `${base} ⚠ ${warnings.join(' / ')}` : base);
                 loadItems();
             },
             modalTitle: item ? `품목 ${canWrite.value ? '수정' : '상세'} [ ${item.item_code} ]` : '품목 등록',

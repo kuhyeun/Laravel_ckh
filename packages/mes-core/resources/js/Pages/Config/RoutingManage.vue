@@ -33,10 +33,9 @@
                         :class="form.routing_idx === r.routing_idx ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50 text-gray-700'"
                         @click="selectRouting(r)"
                     >
-                        <span class="truncate" :class="r.is_use === 'N' ? 'text-gray-400 line-through' : ''">{{ r.routing_name }}</span>
+                        <span class="truncate" :class="r.is_use === 'N' ? 'text-gray-400 line-through' : ''">[{{ r.routing_code }}] {{ r.routing_name }}</span>
                         <span v-if="r.is_default === 'Y'" class="text-[10px] px-1 rounded bg-blue-50 text-blue-600 shrink-0">기본</span>
                         <span class="flex-1"></span>
-                        <span class="text-[11px] text-gray-400 shrink-0">공정 수 : {{ r.lines_count }}</span>
                     </button>
                 </div>
             </div>
@@ -123,6 +122,9 @@
                                         <td class="px-2 py-2 text-center text-gray-500 align-middle">{{ i + 1 }}</td>
                                         <td class="px-1.5 py-1">
                                             <BaseSelect v-model="l.process_idx" :options="lineProcessOptions(l)" size="sm" class="w-full" placeholder="공정 선택" :disabled="!canWrite" @update:model-value="v => onProcessChange(l, v)" />
+                                            <span v-if="l.bom_ref_count" class="inline-block mt-0.5 text-[11px] px-1 rounded bg-amber-50 text-amber-700" :title="'이 줄을 투입 지점으로 쓰는 BOM 라인이 ' + l.bom_ref_count + '건 있습니다. 줄을 지우면 그 투입 지점이 비워집니다.'">
+                                                BOM {{ l.bom_ref_count }}건 참조
+                                            </span>
                                             <p v-if="rowError(i, 'process_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'process_idx') }}</p>
                                         </td>
                                         <td class="px-1.5 py-1">
@@ -164,7 +166,7 @@
                                             <span v-else class="text-xs text-gray-300">—</span>
                                         </td>
                                         <td v-if="canWrite" class="px-1.5 py-1 text-center">
-                                            <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="줄 삭제" @click="form.lines.splice(i, 1)">✕</button>
+                                            <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="줄 삭제" @click="removeLine(i)">✕</button>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -309,6 +311,22 @@ function dropLine(targetIndex) {
 }
 
 const rowError = (i, field) => errors.value[`lines.${i}.${field}`]?.[0] ?? '';
+
+// 줄 삭제 : BOM 이 투입 지점으로 쓰고 있으면 먼저 알린다 ( 막지는 않음 )
+async function removeLine(i) {
+    const line = form.lines[i];
+    if (line.bom_ref_count) {
+        const result = await showAlert(
+            '공정 줄 삭제',
+            `이 줄을 투입 지점으로 쓰는 BOM 라인이 ${line.bom_ref_count}건 있습니다.
+삭제하고 저장하면 그 투입 지점이 비워집니다. 계속할까요?`,
+            'warning',
+            'confirm'
+        );
+        if (!result.isConfirmed) return;
+    }
+    form.lines.splice(i, 1);
+}
 
 // ---- 데이터 ----
 async function loadProcesses() {

@@ -27,6 +27,8 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
         Route::middleware($itemRead)->group(function() {
             Route::get('/list', [ItemController::class, 'list'])->name('list');
             Route::get('/show/{itemIdx}', [ItemController::class, 'show'])->whereNumber('itemIdx')->name('show');
+            // 품목 모달용 : 라우팅 · 자재 선택지 + 주 자재( BOM ) 현황
+            Route::get('/formData', [ItemController::class, 'formData'])->name('formData');
         });
 
         Route::middleware($itemWrite)->group(function() {

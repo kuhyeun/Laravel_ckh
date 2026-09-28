@@ -3,11 +3,16 @@
 namespace MesCore\Config\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Config\Models\Bom;
+use MesCore\Config\Models\BomLine;
 use MesCore\Config\Models\Item;
+use MesCore\Config\Models\Routing;
 use MesCore\Basic\Models\SystemCode;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 // 품목관리 ( BAS-02 )
 //   삭제하지 않는다 → is_use = N 으로 내림 ( ADR 0019 )
@@ -34,6 +39,9 @@ class ItemController extends Controller {
         'std_subcon_price' => '외주단가',
         'is_use'           => '사용 여부',
         'remark'           => '비고',
+        'routing_idx'      => '기본 라우팅',
+        'main_material.child_item_idx' => '주 자재',
+        'main_material.qty'            => '주 자재 소요',
     ];
 
     // 목록 : 검색어( 품번·품명 ) + 대분류 + 사용 여부( Y / N / 전체 )
@@ -149,7 +157,16 @@ class ItemController extends Controller {
             'std_subcon_price' => 'nullable|numeric|min:0|max:9999999999999',
             'is_use'           => 'required|in:Y,N',
             'remark'           => 'nullable|string|max:2000',
+            // 기본 라우팅 : 등록 시점에만 자동 적용되고 이후에는 수동 ( 소급 없음 )
+            'routing_idx'      => 'nullable|integer|exists:routing,routing_idx',
+            // 주 자재 : 가공품은 제품 1 : 원자재 1 이 대부분 → 저장 시 BOM V1 을 대신 만들어 준다
+            'main_material'                 => 'nullable|array',
+            'main_material.child_item_idx'  => 'required_with:main_material|integer|exists:item,item_idx',
+            'main_material.qty'             => 'required_with:main_material|numeric|gt:0|max:9999999999',
+            'main_material.calc_code'       => 'nullable|string|max:30',
+            'main_material.ext_n01'         => 'nullable|numeric|min:0|max:9999999999',
         ], [
+            'main_material.qty.gt' => '주 자재 소요는 0보다 커야 합니다.',
             'item_kind.in' => '대분류에 맞지 않는 소분류입니다.',
             'spec_dim.in'  => '현재는 1차원 규격만 지원합니다.',
         ], self::ATTRIBUTES);
@@ -166,14 +183,176 @@ class ItemController extends Controller {
             $validated['calc_code']       = null;
         }
 
-        try {
-            $item->fill($validated)->save();
+        $mainMaterial = $validated['main_material'] ?? null;
+        unset($validated['main_material']);
 
-            return response()->json(['message' => 'Success', 'item' => $item->fresh()], 200);
+        // 새로 고르는 라우팅은 사용 중이어야 함 ( 기존 값이 미사용으로 내려간 경우는 유지 허용 )
+        $routingIdx = $validated['routing_idx'] ?? null;
+        if ($routingIdx && (int) $routingIdx !== (int) $item->routing_idx) {
+            if (Routing::where('routing_idx', $routingIdx)->where('is_use', 'N')->exists()) {
+                throw ValidationException::withMessages(['routing_idx' => ['사용 중인 라우팅을 선택하세요.']]);
+            }
+        }
+
+        if ($mainMaterial) {
+            $this->assertMainMaterial($item, $mainMaterial['child_item_idx']);
+        }
+
+        try {
+            $warnings = [];
+
+            DB::transaction(function () use ($item, $validated, $mainMaterial, &$warnings) {
+                $item->fill($validated)->save();
+                $warnings = $this->syncMainMaterial($item, $mainMaterial);
+            });
+
+            return response()->json([
+                'message'  => 'Success',
+                'warnings' => $warnings,
+                'item'     => $item->fresh(),
+            ], 200);
         } catch (\Throwable $e) {
             Log::error('품목 저장 실패 : ' . $e->getMessage());
 
             return response()->json(['message' => 'Failed'], 500);
         }
+    }
+
+    // 품목 모달용 : 라우팅 선택지 · 자재 선택지 · 주 자재( BOM ) 현황
+    //   BOM 줄이 2개 이상이면 주 자재 칸은 읽기 전용 → BOM관리에서 다룬다
+    public function formData(Request $request) {
+        $validated = $request->validate([
+            'item_idx' => 'nullable|integer|exists:item,item_idx',
+        ]);
+
+        $routings = Routing::select('routing_idx', 'routing_code', 'routing_name', 'is_default')
+            ->where('is_use', 'Y')
+            ->orderByDesc('is_default')
+            ->orderBy('routing_code')
+            ->get();
+
+        $materials = Item::select('item_idx', 'item_code', 'item_name', 'spec_unit', 'item_type', 'item_kind')
+            ->where('is_use', 'Y')
+            ->when($validated['item_idx'] ?? null, fn ($q, $itemIdx) => $q->where('item_idx', '!=', $itemIdx))
+            ->orderBy('item_code')
+            ->limit(500)
+            ->get();
+
+        $bomLineCount = 0;
+        $mainMaterial = null;
+
+        if (!empty($validated['item_idx'])) {
+            $bom = $this->activeBom((int) $validated['item_idx']);
+            if ($bom) {
+                $lines        = $bom->lines()->with('childItem')->get();
+                $bomLineCount = $lines->count();
+                if ($bomLineCount === 1) {
+                    $line = $lines->first();
+                    $mainMaterial = [
+                        'bom_line_idx'    => $line->bom_line_idx,
+                        'child_item_idx'  => $line->child_item_idx,
+                        'child_item_name' => $line->childItem?->item_name,
+                        'qty'             => $line->qty,
+                        'calc_code'       => $line->calc_code,
+                        'ext_n01'         => $line->ext_n01,
+                    ];
+                }
+            }
+        }
+
+        return response()->json([
+            'routings'            => $routings,
+            'default_routing_idx' => $routings->firstWhere('is_default', 'Y')?->routing_idx,
+            'materials'           => $materials,
+            'bom_line_count'      => $bomLineCount,
+            'main_material'       => $mainMaterial,
+        ]);
+    }
+
+    // ---- 내부 ----
+
+    private function activeBom(int $itemIdx): ?Bom {
+        return Bom::where('item_idx', $itemIdx)
+            ->orderByDesc('is_active')
+            ->orderByDesc('bom_idx')
+            ->first();
+    }
+
+    // 주 자재 검증 : 자기 자신 · 순환
+    private function assertMainMaterial(Item $item, int $childItemIdx): void {
+        if ($item->exists && (int) $childItemIdx === (int) $item->item_idx) {
+            throw ValidationException::withMessages(['main_material.child_item_idx' => ['자기 자신을 자재로 넣을 수 없습니다.']]);
+        }
+
+        if (!$item->exists) {
+            return;   // 신규 품목은 아직 아무도 참조하지 않으므로 순환이 생길 수 없다
+        }
+
+        // 자재의 BOM 을 따라 내려가 이 품목이 나오면 순환
+        $edges = DB::table('bom')
+            ->join('bom_line', 'bom.bom_idx', '=', 'bom_line.bom_idx')
+            ->select('bom.item_idx', 'bom_line.child_item_idx')
+            ->get()
+            ->groupBy('item_idx')
+            ->map(fn ($rows) => $rows->pluck('child_item_idx')->all());
+
+        $seen  = [];
+        $queue = [$childItemIdx];
+        while ($queue) {
+            $current = (int) array_pop($queue);
+            if ($current === (int) $item->item_idx) {
+                throw ValidationException::withMessages(['main_material.child_item_idx' => ['순환 참조입니다. 이 자재의 BOM 이 이 품목을 포함합니다.']]);
+            }
+            if (isset($seen[$current])) {
+                continue;
+            }
+            $seen[$current] = true;
+            foreach ($edges[$current] ?? [] as $next) {
+                $queue[] = (int) $next;
+            }
+        }
+    }
+
+    // 주 자재 ↔ BOM 동기화 ( 진실은 bom · bom_line 하나. 품목에 자재 컬럼을 두지 않는다 )
+    //   BOM 없음  + 주 자재 있음 → BOM V1 생성( 활성 ) + 줄 하나
+    //   BOM 1줄   + 주 자재 있음 → 그 줄 수정
+    //   BOM 1줄   + 주 자재 비움 → 그 줄 삭제 ( BOM 버전은 남긴다 )
+    //   BOM 2줄 이상            → 건드리지 않는다 ( BOM관리에서 다룬다 )
+    private function syncMainMaterial(Item $item, ?array $mainMaterial): array {
+        $bom       = $this->activeBom($item->item_idx);
+        $lineCount = $bom ? $bom->lines()->count() : 0;
+
+        if ($lineCount >= 2) {
+            return $mainMaterial ? ['BOM 자재가 2건 이상이라 주 자재 입력은 반영하지 않았습니다. BOM관리에서 수정하세요.'] : [];
+        }
+
+        if (!$mainMaterial) {
+            if ($bom && $lineCount === 1) {
+                $bom->lines()->delete();
+                return ['주 자재를 비워 BOM 자재 줄이 삭제되었습니다.'];
+            }
+            return [];
+        }
+
+        if (!$bom) {
+            $bom = Bom::create([
+                'item_idx'     => $item->item_idx,
+                'version'      => 'V1',
+                'is_active'    => 'Y',
+                'activated_at' => now(),
+                'remark'       => '품목 등록 시 자동 생성',
+            ]);
+        }
+
+        $line = $bom->lines()->first() ?? new BomLine(['bom_idx' => $bom->bom_idx]);
+        $line->fill([
+            'seq'            => 1,
+            'child_item_idx' => $mainMaterial['child_item_idx'],
+            'qty'            => $mainMaterial['qty'],
+            'calc_code'      => $mainMaterial['calc_code'] ?? null,
+            'ext_n01'        => $mainMaterial['ext_n01'] ?? null,
+        ])->save();
+
+        return $bom->wasRecentlyCreated ? ['BOM ' . $bom->version . ' 이 자동으로 만들어졌습니다.'] : [];
     }
 }

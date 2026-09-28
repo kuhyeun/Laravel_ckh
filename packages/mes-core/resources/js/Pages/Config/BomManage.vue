@@ -122,7 +122,7 @@
                                             <p v-if="rowError(i, 'child_item_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'child_item_idx') }}</p>
                                         </td>
                                         <td class="px-1.5 py-1">
-                                            <BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="!canWrite" />
+                                            <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" />
                                             <p v-if="rowError(i, 'qty')" class="text-[11px] text-red-500">{{ rowError(i, 'qty') }}</p>
                                         </td>
                                         <td class="px-1.5 py-1">
@@ -130,10 +130,10 @@
                                             <p v-if="rowError(i, 'routing_line_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'routing_line_idx') }}</p>
                                         </td>
                                         <td class="px-1.5 py-1">
-                                            <BaseInput v-model="l.calc_code" size="sm" class="w-full" placeholder="예: BAR_CUT" :disabled="!canWrite" />
+                                            <BaseInput v-model="l.calc_code" size="md" class="w-full" placeholder="예: BAR_CUT" :disabled="!canWrite" />
                                         </td>
                                         <td class="px-1.5 py-1">
-                                            <BaseInput v-model="l.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="!canWrite" />
+                                            <BaseInput v-model="l.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" />
                                         </td>
                                         <td v-if="canWrite" class="px-1.5 py-1 text-center">
                                             <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="줄 삭제" @click="form.lines.splice(i, 1)">✕</button>

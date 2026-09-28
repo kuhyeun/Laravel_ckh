@@ -169,7 +169,7 @@ class RoutingController extends Controller {
         }
 
         try {
-            DB::transaction(function () use ($routing, $validated, $lines) {
+            DB::transaction(function () use ($routing, $validated, $lines, &$warnings) {
                 $routing->fill(collect($validated)->except('lines')->all())->save();
 
                 // 기본 라우팅은 하나 ( E_ROUTING_MULTI_DEFAULT ) → 새로 켜면 기존 기본을 내린다
@@ -179,7 +179,7 @@ class RoutingController extends Controller {
                         ->update(['is_default' => 'N', 'update_account_idx' => Auth::id(), 'update_datetime' => now()]);
                 }
 
-                $this->syncLines($routing, $lines);
+                $warnings = array_merge($warnings, $this->syncLines($routing, $lines));
             });
 
             $routing = Routing::with('lines.process')->find($routing->routing_idx);
@@ -233,7 +233,7 @@ class RoutingController extends Controller {
     // 공정 줄 동기화
     //   기존 줄( routing_line_idx )은 갱신만 한다 → BOM 투입 지점 참조가 순서 변경에도 유지됨
     //   배열 순서가 곧 seq
-    private function syncLines(Routing $routing, array $lines): void {
+    private function syncLines(Routing $routing, array $lines): array {
         $existing = RoutingLine::where('routing_idx', $routing->routing_idx)->get()->keyBy('routing_line_idx');
         $keep     = [];
 
@@ -270,13 +270,43 @@ class RoutingController extends Controller {
             $keep[] = $line->routing_line_idx;
         }
 
-        RoutingLine::where('routing_idx', $routing->routing_idx)
+        // 지워질 줄 ( 화면에서 뺀 줄 )
+        $removedIdxs = RoutingLine::where('routing_idx', $routing->routing_idx)
             ->whereNotIn('routing_line_idx', $keep ?: [0])
-            ->delete();
+            ->pluck('routing_line_idx');
+
+        // W_ROUTING_LINE_IN_BOM : 그 줄을 투입 지점으로 쓰는 BOM 라인이 있으면 알린다
+        //   막지 않는다 — FK 가 NULL 로 만들고, BOM 화면에서 다시 지정한다
+        $warnings = [];
+        if ($removedIdxs->isNotEmpty()) {
+            $affected = DB::table('bom_line')
+                ->join('bom', 'bom.bom_idx', '=', 'bom_line.bom_idx')
+                ->join('item', 'item.item_idx', '=', 'bom.item_idx')
+                ->whereIn('bom_line.routing_line_idx', $removedIdxs)
+                ->select('item.item_name', 'bom.version')
+                ->get();
+
+            if ($affected->isNotEmpty()) {
+                $names = $affected->map(fn ($r) => $r->item_name . ' ' . $r->version)->unique()->take(3)->implode(', ');
+                $more  = $affected->count() > 3 ? ' 외' : '';
+                $warnings[] = "삭제한 공정 줄을 쓰던 BOM {$affected->count()}건( {$names}{$more} )의 투입 지점이 비워졌습니다. BOM관리에서 다시 지정하세요.";
+            }
+        }
+
+        RoutingLine::whereIn('routing_line_idx', $removedIdxs)->delete();
+
+        return $warnings;
     }
 
     private function toPayload(Routing $routing): array {
         $data = $routing->only(['routing_idx', 'routing_code', 'routing_name', 'is_default', 'is_use', 'remark']);
+
+        // 이 줄을 투입 지점으로 쓰는 BOM 라인 수 ( 줄을 지우기 전에 화면에서 알 수 있도록 )
+        $bomRefs = DB::table('bom_line')
+            ->whereIn('routing_line_idx', $routing->lines->pluck('routing_line_idx'))
+            ->selectRaw('routing_line_idx, COUNT(*) c')
+            ->groupBy('routing_line_idx')
+            ->pluck('c', 'routing_line_idx');
 
         $data['lines'] = $routing->lines->map(fn (RoutingLine $l) => [
             'routing_line_idx'       => $l->routing_line_idx,
@@ -294,6 +324,7 @@ class RoutingController extends Controller {
             'pre_approve_min'        => $l->pre_approve_min,
             'pre_approved_by_design' => $l->pre_approved_by_design,
             'pre_approved_at'        => $l->pre_approved_at?->format('Y-m-d H:i'),
+            'bom_ref_count'          => (int) ($bomRefs[$l->routing_line_idx] ?? 0),
             'remark'                 => $l->remark,
         ])->values();
 

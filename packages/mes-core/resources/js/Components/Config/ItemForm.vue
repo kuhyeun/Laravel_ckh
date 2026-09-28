@@ -57,6 +57,35 @@
                 <BaseInput v-model="form.spec" class="w-full" :disabled="!canWrite" />
                 <p v-if="errors.spec" class="text-xs text-red-500 mt-0.5">{{ errors.spec[0] }}</p>
             </div>
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">
+                    기본 라우팅
+                    <span v-if="!isEdit" class="text-xs text-gray-400">( 등록 시점에만 자동 적용 )</span>
+                </label>
+                <BaseSelect v-model="form.routing_idx" :options="routingOptions" class="w-full" :disabled="!canWrite" />
+                <p v-if="errors.routing_idx" class="text-xs text-red-500 mt-0.5">{{ errors.routing_idx[0] }}</p>
+            </div>
+            <div></div>
+
+            <!-- 주 자재 : 가공품은 제품 1 : 원자재 1 이 대부분 → 저장하면 BOM V1 이 만들어진다 -->
+            <div class="col-span-2 border-t pt-3">
+                <div class="flex items-baseline gap-2 mb-1">
+                    <span class="text-gray-500 font-medium">주 자재</span>
+                    <span v-if="bomLocked" class="text-xs text-amber-600">BOM 자재가 {{ bomLineCount }}건이라 여기서는 수정할 수 없습니다. BOM관리에서 다루세요.</span>
+                    <span v-else class="text-xs text-gray-400">저장하면 BOM {{ mainMaterial.bom_line_idx ? '자재 줄이 수정' : 'V1 이 자동 생성' }}됩니다. 비우면 줄이 삭제됩니다.</span>
+                </div>
+                <div class="grid grid-cols-3 gap-x-4 gap-y-2">
+                    <div class="col-span-2">
+                        <BaseSelect v-model="mainMaterial.child_item_idx" :options="materialOptions" class="w-full" placeholder="( 없음 )" :disabled="!canWrite || bomLocked" />
+                        <p v-if="errors['main_material.child_item_idx']" class="text-xs text-red-500 mt-0.5">{{ errors['main_material.child_item_idx'][0] }}</p>
+                    </div>
+                    <div>
+                        <BaseInput v-model="mainMaterial.qty" type="number" min="0" class="w-full text-right" placeholder="소요" :disabled="!canWrite || bomLocked || !mainMaterial.child_item_idx" />
+                        <p v-if="errors['main_material.qty']" class="text-xs text-red-500 mt-0.5">{{ errors['main_material.qty'][0] }}</p>
+                    </div>
+                </div>
+            </div>
+
             <div class="flex items-center gap-6 col-span-2 pt-1">
                 <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
                     {{ form.is_use === 'Y' ? '사용' : '미사용' }}
@@ -162,7 +191,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -207,7 +236,7 @@ const FIELD_TAB = {
     min_usable_spec: 'stock', calc_code: 'stock', spec_dim: 'stock',
     ...Object.fromEntries(PRICE_FIELDS.map(f => [f.key, 'price'])),
 };
-const tabOf = (field) => FIELD_TAB[field] ?? 'basic';
+const tabOf = (field) => FIELD_TAB[field] ?? 'basic';   // routing_idx · main_material.* 는 기본 탭
 
 const tab = ref('basic');
 
@@ -234,7 +263,49 @@ const form = reactive({
     std_subcon_price: src.std_subcon_price ?? 0,
     is_use:           src.is_use ?? 'Y',
     remark:           src.remark ?? '',
+    routing_idx:      src.routing_idx ?? '',
 });
+
+// ---- 기본 라우팅 · 주 자재 ( BOM ) ----
+const routings     = ref([]);
+const materials    = ref([]);
+const bomLineCount = ref(0);
+const mainMaterial = reactive({ bom_line_idx: null, child_item_idx: '', qty: '', calc_code: null, ext_n01: null });
+
+// BOM 자재가 2건 이상이면 주 자재 칸은 읽기 전용 ( BOM관리에서 다룬다 )
+const bomLocked = computed(() => bomLineCount.value >= 2);
+
+const routingOptions = computed(() => [
+    { value: '', label: '( 없음 )' },
+    ...routings.value.map(r => ({ value: r.routing_idx, label: `${r.routing_name} [${r.routing_code}]${r.is_default === 'Y' ? ' · 기본' : ''}` })),
+]);
+const materialOptions = computed(() => [
+    { value: '', label: '( 없음 )' },
+    ...materials.value.map(m => ({ value: m.item_idx, label: `${m.item_name} [${m.item_code}]` })),
+]);
+
+async function loadFormData() {
+    try {
+        const { data } = await window.axios.get(route('config.item.formData'), {
+            params: form.item_idx ? { item_idx: form.item_idx } : {},
+        });
+        routings.value     = data.routings ?? [];
+        materials.value    = data.materials ?? [];
+        bomLineCount.value = data.bom_line_count ?? 0;
+
+        if (data.main_material) {
+            Object.assign(mainMaterial, data.main_material);
+        }
+        // 신규 등록은 기본 라우팅을 자동 선택 ( 등록 시점에만. 수정 화면에서는 건드리지 않는다 )
+        if (!isEdit.value && !form.routing_idx && data.default_routing_idx) {
+            form.routing_idx = data.default_routing_idx;
+        }
+    } catch (e) {
+        errorMsg.value = '라우팅 · 자재 목록을 불러오지 못했습니다.';
+    }
+}
+
+onMounted(loadFormData);
 
 const kindOptions = computed(() => ITEM_KINDS[form.item_type] ?? []);
 
@@ -279,8 +350,21 @@ async function save() {
     errors.value = {};
     errorMsg.value = '';
     try {
-        const { data } = await window.axios.post(route('config.item.save'), { ...form });
-        props.onSaved?.(data.item);
+        const payload = {
+            ...form,
+            routing_idx: form.routing_idx === '' ? null : Number(form.routing_idx),
+            // 주 자재를 비우면 null → 서버가 BOM 줄을 삭제한다
+            main_material: (!bomLocked.value && mainMaterial.child_item_idx !== '')
+                ? {
+                    child_item_idx: Number(mainMaterial.child_item_idx),
+                    qty: mainMaterial.qty === '' ? null : mainMaterial.qty,
+                    calc_code: mainMaterial.calc_code ?? null,
+                    ext_n01: mainMaterial.ext_n01 ?? null,
+                }
+                : null,
+        };
+        const { data } = await window.axios.post(route('config.item.save'), payload);
+        props.onSaved?.(data.item, data.warnings ?? []);
         emit('close');
     } catch (e) {
         if (e.response?.status === 422) {

@@ -28,7 +28,7 @@
                     <div
                         v-for="w in tree"
                         :key="w.warehouse_idx"
-                        class="group flex items-center gap-1 px-2 py-1.5 text-sm transition-colors cursor-pointer"
+                        class="group flex items-center gap-1 px-2 py-1 min-h-[34px] text-sm transition-colors cursor-pointer"
                         :class="selected?.warehouse_idx === w.warehouse_idx ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50 text-gray-700'"
                         :style="{ paddingLeft: (8 + w._depth * 16) + 'px' }"
                         @click="selectWarehouse(w)"
@@ -38,11 +38,13 @@
                         <span class="text-[11px] text-gray-400 shrink-0">[{{ w.warehouse_code }}]</span>
                         <span v-if="w.is_leaf === 'Y'" class="text-[10px] px-1 rounded bg-emerald-50 text-emerald-600 shrink-0" title="하위가 없어 재고가 붙는 창고입니다">재고</span>
                         <span class="flex-1"></span>
+                        <!-- 하위 추가 : 평소에는 흐리게, 행에 올리면 뚜렷하게 ( 클릭 영역 24px ) -->
                         <button
                             v-if="canWrite"
                             type="button"
-                            class="opacity-0 group-hover:opacity-100 px-1 text-xs text-gray-400 hover:text-blue-600"
-                            title="이 창고 아래에 추가"
+                            class="shrink-0 flex items-center justify-center w-6 h-6 rounded border border-transparent leading-none text-base text-gray-400 opacity-40
+                                   transition group-hover:opacity-100 group-hover:border-gray-200 hover:!text-white hover:!bg-blue-600 hover:!border-blue-600"
+                            title="이 창고 아래에 하위 창고 추가"
                             @click.stop="newWarehouse(w)"
                         >+</button>
                     </div>
