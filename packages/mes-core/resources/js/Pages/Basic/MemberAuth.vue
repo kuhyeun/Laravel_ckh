@@ -1,6 +1,7 @@
 <!-- 사용자 권한 관리 / 권한레벨 1 ~ 10
      - 좌: 사용자(레벨 10·99) 목록 / 우: 선택 사용자의 메뉴별 R/W/D 권한
      - 레벨(메뉴관리)에서 허용한 것(cap)만 토글 가능 → cap N 이면 비활성
+     - 템플릿 선택 시 적용 전에 그 권한을 미리 표시( 미리보기 ) → [템플릿 적용] 을 눌러야 저장
      - 권한 템플릿 적용 시 템플릿이 기본값( 개인 override 초기화 ), 미지정이면 기본값 = 권한 없음
      - 기본값과 동일하면 override 미저장( 기본값 따라감 ) -->
 <template>
@@ -42,8 +43,14 @@
                         <span v-if="selectedUser" class="truncate text-gray-400 font-normal">
                             [ {{ selectedUser.user_name || selectedUser.user_id }} · {{ LEVELS[selectedUser.user_level] ?? selectedUser.user_level }} ]
                         </span>
+                        <!-- 적용 전 템플릿 미리보기 -->
                         <span
-                            v-if="noPermission"
+                            v-if="previewing"
+                            class="shrink-0 ml-1 leading-none text-[10px] font-medium px-1.5 py-1 rounded bg-blue-50 text-blue-700 border border-blue-200 cursor-help"
+                            title="선택한 템플릿의 권한을 미리 보고 있습니다. [템플릿 적용]을 눌러야 저장됩니다."
+                        >미리보기</span>
+                        <span
+                            v-if="noPermission && !previewing"
                             class="shrink-0 ml-1 leading-none text-[10px] font-medium px-1.5 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200 cursor-help"
                             title="권한 템플릿이 지정되지 않았습니다. 템플릿을 적용하거나, 필요한 메뉴만 직접 켜고 저장하세요."
                         >⚠ 권한 없음</span>
@@ -51,14 +58,20 @@
                     <div class="flex items-center gap-2">
                         <BaseSelect
                             v-if="selectedUser"
-                            v-model="templateSel"
+                            :model-value="templateSel"
+                            @update:model-value="onTemplateChange"
                             size="sm"
                             class="w-48"
                             :options="templateOptions"
                             :disabled="!canWrite || saving"
                         />
                         <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!selectedUser || saving" @click="applyTemplate">템플릿 적용</BaseButton>
-                        <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="!selectedUser || saving" @click="save">권한 저장</BaseButton>
+                        <BaseButton
+                            v-if="canWrite" size="sm" variant="primary"
+                            :disabled="!selectedUser || saving || previewing"
+                            :title="previewing ? '미리보기 중입니다. [템플릿 적용] 후 저장하세요.' : ''"
+                            @click="save"
+                        >권한 저장</BaseButton>
                     </div>
                 </div>
 
@@ -141,6 +154,7 @@ const saving       = ref(false);
 // ---- 권한 템플릿 ----
 const templates   = ref([]);
 const templateSel = ref('');   // '' = 템플릿 없음( 개인 지정한 메뉴만 권한 )
+const previewing  = ref(false);   // 적용 전 템플릿 미리보기 상태 ( 저장 불가 )
 const templateOptions = computed(() => [
     { value: '', label: '템플릿 없음' },
     ...templates.value.map(t => ({ value: String(t.template_idx), label: t.template_name })),
@@ -204,6 +218,7 @@ function orderTree(rows) {
 
 async function selectUser(u) {
     selectedUser.value = u;
+    previewing.value = false;
     try {
         const { data } = await window.axios.get(route('basic.memauth.menus', u.account_idx));
         templateSel.value = data.permission_template_idx ? String(data.permission_template_idx) : '';
@@ -211,6 +226,31 @@ async function selectUser(u) {
         applyPerm(orderTree(data.menus ?? []));
     } catch (e) {
         showFlash('메뉴 권한을 불러오지 못했습니다', true);
+    }
+}
+
+// 템플릿 선택 변경 → 적용 전에 그 템플릿의 권한을 그리드에 미리 표시
+//   저장된 템플릿으로 되돌리면 실제 값( 개인 지정 포함 )을 다시 불러온다
+async function onTemplateChange(value) {
+    templateSel.value = value;
+    if (!selectedUser.value) return;
+
+    const savedIdx = selectedUser.value.permission_template_idx ?? null;
+    const savedSel = savedIdx ? String(savedIdx) : '';
+    if (value === savedSel) {
+        previewing.value = false;
+        await selectUser(selectedUser.value);
+        return;
+    }
+
+    try {
+        const { data } = await window.axios.get(route('basic.memauth.menus', selectedUser.value.account_idx), {
+            params: { preview: 1, preview_template_idx: value === '' ? null : Number(value) },
+        });
+        applyPerm(orderTree(data.menus ?? []));
+        previewing.value = true;
+    } catch (e) {
+        showFlash('템플릿 권한을 불러오지 못했습니다', true);
     }
 }
 
@@ -299,6 +339,7 @@ async function applyTemplate() {
             account_idx: selectedUser.value.account_idx,
             permission_template_idx: templateSel.value === '' ? null : Number(templateSel.value),
         });
+        previewing.value = false;
         await selectUser(selectedUser.value);
         showFlash('템플릿이 적용되었습니다');
     } catch (e) {

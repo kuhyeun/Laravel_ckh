@@ -38,7 +38,15 @@ class MemberAuthController extends Controller {
     }
 
     // 선택 사용자의 메뉴별 [ 레벨 cap + 기본값(템플릿) + 현재값 ]
-    public function menus(int $accountIdx) {
+    //   preview=1 이면 아직 적용하지 않은 템플릿( preview_template_idx )으로 계산해 돌려준다.
+    //   미리보기는 개인 지정을 무시한다 — 템플릿을 적용하면 개인 지정이 초기화되기 때문
+    public function menus(int $accountIdx, Request $request) {
+        $validated = $request->validate([
+            'preview'              => 'sometimes|boolean',
+            'preview_template_idx' => 'nullable|integer|exists:permission_template,template_idx',
+        ]);
+        $isPreview = (bool) ($validated['preview'] ?? false);
+
         $user = User::find($accountIdx);
         if (!$user) {
             return response()->json(['message' => 'NotFound'], 404);
@@ -59,12 +67,13 @@ class MemberAuthController extends Controller {
             ->orderBy('menu_code')
             ->get();
 
-        $overrides = DB::table('account_menu_permission')
-            ->where('account_idx', $accountIdx)
-            ->get()
-            ->keyBy('menu_idx');
+        // 미리보기는 개인 지정을 반영하지 않음 ( 적용 시 초기화되는 값 )
+        $overrides = $isPreview
+            ? collect()
+            : DB::table('account_menu_permission')->where('account_idx', $accountIdx)->get()->keyBy('menu_idx');
 
-        $templateBase = $this->menuPermissionService->templatePermissions($user->permission_template_idx);
+        $templateIdx  = $isPreview ? ($validated['preview_template_idx'] ?? null) : $user->permission_template_idx;
+        $templateBase = $this->menuPermissionService->templatePermissions($templateIdx);
 
         $yn = fn (bool $v) => $v ? 'Y' : 'N';
 
@@ -101,6 +110,7 @@ class MemberAuthController extends Controller {
         return response()->json([
             'level'                   => $level,
             'permission_template_idx' => $user->permission_template_idx,
+            'preview'                 => $isPreview ? 'Y' : 'N',
             'menus'                   => $rows,
         ]);
     }
