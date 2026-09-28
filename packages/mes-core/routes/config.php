@@ -6,6 +6,7 @@ use MesCore\Config\Controllers\PartnerController;
 use MesCore\Config\Controllers\ProcessController;
 use MesCore\Config\Controllers\EquipmentController;
 use MesCore\Config\Controllers\WarehouseController;
+use MesCore\Config\Controllers\RoutingController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -75,6 +76,28 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($processDelete)->group(function() {
             Route::post('/delete', [ProcessController::class, 'deleteMany'])->name('del');
+        });
+    });
+
+    // 공정라우팅관리 ( Config/RoutingManage )
+    Route::prefix('routing')->name('routing.')->group(function() {
+        $routingRead   = MenuAuth::class . ':Config/RoutingManage,can_read';
+        $routingWrite  = MenuAuth::class . ':Config/RoutingManage,can_write';
+        $routingDelete = MenuAuth::class . ':Config/RoutingManage,can_delete';
+
+        Route::middleware($routingRead)->group(function() {
+            Route::get('/list', [RoutingController::class, 'list'])->name('list');
+            Route::get('/show/{routingIdx}', [RoutingController::class, 'show'])->whereNumber('routingIdx')->name('show');
+            // 라우팅 화면의 공정 선택지 ( 공정관리 권한 없이도 조회 가능 )
+            Route::get('/processes', [RoutingController::class, 'processOptions'])->name('processes');
+        });
+
+        Route::middleware($routingWrite)->group(function() {
+            Route::post('/save', [RoutingController::class, 'save'])->name('save');
+        });
+
+        Route::middleware($routingDelete)->group(function() {
+            Route::post('/delete', [RoutingController::class, 'deleteMany'])->name('del');
         });
     });
 
