@@ -6,10 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
 // 거래처 담당자 ( 거래처 1 : N )
-//   contact_type = 무슨 역할( 코드 PARTNER_CONTACT_TYPE ) / site_idx = 어디 소속( NULL = 본사 )
-class PartnerContact extends Model {
+//   contact_type = 무슨 역할( 코드 CUSTOMER_CONTACT_TYPE ) / site_idx = 어디 소속( NULL = 본사 )
+class CustomerContact extends Model {
 
-    protected $table      = 'partner_contact';
+    protected $table      = 'customer_contact';
     protected $primaryKey = 'contact_idx';
     public $incrementing  = true;
 
@@ -17,7 +17,7 @@ class PartnerContact extends Model {
     const UPDATED_AT = 'update_datetime';
 
     protected $fillable = [
-        'partner_idx',
+        'customer_idx',
         'contact_type',
         'site_idx',
         'contact_name',

@@ -10,8 +10,8 @@ use Illuminate\Http\Request;
 //   코드관리( basic.code.* )는 관리 화면 전용이고, 드롭다운 등 조회는 이 API 를 사용한다
 class CommonCodeController extends Controller {
 
-    // GET /common/codes?groups[]=UNIT&groups[]=PARTNER_CONTACT_TYPE
-    //   → { codes: { UNIT: [ { key, name, value, is_use } ], PARTNER_CONTACT_TYPE: [ ... ] } }
+    // GET /common/codes?groups[]=UNIT&groups[]=CUSTOMER_CONTACT_TYPE
+    //   → { codes: { UNIT: [ { key, name, value, is_use } ], CUSTOMER_CONTACT_TYPE: [ ... ] } }
     //   요청한 그룹은 코드가 없어도 빈 배열로 내려준다 ( 프론트에서 undefined 처리 불필요 )
     //   기본은 사용 중( is_use = Y )만. with_inactive=1 이면 미사용 코드도 포함
     //     ( 과거 데이터 조회 화면에서 내려간 코드의 이름을 표시해야 할 때 )

@@ -145,8 +145,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Config',
                         'menu_route_name' => '',
-                        'url_path' => '/config/partner',
-                        'page_component' => 'Config/PartnerManage',
+                        'url_path' => '/config/customer',
+                        'page_component' => 'Config/CustomerManage',
                         'menu_level' => 99,
                     ],
                     [

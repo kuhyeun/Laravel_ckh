@@ -1,5 +1,5 @@
 <!-- 거래처 등록/수정 폼 ( BAS-01 ) — 모달 본체
-     - partner prop( 목록 행 ) 있으면 수정 : 열릴 때 출고지·담당자까지 다시 조회
+     - customer prop( 목록 행 ) 있으면 수정 : 열릴 때 출고지·담당자까지 다시 조회
      - 탭 : 기본 / 담당자(N) / 출고지(N)  → 저장은 한 번에 ( 거래처 + 출고지 + 담당자 )
      - 담당자 소속은 출고지 key 로 연결 ( 새로 추가한 출고지도 저장 전에 고를 수 있음 )
      - 입고검사 설정( 정책 오버라이드 )은 정책 기능 개발 시 추가
@@ -31,13 +31,13 @@
             <div v-show="tab === 'basic'" class="grid grid-cols-2 gap-x-4 gap-y-3 pt-4">
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">거래처코드 <span class="text-red-400">*</span></label>
-                    <BaseInput v-model="form.partner_code" class="w-full" placeholder="예: PT-0012" :disabled="!canWrite" />
-                    <p v-if="errors.partner_code" class="text-xs text-red-500 mt-0.5">{{ errors.partner_code[0] }}</p>
+                    <BaseInput v-model="form.customer_code" class="w-full" placeholder="예: PT-0012" :disabled="!canWrite" />
+                    <p v-if="errors.customer_code" class="text-xs text-red-500 mt-0.5">{{ errors.customer_code[0] }}</p>
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">거래처명 <span class="text-red-400">*</span></label>
-                    <BaseInput v-model="form.partner_name" class="w-full" :disabled="!canWrite" />
-                    <p v-if="errors.partner_name" class="text-xs text-red-500 mt-0.5">{{ errors.partner_name[0] }}</p>
+                    <BaseInput v-model="form.customer_name" class="w-full" :disabled="!canWrite" />
+                    <p v-if="errors.customer_name" class="text-xs text-red-500 mt-0.5">{{ errors.customer_name[0] }}</p>
                 </div>
                 <div class="col-span-2">
                     <label class="block text-gray-500 font-medium mb-1">구분 <span class="text-red-400">*</span> <span class="text-xs text-gray-400">( 여러 개 선택 가능 )</span></label>
@@ -76,7 +76,7 @@
                     <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="addContact">+ 담당자</BaseButton>
                 </div>
                 <p v-if="!contactTypeLoading && !contactTypeOptions.length" class="mb-2 text-xs text-amber-600">
-                    등록된 담당자 구분이 없습니다. 코드관리의 PARTNER_CONTACT_TYPE 그룹에 먼저 추가하세요.
+                    등록된 담당자 구분이 없습니다. 코드관리의 CUSTOMER_CONTACT_TYPE 그룹에 먼저 추가하세요.
                 </p>
 
                 <div class="overflow-x-auto border rounded">
@@ -191,23 +191,23 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
-import { PARTNER_ROLES } from '@core/Components/Config/partnerCodes';
+import { CUSTOMER_ROLES } from '@core/Components/Config/customerCodes';
 
 const props = defineProps({
-    partner:  { type: Object,   default: null },   // 목록 행 ( partner_idx 로 상세 재조회 )
+    customer:  { type: Object,   default: null },   // 목록 행 ( customer_idx 로 상세 재조회 )
     canWrite: { type: Boolean,  default: false },
     onSaved:  { type: Function, default: null },   // 저장 후 호출 ( 저장된 거래처 전달 )
 });
 const emit = defineEmits(['close']);
 
-const isEdit = computed(() => !!props.partner?.partner_idx);
+const isEdit = computed(() => !!props.customer?.customer_idx);
 
 const TABS = [
     { key: 'basic',    label: '기본' },
     { key: 'contacts', label: '담당자' },
     { key: 'sites',    label: '출고지' },
 ];
-const ROLES = PARTNER_ROLES;
+const ROLES = CUSTOMER_ROLES;
 
 const tab = ref('basic');
 
@@ -216,9 +216,9 @@ let rowSeq = 0;
 const newKey = (prefix) => `${prefix}${Date.now().toString(36)}${++rowSeq}`;
 
 const form = reactive({
-    partner_idx:  props.partner?.partner_idx ?? null,
-    partner_code: '',
-    partner_name: '',
+    customer_idx:  props.customer?.customer_idx ?? null,
+    customer_code: '',
+    customer_name: '',
     is_supplier:  'N',
     is_customer:  'Y',
     is_subcon:    'N',
@@ -230,11 +230,11 @@ const form = reactive({
     contacts:     [],   // [{ contact_idx, _rowKey, contact_type, site_key, contact_name, phone, email, remark }]
 });
 
-function applyPartner(p) {
+function applyCustomer(p) {
     Object.assign(form, {
-        partner_idx:  p.partner_idx,
-        partner_code: p.partner_code ?? '',
-        partner_name: p.partner_name ?? '',
+        customer_idx:  p.customer_idx,
+        customer_code: p.customer_code ?? '',
+        customer_name: p.customer_name ?? '',
         is_supplier:  p.is_supplier ?? 'N',
         is_customer:  p.is_customer ?? 'N',
         is_subcon:    p.is_subcon ?? 'N',
@@ -253,8 +253,8 @@ onMounted(async () => {
     if (!isEdit.value) return;
     loading.value = true;
     try {
-        const { data } = await window.axios.get(route('config.partner.show', form.partner_idx));
-        applyPartner(data.partner);
+        const { data } = await window.axios.get(route('config.customer.show', form.customer_idx));
+        applyCustomer(data.customer);
     } catch (e) {
         errorMsg.value = e.response?.status === 404 ? '거래처를 찾을 수 없습니다. 목록을 새로고침하세요.' : '거래처를 불러오지 못했습니다.';
     } finally {
@@ -287,9 +287,9 @@ const siteOptions = computed(() => [
     ...form.sites.map(s => ({ value: s.key, label: s.site_name || '( 이름 없음 )' })),
 ]);
 
-// ---- 담당자 구분 ( 코드 마스터 PARTNER_CONTACT_TYPE ) ----
-const { options: codeOptions, loading: contactTypeLoading } = useCommonCode(['PARTNER_CONTACT_TYPE']);
-const contactTypeOptions = computed(() => codeOptions('PARTNER_CONTACT_TYPE'));
+// ---- 담당자 구분 ( 코드 마스터 CUSTOMER_CONTACT_TYPE ) ----
+const { options: codeOptions, loading: contactTypeLoading } = useCommonCode(['CUSTOMER_CONTACT_TYPE']);
+const contactTypeOptions = computed(() => codeOptions('CUSTOMER_CONTACT_TYPE'));
 // 기존 담당자의 구분이 미사용으로 내려가 목록에 없으면 현재 값은 보이도록 추가
 function contactTypeRowOptions(c) {
     const opts = contactTypeOptions.value;
@@ -319,8 +319,8 @@ async function save() {
             sites:    form.sites.map(({ site_idx, key, site_name, address, tel, remark }) => ({ site_idx, key, site_name, address, tel, remark })),
             contacts: form.contacts.map(({ _rowKey, ...c }) => ({ ...c, site_key: c.site_key || null })),
         };
-        const { data } = await window.axios.post(route('config.partner.save'), payload);
-        props.onSaved?.(data.partner);
+        const { data } = await window.axios.post(route('config.customer.save'), payload);
+        props.onSaved?.(data.customer);
         emit('close');
     } catch (e) {
         if (e.response?.status === 422) {

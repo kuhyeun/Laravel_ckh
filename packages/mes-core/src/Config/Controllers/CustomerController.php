@@ -3,9 +3,9 @@
 namespace MesCore\Config\Controllers;
 
 use MesCore\Http\Controller;
-use MesCore\Config\Models\Partner;
-use MesCore\Config\Models\PartnerSite;
-use MesCore\Config\Models\PartnerContact;
+use MesCore\Config\Models\Customer;
+use MesCore\Config\Models\CustomerSite;
+use MesCore\Config\Models\CustomerContact;
 use MesCore\Basic\Models\SystemCode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,11 +16,11 @@ use Illuminate\Validation\ValidationException;
 // 거래처관리 ( BAS-01 )
 //   거래처 + 출고지 N + 담당자 N 을 한 번에 저장한다 ( 한 트랜잭션 )
 //   삭제는 미사용 처리( is_use = N, ADR 0019 )
-class PartnerController extends Controller {
+class CustomerController extends Controller {
 
     private const ATTRIBUTES = [
-        'partner_code'          => '거래처코드',
-        'partner_name'          => '거래처명',
+        'customer_code'          => '거래처코드',
+        'customer_name'          => '거래처명',
         'biz_no'                => '사업자번호',
         'ceo_name'              => '대표자',
         'is_use'                => '사용 여부',
@@ -43,47 +43,47 @@ class PartnerController extends Controller {
             'is_use'  => 'nullable|in:Y,N',
         ]);
 
-        $partners = Partner::query()
+        $customers = Customer::query()
             ->withCount(['sites', 'contacts'])
             ->when($validated['keyword'] ?? null, function ($q, $keyword) {
-                $q->where(fn ($w) => $w->where('partner_code', 'like', "%{$keyword}%")
-                                       ->orWhere('partner_name', 'like', "%{$keyword}%"));
+                $q->where(fn ($w) => $w->where('customer_code', 'like', "%{$keyword}%")
+                                       ->orWhere('customer_name', 'like', "%{$keyword}%"));
             })
             ->when($validated['role'] ?? null, fn ($q, $role) => $q->where("is_{$role}", 'Y'))
             ->when($validated['is_use'] ?? null, fn ($q, $isUse) => $q->where('is_use', $isUse))
-            ->orderBy('partner_code')
+            ->orderBy('customer_code')
             ->get();
 
-        return response()->json(['partners' => $partners]);
+        return response()->json(['customers' => $customers]);
     }
 
     // 단건 : 출고지 · 담당자 포함
     //   출고지 key( 's{idx}' ) 로 담당자 소속을 연결 → 화면에서 새 출고지와 같은 방식으로 다룬다
-    public function show(int $partnerIdx) {
-        $partner = Partner::with(['sites', 'contacts'])->find($partnerIdx);
-        if (!$partner) {
+    public function show(int $customerIdx) {
+        $customer = Customer::with(['sites', 'contacts'])->find($customerIdx);
+        if (!$customer) {
             return response()->json(['message' => 'NotFound'], 404);
         }
 
-        return response()->json(['partner' => $this->toPayload($partner)]);
+        return response()->json(['customer' => $this->toPayload($customer)]);
     }
 
-    // 등록/수정 ( partner_idx 있으면 수정 )
+    // 등록/수정 ( customer_idx 있으면 수정 )
     //   sites    : [{ site_idx?, key, site_name, address, tel, remark }]
     //   contacts : [{ contact_idx?, contact_type, site_key?, contact_name, phone, email, remark }]
     //   요청에 없는 기존 출고지·담당자는 삭제된다 ( 화면 목록 = 저장 결과 )
     public function save(Request $request) {
-        $idx     = $request->input('partner_idx');
-        $partner = $idx ? Partner::find($idx) : new Partner();
-        if ($idx && !$partner) {
+        $idx     = $request->input('customer_idx');
+        $customer = $idx ? Customer::find($idx) : new Customer();
+        if ($idx && !$customer) {
             return response()->json(['message' => 'NotFound'], 404);
         }
 
         $siteKeys = collect($request->input('sites', []))->pluck('key')->filter()->all();
 
         $validated = $request->validate([
-            'partner_code' => ['required', 'string', 'max:20', Rule::unique('partner', 'partner_code')->ignore($idx, 'partner_idx')],
-            'partner_name' => 'required|string|max:60',
+            'customer_code' => ['required', 'string', 'max:20', Rule::unique('customer', 'customer_code')->ignore($idx, 'customer_idx')],
+            'customer_name' => 'required|string|max:60',
             'is_supplier'  => 'required|in:Y,N',
             'is_customer'  => 'required|in:Y,N',
             'is_subcon'    => 'required|in:Y,N',
@@ -104,7 +104,7 @@ class PartnerController extends Controller {
             'contacts.*.contact_idx'  => 'nullable|integer',
             'contacts.*.contact_type' => [
                 'bail', 'required', 'string', 'max:100',
-                Rule::exists('system_code', 'system_code_key')->where('system_code_group_key', Partner::CONTACT_TYPE_CODE_GROUP),
+                Rule::exists('system_code', 'system_code_key')->where('system_code_group_key', Customer::CONTACT_TYPE_CODE_GROUP),
             ],
             // 소속 : 같은 요청의 출고지 key 또는 비움( 본사 )
             'contacts.*.site_key'     => ['nullable', 'string', Rule::in($siteKeys)],
@@ -116,25 +116,25 @@ class PartnerController extends Controller {
             'contacts.*.site_key.in' => '소속 출고지가 목록에 없습니다.',
         ], self::ATTRIBUTES);
 
-        // E_PARTNER_ROLE_NONE : 구분은 하나 이상
-        if (collect(Partner::ROLE_COLUMNS)->every(fn ($col) => $validated[$col] === 'N')) {
+        // E_CUSTOMER_ROLE_NONE : 구분은 하나 이상
+        if (collect(Customer::ROLE_COLUMNS)->every(fn ($col) => $validated[$col] === 'N')) {
             throw ValidationException::withMessages(['roles' => ['구매처 · 고객사 · 외주처 중 하나 이상 선택하세요.']]);
         }
 
         // 새로 고르는 담당자 구분은 사용 중인 코드여야 함 ( 기존 담당자의 구분이 미사용으로 내려간 경우는 유지 허용 )
-        $this->assertActiveContactTypes($partner, $validated['contacts']);
+        $this->assertActiveContactTypes($customer, $validated['contacts']);
 
         try {
-            DB::transaction(function () use ($partner, $validated) {
-                $partner->fill(collect($validated)->except(['sites', 'contacts'])->all())->save();
+            DB::transaction(function () use ($customer, $validated) {
+                $customer->fill(collect($validated)->except(['sites', 'contacts'])->all())->save();
 
-                $siteIdxByKey = $this->syncSites($partner, $validated['sites']);
-                $this->syncContacts($partner, $validated['contacts'], $siteIdxByKey);
+                $siteIdxByKey = $this->syncSites($customer, $validated['sites']);
+                $this->syncContacts($customer, $validated['contacts'], $siteIdxByKey);
             });
 
-            $partner = Partner::with(['sites', 'contacts'])->find($partner->partner_idx);
+            $customer = Customer::with(['sites', 'contacts'])->find($customer->customer_idx);
 
-            return response()->json(['message' => 'Success', 'partner' => $this->toPayload($partner)], 200);
+            return response()->json(['message' => 'Success', 'customer' => $this->toPayload($customer)], 200);
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Throwable $e) {
@@ -147,22 +147,22 @@ class PartnerController extends Controller {
     // 선택 삭제 = 미사용 처리 ( 소프트 삭제 ). 이미 미사용은 건너뛰고, 대상이 하나도 없으면 404
     public function deleteMany(Request $request) {
         $validated = $request->validate([
-            'partner_idxs'   => 'required|array|min:1',
-            'partner_idxs.*' => 'integer',
+            'customer_idxs'   => 'required|array|min:1',
+            'customer_idxs.*' => 'integer',
         ]);
 
-        $idxs = array_values(array_unique($validated['partner_idxs']));
+        $idxs = array_values(array_unique($validated['customer_idxs']));
 
-        if (!Partner::whereIn('partner_idx', $idxs)->exists()) {
+        if (!Customer::whereIn('customer_idx', $idxs)->exists()) {
             return response()->json(['message' => 'NotFound'], 404);
         }
 
         try {
             $changed = 0;
-            Partner::whereIn('partner_idx', $idxs)->where('is_use', 'Y')->get()
-                ->each(function (Partner $partner) use (&$changed) {
-                    $partner->is_use = 'N';
-                    $partner->save();
+            Customer::whereIn('customer_idx', $idxs)->where('is_use', 'Y')->get()
+                ->each(function (Customer $customer) use (&$changed) {
+                    $customer->is_use = 'N';
+                    $customer->save();
                     $changed++;
                 });
 
@@ -178,15 +178,15 @@ class PartnerController extends Controller {
 
     // 출고지 동기화 → key => site_idx 반환 ( 담당자 소속 연결용 )
     //   다른 거래처의 site_idx 가 넘어오면 무시하고 새로 만든다 ( 남의 출고지 수정 방지 )
-    private function syncSites(Partner $partner, array $rows): array {
-        $existing = PartnerSite::where('partner_idx', $partner->partner_idx)->get()->keyBy('site_idx');
+    private function syncSites(Customer $customer, array $rows): array {
+        $existing = CustomerSite::where('customer_idx', $customer->customer_idx)->get()->keyBy('site_idx');
         $keep     = [];
         $idxByKey = [];
 
         foreach (array_values($rows) as $order => $row) {
             $site = (!empty($row['site_idx']) && $existing->has($row['site_idx']))
                 ? $existing->get($row['site_idx'])
-                : new PartnerSite(['partner_idx' => $partner->partner_idx]);
+                : new CustomerSite(['customer_idx' => $customer->customer_idx]);
 
             $site->fill([
                 'site_name'  => $row['site_name'],
@@ -201,19 +201,19 @@ class PartnerController extends Controller {
         }
 
         // 화면에서 뺀 출고지 삭제 ( 소속이던 담당자는 FK nullOnDelete → 본사, 이어서 담당자 동기화로 다시 정리됨 )
-        PartnerSite::where('partner_idx', $partner->partner_idx)->whereNotIn('site_idx', $keep ?: [0])->delete();
+        CustomerSite::where('customer_idx', $customer->customer_idx)->whereNotIn('site_idx', $keep ?: [0])->delete();
 
         return $idxByKey;
     }
 
-    private function syncContacts(Partner $partner, array $rows, array $siteIdxByKey): void {
-        $existing = PartnerContact::where('partner_idx', $partner->partner_idx)->get()->keyBy('contact_idx');
+    private function syncContacts(Customer $customer, array $rows, array $siteIdxByKey): void {
+        $existing = CustomerContact::where('customer_idx', $customer->customer_idx)->get()->keyBy('contact_idx');
         $keep     = [];
 
         foreach (array_values($rows) as $order => $row) {
             $contact = (!empty($row['contact_idx']) && $existing->has($row['contact_idx']))
                 ? $existing->get($row['contact_idx'])
-                : new PartnerContact(['partner_idx' => $partner->partner_idx]);
+                : new CustomerContact(['customer_idx' => $customer->customer_idx]);
 
             $contact->fill([
                 'contact_type' => $row['contact_type'],
@@ -228,15 +228,15 @@ class PartnerController extends Controller {
             $keep[] = $contact->contact_idx;
         }
 
-        PartnerContact::where('partner_idx', $partner->partner_idx)->whereNotIn('contact_idx', $keep ?: [0])->delete();
+        CustomerContact::where('customer_idx', $customer->customer_idx)->whereNotIn('contact_idx', $keep ?: [0])->delete();
     }
 
-    private function assertActiveContactTypes(Partner $partner, array $contacts): void {
-        $currentTypes = $partner->exists
-            ? PartnerContact::where('partner_idx', $partner->partner_idx)->pluck('contact_type', 'contact_idx')
+    private function assertActiveContactTypes(Customer $customer, array $contacts): void {
+        $currentTypes = $customer->exists
+            ? CustomerContact::where('customer_idx', $customer->customer_idx)->pluck('contact_type', 'contact_idx')
             : collect();
 
-        $activeTypes = SystemCode::where('system_code_group_key', Partner::CONTACT_TYPE_CODE_GROUP)
+        $activeTypes = SystemCode::where('system_code_group_key', Customer::CONTACT_TYPE_CODE_GROUP)
             ->where('is_use', 'Y')
             ->pluck('system_code_key')
             ->flip();
@@ -256,13 +256,13 @@ class PartnerController extends Controller {
     }
 
     // 화면용 형식 : 출고지에 key, 담당자에 site_key 부여
-    private function toPayload(Partner $partner): array {
-        $data = $partner->only([
-            'partner_idx', 'partner_code', 'partner_name', 'is_supplier', 'is_customer', 'is_subcon',
+    private function toPayload(Customer $customer): array {
+        $data = $customer->only([
+            'customer_idx', 'customer_code', 'customer_name', 'is_supplier', 'is_customer', 'is_subcon',
             'biz_no', 'ceo_name', 'is_use', 'remark', 'create_datetime', 'update_datetime',
         ]);
 
-        $data['sites'] = $partner->sites->map(fn ($s) => [
+        $data['sites'] = $customer->sites->map(fn ($s) => [
             'site_idx'  => $s->site_idx,
             'key'       => 's' . $s->site_idx,
             'site_name' => $s->site_name,
@@ -271,7 +271,7 @@ class PartnerController extends Controller {
             'remark'    => $s->remark,
         ])->values();
 
-        $data['contacts'] = $partner->contacts->map(fn ($c) => [
+        $data['contacts'] = $customer->contacts->map(fn ($c) => [
             'contact_idx'  => $c->contact_idx,
             'contact_type' => $c->contact_type,
             'site_key'     => $c->site_idx ? 's' . $c->site_idx : null,

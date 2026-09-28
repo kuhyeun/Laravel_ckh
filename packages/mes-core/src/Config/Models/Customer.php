@@ -7,24 +7,24 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 
 // 거래처 ( BAS-01 )
-class Partner extends Model {
+class Customer extends Model {
 
-    protected $table      = 'partner';
-    protected $primaryKey = 'partner_idx';
+    protected $table      = 'customer';
+    protected $primaryKey = 'customer_idx';
     public $incrementing  = true;
 
     const CREATED_AT = 'create_datetime';
     const UPDATED_AT = 'update_datetime';
 
     // 담당자 구분 코드 그룹 ( system_code )
-    const CONTACT_TYPE_CODE_GROUP = 'PARTNER_CONTACT_TYPE';
+    const CONTACT_TYPE_CODE_GROUP = 'CUSTOMER_CONTACT_TYPE';
 
     // 구분 컬럼 ( 멀티 선택, 최소 하나 )
     const ROLE_COLUMNS = ['is_supplier', 'is_customer', 'is_subcon'];
 
     protected $fillable = [
-        'partner_code',
-        'partner_name',
+        'customer_code',
+        'customer_name',
         'is_supplier',
         'is_customer',
         'is_subcon',
@@ -55,10 +55,10 @@ class Partner extends Model {
     }
 
     public function sites(): HasMany {
-        return $this->hasMany(PartnerSite::class, 'partner_idx', 'partner_idx')->orderBy('sort_order')->orderBy('site_idx');
+        return $this->hasMany(CustomerSite::class, 'customer_idx', 'customer_idx')->orderBy('sort_order')->orderBy('site_idx');
     }
 
     public function contacts(): HasMany {
-        return $this->hasMany(PartnerContact::class, 'partner_idx', 'partner_idx')->orderBy('sort_order')->orderBy('contact_idx');
+        return $this->hasMany(CustomerContact::class, 'customer_idx', 'customer_idx')->orderBy('sort_order')->orderBy('contact_idx');
     }
 }
