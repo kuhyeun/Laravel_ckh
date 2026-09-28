@@ -36,7 +36,7 @@
                         <span class="truncate" :class="r.is_use === 'N' ? 'text-gray-400 line-through' : ''">{{ r.routing_name }}</span>
                         <span v-if="r.is_default === 'Y'" class="text-[10px] px-1 rounded bg-blue-50 text-blue-600 shrink-0">기본</span>
                         <span class="flex-1"></span>
-                        <span class="text-[11px] text-gray-400 shrink-0">{{ r.lines_count }}공정</span>
+                        <span class="text-[11px] text-gray-400 shrink-0">공정 수 : {{ r.lines_count }}</span>
                     </button>
                 </div>
             </div>

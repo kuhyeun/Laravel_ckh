@@ -160,6 +160,16 @@ return [
                         'menu_level' => 99,
                     ],
                     [
+                        'menu_code' => '1007',
+                        'menu_name' => 'BOM관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/bom',
+                        'page_component' => 'Config/BomManage',
+                        'menu_level' => 99,
+                    ],
+                    [
                         'menu_code' => '1006',
                         'menu_name' => '공정라우팅관리',
                         'menu_icon' => null,

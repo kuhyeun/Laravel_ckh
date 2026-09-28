@@ -7,6 +7,7 @@ use MesCore\Config\Controllers\ProcessController;
 use MesCore\Config\Controllers\EquipmentController;
 use MesCore\Config\Controllers\WarehouseController;
 use MesCore\Config\Controllers\RoutingController;
+use MesCore\Config\Controllers\BomController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -76,6 +77,26 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($processDelete)->group(function() {
             Route::post('/delete', [ProcessController::class, 'deleteMany'])->name('del');
+        });
+    });
+
+    // BOM관리 ( Config/BomManage )
+    Route::prefix('bom')->name('bom.')->group(function() {
+        $bomRead  = MenuAuth::class . ':Config/BomManage,can_read';
+        $bomWrite = MenuAuth::class . ':Config/BomManage,can_write';
+
+        Route::middleware($bomRead)->group(function() {
+            Route::get('/items', [BomController::class, 'items'])->name('items');
+            Route::get('/versions/{itemIdx}', [BomController::class, 'versions'])->whereNumber('itemIdx')->name('versions');
+            Route::get('/show/{bomIdx}', [BomController::class, 'show'])->whereNumber('bomIdx')->name('show');
+            Route::get('/routingLines/{itemIdx}', [BomController::class, 'routingLines'])->whereNumber('itemIdx')->name('routingLines');
+        });
+
+        Route::middleware($bomWrite)->group(function() {
+            Route::post('/save', [BomController::class, 'save'])->name('save');
+            Route::post('/activate', [BomController::class, 'activate'])->name('activate');
+            Route::post('/approve', [BomController::class, 'approve'])->name('approve');
+            Route::post('/copyVersion', [BomController::class, 'copyVersion'])->name('copyVersion');
         });
     });
 
