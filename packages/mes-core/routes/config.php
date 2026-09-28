@@ -5,6 +5,7 @@ use MesCore\Config\Controllers\ItemController;
 use MesCore\Config\Controllers\PartnerController;
 use MesCore\Config\Controllers\ProcessController;
 use MesCore\Config\Controllers\EquipmentController;
+use MesCore\Config\Controllers\WarehouseController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -74,6 +75,25 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($processDelete)->group(function() {
             Route::post('/delete', [ProcessController::class, 'deleteMany'])->name('del');
+        });
+    });
+
+    // 창고관리 ( Config/WarehouseManage )
+    Route::prefix('warehouse')->name('warehouse.')->group(function() {
+        $warehouseRead   = MenuAuth::class . ':Config/WarehouseManage,can_read';
+        $warehouseWrite  = MenuAuth::class . ':Config/WarehouseManage,can_write';
+        $warehouseDelete = MenuAuth::class . ':Config/WarehouseManage,can_delete';
+
+        Route::middleware($warehouseRead)->group(function() {
+            Route::get('/list', [WarehouseController::class, 'list'])->name('list');
+        });
+
+        Route::middleware($warehouseWrite)->group(function() {
+            Route::post('/save', [WarehouseController::class, 'save'])->name('save');
+        });
+
+        Route::middleware($warehouseDelete)->group(function() {
+            Route::post('/delete', [WarehouseController::class, 'deleteMany'])->name('del');
         });
     });
 

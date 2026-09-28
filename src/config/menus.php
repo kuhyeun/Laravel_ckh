@@ -160,6 +160,16 @@ return [
                         'menu_level' => 99,
                     ],
                     [
+                        'menu_code' => '1005',
+                        'menu_name' => '창고관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/warehouse',
+                        'page_component' => 'Config/WarehouseManage',
+                        'menu_level' => 99,
+                    ],
+                    [
                         'menu_code' => '1004',
                         'menu_name' => '설비관리',
                         'menu_icon' => null,
