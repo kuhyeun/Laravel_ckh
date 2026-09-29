@@ -9,4 +9,7 @@ use MesCore\Auth\Middleware\UserAuth;
 
 Route::prefix('common')->name('common.')->middleware([UserAuth::class])->group(function() {
     Route::get('/codes', [CommonCodeController::class, 'codes'])->name('codes');
+
+    // 세션 연장 : 요청 자체가 세션의 마지막 활동 시각을 갱신한다 ( 만료 전 안내 배너의 [연장] )
+    Route::post('/session/keep-alive', fn () => response()->json(['message' => 'Success']))->name('session.keepAlive');
 });

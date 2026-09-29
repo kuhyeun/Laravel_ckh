@@ -24,6 +24,8 @@ class HandleInertiaRequests extends Middleware {
                     'user_name'   => Auth::user()->user_name
                 ] : null,
             ],
+            // 세션 유효시간( 분 ) — 화면이 마지막 요청 + 이 시간으로 만료를 미리 안내한다 ( SessionWatcher )
+            'session'     => Auth::check() ? ['lifetime' => (int) config('session.lifetime')] : null,
             'userMenu'    => $payload['menus'],
             'adminMenu'   => $payload['adminMenus'] ?? [],
             'permissions' => $payload['permissions'],

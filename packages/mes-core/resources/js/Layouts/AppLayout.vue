@@ -19,6 +19,8 @@
         </footer>
 
         <base-modal></base-modal>
+        <!-- 세션 만료 미리 안내 ( 만료 전 배너 · 만료 시 안내창 ) -->
+        <session-watcher></session-watcher>
     </div>
 </template>
 
@@ -29,6 +31,7 @@ import TopFrame from '../Components/Layout/TopFrame.vue';
 import LeftMenu from '../Components/Layout/LeftMenu.vue';
 import BottomFrame from '../Components/Layout/BottomFrame.vue';
 import BaseModal from '../Components/Modals/BaseModal.vue';
+import SessionWatcher from '../Components/Layout/SessionWatcher.vue';
 
 const page = usePage();
 const menuItems = computed(() => page.props.userMenu ?? []);
