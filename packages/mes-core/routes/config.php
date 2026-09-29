@@ -8,6 +8,8 @@ use MesCore\Config\Controllers\EquipmentController;
 use MesCore\Config\Controllers\WarehouseController;
 use MesCore\Config\Controllers\RoutingController;
 use MesCore\Config\Controllers\BomController;
+use MesCore\Config\Controllers\InspectionItemController;
+use MesCore\Config\Controllers\InspectionSpecController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -159,6 +161,47 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($equipmentDelete)->group(function() {
             Route::post('/delete', [EquipmentController::class, 'deleteMany'])->name('del');
+        });
+    });
+
+    // 검사항목관리 ( Config/InspectionItemManage )
+    Route::prefix('inspection-item')->name('inspection_item.')->group(function() {
+        $inspectionItemRead   = MenuAuth::class . ':Config/InspectionItemManage,can_read';
+        $inspectionItemWrite  = MenuAuth::class . ':Config/InspectionItemManage,can_write';
+        $inspectionItemDelete = MenuAuth::class . ':Config/InspectionItemManage,can_delete';
+
+        Route::middleware($inspectionItemRead)->group(function() {
+            Route::get('/list', [InspectionItemController::class, 'list'])->name('list');
+        });
+
+        Route::middleware($inspectionItemWrite)->group(function() {
+            Route::post('/save', [InspectionItemController::class, 'save'])->name('save');
+        });
+
+        Route::middleware($inspectionItemDelete)->group(function() {
+            Route::post('/delete', [InspectionItemController::class, 'deleteMany'])->name('del');
+        });
+    });
+
+    // 검사기준서관리 ( Config/InspectionSpecManage )
+    Route::prefix('inspection-spec')->name('inspection_spec.')->group(function() {
+        $inspectionSpecRead   = MenuAuth::class . ':Config/InspectionSpecManage,can_read';
+        $inspectionSpecWrite  = MenuAuth::class . ':Config/InspectionSpecManage,can_write';
+        $inspectionSpecDelete = MenuAuth::class . ':Config/InspectionSpecManage,can_delete';
+
+        Route::middleware($inspectionSpecRead)->group(function() {
+            Route::get('/list', [InspectionSpecController::class, 'list'])->name('list');
+            Route::get('/show/{specIdx}', [InspectionSpecController::class, 'show'])->whereNumber('specIdx')->name('show');
+            // 기준서 화면용 : 품목 · 검사항목 마스터 선택지
+            Route::get('/options', [InspectionSpecController::class, 'options'])->name('options');
+        });
+
+        Route::middleware($inspectionSpecWrite)->group(function() {
+            Route::post('/save', [InspectionSpecController::class, 'save'])->name('save');
+        });
+
+        Route::middleware($inspectionSpecDelete)->group(function() {
+            Route::post('/delete', [InspectionSpecController::class, 'deleteMany'])->name('del');
         });
     });
 });

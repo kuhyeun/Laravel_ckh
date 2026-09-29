@@ -199,6 +199,26 @@ return [
                         'page_component' => 'Config/EquipmentManage',
                         'menu_level' => 99,
                     ],
+                    [
+                        'menu_code' => '1008',
+                        'menu_name' => '검사항목관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/inspection-item',
+                        'page_component' => 'Config/InspectionItemManage',
+                        'menu_level' => 99,
+                    ],
+                    [
+                        'menu_code' => '1009',
+                        'menu_name' => '검사기준서관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/inspection-spec',
+                        'page_component' => 'Config/InspectionSpecManage',
+                        'menu_level' => 99,
+                    ],
                 ]
             ],
             [
