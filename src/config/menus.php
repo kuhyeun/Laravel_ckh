@@ -219,6 +219,26 @@ return [
                         'page_component' => 'Config/InspectionSpecManage',
                         'menu_level' => 99,
                     ],
+                    [
+                        'menu_code' => '1010',
+                        'menu_name' => '제조리드타임관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/lead-time',
+                        'page_component' => 'Config/LeadTimeManage',
+                        'menu_level' => 99,
+                    ],
+                    [
+                        'menu_code' => '1011',
+                        'menu_name' => 'LOT규칙관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/lot-rule',
+                        'page_component' => 'Config/LotRuleManage',
+                        'menu_level' => 99,
+                    ],
                 ]
             ],
             [

@@ -10,6 +10,8 @@ use MesCore\Config\Controllers\RoutingController;
 use MesCore\Config\Controllers\BomController;
 use MesCore\Config\Controllers\InspectionItemController;
 use MesCore\Config\Controllers\InspectionSpecController;
+use MesCore\Config\Controllers\LeadTimeController;
+use MesCore\Config\Controllers\LotRuleController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -202,6 +204,46 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($inspectionSpecDelete)->group(function() {
             Route::post('/delete', [InspectionSpecController::class, 'deleteMany'])->name('del');
+        });
+    });
+
+    // 제조리드타임관리 ( Config/LeadTimeManage )
+    Route::prefix('lead-time')->name('lead_time.')->group(function() {
+        $leadTimeRead   = MenuAuth::class . ':Config/LeadTimeManage,can_read';
+        $leadTimeWrite  = MenuAuth::class . ':Config/LeadTimeManage,can_write';
+        $leadTimeDelete = MenuAuth::class . ':Config/LeadTimeManage,can_delete';
+
+        Route::middleware($leadTimeRead)->group(function() {
+            Route::get('/list', [LeadTimeController::class, 'list'])->name('list');
+            // 등록 모달용 품목 선택지
+            Route::get('/items', [LeadTimeController::class, 'itemOptions'])->name('items');
+        });
+
+        Route::middleware($leadTimeWrite)->group(function() {
+            Route::post('/save', [LeadTimeController::class, 'save'])->name('save');
+        });
+
+        Route::middleware($leadTimeDelete)->group(function() {
+            Route::post('/delete', [LeadTimeController::class, 'deleteMany'])->name('del');
+        });
+    });
+
+    // LOT규칙관리 ( Config/LotRuleManage )
+    Route::prefix('lot-rule')->name('lot_rule.')->group(function() {
+        $lotRuleRead   = MenuAuth::class . ':Config/LotRuleManage,can_read';
+        $lotRuleWrite  = MenuAuth::class . ':Config/LotRuleManage,can_write';
+        $lotRuleDelete = MenuAuth::class . ':Config/LotRuleManage,can_delete';
+
+        Route::middleware($lotRuleRead)->group(function() {
+            Route::get('/list', [LotRuleController::class, 'list'])->name('list');
+        });
+
+        Route::middleware($lotRuleWrite)->group(function() {
+            Route::post('/save', [LotRuleController::class, 'save'])->name('save');
+        });
+
+        Route::middleware($lotRuleDelete)->group(function() {
+            Route::post('/delete', [LotRuleController::class, 'deleteMany'])->name('del');
         });
     });
 });

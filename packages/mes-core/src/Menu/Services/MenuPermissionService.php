@@ -209,8 +209,9 @@ class MenuPermissionService {
             $permissions = array_filter($permissions, fn ($p) => $p['can_read']);
         }
 
+        // 문자열 비교라 자릿수를 맞춘다 ( "2-10" 이 "2-2" 보다 앞에 오지 않도록 )
         $sorted = $menus->sortBy(function ($menu) {
-            return $menu->menu_depth . '-' . ($menu->menuOptions->first()->menu_sort ?? 0);
+            return sprintf('%03d-%05d', $menu->menu_depth, $menu->menuOptions->first()->menu_sort ?? 0);
         });
 
         // 관리자(시스템) 메뉴는 사이드바에서 별도 그룹으로 분리
