@@ -239,6 +239,7 @@ class ItemController extends Controller {
 
             DB::transaction(function () use ($item, $validated, $mainMaterial, $policyValues, $leadTime, $policy, &$warnings) {
                 $item->fill($validated)->save();
+                Item::refreshCycleTime([$item->item_idx]);   // 라우팅을 바꿨을 수 있다
                 $warnings = $this->syncMainMaterial($item, $mainMaterial);
 
                 if ($policyValues !== null) {
@@ -278,7 +279,9 @@ class ItemController extends Controller {
             'item_idx' => 'nullable|integer|exists:item,item_idx',
         ]);
 
+        // 개당 시간 합계 포함 ( 추가정보 탭의 1개 생산 표준시간 — 고른 라우팅 기준으로 바로 보여 준다 )
         $routings = Routing::select('routing_idx', 'routing_code', 'routing_name', 'is_default')
+            ->withSum('lines', 'cycle_time_sec')
             ->where('is_use', 'Y')
             ->orderByDesc('is_default')
             ->orderBy('routing_code')

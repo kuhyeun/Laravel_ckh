@@ -54,7 +54,7 @@ return new class extends Migration {
             )->nullOnDelete();
             $table->decimal('qty', 15, 4)->comment('소요 ( 제품 1개당 )');
             $table->string('calc_code', 30)->nullable()->comment('자재소요 계산식 ( 비우면 품목 → 정책 순 )');
-            $table->decimal('ext_n01', 15, 3)->nullable()->comment('기능형 값 ( 절단 길이 CUT 등 — 커스텀 컬럼 개발 전 임시 자리 )');
+            $table->decimal('ext_n01', 15, 3)->nullable()->comment('기능형 값');
             $table->text('remark')->nullable()->comment('비고');
             $table->integer('create_account_idx')->comment('등록자');
             $table->timestamp('create_datetime')->useCurrent()->comment('등록일');

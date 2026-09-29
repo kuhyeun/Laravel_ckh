@@ -4,6 +4,7 @@ namespace MesCore\Config\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 // 품목 마스터 ( BAS-02 )
 class Item extends Model {
@@ -21,6 +22,18 @@ class Item extends Model {
         'MATERIAL' => ['RAW', 'STOCK'],
         'PRODUCT'  => ['FINISHED', 'SEMI', 'SET'],
     ];
+
+    // 1개 생산 표준시간( cycle_time_sec ) = 기본 라우팅의 공정별 개당 시간 합계
+    //   품목 저장( 라우팅 변경 ) · 라우팅 저장( 줄 변경 ) 때 다시 계산한다. 라우팅이 없으면 0
+    //   $itemIdxs 가 null 이면 전체 ( 초기 채움 )
+    public static function refreshCycleTime(?array $itemIdxs = null): void {
+        $sums = DB::table('routing_line')->selectRaw('routing_idx, SUM(cycle_time_sec) AS s')->groupBy('routing_idx');
+
+        DB::table('item')
+            ->leftJoinSub($sums, 'r', 'r.routing_idx', '=', 'item.routing_idx')
+            ->when($itemIdxs !== null, fn ($q) => $q->whereIn('item.item_idx', $itemIdxs ?: [0]))
+            ->update(['item.cycle_time_sec' => DB::raw('COALESCE(r.s, 0)')]);
+    }
 
     // 단위 코드 그룹 ( system_code )
     const UNIT_CODE_GROUP = 'UNIT';

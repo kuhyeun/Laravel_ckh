@@ -265,8 +265,10 @@
             <section>
                 <div class="mb-2 text-xs font-semibold text-gray-500 border-b pb-1">1개 생산 표준시간</div>
                 <p class="text-gray-700">
-                    <b>{{ fmt(num(src.cycle_time_sec)) }}</b> 초
-                    <span class="ml-1 text-xs text-gray-400">라우팅 공정 합계 · 읽기 전용</span>
+                    <b>{{ fmt(cycleTime) }}</b> 초
+                    <span class="ml-1 text-xs text-gray-400">
+                        {{ selectedRouting ? `기본 라우팅 [ ${selectedRouting.routing_name} ] 의 공정 개당 시간 합계` : '기본 라우팅이 없습니다' }} · 읽기 전용
+                    </span>
                 </p>
             </section>
         </div>
@@ -434,6 +436,10 @@ const showPolicy  = (key) => !!fieldOf(key) && (policyKeysByType.value[form.item
 const policyError = (key) => errors.value[`policies.${key}`]?.[0] ?? '';
 // 차감 위치 : 대분류의 키 중 consume_* ( 자재 → 자재 차감 3개 / 제품 → 제품 차감 1개 )
 const consumeKeys = computed(() => (policyKeysByType.value[form.item_type] ?? []).filter(k => k.includes('.consume_') && fieldOf(k)));
+
+// 1개 생산 표준시간 : 지금 고른 기본 라우팅의 공정 합계 ( 저장하면 품목에도 같은 값이 들어간다 )
+const selectedRouting = computed(() => routings.value.find(r => Number(r.routing_idx) === Number(form.routing_idx)) ?? null);
+const cycleTime       = computed(() => num(selectedRouting.value?.lines_sum_cycle_time_sec));
 
 const leadTotal = computed(() => LEAD_STAGES.reduce((s, st) => s + num(leadTime[st.key]), 0));
 const defaultLeadText = computed(() => {

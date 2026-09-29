@@ -3,6 +3,7 @@
 namespace MesCore\Config\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Process;
 use MesCore\Config\Models\Routing;
 use MesCore\Config\Models\RoutingLine;
@@ -180,6 +181,9 @@ class RoutingController extends Controller {
                 }
 
                 $warnings = array_merge($warnings, $this->syncLines($routing, $lines));
+
+                // 이 라우팅을 쓰는 품목의 1개 생산 표준시간( 공정 합계 )을 맞춘다
+                Item::refreshCycleTime(Item::where('routing_idx', $routing->routing_idx)->pluck('item_idx')->all());
             });
 
             $routing = Routing::with('lines.process')->find($routing->routing_idx);
