@@ -16,6 +16,9 @@
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="newRule">+ 등록</BaseButton>
         </div>
 
+        <!-- 설정과 규칙이 맞지 않을 때 ( W_LOT_NO_SHIP_RULE ) -->
+        <div v-for="n in notices" :key="n" class="mb-3 px-3 py-2 text-sm rounded border border-amber-200 bg-amber-50 text-amber-700 shrink-0">⚠ {{ n }}</div>
+
         <div class="flex flex-1 min-h-0 gap-4">
             <!-- 좌 : 규칙 목록 -->
             <div class="w-80 shrink-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -262,6 +265,7 @@ const SEPARATOR_OPTIONS = [
 
 // ---- 상태 ----
 const rules        = ref([]);
+const notices      = ref([]);   // 설정 조합 경고 ( 서버 계산 )
 const search       = reactive({ keyword: '', rule_type: '' });
 const showInactive = ref(false);
 const saving       = ref(false);
@@ -409,6 +413,7 @@ async function loadRules() {
         };
         const { data } = await window.axios.get(route('config.lot_rule.list'), { params });
         rules.value = data.lot_rules ?? [];
+        notices.value = data.notices ?? [];
     } catch (e) {
         showFlash('LOT 규칙 목록을 불러오지 못했습니다', true);
     }

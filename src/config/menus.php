@@ -167,6 +167,7 @@ return [
                         'menu_route_name' => '',
                         'url_path' => '/config/bom',
                         'page_component' => 'Config/BomManage',
+                        'feature_key' => 'feature.bom',
                         'menu_level' => 99,
                     ],
                     [
@@ -187,6 +188,7 @@ return [
                         'menu_route_name' => '',
                         'url_path' => '/config/warehouse',
                         'page_component' => 'Config/WarehouseManage',
+                        'feature_key' => 'feature.warehouse',
                         'menu_level' => 99,
                     ],
                     [
@@ -237,6 +239,7 @@ return [
                         'menu_route_name' => '',
                         'url_path' => '/config/lot-rule',
                         'page_component' => 'Config/LotRuleManage',
+                        'feature_key' => 'feature.lot',
                         'menu_level' => 99,
                     ],
                 ]

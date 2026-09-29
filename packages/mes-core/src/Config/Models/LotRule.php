@@ -4,6 +4,7 @@ namespace MesCore\Config\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use MesCore\Basic\Services\PolicyService;
 
 // LOT 규칙 ( BAS-10 )
 //   format_spec = 요소의 순서 있는 목록. render() 가 요소 값을 구분자로 이어 번호를 만든다
@@ -120,6 +121,19 @@ class LotRule extends Model {
         }
 
         return implode($separator, array_filter($parts, fn ($p) => $p !== ''));
+    }
+
+    // W_LOT_NO_SHIP_RULE : 출하 LOT 을 자동 채번( lot.shipment_lot = AUTO )하는데 사용 중인 출하일 기준 규칙이 없음
+    //   설정 화면과 LOT규칙관리가 같이 쓴다. 문제 없으면 null
+    public static function shippingRuleWarning(): ?string {
+        $policy = app(PolicyService::class);
+        if (!$policy->isEnabled('feature.lot') || $policy->get('lot.shipment_lot') !== 'AUTO') {
+            return null;
+        }
+        if (self::where('rule_type', 'SHIPPING')->where('is_use', 'Y')->exists()) {
+            return null;
+        }
+        return '출하 LOT 을 자동 채번으로 설정했지만 사용 중인 출하일 기준 LOT 규칙이 없습니다. LOT규칙관리에서 출하일 기준 규칙을 등록하세요.';
     }
 
     // 화면 미리보기용 예시 값 ( 문서의 예와 같은 모양 )

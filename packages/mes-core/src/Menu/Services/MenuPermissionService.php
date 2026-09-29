@@ -34,8 +34,10 @@ class MenuPermissionService {
     private const VERSION_COLUMNS = [
         'system_menu' => [
             'menu_idx', 'menu_code', 'parent_menu_code', 'menu_name', 'menu_depth', 'module_code',
-            'menu_route_name', 'url_path', 'page_component', 'menu_icon', 'is_use', 'is_display', 'is_admin',
+            'menu_route_name', 'url_path', 'page_component', 'menu_icon', 'is_use', 'is_display', 'is_admin', 'feature_key',
         ],
+        // 기능 스위치 값이 바뀌면 메뉴 노출이 달라진다
+        'system_config'            => ['system_config_group_key', 'system_config_key', 'system_config_value', 'system_config_default_value'],
         'system_menu_option'       => ['menu_option_idx', 'menu_idx', 'menu_level', 'menu_sort', 'can_read', 'can_write', 'can_delete'],
         'account_menu_permission'  => ['permission_idx', 'account_idx', 'menu_idx', 'can_read', 'can_write', 'can_delete'],
         'permission_template'      => ['template_idx', 'is_use'],
@@ -167,6 +169,7 @@ class MenuPermissionService {
             ->where('system_menu.is_use', 'Y')
             ->where('system_menu.is_display', 'Y')
             ->whereIn('system_menu.module_code', $activeModules)
+            ->featureEnabled()
             ->whereHas('menuOptions', function ($query) use ($userLevel) {
                 $query->where('menu_level', $userLevel);
             })

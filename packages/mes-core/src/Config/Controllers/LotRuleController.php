@@ -14,7 +14,8 @@ use Illuminate\Validation\ValidationException;
 //   조합 요소의 순서 있는 목록 + 구분자. 날짜 세밀도가 순번 리셋 주기
 //   거래처는 입고 · 출하만, LOT번호는 출하 · 시리얼만, 시리얼은 LOT번호 필수
 //   삭제는 미사용 처리( is_use = N, ADR 0019 )
-//   미구현 : W_LOT_NO_SHIP_RULE( 정책 lot.shipment_lot 필요 ) · W_SERIAL_SEQ_CAPACITY( 품목 1회 최대 생산 수량 필요 )
+//   W_LOT_NO_SHIP_RULE 은 목록 응답의 notices 로 알린다
+//   미구현 : W_SERIAL_SEQ_CAPACITY( 품목 1회 최대 생산 수량 필요 )
 class LotRuleController extends Controller {
 
     private const SEPARATORS = ['-', '_', '.', '/', ''];
@@ -45,7 +46,11 @@ class LotRuleController extends Controller {
             ->get()
             ->map(fn (LotRule $r) => $this->toPayload($r));
 
-        return response()->json(['lot_rules' => $rules]);
+        return response()->json([
+            'lot_rules' => $rules,
+            // W_LOT_NO_SHIP_RULE : 출하 LOT 자동 채번인데 사용 중인 출하일 기준 규칙이 없음 ( 정책 lot.shipment_lot )
+            'notices'   => array_values(array_filter([LotRule::shippingRuleWarning()])),
+        ]);
     }
 
     // 등록/수정 ( lot_rule_idx 있으면 수정 )

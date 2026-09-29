@@ -4,7 +4,9 @@ namespace MesCore\Menu\Models;
 
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use MesCore\Basic\Services\PolicyService;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
@@ -27,6 +29,7 @@ class Menu extends Model {
         'top_menu_code',
         'menu_depth',
         'module_code',
+        'feature_key',
         'menu_route_name',
         'url_path',
         'page_component',
@@ -112,6 +115,21 @@ class Menu extends Model {
 
             return $menu;
         });
+    }
+
+    // 연결된 기능 스위치가 꺼진 메뉴 제외 ( 정책-설정-설계 §7 메뉴 노출 ① )
+    //   사이드바 · 페이지 접근 · API 권한 · 권한 설정 화면이 같은 기준을 쓴다
+    public function scopeFeatureEnabled(Builder $query): Builder {
+        $policy   = app(PolicyService::class);
+        $disabled = collect($policy->definitions())
+            ->filter(fn ($def) => $def['category'] === 'FEATURE')
+            ->keys()
+            ->reject(fn ($key) => $policy->isEnabled($key))
+            ->values()
+            ->all();
+
+        return $query->where(fn ($q) => $q->whereNull($this->qualifyColumn('feature_key'))
+                                          ->orWhereNotIn($this->qualifyColumn('feature_key'), $disabled ?: ['']));
     }
 
     public function menuOptions(): HasMany {

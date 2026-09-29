@@ -61,6 +61,7 @@ class MemberAuthController extends Controller {
         // 해당 레벨에 옵션이 있는 메뉴만 ( = 그 레벨이 접근 대상인 메뉴 ) + 레벨 옵션(cap)
         $menus = Menu::select('menu_idx', 'menu_code', 'menu_name', 'parent_menu_code', 'menu_depth', 'url_path', 'is_admin')
             ->where('is_use', 'Y')
+            ->featureEnabled()   // 꺼진 기능의 메뉴는 권한도 줄 수 없다
             ->whereHas('menuOptions', fn ($q) => $q->where('menu_level', $level))
             ->with(['menuOptions' => fn ($q) => $q->where('menu_level', $level)])
             ->orderBy('menu_depth')

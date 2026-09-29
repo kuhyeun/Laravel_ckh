@@ -47,6 +47,8 @@ class MenuSeeder extends Seeder {
                 'menu_icon' => $menuData['menu_icon'],
                 'menu_depth' => $depth,
                 'module_code' => $menuData['module_code'] ?? '',
+                // 기능 스위치가 꺼지면 메뉴 미표시 ( system_config feature.* )
+                'feature_key' => $menuData['feature_key'] ?? null,
                 'menu_route_name' => $menuData['menu_route_name'],
                 'url_path' => $urlPath,
                 'page_component' => $pageComponent,

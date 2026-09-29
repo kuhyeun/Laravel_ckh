@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Gate;
 use MesCore\Auth\Models\User;
 use MesCore\Auth\Observers\UserObserver;
 use MesCore\Menu\Services\MenuPermissionService;
+use MesCore\Basic\Services\PolicyService;
 
 class CoreServiceProvider extends ServiceProvider {
 
@@ -18,6 +19,9 @@ class CoreServiceProvider extends ServiceProvider {
         $this->mergeConfigFrom(
             __DIR__ . '/../config/mes.php', 'mes'
         );
+
+        // 정책 서비스 : 요청 안에서 한 인스턴스 ( 정의 · 값을 한 번만 읽는다 )
+        $this->app->singleton(PolicyService::class);
     }
 
     public function boot(): void {

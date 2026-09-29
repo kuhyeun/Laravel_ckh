@@ -33,13 +33,24 @@ class SystemConfig extends Model {
         'system_config_value',
         'system_config_remark',
         'system_config_etc',
+        // 정책 정의 ( 시더가 src/config/system_config.php 로 동기화 )
+        'system_config_category',
+        'system_config_value_type',
+        'system_config_default_value',
+        'system_config_allowed_scopes',
+        'system_config_merge_strategy',
+        'system_config_exempt_value',
+        'system_config_exempt_scope',
+        'system_config_priority_scope',
+        'system_config_depends_on_key',
+        'system_config_depends_on_value',
+        'system_config_editable_by',
+        'system_config_sort',
+        'system_config_is_visible',
         'create_account_idx',
         'update_account_idx',
     ];
 
-    protected $attributes = [
-        'system_config_value' => '',
-    ];
 
     // etc 는 UI 메타( type, options 등 )를 담는 JSON → 배열로 자동 변환
     protected $casts = [
@@ -72,14 +83,17 @@ class SystemConfig extends Model {
         return $this->original[$column] ?? $this->getAttribute($column);
     }
 
-    /** 단일 설정값 ( 없으면 $default ) */
+    /**
+     * 단일 설정값 ( 설정값 → 기본값 → $default )
+     * 정책( FEATURE · RULE )은 PolicyService 로 읽을 것 — 스코프 · 선행 조건 · 형 변환을 거친다
+     */
     public static function get(string $group, string $key, $default = null) {
         $row = static::query()
             ->where('system_config_group_key', $group)
             ->where('system_config_key', $key)
             ->first();
 
-        return $row ? $row->system_config_value : $default;
+        return $row?->system_config_value ?? $row?->system_config_default_value ?? $default;
     }
 
     /** 그룹 전체 → [ key => value ] */
