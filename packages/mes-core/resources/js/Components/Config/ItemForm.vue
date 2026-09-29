@@ -1,7 +1,10 @@
 <!-- 품목 등록/수정 폼 ( BAS-02 ) — 모달 본체
      - item prop 있으면 수정, 없으면 등록
      - 라우터를 모른다 : 저장 후 onSaved( 저장된 품목 ) 호출 + close ( 닫기·이동은 여는 쪽이 정함 )
-     - 탭 : 기본 / 재고·발주 / 단가  ( 추가정보 탭 · 라우팅 · 주 자재(BOM)는 해당 기능 개발 시 추가 )
+     - 탭 : 기본 / 재고·발주 / 단가 / 추가정보
+       추가정보 : 정책 덮어쓰기( 입고검사 · 출하검사 · 차감 위치 — 대분류별 ) + 리드타임( 기본값 따름 / 품목별 ) + 표준시간( 읽기 전용 )
+       커스텀 컬럼은 커스텀 컬럼 기능 개발 시 추가
+     - 시리얼 사용 스위치는 기능 스위치 feature.serial 이 켜져 있을 때만 ( 이미 켜진 품목은 끌 수 있게 보인다 )
      - 삭제 없음 : 사용 여부로 내림 -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
@@ -90,10 +93,11 @@
                 <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
                     {{ form.is_use === 'Y' ? '사용' : '미사용' }}
                 </BaseCheckbox>
-                <BaseCheckbox variant="switch" v-model="form.serial_use" true-value="Y" false-value="N" :disabled="!canWrite">
+                <BaseCheckbox v-if="serialEnabled || form.serial_use === 'Y'" variant="switch" v-model="form.serial_use" true-value="Y" false-value="N" :disabled="!canWrite">
                     시리얼 사용 <span class="text-xs text-gray-400">( 낱개마다 번호 — 중요 제품만 )</span>
                 </BaseCheckbox>
             </div>
+            <p v-if="errors.serial_use" class="col-span-2 text-xs text-red-500 -mt-2">{{ errors.serial_use[0] }}</p>
             <div class="col-span-2">
                 <label class="block text-gray-500 font-medium mb-1">비고</label>
                 <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="!canWrite"></textarea>
@@ -180,6 +184,93 @@
             <p class="mt-3 text-xs text-gray-400">전표 라인의 기본값입니다. 전표에서 고친 값은 라인에 저장되며, 여기를 바꿔도 기존 전표는 그대로입니다.</p>
         </div>
 
+        <!-- 탭 4 · 추가정보 -->
+        <div v-show="tab === 'extra'" class="pt-4 space-y-4">
+            <!-- 품질 -->
+            <section>
+                <div class="mb-2 text-xs font-semibold text-gray-500 border-b pb-1">품질</div>
+                <div class="space-y-3">
+                    <PolicyOverrideField
+                        v-if="fieldOf('quality.incoming_inspection')"
+                        v-model="policies['quality.incoming_inspection']"
+                        :field="fieldOf('quality.incoming_inspection')"
+                        label="입고검사"
+                        :disabled="!canWrite"
+                        :error="policyError('quality.incoming_inspection')"
+                    >
+                        <p class="text-xs text-gray-400 mt-1">
+                            무검사로 두면 어느 거래처에서 들어와도 검사하지 않습니다. 그 외에는 거래처에 설정이 있으면 거래처를 따릅니다.
+                        </p>
+                    </PolicyOverrideField>
+                    <PolicyOverrideField
+                        v-if="showPolicy('quality.shipping_inspection')"
+                        v-model="policies['quality.shipping_inspection']"
+                        :field="fieldOf('quality.shipping_inspection')"
+                        label="출하검사"
+                        :disabled="!canWrite"
+                        :error="policyError('quality.shipping_inspection')"
+                    />
+                </div>
+            </section>
+
+            <!-- 차감 위치 ( 자재는 자재 차감, 제품은 제품 차감 ) -->
+            <section v-if="consumeKeys.length">
+                <div class="mb-2 text-xs font-semibold text-gray-500 border-b pb-1">차감 위치</div>
+                <div class="space-y-3">
+                    <PolicyOverrideField
+                        v-for="k in consumeKeys"
+                        :key="k"
+                        v-model="policies[k]"
+                        :field="fieldOf(k)"
+                        :disabled="!canWrite"
+                        :error="policyError(k)"
+                    />
+                </div>
+            </section>
+
+            <!-- 리드타임 ( BAS-09 의 품목 행 ) -->
+            <section>
+                <div class="mb-2 text-xs font-semibold text-gray-500 border-b pb-1">
+                    리드타임 <span class="font-normal text-gray-400">( 일 · 수량과 무관 )</span>
+                </div>
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-1 min-h-9">
+                    <label class="inline-flex items-center gap-1.5" :class="!canWrite ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
+                        <input type="radio" class="accent-blue-600" value="DEFAULT" v-model="leadTime.mode" :disabled="!canWrite" />
+                        <span>기본값</span>
+                        <span class="text-xs text-gray-400">( {{ defaultLeadText }} )</span>
+                    </label>
+                    <label class="inline-flex items-center gap-1.5" :class="!canWrite ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
+                        <input type="radio" class="accent-blue-600" value="ITEM" v-model="leadTime.mode" :disabled="!canWrite" />
+                        <span>품목별 입력</span>
+                    </label>
+                </div>
+                <div v-if="leadTime.mode === 'ITEM'" class="mt-2 grid grid-cols-6 gap-2 items-end">
+                    <div v-for="st in LEAD_STAGES" :key="st.key">
+                        <span class="block text-xs text-gray-500 mb-0.5">{{ st.label }}</span>
+                        <BaseInput v-model="leadTime[st.key]" type="number" min="0" class="w-full text-right" :disabled="!canWrite" />
+                    </div>
+                    <div>
+                        <span class="block text-xs text-gray-500 mb-0.5">계</span>
+                        <p class="h-9 flex items-center justify-end pr-1 font-semibold text-gray-700">{{ leadTotal }} 일</p>
+                    </div>
+                </div>
+                <p v-if="leadTime.mode === 'ITEM'" class="text-xs text-gray-400 mt-1">비운 칸은 해당 없음( 0일 )입니다. 칸별로 기본값을 따르지 않습니다.</p>
+                <p v-if="errors.lead_time" class="text-xs text-red-500 mt-0.5">{{ errors.lead_time[0] }}</p>
+                <p v-for="st in LEAD_STAGES" v-show="errors['lead_time.' + st.key]" :key="'e' + st.key" class="text-xs text-red-500 mt-0.5">
+                    {{ st.label }} : {{ errors['lead_time.' + st.key]?.[0] }}
+                </p>
+            </section>
+
+            <!-- 표준시간 ( 읽기 전용 ) -->
+            <section>
+                <div class="mb-2 text-xs font-semibold text-gray-500 border-b pb-1">1개 생산 표준시간</div>
+                <p class="text-gray-700">
+                    <b>{{ fmt(num(src.cycle_time_sec)) }}</b> 초
+                    <span class="ml-1 text-xs text-gray-400">라우팅 공정 합계 · 읽기 전용</span>
+                </p>
+            </section>
+        </div>
+
         <!-- 액션 -->
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ canWrite ? '취소' : '닫기' }}</BaseButton>
@@ -199,6 +290,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { ITEM_TYPES, ITEM_KINDS } from '@core/Components/Config/itemCodes';
+import PolicyOverrideField from '@core/Components/Config/PolicyOverrideField.vue';
 
 const props = defineProps({
     item:     { type: Object,   default: null },   // 있으면 수정, 없으면 등록
@@ -213,6 +305,15 @@ const TABS = [
     { key: 'basic', label: '기본' },
     { key: 'stock', label: '재고·발주' },
     { key: 'price', label: '단가' },
+    { key: 'extra', label: '추가정보' },
+];
+
+const LEAD_STAGES = [
+    { key: 'purchase_days', label: '구매' },
+    { key: 'receive_days',  label: '입고' },
+    { key: 'produce_days',  label: '생산' },
+    { key: 'inspect_days',  label: '검사' },
+    { key: 'pack_days',     label: '포장' },
 ];
 
 const STOCK_FIELDS = [
@@ -236,7 +337,8 @@ const FIELD_TAB = {
     min_usable_spec: 'stock', calc_code: 'stock', spec_dim: 'stock',
     ...Object.fromEntries(PRICE_FIELDS.map(f => [f.key, 'price'])),
 };
-const tabOf = (field) => FIELD_TAB[field] ?? 'basic';   // routing_idx · main_material.* 는 기본 탭
+// routing_idx · main_material.* 는 기본 탭, 정책 · 리드타임은 추가정보 탭
+const tabOf = (field) => (field.startsWith('policies.') || field.startsWith('lead_time')) ? 'extra' : (FIELD_TAB[field] ?? 'basic');
 
 const tab = ref('basic');
 
@@ -296,6 +398,16 @@ async function loadFormData() {
         if (data.main_material) {
             Object.assign(mainMaterial, data.main_material);
         }
+
+        // 탭 4 : 정책 덮어쓰기 · 리드타임 · 시리얼 기능
+        policyFields.value   = data.policies ?? [];
+        policyKeysByType.value = data.policy_keys_by_type ?? {};
+        policyFields.value.forEach(f => { policies[f.key] = f.override ?? ''; });
+        serialEnabled.value  = data.serial_enabled === true;
+        defaultLead.value    = data.lead_time?.default ?? null;
+        const own = data.lead_time?.item;
+        leadTime.mode = own && own.is_use === 'Y' ? 'ITEM' : 'DEFAULT';
+        LEAD_STAGES.forEach(st => { leadTime[st.key] = own?.[st.key] ?? ''; });
         // 신규 등록은 기본 라우팅을 자동 선택 ( 등록 시점에만. 수정 화면에서는 건드리지 않는다 )
         if (!isEdit.value && !form.routing_idx && data.default_routing_idx) {
             form.routing_idx = data.default_routing_idx;
@@ -308,6 +420,28 @@ async function loadFormData() {
 onMounted(loadFormData);
 
 const kindOptions = computed(() => ITEM_KINDS[form.item_type] ?? []);
+
+// ---- 탭 4 · 추가정보 ----
+const policyFields     = ref([]);        // PolicyService::entityFields
+const policyKeysByType = ref({});        // 대분류 → 덮어쓸 수 있는 정책 키
+const policies         = reactive({});   // key → 덮어쓴 값 ( '' = 설정에 맞춤 )
+const serialEnabled    = ref(false);
+const defaultLead      = ref(null);      // 리드타임 기본값 행 ( 없으면 null )
+const leadTime         = reactive({ mode: 'DEFAULT', purchase_days: '', receive_days: '', produce_days: '', inspect_days: '', pack_days: '' });
+
+const fieldOf     = (key) => policyFields.value.find(f => f.key === key) ?? null;
+const showPolicy  = (key) => !!fieldOf(key) && (policyKeysByType.value[form.item_type] ?? []).includes(key);
+const policyError = (key) => errors.value[`policies.${key}`]?.[0] ?? '';
+// 차감 위치 : 대분류의 키 중 consume_* ( 자재 → 자재 차감 3개 / 제품 → 제품 차감 1개 )
+const consumeKeys = computed(() => (policyKeysByType.value[form.item_type] ?? []).filter(k => k.includes('.consume_') && fieldOf(k)));
+
+const leadTotal = computed(() => LEAD_STAGES.reduce((s, st) => s + num(leadTime[st.key]), 0));
+const defaultLeadText = computed(() => {
+    if (!defaultLead.value) return '기본값 미등록 — 0일';
+    const parts = LEAD_STAGES.map(st => `${st.label} ${defaultLead.value[st.key] ?? '—'}`);
+    const total = LEAD_STAGES.reduce((s, st) => s + num(defaultLead.value[st.key]), 0);
+    return `${parts.join(' · ')} = ${total}일`;
+});
 
 // 대분류 변경 → 소분류가 맞지 않으면 첫 항목으로
 function onTypeChange(type) {
@@ -362,6 +496,14 @@ async function save() {
                     ext_n01: mainMaterial.ext_n01 ?? null,
                 }
                 : null,
+            // 탭 4 : 대분류에 맞는 정책만 ( 나머지는 서버가 해제 ). '' = 따름 → null
+            policies: Object.fromEntries(
+                (policyKeysByType.value[form.item_type] ?? []).map(k => [k, policies[k] === '' || policies[k] === undefined ? null : policies[k]])
+            ),
+            lead_time: {
+                mode: leadTime.mode,
+                ...Object.fromEntries(LEAD_STAGES.map(st => [st.key, leadTime[st.key] === '' || leadTime[st.key] === null ? null : Number(leadTime[st.key])])),
+            },
         };
         const { data } = await window.axios.post(route('config.item.save'), payload);
         props.onSaved?.(data.item, data.warnings ?? []);

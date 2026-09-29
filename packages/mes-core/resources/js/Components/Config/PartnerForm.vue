@@ -2,7 +2,8 @@
      - partner prop( 목록 행 ) 있으면 수정 : 열릴 때 출고지·담당자까지 다시 조회
      - 탭 : 기본 / 담당자(N) / 출고지(N)  → 저장은 한 번에 ( 거래처 + 출고지 + 담당자 )
      - 담당자 소속은 출고지 key 로 연결 ( 새로 추가한 출고지도 저장 전에 고를 수 있음 )
-     - 입고검사 설정( 정책 오버라이드 )은 정책 기능 개발 시 추가
+     - 입고검사 : 정책 quality.incoming_inspection 의 거래처 덮어쓰기. 구매처 · 외주처일 때만 ( 아니면 서버가 해제 )
+       품목이 무검사면 거래처 값은 무시되고, 그 외에는 거래처 값이 있으면 거래처가 이긴다
      - 삭제 없음 : 사용 여부로 내림 -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
@@ -47,6 +48,26 @@
                         </BaseCheckbox>
                     </div>
                     <p v-if="errors.roles" class="text-xs text-red-500 mt-0.5">{{ errors.roles[0] }}</p>
+                </div>
+
+                <!-- 입고검사 ( 입고가 있는 거래처 = 구매처 · 외주처 ) -->
+                <div v-if="hasIncoming && incomingField" class="col-span-2 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/60">
+                    <PolicyOverrideField
+                        v-model="policies['quality.incoming_inspection']"
+                        :field="incomingField"
+                        label="입고검사"
+                        :disabled="!canWrite"
+                        :error="errors['policies.quality.incoming_inspection']?.[0] ?? ''"
+                    >
+                        <template #default="{ effective }">
+                            <p class="text-xs text-gray-400 mt-1">
+                                품목이 무검사면 거래처 설정은 무시됩니다. 그 외에는 거래처에 값이 있으면 거래처가 이깁니다.
+                            </p>
+                            <p v-if="policies['quality.incoming_inspection'] === 'NONE'" class="text-xs text-amber-600 mt-0.5">
+                                이 거래처에서 들어오는 자재는 품목이 샘플링 · 전수여도 검사하지 않습니다.
+                            </p>
+                        </template>
+                    </PolicyOverrideField>
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">사업자번호</label>
@@ -191,6 +212,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
+import PolicyOverrideField from '@core/Components/Config/PolicyOverrideField.vue';
 import { PARTNER_ROLES } from '@core/Components/Config/partnerCodes';
 
 const props = defineProps({
@@ -247,9 +269,28 @@ function applyPartner(p) {
     });
 }
 
+// ---- 정책 덮어쓰기 ( 입고검사 ) ----
+const policyFields  = ref([]);        // PolicyService::entityFields
+const policies      = reactive({});   // key → 덮어쓴 값 ( '' = 설정에 맞춤 )
+const incomingField = computed(() => policyFields.value.find(f => f.key === 'quality.incoming_inspection') ?? null);
+const hasIncoming   = computed(() => form.is_supplier === 'Y' || form.is_subcon === 'Y');
+
+async function loadPolicies() {
+    try {
+        const { data } = await window.axios.get(route('config.partner.policies'), {
+            params: form.partner_idx ? { partner_idx: form.partner_idx } : {},
+        });
+        policyFields.value = data.policies ?? [];
+        policyFields.value.forEach(f => { policies[f.key] = f.override ?? ''; });
+    } catch (e) {
+        errorMsg.value = '입고검사 설정을 불러오지 못했습니다.';
+    }
+}
+
 // 수정이면 출고지·담당자까지 조회
 const loading = ref(false);
 onMounted(async () => {
+    loadPolicies();
     if (!isEdit.value) return;
     loading.value = true;
     try {
@@ -318,6 +359,8 @@ async function save() {
             ...form,
             sites:    form.sites.map(({ site_idx, key, site_name, address, tel, remark }) => ({ site_idx, key, site_name, address, tel, remark })),
             contacts: form.contacts.map(({ _rowKey, ...c }) => ({ ...c, site_key: c.site_key || null })),
+            // '' = 설정에 맞춤 → null ( 덮어쓰기 해제 )
+            policies: Object.fromEntries(Object.entries(policies).map(([k, v]) => [k, v === '' ? null : v])),
         };
         const { data } = await window.axios.post(route('config.partner.save'), payload);
         props.onSaved?.(data.partner);

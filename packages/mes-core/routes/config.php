@@ -53,6 +53,8 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
         Route::middleware($partnerRead)->group(function() {
             Route::get('/list', [PartnerController::class, 'list'])->name('list');
             Route::get('/show/{partnerIdx}', [PartnerController::class, 'show'])->whereNumber('partnerIdx')->name('show');
+            // 거래처 폼의 정책 칸 ( 입고검사 덮어쓰기 )
+            Route::get('/policies', [PartnerController::class, 'policies'])->name('policies');
         });
 
         Route::middleware($partnerWrite)->group(function() {

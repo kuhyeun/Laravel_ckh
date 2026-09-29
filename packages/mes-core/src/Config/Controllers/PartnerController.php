@@ -7,6 +7,7 @@ use MesCore\Config\Models\Partner;
 use MesCore\Config\Models\PartnerSite;
 use MesCore\Config\Models\PartnerContact;
 use MesCore\Basic\Models\SystemCode;
+use MesCore\Basic\Services\PolicyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -14,9 +15,14 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 // 거래처관리 ( BAS-01 )
-//   거래처 + 출고지 N + 담당자 N 을 한 번에 저장한다 ( 한 트랜잭션 )
+//   거래처 + 출고지 N + 담당자 N + 정책 덮어쓰기( 입고검사 )를 한 번에 저장한다 ( 한 트랜잭션 )
+//   입고검사는 구매처 · 외주처만 ( 입고가 있는 거래처 ). 아니면 덮어쓰기를 해제한다
+//   덮어쓰기 저장 권한은 이 화면의 쓰기 권한 ( 정책-설정-설계 §7 — 마스터를 등록하는 사람이 정한다 )
 //   삭제는 미사용 처리( is_use = N, ADR 0019 )
 class PartnerController extends Controller {
+
+    // 거래처 단위로 덮어쓸 수 있는 정책
+    private const POLICY_KEYS = ['quality.incoming_inspection'];
 
     private const ATTRIBUTES = [
         'partner_code'          => '거래처코드',
@@ -54,7 +60,18 @@ class PartnerController extends Controller {
             ->orderBy('partner_code')
             ->get();
 
+        // 입고검사 덮어쓰기 ( 없으면 null = 업체 설정을 따름 )
+        $incoming = app(PolicyService::class)->overridesOf('quality.incoming_inspection', 'PARTNER');
+        $partners->each(fn ($p) => $p->incoming_inspection = $incoming[$p->partner_idx] ?? null);
+
         return response()->json(['partners' => $partners]);
+    }
+
+    // 거래처 폼의 정책 칸 : 덮어쓴 값 + 따를 때의 값 ( 신규면 partner_idx 없이 )
+    public function policies(Request $request, PolicyService $policy) {
+        $validated = $request->validate(['partner_idx' => 'nullable|integer']);
+
+        return response()->json(['policies' => $policy->entityFields(self::POLICY_KEYS, 'PARTNER', $validated['partner_idx'] ?? null)]);
     }
 
     // 단건 : 출고지 · 담당자 포함
@@ -112,6 +129,10 @@ class PartnerController extends Controller {
             'contacts.*.phone'        => 'nullable|string|max:30',
             'contacts.*.email'        => 'nullable|email|max:100',
             'contacts.*.remark'       => 'nullable|string|max:2000',
+
+            // 정책 덮어쓰기 [ key => 값 | null( 따름 ) ] — 값 검증은 PolicyService
+            'policies'   => 'nullable|array',
+            'policies.*' => 'nullable|string|max:300',
         ], [
             'contacts.*.site_key.in' => '소속 출고지가 목록에 없습니다.',
         ], self::ATTRIBUTES);
@@ -124,20 +145,31 @@ class PartnerController extends Controller {
         // 새로 고르는 담당자 구분은 사용 중인 코드여야 함 ( 기존 담당자의 구분이 미사용으로 내려간 경우는 유지 허용 )
         $this->assertActiveContactTypes($partner, $validated['contacts']);
 
+        $policy = app(PolicyService::class);
+
         try {
-            DB::transaction(function () use ($partner, $validated) {
-                $partner->fill(collect($validated)->except(['sites', 'contacts'])->all())->save();
+            DB::transaction(function () use ($partner, $validated, $policy) {
+                $partner->fill(collect($validated)->except(['sites', 'contacts', 'policies'])->all())->save();
 
                 $siteIdxByKey = $this->syncSites($partner, $validated['sites']);
                 $this->syncContacts($partner, $validated['contacts'], $siteIdxByKey);
+
+                // 입고가 없는 거래처( 고객사만 )는 입고검사 덮어쓰기를 둘 이유가 없다 → 해제
+                $values = $validated['policies'] ?? [];
+                if ($validated['is_supplier'] !== 'Y' && $validated['is_subcon'] !== 'Y') {
+                    $values = ['quality.incoming_inspection' => null];
+                }
+                $policy->applyEntity(self::POLICY_KEYS, $values, 'PARTNER', $partner->partner_idx);
             });
 
             $partner = Partner::with(['sites', 'contacts'])->find($partner->partner_idx);
 
             return response()->json(['message' => 'Success', 'partner' => $this->toPayload($partner)], 200);
         } catch (ValidationException $e) {
+            $policy->flush();   // 롤백된 값이 이 요청의 메모에 남지 않도록
             throw $e;
         } catch (\Throwable $e) {
+            $policy->flush();
             Log::error('거래처 저장 실패 : ' . $e->getMessage());
 
             return response()->json(['message' => 'Failed'], 500);

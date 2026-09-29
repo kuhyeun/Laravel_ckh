@@ -48,7 +48,7 @@ return [
         'closing'         => [ 'name' => '재고 마감 사용',           'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL', 'visible' => false ],
         'custom_column'   => [ 'name' => '커스텀 컬럼 사용',         'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL', 'visible' => false ],
         'production_plan' => [ 'name' => '생산계획 시뮬레이션 사용', 'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL', 'visible' => false ],
-        'serial'          => [ 'name' => '시리얼 번호 사용',         'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL', 'visible' => false,
+        'serial'          => [ 'name' => '시리얼 번호 사용',         'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL',
                                'remark' => '켜야 품목에서 시리얼을 고를 수 있습니다' ],
     ],
 
@@ -77,16 +77,16 @@ return [
     // ---- B-1 ( 자재 · LOT · 마감 ) · B-2. 자재 · 출하 차감 ----
     'material' => [
         'issue_calc'     => [ 'name' => '자재소요 계산식 기본값', 'value' => 'BOM_BASIC', 'category' => 'RULE', 'type' => 'STRING', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false ],
-        'consume_source' => [ 'name' => '자재 차감 위치', 'value' => 'FIFO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM', 'visible' => false,
+        'consume_source' => [ 'name' => '자재 차감 위치', 'value' => 'FIFO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
                               'options' => [ 'ORDER_LINKED' => '수주연동 입고자재만', 'FIFO' => '창고 선입선출' ] ],
-        'consume_timing' => [ 'name' => '자재 차감 시점', 'value' => 'PROCESS_START', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM', 'visible' => false,
+        'consume_timing' => [ 'name' => '자재 차감 시점', 'value' => 'PROCESS_START', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
                               'options' => [ 'PROCESS_START' => '생산 공정 시작 시', 'ISSUE' => '출고 시', 'MANUAL' => '수동' ] ],
-        'consume_mode'   => [ 'name' => '자재 차감 방식', 'value' => 'AUTO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM', 'visible' => false,
+        'consume_mode'   => [ 'name' => '자재 차감 방식', 'value' => 'AUTO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
                               'options' => [ 'AUTO' => '자동', 'MANUAL' => '수동' ] ],
     ],
 
     'shipment' => [
-        'consume_source' => [ 'name' => '제품 차감 위치', 'value' => 'FIFO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM', 'visible' => false,
+        'consume_source' => [ 'name' => '제품 차감 위치', 'value' => 'FIFO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
                               'options' => [ 'ORDER_LINKED' => '수주연동 생산품만', 'FIFO' => '창고 선입선출' ] ],
     ],
 
@@ -118,11 +118,13 @@ return [
         'mode.shipping'  => [ 'name' => '출하검사 완료 방식', 'value' => 'SIMPLE', 'category' => 'RULE', 'type' => 'ENUM', 'visible' => false,
                               'options' => [ 'SIMPLE' => '검사완료 버튼', 'SHEET' => '검사시트 작성' ] ],
         // 품목이 무검사면 거래처를 무시, 그 외에는 거래처 값이 있을 때만 거래처가 이긴다
-        'incoming_inspection' => [ 'name' => '입고검사', 'value' => 'NONE', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM,PARTNER', 'visible' => false,
+        // 업체 기본값은 설정 화면, 품목 · 거래처별 값은 각 마스터 화면( 탭 4 · 거래처 기본 탭 )
+        'incoming_inspection' => [ 'name' => '입고검사', 'value' => 'NONE', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM,PARTNER',
                                    'options' => [ 'NONE' => '무검사', 'SAMPLING' => '샘플링', 'FULL' => '전수' ],
+                                   'remark' => '업체 기본값. 품목 · 거래처 화면에서 따로 정할 수 있습니다 ( 품목이 무검사면 거래처 설정 무시 )',
                                    'merge' => [ 'strategy' => 'EXEMPT_THEN_PRIORITY', 'exempt_value' => 'NONE', 'exempt_scope' => 'ITEM', 'priority_scope' => 'PARTNER' ] ],
         'incoming_confirm_required' => [ 'name' => '입고 확인 필수', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'visible' => false ],
-        'shipping_inspection' => [ 'name' => '출하검사 사용', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'scopes' => 'TENANT,ITEM', 'visible' => false ],
+        'shipping_inspection' => [ 'name' => '출하검사 사용', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'scopes' => 'TENANT,ITEM' ],
     ],
 
     // ---- B-4. 생산 ----

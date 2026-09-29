@@ -7,6 +7,7 @@ use MesCore\Basic\Models\SystemConfig;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
 
 /**
@@ -191,9 +192,65 @@ class PolicyService {
         });
 
         if ($changed) {
-            $this->flush();
+            // 이 요청은 바로 새 값을 보고, 공유 캐시는 커밋 뒤에 비운다 ( 바깥 트랜잭션이 롤백되면 캐시가 틀어지지 않도록 )
+            $this->memo = null;
+            DB::afterCommit(fn () => $this->flush());
         }
 
+        return $changed;
+    }
+
+    // ---- 대상( 거래처 · 품목 … )별 덮어쓰기 — 마스터 화면용 ----
+
+    /**
+     * 마스터 화면이 그릴 정책 칸 : [{ key, name, remark, value_type, options[{value,label}], override, inherited }]
+     *   override  : 이 대상에 덮어쓴 값 ( 없으면 null = 설정에 맞춤 )
+     *   inherited : 따를 때 적용되는 값 ( 업체 설정 → 기본값 )
+     */
+    public function entityFields(array $keys, string $scopeType, ?int $scopeIdx): array {
+        $overrides = $this->load()['overrides'];
+
+        return array_map(function (string $key) use ($overrides, $scopeType, $scopeIdx) {
+            $def = $this->definition($key);
+            if (!in_array($scopeType, $def['allowed_scopes'], true)) {
+                throw new InvalidArgumentException("{$key} 는 {$scopeType} 단위 설정이 없습니다.");
+            }
+            return [
+                'key'        => $key,
+                'name'       => $def['name'],
+                'remark'     => $def['remark'],
+                'value_type' => $def['value_type'],
+                'options'    => $def['etc']['options'] ?? [],
+                'override'   => $scopeIdx ? ($overrides[$key][$scopeType][$scopeIdx] ?? null) : null,
+                'inherited'  => $this->resolveRaw($key),
+            ];
+        }, $keys);
+    }
+
+    // 한 정책의 대상별 덮어쓰기 전부 [ scope_idx => 값 ] ( 목록 화면용 )
+    public function overridesOf(string $key, string $scopeType): array {
+        $this->definition($key);
+        return $this->load()['overrides'][$key][$scopeType] ?? [];
+    }
+
+    /**
+     * 마스터 저장과 같은 트랜잭션에서 덮어쓰기를 반영. $values = [ key => 값 | null( 설정에 맞춤 ) ]
+     *   $keys 에 없는 키는 무시 ( 화면이 보낸 것을 그대로 믿지 않는다 )
+     *   검증 실패는 ValidationException( policies.{key} ) 로 바꿔 던진다 → 화면의 칸 아래에 표시
+     */
+    public function applyEntity(array $keys, array $values, string $scopeType, int $scopeIdx): int {
+        $changed = 0;
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $values)) {
+                continue;
+            }
+            $value = $values[$key];
+            try {
+                $changed += $this->set($key, ($value === '' || $value === null) ? null : (string) $value, $scopeType, $scopeIdx) ? 1 : 0;
+            } catch (PolicyException $e) {
+                throw ValidationException::withMessages(["policies.{$key}" => [$e->getMessage()]]);
+            }
+        }
         return $changed;
     }
 
@@ -236,42 +293,50 @@ class PolicyService {
         return 'mes:policy:' . DB::connection()->getDatabaseName();
     }
 
+    // 트랜잭션 안에서는 공유 캐시에 쓰지 않는다 ( 커밋 전 값이 캐시에 남지 않도록 )
     private function load(): array {
-        return $this->memo ??= Cache::rememberForever($this->cacheKey(), function () {
-            $defs = SystemConfig::query()
-                ->orderBy('system_config_sort')
-                ->get()
-                ->mapWithKeys(fn (SystemConfig $r) => [
-                    $r->system_config_group_key . '.' . $r->system_config_key => [
-                        'group'            => $r->system_config_group_key,
-                        'key'              => $r->system_config_key,
-                        'name'             => $r->system_config_name ?: $r->system_config_key,
-                        'remark'           => $r->system_config_remark,
-                        'etc'              => $r->system_config_etc ?? [],
-                        'category'         => $r->system_config_category,
-                        'value_type'       => $r->system_config_value_type,
-                        'value'            => $r->system_config_value,
-                        'default_value'    => $r->system_config_default_value,
-                        'allowed_scopes'   => array_map('trim', explode(',', $r->system_config_allowed_scopes ?: 'TENANT')),
-                        'merge_strategy'   => $r->system_config_merge_strategy,
-                        'exempt_value'     => $r->system_config_exempt_value,
-                        'exempt_scope'     => $r->system_config_exempt_scope,
-                        'priority_scope'   => $r->system_config_priority_scope,
-                        'depends_on_key'   => $r->system_config_depends_on_key,
-                        'depends_on_value' => $r->system_config_depends_on_value,
-                        'editable_by'      => $r->system_config_editable_by,
-                        'is_visible'       => $r->system_config_is_visible === 'Y',
-                        'options'          => collect(($r->system_config_etc ?? [])['options'] ?? [])->pluck('value')->map(fn ($v) => (string) $v)->all(),
-                    ],
-                ])
-                ->all();
+        if ($this->memo !== null) {
+            return $this->memo;
+        }
+        return $this->memo = DB::transactionLevel() > 0
+            ? $this->build()
+            : Cache::rememberForever($this->cacheKey(), fn () => $this->build());
+    }
 
-            $overrides = [];
-            foreach (DB::table('system_config_override')->get() as $o) {
-                $overrides[$o->system_config_group_key . '.' . $o->system_config_key][$o->scope_type][(int) $o->scope_idx] = $o->override_value;
-            }
+    private function build(): array {
+        $defs = SystemConfig::query()
+            ->orderBy('system_config_sort')
+            ->get()
+            ->mapWithKeys(fn (SystemConfig $r) => [
+                $r->system_config_group_key . '.' . $r->system_config_key => [
+                    'group'            => $r->system_config_group_key,
+                    'key'              => $r->system_config_key,
+                    'name'             => $r->system_config_name ?: $r->system_config_key,
+                    'remark'           => $r->system_config_remark,
+                    'etc'              => $r->system_config_etc ?? [],
+                    'category'         => $r->system_config_category,
+                    'value_type'       => $r->system_config_value_type,
+                    'value'            => $r->system_config_value,
+                    'default_value'    => $r->system_config_default_value,
+                    'allowed_scopes'   => array_map('trim', explode(',', $r->system_config_allowed_scopes ?: 'TENANT')),
+                    'merge_strategy'   => $r->system_config_merge_strategy,
+                    'exempt_value'     => $r->system_config_exempt_value,
+                    'exempt_scope'     => $r->system_config_exempt_scope,
+                    'priority_scope'   => $r->system_config_priority_scope,
+                    'depends_on_key'   => $r->system_config_depends_on_key,
+                    'depends_on_value' => $r->system_config_depends_on_value,
+                    'editable_by'      => $r->system_config_editable_by,
+                    'is_visible'       => $r->system_config_is_visible === 'Y',
+                    'options'          => collect(($r->system_config_etc ?? [])['options'] ?? [])->pluck('value')->map(fn ($v) => (string) $v)->all(),
+                ],
+            ])
+            ->all();
 
-            return ['defs' => $defs, 'overrides' => $overrides];
-        });
+        $overrides = [];
+        foreach (DB::table('system_config_override')->get() as $o) {
+            $overrides[$o->system_config_group_key . '.' . $o->system_config_key][$o->scope_type][(int) $o->scope_idx] = $o->override_value;
+        }
+
+        return ['defs' => $defs, 'overrides' => $overrides];
     }
 }

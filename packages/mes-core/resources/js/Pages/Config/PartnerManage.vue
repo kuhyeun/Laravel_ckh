@@ -100,6 +100,13 @@ const partnerColumns = [
     { header: '구분',       name: 'roles',        minWidth: 150, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => partnerRoleText(row) },
     { header: '사업자번호', name: 'biz_no',       width: 130, align: 'center', className: 'cursor-pointer' },
     { header: '대표자',     name: 'ceo_name',     width: 100, align: 'center', className: 'cursor-pointer' },
+    {
+        // 입고검사 덮어쓰기 ( 없으면 업체 설정을 따름 · 입고가 없는 거래처는 빈칸 )
+        header: '입고검사', name: 'incoming_inspection', width: 90, align: 'center', className: 'cursor-pointer',
+        formatter: ({ row, value }) => (row.is_supplier !== 'Y' && row.is_subcon !== 'Y')
+            ? ''
+            : ({ NONE: '무검사', SAMPLING: '샘플링', FULL: '전수' }[value] ?? '<span style="color:#9ca3af">설정에 맞춤</span>'),
+    },
     { header: '담당자',     name: 'contacts_count', width: 70, align: 'right', className: 'cursor-pointer' },
     { header: '출고지',     name: 'sites_count',    width: 70, align: 'right', className: 'cursor-pointer' },
     {

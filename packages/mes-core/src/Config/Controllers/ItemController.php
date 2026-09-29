@@ -6,6 +6,8 @@ use MesCore\Http\Controller;
 use MesCore\Config\Models\Bom;
 use MesCore\Config\Models\BomLine;
 use MesCore\Config\Models\Item;
+use MesCore\Config\Models\LeadTime;
+use MesCore\Basic\Services\PolicyService;
 use MesCore\Config\Models\Routing;
 use MesCore\Basic\Models\SystemCode;
 use Illuminate\Http\Request;
@@ -15,8 +17,16 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 // 품목관리 ( BAS-02 )
+//   탭 4 추가정보 : 정책 덮어쓰기( 입고검사 · 출하검사 · 차감 위치 ) + 리드타임( lead_time 품목 행 )을 품목 저장과 한 트랜잭션으로
+//     덮어쓰기 · 리드타임 저장 권한은 이 화면의 쓰기 권한 ( 정책-설정-설계 §7 )
 //   삭제하지 않는다 → is_use = N 으로 내림 ( ADR 0019 )
 class ItemController extends Controller {
+
+    // 대분류별로 품목 단위 덮어쓰기가 의미 있는 정책 ( 자재는 입고 · 소비, 제품은 입고 · 출하 )
+    private const POLICY_KEYS_BY_TYPE = [
+        'MATERIAL' => ['quality.incoming_inspection', 'material.consume_source', 'material.consume_timing', 'material.consume_mode'],
+        'PRODUCT'  => ['quality.incoming_inspection', 'quality.shipping_inspection', 'shipment.consume_source'],
+    ];
 
     private const ATTRIBUTES = [
         'item_code'        => '품번',
@@ -165,6 +175,17 @@ class ItemController extends Controller {
             'main_material.qty'             => 'required_with:main_material|numeric|gt:0|max:9999999999',
             'main_material.calc_code'       => 'nullable|string|max:30',
             'main_material.ext_n01'         => 'nullable|numeric|min:0|max:9999999999',
+            // 탭 4 : 정책 덮어쓰기 [ key => 값 | null( 따름 ) ] — 값 검증은 PolicyService
+            'policies'   => 'nullable|array',
+            'policies.*' => 'nullable|string|max:300',
+            // 탭 4 : 리드타임 — DEFAULT( 기본값 따름 ) / ITEM( 품목별 5구간 )
+            'lead_time'               => 'nullable|array',
+            'lead_time.mode'          => 'required_with:lead_time|in:DEFAULT,ITEM',
+            'lead_time.purchase_days' => 'nullable|integer|min:0|max:999',
+            'lead_time.receive_days'  => 'nullable|integer|min:0|max:999',
+            'lead_time.produce_days'  => 'nullable|integer|min:0|max:999',
+            'lead_time.inspect_days'  => 'nullable|integer|min:0|max:999',
+            'lead_time.pack_days'     => 'nullable|integer|min:0|max:999',
         ], [
             'main_material.qty.gt' => '주 자재 소요는 0보다 커야 합니다.',
             'item_kind.in' => '대분류에 맞지 않는 소분류입니다.',
@@ -184,7 +205,22 @@ class ItemController extends Controller {
         }
 
         $mainMaterial = $validated['main_material'] ?? null;
-        unset($validated['main_material']);
+        $policyValues = $validated['policies'] ?? null;
+        $leadTime     = $validated['lead_time'] ?? null;
+        unset($validated['main_material'], $validated['policies'], $validated['lead_time']);
+
+        $policy = app(PolicyService::class);
+
+        // 시리얼은 기능 스위치( feature.serial )가 켜져야 새로 켤 수 있다 ( 이미 켜진 품목은 유지 · 끄기 허용 )
+        if ($validated['serial_use'] === 'Y' && $item->serial_use !== 'Y' && !$policy->isEnabled('feature.serial')) {
+            throw ValidationException::withMessages(['serial_use' => ['시리얼 번호 기능이 꺼져 있어 켤 수 없습니다.']]);
+        }
+
+        // E_LEAD_EMPTY : 품목별 리드타임인데 5구간이 모두 비어 있음
+        if (($leadTime['mode'] ?? null) === 'ITEM'
+            && collect(array_keys(LeadTime::STAGES))->every(fn ($c) => ($leadTime[$c] ?? null) === null)) {
+            throw ValidationException::withMessages(['lead_time' => ['품목별 리드타임은 구간을 하나 이상 입력하세요. 모두 비우려면 기본값을 고르세요.']]);
+        }
 
         // 새로 고르는 라우팅은 사용 중이어야 함 ( 기존 값이 미사용으로 내려간 경우는 유지 허용 )
         $routingIdx = $validated['routing_idx'] ?? null;
@@ -201,9 +237,22 @@ class ItemController extends Controller {
         try {
             $warnings = [];
 
-            DB::transaction(function () use ($item, $validated, $mainMaterial, &$warnings) {
+            DB::transaction(function () use ($item, $validated, $mainMaterial, $policyValues, $leadTime, $policy, &$warnings) {
                 $item->fill($validated)->save();
                 $warnings = $this->syncMainMaterial($item, $mainMaterial);
+
+                if ($policyValues !== null) {
+                    // 대분류에 맞지 않는 정책의 덮어쓰기는 해제 ( 대분류를 바꾼 경우 )
+                    $own    = self::POLICY_KEYS_BY_TYPE[$item->item_type] ?? [];
+                    $values = collect($this->allPolicyKeys())
+                        ->mapWithKeys(fn ($k) => [$k => in_array($k, $own, true) ? ($policyValues[$k] ?? null) : null])
+                        ->all();
+                    $policy->applyEntity($this->allPolicyKeys(), $values, 'ITEM', $item->item_idx);
+                }
+
+                if ($leadTime !== null) {
+                    $this->syncLeadTime($item, $leadTime);
+                }
             });
 
             return response()->json([
@@ -211,7 +260,11 @@ class ItemController extends Controller {
                 'warnings' => $warnings,
                 'item'     => $item->fresh(),
             ], 200);
+        } catch (ValidationException $e) {
+            $policy->flush();   // 롤백된 값이 이 요청의 메모에 남지 않도록
+            throw $e;
         } catch (\Throwable $e) {
+            $policy->flush();
             Log::error('품목 저장 실패 : ' . $e->getMessage());
 
             return response()->json(['message' => 'Failed'], 500);
@@ -260,16 +313,66 @@ class ItemController extends Controller {
             }
         }
 
+        $itemIdx = $validated['item_idx'] ?? null;
+        $policy  = app(PolicyService::class);
+        // 리드타임 행 → [ 5구간 일수 …, is_use ] ( 행이 없으면 null )
+        $days = function (?LeadTime $l): ?array {
+            if (!$l) {
+                return null;
+            }
+            $row = [];
+            foreach (array_keys(LeadTime::STAGES) as $column) {
+                $row[$column] = $l->getAttribute($column);
+            }
+            $row['is_use'] = $l->is_use;
+            return $row;
+        };
+
         return response()->json([
             'routings'            => $routings,
             'default_routing_idx' => $routings->firstWhere('is_default', 'Y')?->routing_idx,
             'materials'           => $materials,
             'bom_line_count'      => $bomLineCount,
             'main_material'       => $mainMaterial,
+            // 탭 4 : 정책 덮어쓰기 칸 ( 대분류별 표시는 policy_keys_by_type 으로 화면이 거른다 )
+            'policies'            => $policy->entityFields($this->allPolicyKeys(), 'ITEM', $itemIdx),
+            'policy_keys_by_type' => self::POLICY_KEYS_BY_TYPE,
+            // 탭 4 : 리드타임 ( 기본값 행 · 이 품목 행 )
+            'lead_time'           => [
+                'default' => $days(LeadTime::whereNull('item_idx')->first()),
+                'item'    => $itemIdx ? $days(LeadTime::where('item_idx', $itemIdx)->first()) : null,
+            ],
+            'serial_enabled'      => $policy->isEnabled('feature.serial'),
         ]);
     }
 
     // ---- 내부 ----
+
+    private function allPolicyKeys(): array {
+        return array_values(array_unique(array_merge(...array_values(self::POLICY_KEYS_BY_TYPE))));
+    }
+
+    // 리드타임 품목 행 동기화 ( BAS-09 와 같은 행 )
+    //   ITEM    → 행을 만들거나 고쳐서 사용으로
+    //   DEFAULT → 행이 있으면 미사용으로 내림 ( 지우지 않는다 — 다시 품목별로 바꾸면 되살린다 )
+    private function syncLeadTime(Item $item, array $leadTime): void {
+        $row = LeadTime::where('item_idx', $item->item_idx)->first();
+
+        if ($leadTime['mode'] === 'DEFAULT') {
+            if ($row && $row->is_use === 'Y') {
+                $row->is_use = 'N';
+                $row->save();
+            }
+            return;
+        }
+
+        $row ??= new LeadTime(['item_idx' => $item->item_idx]);
+        foreach (array_keys(LeadTime::STAGES) as $c) {
+            $row->{$c} = $leadTime[$c] ?? null;
+        }
+        $row->is_use = 'Y';
+        $row->save();
+    }
 
     private function activeBom(int $itemIdx): ?Bom {
         return Bom::where('item_idx', $itemIdx)
