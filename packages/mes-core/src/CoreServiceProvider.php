@@ -12,6 +12,10 @@ use MesCore\Auth\Models\User;
 use MesCore\Auth\Observers\UserObserver;
 use MesCore\Menu\Services\MenuPermissionService;
 use MesCore\Basic\Services\PolicyService;
+use MesCore\Basic\Services\ExcelLayouts;
+use MesCore\Basic\Services\Import\ExcelImportService;
+use MesCore\Config\Imports\ItemImport;
+use MesCore\Config\Imports\PartnerImport;
 
 class CoreServiceProvider extends ServiceProvider {
 
@@ -22,6 +26,14 @@ class CoreServiceProvider extends ServiceProvider {
 
         // 정책 서비스 : 요청 안에서 한 인스턴스 ( 정의 · 값을 한 번만 읽는다 )
         $this->app->singleton(PolicyService::class);
+
+        // 엑셀 일괄 등록 : 엔티티별 핸들러를 엔진에 등록 ( 업체 모듈은 resolving 으로 더 붙일 수 있다 )
+        $this->app->singleton(ExcelImportService::class, function ($app) {
+            $service = new ExcelImportService($app->make(ExcelLayouts::class));
+            $service->register(new ItemImport());
+            $service->register(new PartnerImport());
+            return $service;
+        });
     }
 
     public function boot(): void {

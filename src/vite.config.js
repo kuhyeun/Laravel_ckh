@@ -32,6 +32,8 @@ export default defineConfig({
             '@inertiajs/vue3': path.resolve(nodeModulesPath, '@inertiajs/vue3'),
             'vue-chartjs': path.resolve(nodeModulesPath, 'vue-chartjs'),
             'chart.js': path.resolve(nodeModulesPath, 'chart.js'),
+            // 엑셀 내보내기 ( Utils/excel.js 가 버튼을 누를 때만 불러온다 )
+            'exceljs': path.resolve(nodeModulesPath, 'exceljs'),
         },
     },
     server: {

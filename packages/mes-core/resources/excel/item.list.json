@@ -1,0 +1,18 @@
+{
+    "type": "list",
+    "name": "품목 목록",
+    "sheet": "품목",
+    "filename": "품목목록",
+    "freeze": "A2",
+    "columns": [
+        { "field": "item_code",      "header": "품번",     "width": 16 },
+        { "field": "item_name",      "header": "품명",     "width": 28 },
+        { "field": "item_type",      "header": "대분류",   "width": 10, "display": true },
+        { "field": "item_kind",      "header": "소분류",   "width": 10, "display": true },
+        { "field": "spec_unit",      "header": "단위",     "width": 8 },
+        { "field": "spec",           "header": "규격",     "width": 18 },
+        { "field": "safety_stock",   "header": "안전재고", "width": 12, "numFmt": "#,##0" },
+        { "field": "std_sale_price", "header": "판매단가", "width": 12, "numFmt": "#,##0" },
+        { "field": "is_use",         "header": "사용",     "width": 8,  "map": { "Y": "사용", "N": "미사용" } }
+    ]
+}

@@ -1,0 +1,21 @@
+{
+    "type": "template",
+    "name": "품목 목록 ( 출력용 )",
+    "template": "templates/item-list.xlsx",
+    "filename": "품목목록_양식",
+    "cells": {
+        "F2": "@today",
+        "F3": "@count"
+    },
+    "rows": {
+        "start": 5,
+        "columns": {
+            "A": "@no",
+            "B": "item_code",
+            "C": "item_name",
+            "D": "spec",
+            "E": "spec_unit",
+            "F": "safety_stock"
+        }
+    }
+}

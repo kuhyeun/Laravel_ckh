@@ -1,0 +1,33 @@
+{
+    "type": "import",
+    "entity": "item",
+    "version": 1,
+    "name": "품목 일괄 등록",
+    "title": "품목 일괄 등록 양식",
+    "sheet": "품목",
+    "columns": [
+        { "field": "item_code",        "header": "품번",        "type": "text", "required": true, "width": 16, "note": "이미 있으면 '신규 + 수정'에서만 수정됩니다", "example": "PN-A" },
+        { "field": "item_name",        "header": "품명",        "type": "text", "required": true, "width": 24, "example": "환봉 가공품 A" },
+        { "field": "item_type",        "header": "대분류",      "type": "enum", "required": true, "width": 10, "example": "제품",
+          "options": [ { "value": "MATERIAL", "label": "자재" }, { "value": "PRODUCT", "label": "제품" } ] },
+        { "field": "item_kind",        "header": "소분류",      "type": "enum", "required": true, "width": 10, "example": "완제품",
+          "note": "자재 → 원자재 · 원소재 / 제품 → 완제품 · 반제품 · 세트",
+          "options": [
+              { "value": "RAW", "label": "원자재" }, { "value": "STOCK", "label": "원소재" },
+              { "value": "FINISHED", "label": "완제품" }, { "value": "SEMI", "label": "반제품" }, { "value": "SET", "label": "세트" } ] },
+        { "field": "spec_unit",        "header": "단위",        "type": "code", "codeGroup": "UNIT", "required": true, "width": 8, "example": "EA", "note": "코드관리 UNIT 의 코드 또는 이름" },
+        { "field": "spec",             "header": "규격",        "type": "text", "width": 16, "maxLength": 100, "example": "Ø20 x 100" },
+        { "field": "routing_idx",      "header": "기본 라우팅", "type": "ref",  "ref": "routing", "width": 14, "example": "RT-01", "note": "라우팅코드 또는 라우팅명. 신규에서 비우면 기본 라우팅이 들어갑니다" },
+        { "field": "serial_use",       "header": "시리얼 사용", "type": "yn",   "width": 10, "example": "N", "note": "시리얼 기능이 켜져 있을 때만 Y" },
+        { "field": "pack_qty",         "header": "포장 수량",   "type": "number",  "width": 10 },
+        { "field": "safety_stock",     "header": "안전재고",    "type": "number",  "width": 10, "example": "100" },
+        { "field": "order_cycle_days", "header": "발주 주기",   "type": "integer", "width": 10, "note": "일" },
+        { "field": "moq",              "header": "최소 수량",   "type": "number",  "width": 10 },
+        { "field": "unit_round",       "header": "배수",        "type": "number",  "width": 8 },
+        { "field": "std_sale_price",   "header": "판매단가",    "type": "number",  "width": 12, "example": "5000" },
+        { "field": "std_buy_price",    "header": "발주단가",    "type": "number",  "width": 12 },
+        { "field": "std_subcon_price", "header": "외주단가",    "type": "number",  "width": 12 },
+        { "field": "is_use",           "header": "사용",        "type": "yn",   "width": 8, "example": "Y" },
+        { "field": "remark",           "header": "비고",        "type": "text", "width": 24, "maxLength": 2000 }
+    ]
+}

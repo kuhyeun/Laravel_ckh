@@ -35,20 +35,21 @@
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                 <span class="text-sm font-semibold text-gray-600">
-                    리드타임 목록
-                    <span class="ml-1 text-xs font-normal text-gray-400">단위 : 일 · 수량과 무관 · — 는 해당 없음( 0일 )</span>
+                    리드타임 목록 · <span class="text-xs text-gray-400">품목 {{ itemRowCount }} 건</span>
+                    <span class="ml-2 text-xs font-normal text-gray-400">( 단위 : 일 · 수량과 무관 · — 는 해당 없음 = 0일 )</span>
                 </span>
-                <span class="text-xs text-gray-400">품목 {{ itemRowCount }} 건 · 행 클릭 = {{ canWrite ? '수정' : '상세' }}</span>
+                <div class="flex items-center gap-2">
+                    <ExcelExportButton layout="lead_time.list" :rows="rows" :columns="columns" filename="리드타임목록" />
+                </div>
             </div>
             <div class="flex-1 min-h-0">
                 <DataGrid
-                    ref="gridRef"
                     class="h-full"
                     :data="rows"
                     :columns="columns"
                     :options="gridOptions"
                     @row-click="openModal"
-                    @grid-mounted="onGridMounted"
+                    @select="sel => checkedRows = sel"
                 />
             </div>
         </div>
@@ -61,6 +62,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -140,21 +142,10 @@ const rows         = ref([]);
 const itemRowCount = ref(0);
 const loading      = ref(false);
 
-// ---- 그리드 체크박스 ----
-const gridRef      = ref(null);
-const checkedCount = ref(0);
+// ---- 그리드 체크박스 ( DataGrid 의 select 이벤트 ) ----
+const checkedRows  = ref([]);
+const checkedCount = computed(() => checkedRows.value.length);
 const deleting     = ref(false);
-
-function grid() {
-    const g = gridRef.value?.gridInstance;
-    return g?.value ?? g ?? null;
-}
-function onGridMounted(g) {
-    ['check', 'uncheck', 'checkAll', 'uncheckAll'].forEach(ev => g.on(ev, refreshChecked));
-}
-function refreshChecked() {
-    checkedCount.value = grid()?.getCheckedRows().length ?? 0;
-}
 
 // ---- 플래시 ----
 const flash = reactive({ text: '', error: false });
@@ -181,7 +172,6 @@ async function loadLeadTimes() {
         const list = data.lead_times ?? [];
         rows.value = [data.default ?? missingDefault(), ...list];
         itemRowCount.value = list.length;
-        checkedCount.value = 0;
     } catch (e) {
         showFlash('리드타임 목록을 불러오지 못했습니다', true);
     } finally {
@@ -219,7 +209,7 @@ function openModal(row) {
 
 // 선택 삭제 = 미사용 처리 ( 물리 삭제 아님 ). 기본값 행은 제외
 async function deleteChecked() {
-    const checked = grid()?.getCheckedRows() ?? [];
+    const checked = checkedRows.value;
     if (!checked.length) return;
 
     const hasDefault = checked.some(r => r.is_default === 'Y');

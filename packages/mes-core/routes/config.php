@@ -37,6 +37,9 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($itemWrite)->group(function() {
             Route::post('/save', [ItemController::class, 'save'])->name('save');
+            // 엑셀 일괄 등록 ( 검증 · 반영 )
+            Route::post('/import/validate', [ItemController::class, 'importValidate'])->name('import.validate');
+            Route::post('/import/commit', [ItemController::class, 'importCommit'])->name('import.commit');
         });
 
         Route::middleware($itemDelete)->group(function() {
@@ -59,6 +62,9 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($partnerWrite)->group(function() {
             Route::post('/save', [PartnerController::class, 'save'])->name('save');
+            // 엑셀 일괄 등록 ( 검증 · 반영 )
+            Route::post('/import/validate', [PartnerController::class, 'importValidate'])->name('import.validate');
+            Route::post('/import/commit', [PartnerController::class, 'importCommit'])->name('import.commit');
         });
 
         Route::middleware($partnerDelete)->group(function() {

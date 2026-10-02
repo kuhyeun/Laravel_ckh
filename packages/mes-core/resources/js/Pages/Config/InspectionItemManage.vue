@@ -33,18 +33,20 @@
         <!-- 목록 -->
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
-                <span class="text-sm font-semibold text-gray-600">검사항목 목록</span>
-                <span class="text-xs text-gray-400">{{ inspectionItems.length }} 건 · 행 클릭 = {{ canWrite ? '수정' : '상세' }}</span>
+                <span class="text-sm font-semibold text-gray-600">검사항목 목록 · <span class="text-xs text-gray-400">{{ inspectionItems.length }} 건</span></span>
+                <div class="flex items-center gap-2">
+                    <ExcelExportButton layout="inspection_item.list" :rows="inspectionItems" :columns="inspectionItemColumns" filename="검사항목목록" />
+                </div>
             </div>
             <div class="flex-1 min-h-0">
                 <DataGrid
-                    ref="gridRef"
                     class="h-full"
                     :data="inspectionItems"
                     :columns="inspectionItemColumns"
                     :options="gridOptions"
+                    empty-text="등록된 검사항목이 없습니다."
                     @row-click="openModal"
-                    @grid-mounted="onGridMounted"
+                    @select="sel => checkedRows = sel"
                 />
             </div>
         </div>
@@ -57,6 +59,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -124,21 +127,10 @@ const inspectionItemColumns = [
 const inspectionItems = ref([]);
 const loading         = ref(false);
 
-// ---- 그리드 체크박스 ----
-const gridRef      = ref(null);
-const checkedCount = ref(0);
+// ---- 그리드 체크박스 ( DataGrid 의 select 이벤트 ) ----
+const checkedRows  = ref([]);
+const checkedCount = computed(() => checkedRows.value.length);
 const deleting     = ref(false);
-
-function grid() {
-    const g = gridRef.value?.gridInstance;
-    return g?.value ?? g ?? null;
-}
-function onGridMounted(g) {
-    ['check', 'uncheck', 'checkAll', 'uncheckAll'].forEach(ev => g.on(ev, refreshChecked));
-}
-function refreshChecked() {
-    checkedCount.value = grid()?.getCheckedRows().length ?? 0;
-}
 
 // ---- 플래시 ----
 const flash = reactive({ text: '', error: false });
@@ -164,7 +156,6 @@ async function loadInspectionItems() {
             ...r,
             unit_name: r.unit_code ? (unitName[r.unit_code] ?? r.unit_code) : '',
         }));
-        checkedCount.value = 0;
     } catch (e) {
         showFlash('검사항목 목록을 불러오지 못했습니다', true);
     } finally {
@@ -198,7 +189,7 @@ function openModal(inspectionItem) {
 
 // 선택 삭제 = 미사용 처리 ( 물리 삭제 아님 )
 async function deleteChecked() {
-    const rows = grid()?.getCheckedRows() ?? [];
+    const rows = checkedRows.value;
     if (!rows.length) return;
 
     const active = rows.filter(r => r.is_use === 'Y');

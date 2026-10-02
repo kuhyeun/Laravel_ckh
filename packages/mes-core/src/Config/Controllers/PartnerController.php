@@ -8,6 +8,8 @@ use MesCore\Config\Models\PartnerSite;
 use MesCore\Config\Models\PartnerContact;
 use MesCore\Basic\Models\SystemCode;
 use MesCore\Basic\Services\PolicyService;
+use MesCore\Basic\Services\Import\ExcelImportService;
+use MesCore\Config\Validation\PartnerRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -24,13 +26,8 @@ class PartnerController extends Controller {
     // 거래처 단위로 덮어쓸 수 있는 정책
     private const POLICY_KEYS = ['quality.incoming_inspection'];
 
+    // 화면 전용 칸의 이름 ( 기본 정보 칸은 PartnerRules::ATTRIBUTES )
     private const ATTRIBUTES = [
-        'partner_code'          => '거래처코드',
-        'partner_name'          => '거래처명',
-        'biz_no'                => '사업자번호',
-        'ceo_name'              => '대표자',
-        'is_use'                => '사용 여부',
-        'remark'                => '비고',
         'sites.*.site_name'     => '출고지명',
         'sites.*.address'       => '주소',
         'sites.*.tel'           => '연락처',
@@ -98,17 +95,8 @@ class PartnerController extends Controller {
 
         $siteKeys = collect($request->input('sites', []))->pluck('key')->filter()->all();
 
-        $validated = $request->validate([
-            'partner_code' => ['required', 'string', 'max:20', Rule::unique('partner', 'partner_code')->ignore($idx, 'partner_idx')],
-            'partner_name' => 'required|string|max:60',
-            'is_supplier'  => 'required|in:Y,N',
-            'is_customer'  => 'required|in:Y,N',
-            'is_subcon'    => 'required|in:Y,N',
-            'biz_no'       => 'nullable|string|max:20',
-            'ceo_name'     => 'nullable|string|max:50',
-            'is_use'       => 'required|in:Y,N',
-            'remark'       => 'nullable|string|max:2000',
-
+        // 기본 정보 규칙은 엑셀 일괄 등록과 같이 쓴다 ( PartnerRules ) + 화면 전용 칸
+        $validated = $request->validate(PartnerRules::rules($partner) + [
             'sites'               => 'present|array',
             'sites.*.site_idx'    => 'nullable|integer',
             'sites.*.key'         => 'required|string|max:40|distinct',
@@ -135,12 +123,10 @@ class PartnerController extends Controller {
             'policies.*' => 'nullable|string|max:300',
         ], [
             'contacts.*.site_key.in' => '소속 출고지가 목록에 없습니다.',
-        ], self::ATTRIBUTES);
+        ], PartnerRules::ATTRIBUTES + self::ATTRIBUTES);
 
-        // E_CUSTOMER_ROLE_NONE : 구분은 하나 이상
-        if (collect(Partner::ROLE_COLUMNS)->every(fn ($col) => $validated[$col] === 'N')) {
-            throw ValidationException::withMessages(['roles' => ['구매처 · 고객사 · 외주처 중 하나 이상 선택하세요.']]);
-        }
+        // E_CUSTOMER_ROLE_NONE : 구분은 하나 이상 ( 엑셀 일괄 등록과 같은 규칙 )
+        PartnerRules::assertBusiness($validated);
 
         // 새로 고르는 담당자 구분은 사용 중인 코드여야 함 ( 기존 담당자의 구분이 미사용으로 내려간 경우는 유지 허용 )
         $this->assertActiveContactTypes($partner, $validated['contacts']);
@@ -156,7 +142,7 @@ class PartnerController extends Controller {
 
                 // 입고가 없는 거래처( 고객사만 )는 입고검사 덮어쓰기를 둘 이유가 없다 → 해제
                 $values = $validated['policies'] ?? [];
-                if ($validated['is_supplier'] !== 'Y' && $validated['is_subcon'] !== 'Y') {
+                if (!PartnerRules::hasIncoming($validated)) {
                     $values = ['quality.incoming_inspection' => null];
                 }
                 $policy->applyEntity(self::POLICY_KEYS, $values, 'PARTNER', $partner->partner_idx);
@@ -174,6 +160,27 @@ class PartnerController extends Controller {
 
             return response()->json(['message' => 'Failed'], 500);
         }
+    }
+
+    // ---- 엑셀 일괄 등록 ( 양식 partner.import ) — 검증은 저장하지 않고, 반영은 다시 검증 후 전부 성공일 때만 ----
+    public function importValidate(Request $request, ExcelImportService $imports) {
+        return response()->json($imports->run('partner', $this->importRequest($request), false));
+    }
+
+    public function importCommit(Request $request, ExcelImportService $imports) {
+        $result = $imports->run('partner', $this->importRequest($request), true);
+        return response()->json($result, $result['committed'] ? 200 : 422);
+    }
+
+    private function importRequest(Request $request): array {
+        return $request->validate([
+            'layout'        => 'required|string|max:100',
+            'version'       => 'required|integer',
+            'mode'          => 'required|in:create,upsert',
+            'rows'          => 'required|array',
+            'rows.*.row'    => 'required|integer',
+            'rows.*.values' => 'present|array',
+        ]);
     }
 
     // 선택 삭제 = 미사용 처리 ( 소프트 삭제 ). 이미 미사용은 건너뛰고, 대상이 하나도 없으면 404

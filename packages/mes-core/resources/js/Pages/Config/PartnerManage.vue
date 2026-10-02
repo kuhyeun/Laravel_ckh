@@ -9,6 +9,14 @@
             <h2 class="font-bold text-lg tracking-tight">거래처관리</h2>
             <div class="flex-1"></div>
             <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
+            <ExcelImportButton
+                v-if="canWrite"
+                layout="partner.import"
+                validate-route="config.partner.import.validate"
+                commit-route="config.partner.import.commit"
+                filename="거래처_일괄등록"
+                :on-done="onImported"
+            />
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0 || deleting" @click="deleteChecked">
                 삭제
@@ -32,18 +40,20 @@
         <!-- 목록 -->
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
-                <span class="text-sm font-semibold text-gray-600">거래처 목록</span>
-                <span class="text-xs text-gray-400">{{ partners.length }} 건 · 행 클릭 = {{ canWrite ? '수정' : '상세' }}</span>
+                <span class="text-sm font-semibold text-gray-600">거래처 목록 · <span class="text-xs text-gray-400">{{ partners.length }} 건</span></span>
+                <div class="flex items-center gap-2">
+                    <ExcelExportButton layout="partner.list" :rows="partners" :columns="partnerColumns" filename="거래처목록" />
+                </div>
             </div>
             <div class="flex-1 min-h-0">
                 <DataGrid
-                    ref="gridRef"
                     class="h-full"
                     :data="partners"
                     :columns="partnerColumns"
                     :options="gridOptions"
+                    empty-text="등록된 거래처가 없습니다."
                     @row-click="openModal"
-                    @grid-mounted="onGridMounted"
+                    @select="sel => checkedRows = sel"
                 />
             </div>
         </div>
@@ -56,6 +66,8 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
+import ExcelImportButton from '@core/Components/Common/ExcelImportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -119,24 +131,10 @@ const partnerColumns = [
 const partners = ref([]);
 const loading  = ref(false);
 
-// ---- 그리드 체크박스 ----
-const gridRef      = ref(null);
-const checkedCount = ref(0);      // 삭제 버튼 활성화 기준
+// ---- 그리드 체크박스 ( DataGrid 의 select 이벤트 ) ----
+const checkedRows  = ref([]);
+const checkedCount = computed(() => checkedRows.value.length);
 const deleting     = ref(false);
-
-// DataGrid 가 defineExpose 로 노출한 gridInstance ( 언랩 여부와 무관하게 Grid 객체 반환 )
-function grid() {
-    const g = gridRef.value?.gridInstance;
-    return g?.value ?? g ?? null;
-}
-
-// 그리드 마운트 시 체크 이벤트 연결 → 체크 개수 동기화
-function onGridMounted(g) {
-    ['check', 'uncheck', 'checkAll', 'uncheckAll'].forEach(ev => g.on(ev, refreshChecked));
-}
-function refreshChecked() {
-    checkedCount.value = grid()?.getCheckedRows().length ?? 0;
-}
 
 // ---- 플래시 ----
 const flash = reactive({ text: '', error: false });
@@ -148,13 +146,19 @@ function showFlash(text, error = false) {
     flashTimer = setTimeout(() => { flash.text = ''; }, 2500);
 }
 
+// ---- 엑셀 일괄 등록 ----
+function onImported(result) {
+    const sm = result.summary;
+    showFlash(`엑셀 등록 완료 — 신규 ${sm.create} · 수정 ${sm.update}`);
+    loadPartners();
+}
+
 async function loadPartners() {
     loading.value = true;
     try {
         const params = Object.fromEntries(Object.entries(search).filter(([, v]) => v !== ''));
         const { data } = await window.axios.get(route('config.partner.list'), { params });
         partners.value = data.partners ?? [];
-        checkedCount.value = 0;   // 데이터 리셋 → 체크 해제됨
     } catch (e) {
         showFlash('거래처 목록을 불러오지 못했습니다', true);
     } finally {
@@ -186,7 +190,7 @@ function openModal(partner) {
 
 // 선택 삭제 = 미사용 처리 ( 물리 삭제 아님 )
 async function deleteChecked() {
-    const rows = grid()?.getCheckedRows() ?? [];
+    const rows = checkedRows.value;
     if (!rows.length) return;
 
     const active = rows.filter(r => r.is_use === 'Y');

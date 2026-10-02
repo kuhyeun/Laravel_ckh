@@ -1,0 +1,19 @@
+{
+    "type": "import",
+    "entity": "partner",
+    "version": 1,
+    "name": "거래처 일괄 등록",
+    "title": "거래처 일괄 등록 양식",
+    "sheet": "거래처",
+    "columns": [
+        { "field": "partner_code", "header": "거래처코드", "type": "text", "required": true, "width": 14, "maxLength": 20, "example": "PT-0012", "note": "이미 있으면 '신규 + 수정'에서만 수정됩니다" },
+        { "field": "partner_name", "header": "거래처명",   "type": "text", "required": true, "width": 24, "maxLength": 60, "example": "샘플공업" },
+        { "field": "is_customer",  "header": "고객사",     "type": "yn", "width": 8, "example": "Y", "note": "고객사 · 구매처 · 외주처 중 하나 이상 Y. 신규에서 비우면 고객사 Y" },
+        { "field": "is_supplier",  "header": "구매처",     "type": "yn", "width": 8, "example": "N" },
+        { "field": "is_subcon",    "header": "외주처",     "type": "yn", "width": 8, "example": "N" },
+        { "field": "biz_no",       "header": "사업자번호", "type": "text", "width": 14, "maxLength": 20, "example": "000-00-00000" },
+        { "field": "ceo_name",     "header": "대표자",     "type": "text", "width": 10, "maxLength": 50 },
+        { "field": "is_use",       "header": "사용",       "type": "yn", "width": 8, "example": "Y" },
+        { "field": "remark",       "header": "비고",       "type": "text", "width": 24, "maxLength": 2000 }
+    ]
+}

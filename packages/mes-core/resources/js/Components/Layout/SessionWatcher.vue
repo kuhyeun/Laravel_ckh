@@ -7,7 +7,6 @@
      - 여러 탭 : 마지막 활동 시각을 localStorage 로 공유 → 다른 탭에서 작업 중이면 이 탭도 만료로 보지 않고 배너를 닫는다
      - 백그라운드 탭 · 절전 : 타이머가 늦어질 수 있어 탭으로 돌아오는 순간 다시 계산 -->
 <template>
-    <!-- 모달( z 1000 + n, body 로 teleport )보다 위, 알림창( SweetAlert z 1060 )보다 아래 -->
     <Teleport to="body">
     <Transition name="session-banner">
         <div

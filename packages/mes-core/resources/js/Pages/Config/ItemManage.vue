@@ -10,6 +10,15 @@
             <h2 class="font-bold text-lg tracking-tight">품목관리</h2>
             <div class="flex-1"></div>
             <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
+            <ExcelImportButton
+                v-if="canWrite"
+                layout="item.import"
+                validate-route="config.item.import.validate"
+                commit-route="config.item.import.commit"
+                :ref-lists="importRefLists"
+                filename="품목_일괄등록"
+                :on-done="onImported"
+            />
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0 || deleting" @click="deleteChecked">
                 삭제
@@ -33,18 +42,20 @@
         <!-- 목록 -->
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
-                <span class="text-sm font-semibold text-gray-600">품목 목록</span>
-                <span class="text-xs text-gray-400">{{ items.length }} 건 · 행 클릭 = {{ canWrite ? '수정' : '상세' }}</span>
+                <span class="text-sm font-semibold text-gray-600">품목 목록 · <span class="text-xs text-gray-400">{{ items.length }} 건</span></span>
+                <div class="flex items-center gap-2">
+                    <ExcelExportButton layout="item.list" :rows="items" :columns="itemColumns" filename="품목목록" />
+                </div>
             </div>
             <div class="flex-1 min-h-0">
                 <DataGrid
-                    ref="gridRef"
                     class="h-full"
                     :data="items"
                     :columns="itemColumns"
                     :options="gridOptions"
+                    empty-text="등록된 품목이 없습니다."
                     @row-click="openModal"
-                    @grid-mounted="onGridMounted"
+                    @select="sel => checkedRows = sel"
                 />
             </div>
         </div>
@@ -57,6 +68,8 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
+import ExcelImportButton from '@core/Components/Common/ExcelImportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -113,24 +126,10 @@ const itemColumns = [
 const items   = ref([]);
 const loading = ref(false);
 
-// ---- 그리드 체크박스 ----
-const gridRef      = ref(null);
-const checkedCount = ref(0);      // 삭제 버튼 활성화 기준
+// ---- 그리드 체크박스 ( DataGrid 의 select 이벤트 ) ----
+const checkedRows  = ref([]);
+const checkedCount = computed(() => checkedRows.value.length);
 const deleting     = ref(false);
-
-// DataGrid 가 defineExpose 로 노출한 gridInstance ( 언랩 여부와 무관하게 Grid 객체 반환 )
-function grid() {
-    const g = gridRef.value?.gridInstance;
-    return g?.value ?? g ?? null;
-}
-
-// 그리드 마운트 시 체크 이벤트 연결 → 체크 개수 동기화
-function onGridMounted(g) {
-    ['check', 'uncheck', 'checkAll', 'uncheckAll'].forEach(ev => g.on(ev, refreshChecked));
-}
-function refreshChecked() {
-    checkedCount.value = grid()?.getCheckedRows().length ?? 0;
-}
 
 // ---- 플래시 ----
 const flash = reactive({ text: '', error: false });
@@ -142,13 +141,26 @@ function showFlash(text, error = false) {
     flashTimer = setTimeout(() => { flash.text = ''; }, 2500);
 }
 
+// ---- 엑셀 일괄 등록 ----
+// 양식의 기본 라우팅 드롭다운 : 사용 중 라우팅 코드
+const importRefLists = {
+    routing: async () => {
+        const { data } = await window.axios.get(route('config.item.formData'));
+        return (data.routings ?? []).map(r => r.routing_code);
+    },
+};
+function onImported(result) {
+    const s = result.summary;
+    showFlash(`엑셀 등록 완료 — 신규 ${s.create} · 수정 ${s.update}`);
+    loadItems();
+}
+
 async function loadItems() {
     loading.value = true;
     try {
         const params = Object.fromEntries(Object.entries(search).filter(([, v]) => v !== ''));
         const { data } = await window.axios.get(route('config.item.list'), { params });
         items.value = data.items ?? [];
-        checkedCount.value = 0;   // 데이터 리셋 → 체크 해제됨
     } catch (e) {
         showFlash('품목 목록을 불러오지 못했습니다', true);
     } finally {
@@ -182,7 +194,7 @@ function openModal(item) {
 
 // 선택 삭제 = 미사용 처리 ( 물리 삭제 아님 )
 async function deleteChecked() {
-    const rows = grid()?.getCheckedRows() ?? [];
+    const rows = checkedRows.value;
     if (!rows.length) return;
 
     const active = rows.filter(r => r.is_use === 'Y');
