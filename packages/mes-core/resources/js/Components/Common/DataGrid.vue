@@ -56,7 +56,8 @@ const gridContainer = ref(null);
 const { gridInstance, setGrid, autoResizeGrid } = useGrid();
 
 // 오른쪽 클릭 메뉴 : 그리드 기본 메뉴에서 내보내기( TXT · CSV · 엑셀 )를 뺀 복사만
-//   기본 내보내기는 양식을 모르고, 서버 페이징이면 현재 페이지만 나가며, 엑셀은 SheetJS 가 없어 동작하지 않는다
+//   기본 내보내기는 양식을 모르고, 서버 페이징이면 현재 페이지만 나간다
+//   ( tui-grid 가 끌고 오는 xlsx 는 취약점 때문에 빈 패키지로 바꿨다 — src/vendor-stubs/xlsx. 기본 엑셀 내보내기는 켜도 동작하지 않는다 )
 const copyOnlyContextMenu = () => [[
     { name: 'copy',        label: '복사',    action: 'copy' },
     { name: 'copyColumns', label: '열 복사', action: 'copyColumns' },

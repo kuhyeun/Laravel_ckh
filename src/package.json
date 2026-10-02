@@ -30,6 +30,7 @@
         "ziggy-js": "^2.6.2"
     },
     "overrides": {
-        "dompurify": "^3.3.2"
+        "dompurify": "^3.3.2",
+        "xlsx": "file:./vendor-stubs/xlsx"
     }
 }

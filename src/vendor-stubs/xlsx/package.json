@@ -1,0 +1,7 @@
+{
+    "name": "xlsx",
+    "version": "0.0.0-stub",
+    "private": true,
+    "description": "tui-grid 이 끌고 오는 SheetJS( xlsx ) 를 대신하는 빈 패키지. 그리드 기본 엑셀 내보내기는 쓰지 않는다 — 엑셀은 exceljs ( ExcelExportButton · excelImport )",
+    "main": "index.js"
+}
