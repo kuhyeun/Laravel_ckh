@@ -1,6 +1,7 @@
 <!-- 거래처 등록/수정 폼 ( BAS-01 ) — 모달 본체
      - partner prop( 목록 행 ) 있으면 수정 : 열릴 때 출고지·담당자까지 다시 조회
      - 탭 : 기본 / 담당자(N) / 출고지(N)  → 저장은 한 번에 ( 거래처 + 출고지 + 담당자 )
+       첨부 탭은 저장한 뒤 첨부 ( AttachFiles — 올리기 · 삭제는 바로 저장 )
      - 담당자 소속은 출고지 key 로 연결 ( 새로 추가한 출고지도 저장 전에 고를 수 있음 )
      - 입고검사 : 정책 quality.incoming_inspection 의 거래처 덮어쓰기. 구매처 · 외주처일 때만 ( 아니면 서버가 해제 )
        품목이 무검사면 거래처 값은 무시되고, 그 외에는 거래처 값이 있으면 거래처가 이긴다
@@ -20,7 +21,8 @@
                 @click="tab = t.key"
             >
                 {{ t.label }}
-                <span v-if="t.key !== 'basic'" class="text-xs text-gray-400">( {{ t.key === 'contacts' ? form.contacts.length : form.sites.length }} )</span>
+                <span v-if="t.key === 'contacts' || t.key === 'sites'" class="text-xs text-gray-400">( {{ t.key === 'contacts' ? form.contacts.length : form.sites.length }} )</span>
+                <span v-if="t.key === 'files' && fileCount" class="text-xs text-gray-400">( {{ fileCount }} )</span>
                 <span v-if="tabHasError(t.key)" class="ml-0.5 text-red-500">•</span>
             </button>
         </div>
@@ -192,6 +194,12 @@
                     </table>
                 </div>
             </div>
+
+            <!-- 탭 4 · 첨부 ( 사업자등록증 · 계약서 · 밀시트 등 — 올리기 · 삭제는 바로 저장된다 ) -->
+            <div v-show="tab === 'files'" class="pt-4">
+                <AttachFiles ref-type="partner" :ref-id="form.partner_idx" category="ETC" :readonly="!canWrite" @change="n => fileCount = n" />
+                <p v-if="isEdit && canWrite" class="mt-2 text-xs text-gray-400">첨부는 올리거나 지우면 바로 반영됩니다. ( [수정]을 누르지 않아도 됩니다 )</p>
+            </div>
         </template>
 
         <!-- 액션 -->
@@ -214,6 +222,7 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import PolicyOverrideField from '@core/Components/Config/PolicyOverrideField.vue';
 import { PARTNER_ROLES } from '@core/Components/Config/partnerCodes';
+import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 
 const props = defineProps({
     partner:  { type: Object,   default: null },   // 목록 행 ( partner_idx 로 상세 재조회 )
@@ -228,7 +237,10 @@ const TABS = [
     { key: 'basic',    label: '기본' },
     { key: 'contacts', label: '담당자' },
     { key: 'sites',    label: '출고지' },
+    { key: 'files',    label: '첨부' },
 ];
+
+const fileCount = ref(0);   // 첨부 탭 머리의 개수
 const ROLES = PARTNER_ROLES;
 
 const tab = ref('basic');

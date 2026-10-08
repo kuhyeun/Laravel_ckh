@@ -22,7 +22,7 @@
         </div>
 
         <div class="h-[60vh] flex flex-col border rounded">
-            <DataGrid class="flex-1" :data="gridRows" :columns="columns" empty-text="해당하는 행이 없습니다." />
+            <DataGrid class="flex-1" :data="gridRows" :columns="columns" :options="{ rowHeight: 'auto' }" empty-text="해당하는 행이 없습니다." />
         </div>
 
         <div class="flex items-center justify-end gap-2 pt-4 border-t">
@@ -81,7 +81,7 @@ const columns = computed(() => [
         header: '결과', name: '_status', width: 70, align: 'center',
         formatter: ({ row }) => row._status === 'error' ? '오류' : (row._action === 'update' ? '수정' : '신규'),
     },
-    { header: '오류 사유', name: '_messages', minWidth: 280, escapeHTML: true },
+    { header: '오류 사유', name: '_messages', minWidth: 320, escapeHTML: true, whiteSpace: 'normal' },   // 줄바꿈 + 행 높이 자동
     ...(props.layout.columns ?? []).map(c => ({
         header:     c.header,
         name:       `v_${c.field}`,
@@ -93,5 +93,6 @@ const columns = computed(() => [
 
 <style>
     /* 그리드 셀은 컴포넌트 밖에서 그려지므로 scoped 를 쓰지 않는다 */
-    .import-row-error .tui-grid-cell { background-color: #fef2f2; color: #b91c1c; }
+    /* 행 className 은 그 행의 셀( td )마다 붙는다 */
+    .tui-grid-cell.import-row-error { background-color: #fef2f2; color: #b91c1c; }
 </style>

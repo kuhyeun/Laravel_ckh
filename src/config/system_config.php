@@ -153,8 +153,8 @@ return [
     ],
 
     'ui' => [
-        'search_range_from_days' => [ 'name' => '기본 검색 시작일 ( 오늘 + N일 )', 'value' => '-10', 'category' => 'RULE', 'type' => 'INT', 'visible' => false ],
-        'search_range_to_days'   => [ 'name' => '기본 검색 종료일 ( 오늘 + N일 )', 'value' => '10', 'category' => 'RULE', 'type' => 'INT', 'visible' => false ],
+        'search_range_from_days' => [ 'name' => '기본 검색 시작일 ( 오늘 + N일 )', 'value' => '-10', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
+        'search_range_to_days'   => [ 'name' => '기본 검색 종료일 ( 오늘 + N일 )', 'value' => '10', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
     ],
 
 ];

@@ -32,7 +32,6 @@
 
 <script setup>
 import { ref } from 'vue';
-import axios from 'axios';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
@@ -64,7 +63,7 @@ const fetchData = async () => {
     try {
         errorResult.value = null;
 
-        const { data } = await axios.get( getLink.value );
+        const { data } = await window.axios.get( getLink.value );
 
         getData.value = data;
     } catch (e) {
@@ -83,7 +82,7 @@ const submitData = async () => {
             }
         });
 
-        const { data } = await axios.post( postLink.value, payload );
+        const { data } = await window.axios.post( postLink.value, payload );
 
         postResult.value = data;
     } catch (e) {

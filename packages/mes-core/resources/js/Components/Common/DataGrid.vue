@@ -23,7 +23,7 @@
                     :key="p"
                     type="button"
                     class="pg-btn"
-                    :class="p === current ? 'bg-blue-600 text-white border-blue-600' : ''"
+                    :class="{ 'is-current': p === current }"
                     @click="go(p)"
                 >{{ p }}</button>
                 <button type="button" class="pg-btn" :disabled="current >= lastPage" @click="go(current + 1)">›</button>
@@ -79,6 +79,9 @@ onMounted(() => {
         bodyHeight: 'fitToParent',
         columns: props.columns,
         contextMenu: copyOnlyContextMenu,   // 화면이 options.contextMenu 로 바꿀 수 있다
+        // 정렬은 sortable: true 를 준 열만. useGrid 기본값( false )이면 TUI 가 DataSource( 서버 API ) 경로로 가서 오류가 난다
+        //   서버 페이징이면 beforeSort 에서 막고 sort 이벤트로 알린다 ( 이 이벤트는 client 경로에서만 나온다 )
+        useClientSort: true,
         data: props.data ?? [],
         ...props.options,
     });
@@ -98,10 +101,14 @@ onMounted(() => {
     ['check', 'uncheck', 'checkAll', 'uncheckAll'].forEach(ev => grid?.on(ev, emitSelect));
 
     // 서버 페이징이면 정렬도 서버가 한다 ( 그리드의 자체 정렬을 막고 알리기만 )
+    //   막으면 그리드의 정렬 상태가 그대로라 ascending 이 늘 같은 값으로 온다 → 방향은 여기서 기억해 번갈아 보낸다
     grid?.on('beforeSort', (ev) => {
         if (!props.pagination) return;
         ev.stop();
-        emit('sort', { key: ev.columnName, dir: ev.ascending ? 'asc' : 'desc' });
+        const dir = (serverSort.key === ev.columnName && serverSort.dir === 'asc') ? 'desc' : 'asc';
+        serverSort.key = ev.columnName;
+        serverSort.dir = dir;
+        emit('sort', { key: ev.columnName, dir });
     });
 
     emit('grid-mounted', grid);
@@ -121,6 +128,7 @@ function applyEmptyText() {
 }
 
 // ---- 서버 페이징 ----
+const serverSort = { key: '', dir: '' };   // 서버 정렬 마지막 열 · 방향
 const current  = computed(() => Number(props.pagination?.page) || 1);
 const perPage  = computed(() => Number(props.pagination?.perPage) || 50);
 const total    = computed(() => Number(props.pagination?.total) || 0);
@@ -150,6 +158,9 @@ function changePerPage(n) {
 }
 .pg-btn:disabled { opacity: .4; cursor: default; }
 .pg-btn:not(:disabled):hover { background: #eff6ff; }
+/* 현재 페이지 ( scoped 배경이 Tailwind 클래스를 이기므로 여기서 칠한다 ) */
+.pg-btn.is-current,
+.pg-btn.is-current:hover { background: #2563eb; border-color: #2563eb; color: #fff; }
 
 
 /* 빈 결과 문구 ( TUI 기본 문구를 바꾼다 ) */

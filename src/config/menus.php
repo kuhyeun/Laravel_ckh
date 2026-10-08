@@ -258,6 +258,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Order',
                         'menu_route_name' => '',
+                        'url_path' => '/order/sales',
+                        'page_component' => 'Order/SalesOrderManage',
                         'menu_level' => 99,
                     ],
                     [
