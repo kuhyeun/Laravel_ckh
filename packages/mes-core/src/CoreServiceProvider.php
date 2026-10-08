@@ -20,6 +20,7 @@ use MesCore\Basic\Services\AttachmentService;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Partner;
 use MesCore\Order\Models\SalesOrder;
+use MesCore\Purchase\Models\PurchaseOrder;
 
 class CoreServiceProvider extends ServiceProvider {
 
@@ -45,6 +46,7 @@ class CoreServiceProvider extends ServiceProvider {
             $service->register('item', 'Config/ItemManage', Item::class);
             $service->register('partner', 'Config/PartnerManage', Partner::class);
             $service->register('sales_order', 'Order/SalesOrderManage', SalesOrder::class);
+            $service->register('purchase_order', 'Purchase/PurchaseOrderManage', PurchaseOrder::class);
             return $service;
         });
     }
@@ -112,6 +114,9 @@ class CoreServiceProvider extends ServiceProvider {
             // 업무 모듈 ( 패키지 ) — 업체 config/mes.php 의 modules 로 켜고 끈다
             if (in_array('Order', config('mes.modules', []), true)) {
                 $this->loadRoutesFrom(__DIR__ . '/../routes/order.php');
+            }
+            if (in_array('Material', config('mes.modules', []), true)) {
+                $this->loadRoutesFrom(__DIR__ . '/../routes/purchase.php');
             }
 
             // 모듈 라우트 자동 로딩

@@ -1,0 +1,29 @@
+{
+    "type": "template",
+    "name": "발주서",
+    "template": "templates/purchase-order.xlsx",
+    "cells": {
+        "C3": "order_no",
+        "H3": "order_date",
+        "C4": "partner_name",
+        "H4": "order_name",
+        "C5": "@userName",
+        "H5": "@today",
+        "G9": "total_amount",
+        "B11": "remark"
+    },
+    "rows": {
+        "start": 8,
+        "columns": {
+            "A": "@no",
+            "B": "item_code",
+            "C": "item_name",
+            "D": "spec_unit",
+            "E": "qty",
+            "F": "unit_price",
+            "G": "amount",
+            "H": "due_date",
+            "I": "remark"
+        }
+    }
+}

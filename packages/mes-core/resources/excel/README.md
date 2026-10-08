@@ -23,7 +23,8 @@
 | ( 파일 없음 ) | 화면 그리드의 열 그대로 내보냅니다 |
 
 화면별 양식 이름
-- 내보내기 : `item.list` · `partner.list` · `process.list` · `equipment.list` · `inspection_item.list` · `lead_time.list` · `member.list`
+- 내보내기 : `item.list` · `partner.list` · `process.list` · `equipment.list` · `inspection_item.list` · `lead_time.list` · `member.list` · `sales_order.list` · `purchase_order.list`
+- 한 건 출력 : `purchase_order.form` ( 발주서 — 발주 수정 창의 [발주서] )
 - 업로드 : `item.import` · `partner.import` ( 화면당 하나, 변형 없이 이 이름 그대로 )
 
 ## ① 열 구성형 — `"type": "list"`
@@ -68,7 +69,8 @@
 - `.xlsx` 는 엑셀로 그대로 그립니다 — 제목 · 병합 · 테두리 · 로고 · 숫자 서식을 **양식에** 넣어 두면 유지됩니다
 - `cells` : 한 칸씩 채울 곳. 값은 화면이 넘긴 `context` → 첫 행 순서로 찾습니다
 - `rows.start` : 데이터 첫 줄. **이 줄의 서식을 복제해** 행 수만큼 아래로 늘립니다 → 데이터 줄 하나만 서식을 잡아 두면 됩니다
-- `rows.start` 아래에 합계 줄 등이 있으면 함께 밀려 내려갑니다
+- `rows.start` 아래에 합계 줄 등이 있으면 함께 밀려 내려갑니다 ( **병합 칸도 함께** — 합계 · 비고 줄을 병합해 둬도 된다 )
+- 한 건 출력 양식에는 `filename` 을 두지 않는다 — 화면이 주는 이름( 예: `발주서_PO-…` )이 쓰이도록 ( 양식의 `filename` 이 우선한다 )
 
 ## 기본 제공 값
 

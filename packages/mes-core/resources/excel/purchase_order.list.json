@@ -1,0 +1,22 @@
+{
+    "type": "list",
+    "name": "발주 목록 ( 품목별 )",
+    "sheet": "발주",
+    "filename": "발주목록",
+    "freeze": "A2",
+    "columns": [
+        { "field": "order_no",     "header": "발주번호",    "width": 16 },
+        { "field": "order_date",   "header": "발주일",      "width": 11 },
+        { "field": "partner_name", "header": "구매처",      "width": 18 },
+        { "field": "order_name",   "header": "발주명",      "width": 20 },
+        { "field": "item_code",    "header": "품번",        "width": 16 },
+        { "field": "item_name",    "header": "품명",        "width": 24 },
+        { "field": "qty",          "header": "수량",        "width": 10, "numFmt": "#,##0.######" },
+        { "field": "spec_unit",    "header": "단위",        "width": 7 },
+        { "field": "unit_price",   "header": "단가",        "width": 12, "numFmt": "#,##0" },
+        { "field": "amount",       "header": "금액",        "width": 14, "numFmt": "#,##0" },
+        { "field": "due_date",     "header": "입고 예정일", "width": 11 },
+        { "field": "received_qty", "header": "입고 수량",   "width": 10, "numFmt": "#,##0.######" },
+        { "field": "status_label", "header": "상태",        "width": 8 }
+    ]
+}

@@ -126,7 +126,7 @@ function fillTemplate(wb, layout, rows, context) {
     // 데이터 줄 : start 행의 서식을 복제해 행 수만큼 늘린 뒤 채운다
     const r = layout.rows;
     if (r?.start && rows.length) {
-        if (rows.length > 1) ws.duplicateRow(r.start, rows.length - 1, true);
+        if (rows.length > 1) duplicateKeepingMerges(ws, r.start, rows.length - 1);
         rows.forEach((row, i) => {
             const target = ws.getRow(r.start + i);
             Object.entries(r.columns ?? {}).forEach(([letter, field]) => {
@@ -136,6 +136,17 @@ function fillTemplate(wb, layout, rows, context) {
             });
         });
     }
+}
+
+// 데이터 줄 복제 — exceljs 의 duplicateRow 는 아래 줄의 값은 내리지만 병합 범위는 제자리에 둔다
+//   ( 합계 · 비고 줄의 병합이 데이터 줄에 걸려 양식이 깨진다 ) → 아래쪽 병합을 풀었다가 같은 줄 수만큼 내려 다시 병합
+function duplicateKeepingMerges(ws, start, count) {
+    const below = (ws.model.merges ?? [])
+        .map(range => ({ range, m: /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(range) }))
+        .filter(x => x.m && Number(x.m[2]) > start);
+    below.forEach(x => ws.unMergeCells(x.range));
+    ws.duplicateRow(start, count, true);
+    below.forEach(({ m }) => ws.mergeCells(`${m[1]}${Number(m[2]) + count}:${m[3]}${Number(m[4]) + count}`));
 }
 
 // ---- 공통 ----

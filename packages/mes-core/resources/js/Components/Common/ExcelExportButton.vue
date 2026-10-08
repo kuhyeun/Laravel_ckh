@@ -4,6 +4,7 @@
      - rows   : 내보낼 행. 배열이면 그대로, 함수면 눌렀을 때 호출 ( 서버 페이징 화면은 export=1 로 전체를 받아 오는 함수 )
      - columns: 화면 그리드 열 ( 기본 내보내기 · 표시값 )
      - context: 양식 칸에 넣을 값 ( 출력자 등 )
+     - label  : 버튼 글자 ( 기본 '엑셀' — 한 건 출력 양식이면 '발주서' 등 )
      - 양식은 개발자가 만들어 배포한다 — 사용자는 고르기만 한다 -->
 <template>
     <div ref="root" class="relative inline-block">
@@ -13,7 +14,7 @@
             :disabled="busy || disabled"
             @click="onClick"
         >
-            <span>{{ busy ? '만드는 중…' : '엑셀' }}</span>
+            <span>{{ busy ? '만드는 중…' : label }}</span>
             <span v-if="layouts.length > 1" class="text-[10px] text-gray-400">▾</span>
         </button>
 
@@ -46,6 +47,7 @@ const props = defineProps({
     context:  { type: Object,          default: () => ({}) },
     filename: { type: String,          default: '목록' },
     disabled: { type: Boolean,         default: false },
+    label:    { type: String,          default: '엑셀' },   // 버튼 글자 ( 예: 발주서 )
 });
 
 const page    = usePage();
