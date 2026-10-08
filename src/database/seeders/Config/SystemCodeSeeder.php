@@ -35,6 +35,16 @@ class SystemCodeSeeder extends Seeder {
                 'ACCT'  => '회계담당',
             ],
         ],
+        'ATTACH_TYPE' => [
+            'name'  => '첨부 구분',
+            'desc'  => '첨부파일 구분 ( attachment.category_code )',
+            'codes' => [
+                'DRAWING' => '도면',
+                'CERT'    => '성적서',
+                'MILL'    => '밀시트',
+                'ETC'     => '기타',
+            ],
+        ],
     ];
 
     public function run(): void {

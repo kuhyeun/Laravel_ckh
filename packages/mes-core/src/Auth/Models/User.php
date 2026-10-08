@@ -60,7 +60,8 @@ class User extends Authenticatable {
         return $this->user_pw;
     }
 
+    // 캐시 키에 DB 이름을 넣는다 ( 공용 캐시에서 업체끼리 섞이지 않도록 )
     public function getMenuCacheKey(): string {
-        return "user_menu_for_user_{$this->account_idx}";
+        return 'mes:menu:' . $this->getConnection()->getDatabaseName() . ":{$this->account_idx}";
     }
 }

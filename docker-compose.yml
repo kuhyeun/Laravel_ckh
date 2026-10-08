@@ -21,6 +21,7 @@ services:
     volumes:
       - ./src:/var/www/html:cached
       - ./packages:/var/www/packages
+      - ./php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
       - /var/www/html/node_modules
       - /var/www/html/vendor
     working_dir: /var/www/html

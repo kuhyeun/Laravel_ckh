@@ -16,6 +16,8 @@ use MesCore\Basic\Services\ExcelLayouts;
 use MesCore\Basic\Services\Import\ExcelImportService;
 use MesCore\Config\Imports\ItemImport;
 use MesCore\Config\Imports\PartnerImport;
+use MesCore\Basic\Services\AttachmentService;
+use MesCore\Config\Models\Item;
 
 class CoreServiceProvider extends ServiceProvider {
 
@@ -32,6 +34,13 @@ class CoreServiceProvider extends ServiceProvider {
             $service = new ExcelImportService($app->make(ExcelLayouts::class));
             $service->register(new ItemImport());
             $service->register(new PartnerImport());
+            return $service;
+        });
+
+        // 첨부파일 : 붙일 수 있는 대상 → 권한을 따를 화면 · 대상 모델 ( 업체 모듈은 resolving 으로 더 붙일 수 있다 )
+        $this->app->singleton(AttachmentService::class, function () {
+            $service = new AttachmentService();
+            $service->register('item', 'Config/ItemManage', Item::class);
             return $service;
         });
     }
@@ -94,6 +103,7 @@ class CoreServiceProvider extends ServiceProvider {
             $this->loadRoutesFrom(__DIR__ . '/../routes/basic.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/common.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/config.php');
+            $this->loadRoutesFrom(__DIR__ . '/../routes/attachment.php');
 
             // 모듈 라우트 자동 로딩
             foreach (config('mes.modules', []) as $module) {

@@ -2,7 +2,7 @@
      1) [양식 받기]  2) 모드( 신규만 / 신규 + 수정 ) · 파일 선택 → [검증]  3) 오류가 없으면 [반영]
      - 검증은 저장하지 않는다. 반영은 서버가 다시 검증하고 전부 성공일 때만 한 트랜잭션으로 저장
      - 오류가 있으면 올린 파일에 '오류 사유' 열을 붙여 돌려준다 → 고쳐서 그대로 다시 올리면 된다
-     - 결과는 서버의 행 단위 목록( result.rows )을 그대로 둔다 — 나중에 결과 목록 모달이 이것을 그린다 -->
+     - 결과는 서버의 행 단위 목록( result.rows ) — [결과 목록]이 ExcelImportResult 모달로 행마다 보여 준다 -->
 <template>
     <div class="mt-3 text-sm space-y-4">
         <!-- 1. 양식 -->
@@ -40,10 +40,13 @@
 
         <!-- 3. 결과 -->
         <div v-if="result" class="rounded border px-3 py-2.5" :class="result.summary.error ? 'border-red-200 bg-red-50' : 'border-blue-200 bg-blue-50'">
-            <p class="font-medium" :class="result.summary.error ? 'text-red-700' : 'text-blue-800'">
-                전체 {{ result.summary.total }}행 · 신규 {{ result.summary.create }} · 수정 {{ result.summary.update }}
-                <template v-if="result.summary.error"> · 오류 {{ result.summary.error }}</template>
-            </p>
+            <div class="flex items-center justify-between gap-2">
+                <p class="font-medium" :class="result.summary.error ? 'text-red-700' : 'text-blue-800'">
+                    전체 {{ result.summary.total }}행 · 신규 {{ result.summary.create }} · 수정 {{ result.summary.update }}
+                    <template v-if="result.summary.error"> · 오류 {{ result.summary.error }}</template>
+                </p>
+                <button type="button" class="shrink-0 text-xs underline" :class="result.summary.error ? 'text-red-700' : 'text-blue-700'" @click="openResult">결과 목록</button>
+            </div>
             <template v-if="result.summary.error">
                 <ul class="mt-1.5 space-y-0.5 text-xs text-red-700">
                     <li v-for="r in errorRows.slice(0, 5)" :key="r.row">{{ r.row }}행 {{ r.key }} : {{ r.messages.join(' / ') }}</li>
@@ -67,7 +70,9 @@
 import { ref, computed } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ExcelImportResult from '@core/Components/Common/ExcelImportResult.vue';
 import { downloadTemplate, readUpload, downloadErrorFile } from '@core/Utils/excelImport';
+import { useModalStore } from '@core/Stores/modalStore';
 
 const props = defineProps({
     layout:        { type: Object,   required: true },   // 업로드 양식 ( type: import )
@@ -156,6 +161,21 @@ async function commit() {
         busy.value = false;
         step.value = '';
     }
+}
+
+const modalStore = useModalStore();
+
+function openResult() {
+    modalStore.open(
+        ExcelImportResult,
+        {
+            layout:     props.layout,
+            result:     result.value,
+            upload:     upload.value,
+            modalTitle: '업로드 결과',
+        },
+        { size: 'xl' }
+    );
 }
 
 async function getErrorFile() {

@@ -52,6 +52,9 @@ updated_at  DATETIME(6) NULL
 updated_by  BIGINT      NULL
 ```
 
+> **2026-10-08 변경** — `tenant_id` 는 두지 않습니다 ( [ADR 0027](./adr/0027-업체-DB에-tenant_id를-두지-않는다.md) ).
+> 이 문서의 키 · 인덱스에 붙은 `tenant_id` 는 빼고 읽습니다. 실제 명명 · 감사 컬럼은 [진행상황-인수인계](./진행상황-인수인계.md) §2 DB 규약을 따릅니다.
+
 마스터 테이블은 `is_active BOOLEAN NOT NULL DEFAULT TRUE`를 더합니다.
 **마스터는 삭제하지 않습니다** — 과거 트랜잭션이 참조하고 있습니다.
 

@@ -1,7 +1,7 @@
 <!-- 품목 등록/수정 폼 ( BAS-02 ) — 모달 본체
      - item prop 있으면 수정, 없으면 등록
      - 라우터를 모른다 : 저장 후 onSaved( 저장된 품목 ) 호출 + close ( 닫기·이동은 여는 쪽이 정함 )
-     - 탭 : 기본 / 재고·발주 / 단가 / 추가정보
+     - 탭 : 기본 / 재고·발주 / 단가 / 추가정보 / 첨부( 저장한 뒤 첨부 — AttachFiles )
        추가정보 : 정책 덮어쓰기( 입고검사 · 출하검사 · 차감 위치 — 대분류별 ) + 리드타임( 기본값 따름 / 품목별 ) + 표준시간( 읽기 전용 )
        커스텀 컬럼은 커스텀 컬럼 기능 개발 시 추가
      - 시리얼 사용 스위치는 기능 스위치 feature.serial 이 켜져 있을 때만 ( 이미 켜진 품목은 끌 수 있게 보인다 )
@@ -21,6 +21,7 @@
                 @click="tab = t.key"
             >
                 {{ t.label }}
+                <span v-if="t.key === 'files' && fileCount" class="ml-0.5 text-xs text-gray-400">{{ fileCount }}</span>
                 <span v-if="tabHasError(t.key)" class="ml-0.5 text-red-500">•</span>
             </button>
         </div>
@@ -273,6 +274,12 @@
             </section>
         </div>
 
+        <!-- 탭 5 · 첨부 ( 도면 등 — 올리기 · 삭제는 바로 저장된다 ) -->
+        <div v-show="tab === 'files'" class="pt-4">
+            <AttachFiles ref-type="item" :ref-id="form.item_idx" category="DRAWING" :readonly="!canWrite" @change="n => fileCount = n" />
+            <p v-if="isEdit && canWrite" class="mt-2 text-xs text-gray-400">첨부는 올리거나 지우면 바로 반영됩니다. ( [수정]을 누르지 않아도 됩니다 )</p>
+        </div>
+
         <!-- 액션 -->
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ canWrite ? '취소' : '닫기' }}</BaseButton>
@@ -293,6 +300,7 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { ITEM_TYPES, ITEM_KINDS } from '@core/Components/Config/itemCodes';
 import PolicyOverrideField from '@core/Components/Config/PolicyOverrideField.vue';
+import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 
 const props = defineProps({
     item:     { type: Object,   default: null },   // 있으면 수정, 없으면 등록
@@ -308,7 +316,10 @@ const TABS = [
     { key: 'stock', label: '재고·발주' },
     { key: 'price', label: '단가' },
     { key: 'extra', label: '추가정보' },
+    { key: 'files', label: '첨부' },
 ];
+
+const fileCount = ref(0);   // 첨부 탭 머리의 개수
 
 const LEAD_STAGES = [
     { key: 'purchase_days', label: '구매' },
