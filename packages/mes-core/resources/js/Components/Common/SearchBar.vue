@@ -14,7 +14,7 @@
             <span class="text-gray-400">~</span>
             <BaseInput v-model="model.to" type="date" size="sm" class="w-36" />
             <div class="flex items-center gap-0.5">
-                <button v-for="q in QUICK" :key="q.key" type="button" class="px-1.5 py-0.5 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50" @click="quick(q.key)">{{ q.label }}</button>
+                <button v-for="q in QUICK" :key="q.key" type="button" class="h-[30px] px-2 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50" @click="quick(q.key)">{{ q.label }}</button>
             </div>
             <span class="w-px h-5 bg-gray-200 mx-1"></span>
         </template>

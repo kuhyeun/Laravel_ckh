@@ -13,9 +13,9 @@
         <div ref="gridContainer" class="flex-1 min-h-0 overflow-hidden"></div>
 
         <!-- 서버 페이징 바 -->
-        <div v-if="pagination" class="flex items-center justify-between gap-3 px-3 py-1.5 border-t text-xs text-gray-600 shrink-0">
+        <div v-if="pagination" class="flex items-center justify-between gap-4 px-4 py-2.5 border-t text-sm text-gray-600 shrink-0">
             <span>총 <b>{{ total.toLocaleString() }}</b> 건</span>
-            <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1.5">
                 <button type="button" class="pg-btn" :disabled="current <= 1" @click="go(1)">«</button>
                 <button type="button" class="pg-btn" :disabled="current <= 1" @click="go(current - 1)">‹</button>
                 <button
@@ -29,7 +29,7 @@
                 <button type="button" class="pg-btn" :disabled="current >= lastPage" @click="go(current + 1)">›</button>
                 <button type="button" class="pg-btn" :disabled="current >= lastPage" @click="go(lastPage)">»</button>
             </div>
-            <select class="border border-gray-300 rounded px-1 py-0.5" :value="perPage" @change="e => changePerPage(Number(e.target.value))">
+            <select class="h-8 border border-gray-300 rounded px-2 text-sm" :value="perPage" @change="e => changePerPage(Number(e.target.value))">
                 <option v-for="n in PER_PAGE_OPTIONS" :key="n" :value="n">{{ n }}개씩</option>
             </select>
         </div>
@@ -150,8 +150,9 @@ function changePerPage(n) {
 
 <style scoped>
 .pg-btn {
-    min-width: 26px;
-    padding: 2px 6px;
+    min-width: 34px;
+    height: 32px;
+    padding: 0 10px;
     border: 1px solid #d1d5db;
     border-radius: 4px;
     background: #fff;
