@@ -5,6 +5,7 @@ namespace MesCore\Order\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use MesCore\Config\Models\Item;
+use MesCore\Production\Models\WorkOrderSource;
 
 // 수주 줄 ( SAL-02 ) — 품목별 납품일 · 단가는 줄에 저장 ( 품목 단가를 나중에 바꿔도 그대로 )
 class SalesOrderLine extends Model {
@@ -72,10 +73,20 @@ class SalesOrderLine extends Model {
         return $this->belongsTo(Item::class, 'item_idx', 'item_idx');
     }
 
-    // 아래 단계가 붙었는가 — 생산 · 출하 수량이 있으면 ( 작업지시 모듈이 생기면 지시 존재도 여기에 더한다 )
-    //   붙은 줄은 품목 변경 · 삭제 불가, 수량은 생산 · 출하량 아래로 못 줄임 ( §6 )
+    // 아래 단계가 붙었는가 — 생산 · 출하 수량이 있거나 이 줄을 담은 작업지시( 취소 제외 )가 있으면
+    //   붙은 줄은 품목 변경 · 삭제 불가, 수량은 생산 · 출하량 아래로 못 줄임 ( 30-수주 §6 · 50-생산 §4 )
     public function hasDownstream(): bool {
-        return (float) $this->produced_qty > 0 || (float) $this->shipped_qty > 0;
+        return (float) $this->produced_qty > 0 || (float) $this->shipped_qty > 0 || $this->directedQty() > 0;
+    }
+
+    // 이 줄을 담은 작업지시( 취소 제외 )의 담은 수량 합
+    public function directedQty(): float {
+        if (!$this->sales_order_line_idx) {
+            return 0;
+        }
+        return (float) WorkOrderSource::where('sales_order_line_idx', $this->sales_order_line_idx)
+            ->whereHas('workOrder', fn ($q) => $q->where('status', '!=', 'CANCELED'))
+            ->sum('qty');
     }
 
     // 수량을 이 아래로 줄일 수 없다

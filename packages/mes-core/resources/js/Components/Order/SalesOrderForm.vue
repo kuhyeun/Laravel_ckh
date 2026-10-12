@@ -104,7 +104,7 @@
                                     <th class="px-2 py-1.5 w-28 text-right">단가</th>
                                     <th class="px-2 py-1.5 w-28 text-right">금액</th>
                                     <th class="px-2 py-1.5 w-36">납품일 *</th>
-                                    <th v-if="isEdit" class="px-2 py-1.5 w-20 text-right">생산 / 출하</th>
+                                    <th v-if="isEdit" class="px-2 py-1.5 w-28 text-right">지시 · 생산 / 출하</th>
                                     <th class="px-2 py-1.5 min-w-[100px] text-left">비고</th>
                                     <th v-if="!readonly" class="px-2 py-1.5 w-8"></th>
                                 </tr>
@@ -134,7 +134,11 @@
                                         <BaseInput v-model="l.due_date" type="date" size="sm" class="w-full" :disabled="readonly" />
                                         <p v-if="lineError(i, 'due_date')" class="text-[11px] text-red-500">{{ lineError(i, 'due_date') }}</p>
                                     </td>
-                                    <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500">{{ fmt(l.produced_qty) }} / {{ fmt(l.shipped_qty) }}</td>
+                                    <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500 whitespace-nowrap">
+                                        <p>지시 {{ fmt(l.directed_qty) }} · {{ fmt(l.produced_qty) }} / {{ fmt(l.shipped_qty) }}</p>
+                                        <!-- 작업지시 ( 50-생산 §4 — 이 줄을 담은 지시 창. 남은 지시 수량이 기본 ) -->
+                                        <button v-if="canDirect(l)" type="button" class="text-[11px] text-blue-700 hover:underline" @click="openWorkOrder(l, i)">작업지시</button>
+                                    </td>
                                     <td class="px-1.5 py-1">
                                         <BaseInput v-model="l.remark" size="sm" class="w-full" :disabled="readonly" />
                                     </td>
@@ -180,6 +184,8 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
+import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
+import { useModalStore } from '@core/Stores/modalStore';
 import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor } from '@core/Components/Order/orderCodes';
 
 const props = defineProps({
@@ -204,7 +210,7 @@ const statusChoices = ORDER_STATUSES.filter(s => EDITABLE_STATUSES.includes(s.va
 let keySeq = 0;
 const blankLine = () => ({
     _key: ++keySeq, sales_order_line_idx: null, item_idx: '', item_code: '', item_name: '', spec_unit: '',
-    qty: '', unit_price: 0, due_date: '', produced_qty: 0, shipped_qty: 0, locked: false, min_qty: 0, remark: '',
+    qty: '', unit_price: 0, due_date: '', produced_qty: 0, shipped_qty: 0, directed_qty: 0, locked: false, min_qty: 0, remark: '',
 });
 
 const form = reactive({
@@ -325,6 +331,35 @@ onMounted(async () => {
         loading.value = false;
     }
 });
+
+// ---- 작업지시 ( 수주 줄 → 지시 — 50-생산 §4 ) ----
+// 저장된 줄 · 확정 수주 · 남은 지시 수량이 있을 때. 권한은 지시 화면( 서버 )이 본다
+const modalStore = useModalStore();
+const canDirect = (l) => isEdit.value && l.sales_order_line_idx && form.status === 'CONFIRMED' && num(l.qty) - num(l.directed_qty) > 0;
+
+function openWorkOrder(l, i) {
+    const remaining = num(l.qty) - num(l.directed_qty);
+    modalStore.open(
+        WorkOrderForm,
+        {
+            prefill: {
+                item_idx: l.item_idx,
+                target_qty: remaining,
+                sources: [{ sales_order_line_idx: l.sales_order_line_idx, order_no: form.order_no, line_no: i + 1,
+                            partner_name: form.partner_name, due_date: l.due_date, remaining, qty: remaining }],
+            },
+            canWrite: true,
+            onSaved: async (wo) => {
+                errorMsg.value = '';
+                const { data } = await window.axios.get(route('order.sales.show', form.sales_order_idx));
+                fillForm(data.order);
+                props.onSaved?.(data.order, [`작업지시 ${wo.wo_no} 를 만들었습니다.`]);
+            },
+            modalTitle: `작업지시 등록 [ ${form.order_no} #${i + 1} ]`,
+        },
+        { size: 'xl', closeOnClickOutside: false }
+    );
+}
 
 // ---- 저장 ----
 async function save() {

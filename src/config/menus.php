@@ -365,6 +365,16 @@ return [
                         'menu_level' => 99,
                     ],
                     [
+                        'menu_code' => '4006',
+                        'menu_name' => '작업지시',
+                        'menu_icon' => null,
+                        'module_code' => 'Production',
+                        'menu_route_name' => '',
+                        'url_path' => '/production/work-order',
+                        'page_component' => 'Production/WorkOrderManage',
+                        'menu_level' => 99,
+                    ],
+                    [
                         'menu_code' => '4002',
                         'menu_name' => '공정실적관리',
                         'menu_icon' => null,

@@ -11,7 +11,9 @@ use MesCore\Config\Models\LotRule;
 use MesCore\Stock\Models\Lot;
 
 /**
- * LOT 발급 — 40-구매자재 §10.3 · 재고-수불-설계 §2-1
+ * LOT 발급 — 40-구매자재 §10.3 · 50-생산 §5 · 재고-수불-설계 §2-1
+ *
+ *   생산 LOT : 생산 기준( PRODUCE_START · PRODUCE_END ) 규칙으로 작업지시 저장 때 — issueProductionLot()
  *
  *   자재( 입고 ) LOT
  *     lot.material_source = INTERNAL ( 기본 ) : 자재( MATERIAL ) 기준 LOT 규칙으로 발급, 공급처 번호는 external_lot_no
@@ -85,6 +87,40 @@ class LotService {
             'spec_value'      => $ctx['spec_value'] ?? null,
             'source'          => 'PURCHASE',
             'lot_rule_idx'    => $rule?->lot_rule_idx,
+        ]);
+    }
+
+    // 생산 기준 사용 중 규칙 ( 생산일 · 종료일 ) — 작업지시가 고른다
+    public function productionRules(): Collection {
+        return LotRule::whereIn('rule_type', ['PRODUCE_START', 'PRODUCE_END'])->where('is_use', 'Y')
+            ->orderBy('rule_type')->orderBy('lot_rule_idx')->get();
+    }
+
+    /**
+     * 생산 LOT 발급 ( 작업지시 저장 때 — 50-생산 §5 ). 트랜잭션 안에서
+     *   번호의 날짜 : 생산일 기준 = 착수 예정일 / 종료일 기준 = 생산 기한 ( 화면이 골라 넘긴다 )
+     *   거래처 요소는 생산 기준에 없다 ( BAS-10 )
+     * @return Lot|null  LOT 을 쓰지 않으면 null
+     */
+    public function issueProductionLot(Item $item, ?LotRule $rule, string $date): ?Lot {
+        if (!$this->enabled()) {
+            return null;
+        }
+        if (!$rule) {
+            throw ValidationException::withMessages(['lot_rule_idx' => ['LOT규칙관리에서 생산 기준( 생산일 · 종료일 ) LOT 규칙을 등록하세요.']]);
+        }
+
+        $lotNo = LotRule::render($rule->format_spec ?? [], (string) $rule->separator, [
+            'item_code' => $item->item_code,
+            'date'      => $date,
+            'seq'       => $this->nextSeq($rule, $date),
+        ]);
+
+        return Lot::create([
+            'item_idx'     => $item->item_idx,
+            'lot_no'       => mb_substr($lotNo, 0, 50),
+            'source'       => 'PRODUCTION',
+            'lot_rule_idx' => $rule->lot_rule_idx,
         ]);
     }
 

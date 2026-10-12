@@ -306,6 +306,7 @@ class SalesOrderController extends Controller {
                 'line_status'          => $l->line_status,
                 'locked'               => $l->hasDownstream(),
                 'min_qty'              => $l->minQty(),
+                'directed_qty'         => $l->directedQty(),   // 작업지시에 담긴 수량 ( 수주 창의 [작업지시] )
                 'remark'               => $l->remark,
             ])->values()->all(),
         ];

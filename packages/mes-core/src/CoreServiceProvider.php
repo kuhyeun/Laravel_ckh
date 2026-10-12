@@ -22,6 +22,7 @@ use MesCore\Config\Models\Partner;
 use MesCore\Order\Models\SalesOrder;
 use MesCore\Purchase\Models\PurchaseOrder;
 use MesCore\Stock\Models\StockTxnLine;
+use MesCore\Production\Models\WorkOrder;
 
 class CoreServiceProvider extends ServiceProvider {
 
@@ -50,6 +51,7 @@ class CoreServiceProvider extends ServiceProvider {
             $service->register('purchase_order', 'Purchase/PurchaseOrderManage', PurchaseOrder::class);
             // 입고 줄 ( 성적서 · 밀시트 ) — 검사 전에도 붙인다. 입고검사 · 입고관리 어느 쪽 권한으로도
             $service->register('receipt_line', ['Quality/IncomingInspection', 'Purchase/ReceiptManage'], StockTxnLine::class);
+            $service->register('work_order', 'Production/WorkOrderManage', WorkOrder::class);
             return $service;
         });
     }
@@ -124,6 +126,9 @@ class CoreServiceProvider extends ServiceProvider {
             }
             if (in_array('Quality', config('mes.modules', []), true)) {
                 $this->loadRoutesFrom(__DIR__ . '/../routes/quality.php');
+            }
+            if (in_array('Production', config('mes.modules', []), true)) {
+                $this->loadRoutesFrom(__DIR__ . '/../routes/production.php');
             }
 
             // 모듈 라우트 자동 로딩
