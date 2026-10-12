@@ -6,7 +6,6 @@ use MesCore\Http\Controller;
 use MesCore\Auth\Models\User;
 use MesCore\Basic\Models\Attachment;
 use MesCore\Basic\Services\AttachmentService;
-use MesCore\Menu\Models\Menu;
 use MesCore\Menu\Services\MenuPermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -95,10 +94,9 @@ class AttachmentController extends Controller {
         if ($ref === null) {
             abort(422, '첨부할 수 없는 대상입니다.');
         }
-        $menuCode = Menu::where('page_component', $ref['menu'])->value('menu_code');
         /** @var User|null $user */
-        $user     = Auth::user();
-        if ($user === null || $menuCode === null || !$this->permissions->can($user, $menuCode, $action)) {
+        $user = Auth::user();
+        if ($user === null || !$this->permissions->canPage($user, $ref['menu'], $action)) {
             abort(403, 'Permission Denied.');
         }
     }

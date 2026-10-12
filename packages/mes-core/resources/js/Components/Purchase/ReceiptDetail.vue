@@ -1,4 +1,4 @@
-<!-- 입고 상세 ( PUR-03 ) — 수정 없음. 줄마다 상태 · 선택 줄 취소
+<!-- 입고 상세 ( PUR-03 ) — 수정 없음. 줄마다 상태 · [검사]( 같은 검사완료 창 — C안 ) · 선택 줄 취소
      - 검사대기 줄 취소 : 그냥 취소 ( 재고에 없음 ) / 입고완료 줄 취소 : 역분개 + 발주 입고 수량 되돌림
        그 LOT 이 이미 출고 · 이동됐으면 서버가 막는다 ( 하나라도 막히면 전부 되돌림 )
      - LOT 번호는 취소해도 남는다 ( 번호 재사용 없음 ) -->
@@ -53,6 +53,9 @@
                             </td>
                             <td class="px-2 py-1.5 text-center font-semibold" :style="{ color: receiptStatusColor(l.line_status) }">{{ receiptStatusLabel(l.line_status) }}</td>
                             <td class="px-2 py-1.5 text-center">
+                                <button v-if="l.has_inspection && l.line_status !== 'CANCELED'" type="button" class="text-blue-700 hover:underline" @click="openInspection(l)">
+                                    {{ l.line_status === 'WAIT' ? '검사' : '검사 보기' }}
+                                </button>
                             </td>
                         </tr>
                     </tbody>
@@ -74,6 +77,8 @@
 import { ref, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import IncomingInspectionForm from '@core/Components/Quality/IncomingInspectionForm.vue';
+import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { receiptStatusLabel, receiptStatusColor, inspModeLabel, qtyText } from '@core/Components/Stock/stockCodes';
 
@@ -84,6 +89,7 @@ const props = defineProps({
 });
 defineEmits(['close']);
 
+const modalStore = useModalStore();
 const loading  = ref(true);
 const saving   = ref(false);
 const errorMsg = ref('');
@@ -103,6 +109,19 @@ async function load() {
     } finally {
         loading.value = false;
     }
+}
+
+function openInspection(l) {
+    modalStore.open(
+        IncomingInspectionForm,
+        {
+            lineIdx:  l.stock_txn_line_idx,
+            canWrite: props.canWrite,
+            onDone:   () => { load(); props.onChange?.(); },
+            modalTitle: `입고검사 [ ${l.lot_no || rc.value.txn_no} ]`,
+        },
+        { size: 'lg', closeOnClickOutside: false }
+    );
 }
 
 async function cancelChecked() {

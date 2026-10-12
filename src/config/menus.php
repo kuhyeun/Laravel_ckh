@@ -460,6 +460,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Quality',
                         'menu_route_name' => '',
+                        'url_path' => '/quality/incoming',
+                        'page_component' => 'Quality/IncomingInspection',
                         'menu_level' => 99,
                     ],
                     [

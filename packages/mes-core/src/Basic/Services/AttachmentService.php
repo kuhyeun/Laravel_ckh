@@ -12,7 +12,7 @@ use MesCore\Basic\Models\Attachment;
 /**
  * 첨부파일 ( CMP-03 ) — 대상 등록 · 저장 · 삭제
  *
- *   대상( ref_type )은 등록한 것만 받는다 : ref_type → [ 권한을 따를 화면( page_component ), 대상 모델 ]
+ *   대상( ref_type )은 등록한 것만 받는다 : ref_type → [ 권한을 따를 화면( page_component — 여럿이면 하나라도 ), 대상 모델 ]
  *     권한은 그 화면의 메뉴 권한 ( 보기 · 받기 = can_read, 올리기 · 삭제 = can_write )
  *     업체 모듈은 resolving 으로 더 붙일 수 있다 ( ExcelImportService 와 같은 방식 )
  *   저장 경로 : attachments/{DB명}/{yyyyMM}/{uuid}.{확장자} — 업체 구분 폴더 ( 멀티테넌시 대비, ADR 0027 )
@@ -35,10 +35,10 @@ class AttachmentService {
         'zip',
     ];
 
-    /** @var array<string, array{menu: string, model: class-string}> */
+    /** @var array<string, array{menu: string|string[], model: class-string}> */
     private array $refs = [];
 
-    public function register(string $refType, string $menu, string $model): void {
+    public function register(string $refType, string|array $menu, string $model): void {
         $this->refs[$refType] = ['menu' => $menu, 'model' => $model];
     }
 
