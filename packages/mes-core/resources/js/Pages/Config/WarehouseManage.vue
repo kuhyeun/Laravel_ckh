@@ -264,7 +264,9 @@ async function removeWarehouse() {
         await loadWarehouses();
         newWarehouse(null);
         selected.value = null;
-        showFlash(`${data.changed ?? 1}건이 미사용 처리되었습니다.`);
+        // W_WH_HAS_STOCK : 재고가 남은 창고면 함께 알린다 ( 막지 않음 )
+        const warn = (data.warnings ?? []).join(' / ');
+        showFlash(`${data.changed ?? 1}건이 미사용 처리되었습니다.${warn ? ` ⚠ ${warn}` : ''}`);
     } catch (e) {
         const status = e.response?.status;
         if (status === 403)      showFlash('삭제 권한이 없습니다.', true);

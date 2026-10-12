@@ -320,6 +320,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Material',
                         'menu_route_name' => '',
+                        'url_path' => '/stock/status',
+                        'page_component' => 'Stock/StockStatus',
                         'menu_level' => 99,
                     ],
                     [

@@ -1,0 +1,147 @@
+<?php
+
+namespace MesCore\Stock\Controllers;
+
+use MesCore\Http\Controller;
+use MesCore\Http\Concerns\RespondsWithList;
+use MesCore\Config\Models\Warehouse;
+use MesCore\Stock\Models\StockBalance;
+use MesCore\Stock\Models\StockLedger;
+use MesCore\Stock\Models\StockTxn;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+// LOT 재고현황 ( INV-01 ) — docs/screens/40-구매자재.md §13
+//   현재고는 잔고( stock_balance )에서만 — 원장을 GROUP BY 하지 않는다 ( 재고-수불-설계 §2 절대 규칙 )
+//   품목별 합계는 잔고를 더하는 것( 원장 집계 아님 )
+class StockController extends Controller {
+    use RespondsWithList;
+
+    private const SORTABLE = ['item_code', 'lot_no', 'in_at', 'qty', 'warehouse_name'];
+
+    // 목록 : 품목 × LOT × 창고 ( group=item 이면 품목 × 창고 합계 )
+    public function list(Request $request) {
+        $v = $request->validate([
+            'keyword'       => 'nullable|string|max:100',
+            'warehouse_idx' => 'nullable|integer',
+            'item_type'     => 'nullable|in:MATERIAL,PRODUCT',
+            'with_zero'     => 'nullable|in:0,1',
+            'group'         => 'nullable|in:lot,item',
+        ]);
+        $byItem = ($v['group'] ?? 'lot') === 'item';
+
+        $query = StockBalance::query()
+            ->from('stock_balance as b')
+            ->join('item as i', 'i.item_idx', '=', 'b.item_idx')
+            ->join('warehouse as w', 'w.warehouse_idx', '=', 'b.warehouse_idx');
+
+        if ($byItem) {
+            $query->selectRaw('b.item_idx, b.warehouse_idx, i.item_code, i.item_name, i.item_type, i.spec_unit, w.warehouse_name, SUM(b.qty) AS qty, COUNT(*) AS lot_count')
+                ->groupBy('b.item_idx', 'b.warehouse_idx', 'i.item_code', 'i.item_name', 'i.item_type', 'i.spec_unit', 'w.warehouse_name')
+                ->orderBy('i.item_code');
+            if (($v['with_zero'] ?? '0') !== '1') $query->havingRaw('SUM(b.qty) <> 0');
+        } else {
+            $query->leftJoin('lot as l', 'l.lot_idx', '=', 'b.lot_idx')
+                ->leftJoin('partner as p', 'p.partner_idx', '=', 'l.partner_idx')
+                ->select('b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty',
+                    'i.item_code', 'i.item_name', 'i.item_type', 'i.spec_unit', 'w.warehouse_name',
+                    'l.lot_no', 'l.external_lot_no', 'l.spec_value', 'l.in_at', 'p.partner_name')
+                ->orderBy('i.item_code')->orderBy('l.in_at')->orderBy('b.lot_idx');
+            if (($v['with_zero'] ?? '0') !== '1') $query->where('b.qty', '<>', 0);
+        }
+
+        if (!empty($v['warehouse_idx'])) $query->whereIn('b.warehouse_idx', $this->withDescendants((int) $v['warehouse_idx']));
+        if (!empty($v['item_type']))     $query->where('i.item_type', $v['item_type']);
+        if (!empty($v['keyword'])) {
+            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
+            $query->where(function ($w) use ($kw, $byItem) {
+                $w->where('i.item_code', 'like', $kw)->orWhere('i.item_name', 'like', $kw);
+                if (!$byItem) {
+                    $w->orWhere('l.lot_no', 'like', $kw)->orWhere('l.external_lot_no', 'like', $kw);
+                }
+            });
+        }
+
+        // 품목별 합계는 정렬 허용 열이 다르다 ( 그룹 결과의 별칭 )
+        $sortable = $byItem ? ['item_code', 'qty', 'warehouse_name'] : self::SORTABLE;
+
+        return $this->listResponse($request, $query, $sortable, 'balances', fn ($r) => [
+            'key'            => $byItem ? "{$r->item_idx}-{$r->warehouse_idx}" : $r->stock_balance_idx,
+            'item_idx'       => $r->item_idx,
+            'lot_idx'        => $r->lot_idx ?? null,
+            'warehouse_idx'  => $r->warehouse_idx,
+            'item_code'      => $r->item_code,
+            'item_name'      => $r->item_name,
+            'item_type'      => $r->item_type,
+            'spec_unit'      => $r->spec_unit,
+            'warehouse_name' => $r->warehouse_name,
+            'lot_no'         => $r->lot_no ?? null,
+            'external_lot_no'=> $r->external_lot_no ?? null,
+            'spec_value'     => isset($r->spec_value) ? (float) $r->spec_value : null,
+            'in_at'          => isset($r->in_at) ? substr((string) $r->in_at, 0, 10) : null,
+            'partner_name'   => $r->partner_name ?? null,
+            'qty'            => (float) $r->qty,
+            'lot_count'      => isset($r->lot_count) ? (int) $r->lot_count : null,
+        ]);
+    }
+
+    // LOT 입출고 이력 ( 원장 — 한 LOT 의 행만, 집계 없음 ). 발생 · 등록 시각 둘 다
+    public function history(Request $request) {
+        $v = $request->validate([
+            'item_idx'      => 'required|integer',
+            'lot_idx'       => 'required|integer',
+            'warehouse_idx' => 'nullable|integer',
+        ]);
+
+        $rows = StockLedger::query()
+            ->where('item_idx', $v['item_idx'])->where('lot_idx', $v['lot_idx'])
+            ->when(!empty($v['warehouse_idx']), fn ($q) => $q->where('warehouse_idx', $v['warehouse_idx']))
+            ->orderBy('occurred_at')->orderBy('stock_ledger_idx')
+            ->limit(500)
+            ->get();
+
+        $txns = StockTxn::whereIn('stock_txn_idx', $rows->pluck('stock_txn_idx')->unique())->pluck('txn_no', 'stock_txn_idx');
+        $whs  = Warehouse::whereIn('warehouse_idx', $rows->pluck('warehouse_idx')->unique())->pluck('warehouse_name', 'warehouse_idx');
+
+        $running = 0.0;
+        $out = $rows->map(function (StockLedger $l) use (&$running, $txns, $whs) {
+            $running += (float) $l->qty_delta;
+            return [
+                'stock_ledger_idx' => $l->stock_ledger_idx,
+                'occurred_at'      => $l->occurred_at?->format('Y-m-d H:i'),
+                'recorded_at'      => $l->recorded_at?->format('Y-m-d H:i'),
+                'txn_no'           => $txns[$l->stock_txn_idx] ?? '',
+                'txn_type'         => $l->txn_type,
+                'txn_type_label'   => (StockTxn::TYPES[$l->txn_type] ?? $l->txn_type) . ($l->reverses_idx ? ' 취소' : ''),
+                'warehouse_name'   => $whs[$l->warehouse_idx] ?? '',
+                'qty_delta'        => (float) $l->qty_delta,
+                'running'          => $running,
+                'reversed'         => (bool) $l->reversed_by_idx,
+            ];
+        });
+
+        return response()->json(['rows' => $out, 'truncated' => $rows->count() >= 500]);
+    }
+
+    // 창고 거르기 선택지 ( 입고 등록과 같은 트리 이름 )
+    public function warehouses() {
+        return response()->json(['warehouses' => Warehouse::options()]);
+    }
+
+    // 창고와 그 하위 전부
+    private function withDescendants(int $root): array {
+        $all  = DB::table('warehouse')->get(['warehouse_idx', 'parent_idx']);
+        $out  = [$root];
+        $grow = true;
+        while ($grow) {
+            $grow = false;
+            foreach ($all as $w) {
+                if ($w->parent_idx && in_array((int) $w->parent_idx, $out, true) && !in_array((int) $w->warehouse_idx, $out, true)) {
+                    $out[] = (int) $w->warehouse_idx;
+                    $grow  = true;
+                }
+            }
+        }
+        return $out;
+    }
+}

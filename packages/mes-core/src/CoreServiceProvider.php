@@ -117,6 +117,7 @@ class CoreServiceProvider extends ServiceProvider {
             }
             if (in_array('Material', config('mes.modules', []), true)) {
                 $this->loadRoutesFrom(__DIR__ . '/../routes/purchase.php');
+                $this->loadRoutesFrom(__DIR__ . '/../routes/stock.php');
             }
 
             // 모듈 라우트 자동 로딩

@@ -5,6 +5,7 @@ namespace MesCore\Config\Controllers;
 use MesCore\Http\Controller;
 use MesCore\Config\Models\Warehouse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -106,7 +107,16 @@ class WarehouseController extends Controller {
                     $changed++;
                 });
 
-            return response()->json(['message' => 'Success', 'changed' => $changed], 200);
+            // W_WH_HAS_STOCK : 재고가 남은 창고를 내림 — 막지 않고 알린다 ( 재고는 그대로 보이고 출고할 수 있다 )
+            $warnings = [];
+            $stocked  = DB::table('stock_balance')->whereIn('warehouse_idx', $targets)->where('qty', '<>', 0)
+                ->distinct()->pluck('warehouse_idx');
+            if ($stocked->isNotEmpty()) {
+                $names      = Warehouse::whereIn('warehouse_idx', $stocked)->pluck('warehouse_name')->implode(', ');
+                $warnings[] = "재고가 남아 있는 창고입니다 ( {$names} ). 재고는 그대로 남으니 창고이동 · 출고로 비우세요.";
+            }
+
+            return response()->json(['message' => 'Success', 'changed' => $changed, 'warnings' => $warnings], 200);
         } catch (\Throwable $e) {
             Log::error('창고 미사용 처리 실패 : ' . $e->getMessage());
 

@@ -54,9 +54,9 @@ return [
 
     // ---- B-1. 재고 · 수불 ----
     'stock' => [
-        'allow_negative'     => [ 'name' => '음수 재고 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL', 'visible' => false ],
-        'backdate_warn_days' => [ 'name' => '소급 입력 경고 일수', 'value' => '30', 'category' => 'RULE', 'type' => 'INT', 'visible' => false ],
-        'backdate_block_days' => [ 'name' => '소급 입력 차단 일수', 'value' => null, 'category' => 'RULE', 'type' => 'INT', 'visible' => false,
+        'allow_negative'     => [ 'name' => '음수 재고 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL', 'visible' => true ],
+        'backdate_warn_days' => [ 'name' => '소급 입력 경고 일수', 'value' => '30', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
+        'backdate_block_days' => [ 'name' => '소급 입력 차단 일수', 'value' => null, 'category' => 'RULE', 'type' => 'INT', 'visible' => true,
                                    'remark' => '비우면 차단하지 않습니다' ],
         'backdate_role'      => [ 'name' => '차단 일수 초과 시 필요 권한', 'value' => null, 'category' => 'RULE', 'type' => 'STRING', 'visible' => false ],
         'fifo_reassign'      => [ 'name' => '선입선출 재배정', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false,
@@ -91,7 +91,7 @@ return [
     ],
 
     'lot' => [
-        'material_source' => [ 'name' => '자재 LOT 번호', 'value' => 'INTERNAL', 'category' => 'RULE', 'type' => 'ENUM', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false,
+        'material_source' => [ 'name' => '자재 LOT 번호', 'value' => 'INTERNAL', 'category' => 'RULE', 'type' => 'ENUM', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => true,
                                'options' => [ 'EXTERNAL' => '공급처 LOT 그대로', 'INTERNAL' => '자체 발급 ( 공급처 LOT 은 표시만 )' ],
                                'depends_on' => [ 'feature.lot', 'Y' ] ],
         // LOT규칙관리가 읽는다 ( W_LOT_NO_SHIP_RULE )
