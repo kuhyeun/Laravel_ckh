@@ -304,6 +304,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Material',
                         'menu_route_name' => '',
+                        'url_path' => '/purchase/receipt',
+                        'page_component' => 'Purchase/ReceiptManage',
                         'menu_level' => 99,
                     ],
                     [

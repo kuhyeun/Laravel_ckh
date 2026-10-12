@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use MesCore\Purchase\Controllers\PurchaseOrderController;
+use MesCore\Purchase\Controllers\ReceiptController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -30,6 +31,26 @@ Route::prefix('purchase')->name('purchase.')->middleware([UserAuth::class])->gro
 
         Route::middleware($delete)->group(function() {
             Route::post('/delete', [PurchaseOrderController::class, 'delete'])->name('del');
+        });
+    });
+
+    // 입고관리 ( Purchase/ReceiptManage ) — 수정 없음, 줄 취소( 역분개 )는 쓰기 권한. 검사완료는 /quality/incoming ( 같은 창 )
+    Route::prefix('receipt')->name('receipt.')->group(function() {
+        $read  = MenuAuth::class . ':Purchase/ReceiptManage,can_read';
+        $write = MenuAuth::class . ':Purchase/ReceiptManage,can_write';
+
+        Route::middleware($read)->group(function() {
+            Route::get('/list', [ReceiptController::class, 'list'])->name('list');
+            Route::get('/show/{txnIdx}', [ReceiptController::class, 'show'])->whereNumber('txnIdx')->name('show');
+            // 등록 모달 선택지 + 목록의 구매처 거르기
+            Route::get('/formData', [ReceiptController::class, 'formData'])->name('formData');
+        });
+
+        Route::middleware($write)->group(function() {
+            Route::get('/poLines', [ReceiptController::class, 'poLines'])->name('poLines');
+            Route::get('/inspModes', [ReceiptController::class, 'inspModes'])->name('inspModes');
+            Route::post('/save', [ReceiptController::class, 'save'])->name('save');
+            Route::post('/cancel', [ReceiptController::class, 'cancel'])->name('cancel');
         });
     });
 });
