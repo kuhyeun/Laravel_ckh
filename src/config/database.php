@@ -34,6 +34,8 @@ return [
             'prefix_indexes' => true,
             'strict' => true,
             'engine' => null,
+            // 업체 로컬 시각으로 저장한다 ( 프로그램-스펙 §11 ) — NOW() · CURRENT_TIMESTAMP 기본값도 앱과 같은 시간대
+            'timezone' => env('DB_TIMEZONE', '+09:00'),
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
