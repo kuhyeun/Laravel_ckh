@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use MesCore\Stock\Controllers\StockController;
+use MesCore\Stock\Controllers\StockProcessController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -15,5 +16,29 @@ Route::prefix('stock')->name('stock.')->middleware([UserAuth::class])->group(fun
         Route::get('/list', [StockController::class, 'list'])->name('list');
         Route::get('/history', [StockController::class, 'history'])->name('history');
         Route::get('/warehouses', [StockController::class, 'warehouses'])->name('warehouses');
+    });
+
+    // 잔고 한 행 ( 이동 · 조정 창 ) — 재고현황 · 창고이동 · 재고조정 어느 쪽 권한으로도 ( 컨트롤러가 검사 )
+    Route::get('/balance/{balanceIdx}', [StockController::class, 'balance'])->whereNumber('balanceIdx')->name('balance');
+
+    // 창고이동 ( Stock/StockMove )
+    Route::prefix('move')->name('move.')->group(function() {
+        Route::middleware(MenuAuth::class . ':Stock/StockMove,can_read')->get('/list', [StockProcessController::class, 'moveList'])->name('list');
+        Route::middleware(MenuAuth::class . ':Stock/StockMove,can_write')->group(function() {
+            Route::post('/save', [StockProcessController::class, 'move'])->name('save');
+            Route::post('/cancel/{txnIdx}', [StockProcessController::class, 'moveCancel'])->whereNumber('txnIdx')->name('cancel');
+        });
+    });
+
+    // 재고조정 ( Stock/StockAdjust — 관리자에게만 메뉴 권한을 연다 )
+    Route::prefix('adjust')->name('adjust.')->group(function() {
+        Route::middleware(MenuAuth::class . ':Stock/StockAdjust,can_read')->group(function() {
+            Route::get('/list', [StockProcessController::class, 'adjustList'])->name('list');
+            Route::get('/reasons', [StockProcessController::class, 'reasons'])->name('reasons');
+        });
+        Route::middleware(MenuAuth::class . ':Stock/StockAdjust,can_write')->group(function() {
+            Route::post('/save', [StockProcessController::class, 'adjust'])->name('save');
+            Route::post('/cancel/{txnIdx}', [StockProcessController::class, 'adjustCancel'])->whereNumber('txnIdx')->name('cancel');
+        });
     });
 });

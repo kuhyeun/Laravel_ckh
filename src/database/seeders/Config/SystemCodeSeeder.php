@@ -45,6 +45,17 @@ class SystemCodeSeeder extends Seeder {
                 'ETC'     => '기타',
             ],
         ],
+        'ADJUST_REASON' => [
+            'name'  => '재고조정 사유',
+            'desc'  => '재고조정( INV-05 ) 사유 — 기타( ETC )면 상세 필수',
+            'codes' => [
+                'COUNT'  => '실사 차이',
+                'DAMAGE' => '파손',
+                'LOSS'   => '분실',
+                'SCRAP'  => '폐기',
+                'ETC'    => '기타',
+            ],
+        ],
     ];
 
     public function run(): void {

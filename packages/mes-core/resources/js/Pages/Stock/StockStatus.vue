@@ -2,13 +2,14 @@
      - 현재고는 잔고( stock_balance )에서만 — 원장 집계 없음. 조회만 ( 처리 버튼 없음 )
      - 한 행 = 품목 × LOT × 창고. [품목별 합계] 로 품목 × 창고 합으로 묶어 본다
      - 원소재는 규격 × 개수로 보인다 ( 1000 × 19 개 )
-     - 행 클릭 → 그 LOT 의 입출고 이력 ( 품목별 합계에서는 열리지 않음 ) -->
+     - 행 클릭 → 그 LOT 의 입출고 이력 ( 품목별 합계에서는 열리지 않음 ) → [창고이동] · [재고조정] ( 권한이 있을 때 — 화면목록 §5-2 진입점 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
             <h2 class="font-bold text-lg tracking-tight">재고관리</h2>
             <div class="flex-1"></div>
             <span v-if="flash" class="text-sm text-red-500">{{ flash }}</span>
+            <span v-if="notice" class="text-sm text-green-600">{{ notice }}</span>
         </div>
 
         <SearchBar
@@ -55,6 +56,8 @@ import SearchBar from '@core/Components/Common/SearchBar.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import LotHistory from '@core/Components/Stock/LotHistory.vue';
+import StockMoveForm from '@core/Components/Stock/StockMoveForm.vue';
+import StockAdjustForm from '@core/Components/Stock/StockAdjustForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { qtyText } from '@core/Components/Stock/stockCodes';
 
@@ -71,6 +74,7 @@ const search = reactive({ keyword: '', warehouse_idx: '', item_type: '', with_ze
 const byItem = computed(() => search.group === 'item');
 
 const warehouses = ref([]);
+const perms      = reactive({ can_move: false, can_adjust: false });   // 재고현황에서 열 수 있는 처리
 const warehouseFilter = computed(() => [{ value: '', label: '창고 전체' }, ...warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label }))]);
 
 const lotColumns = [
@@ -96,6 +100,7 @@ const columns = computed(() => byItem.value ? itemColumns : lotColumns);
 const rows    = ref([]);
 const loading = ref(false);
 const flash   = ref('');
+const notice  = ref('');
 const paging  = reactive({ page: 1, perPage: 50, total: 0 });
 const sort    = reactive({ key: '', dir: '' });
 
@@ -135,17 +140,39 @@ function openHistory(row) {
         {
             itemIdx: row.item_idx, lotIdx: row.lot_idx, warehouseIdx: row.warehouse_idx,
             title: `${row.item_code} ${row.item_name} · ${row.lot_no || 'LOT 없음'} · ${row.warehouse_name}`,
+            balanceIdx: row.key, canMove: perms.can_move, canAdjust: perms.can_adjust,
+            onAction: (type) => openProcess(type, row),
             modalTitle: 'LOT 입출고 이력',
         },
         { size: 'lg' }
     );
 }
 
-// 창고 거르기 목록 ( 입고 등록과 같은 트리 이름 )
+// 창고이동 · 재고조정 창 ( 진입점 — 처리는 각 화면의 폼 )
+function openProcess(type, row) {
+    const isMove = type === 'move';
+    modalStore.open(
+        isMove ? StockMoveForm : StockAdjustForm,
+        {
+            balanceIdx: row.key,
+            onDone: (no, warnings = []) => {
+                notice.value = `${no} ${isMove ? '이동' : '조정'}했습니다.${warnings.length ? ` ⚠ ${warnings.join(' / ')}` : ''}`;
+                setTimeout(() => { notice.value = ''; }, 4000);
+                load();
+            },
+            modalTitle: `${isMove ? '창고이동' : '재고조정'} [ ${row.lot_no || row.item_code} ]`,
+        },
+        { size: 'lg', closeOnClickOutside: false }
+    );
+}
+
+// 창고 거르기 목록 ( 입고 등록과 같은 트리 이름 ) + 이동 · 조정 권한
 (async () => {
     try {
         const { data } = await window.axios.get(route('stock.warehouses'));
         warehouses.value = data.warehouses ?? [];
+        perms.can_move   = data.can_move === true;
+        perms.can_adjust = data.can_adjust === true;
     } catch (e) {
         warehouses.value = [];
     }

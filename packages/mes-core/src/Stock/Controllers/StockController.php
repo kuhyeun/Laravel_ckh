@@ -4,11 +4,14 @@ namespace MesCore\Stock\Controllers;
 
 use MesCore\Http\Controller;
 use MesCore\Http\Concerns\RespondsWithList;
+use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Warehouse;
+use MesCore\Menu\Services\MenuPermissionService;
 use MesCore\Stock\Models\StockBalance;
 use MesCore\Stock\Models\StockLedger;
 use MesCore\Stock\Models\StockTxn;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 // LOT 재고현황 ( INV-01 ) — docs/screens/40-구매자재.md §13
@@ -123,9 +126,54 @@ class StockController extends Controller {
         return response()->json(['rows' => $out, 'truncated' => $rows->count() >= 500]);
     }
 
-    // 창고 거르기 선택지 ( 입고 등록과 같은 트리 이름 )
-    public function warehouses() {
-        return response()->json(['warehouses' => Warehouse::options()]);
+    // 창고 선택지 ( 입고 등록과 같은 트리 이름 ) + 재고현황 팝업에서 열 수 있는 처리 ( 창고이동 · 재고조정 메뉴 쓰기 권한 )
+    public function warehouses(MenuPermissionService $permissions) {
+        /** @var User $user */
+        $user = Auth::user();
+        return response()->json([
+            'warehouses' => Warehouse::options(),
+            'can_move'   => $permissions->canPage($user, 'Stock/StockMove', 'can_write'),
+            'can_adjust' => $permissions->canPage($user, 'Stock/StockAdjust', 'can_write'),
+        ]);
+    }
+
+    // 잔고 한 행 ( 창고이동 · 재고조정 창이 연다 ) — 재고현황 · 창고이동 · 재고조정 어느 쪽 권한으로도
+    public function balance(MenuPermissionService $permissions, int $balanceIdx) {
+        /** @var User|null $user */
+        $user = Auth::user();
+        if (!$user || !$permissions->canPage($user, ['Stock/StockStatus', 'Stock/StockMove', 'Stock/StockAdjust'], 'can_read')) {
+            abort(403, 'Permission Denied.');
+        }
+
+        $b = StockBalance::query()->from('stock_balance as b')
+            ->join('item as i', 'i.item_idx', '=', 'b.item_idx')
+            ->join('warehouse as w', 'w.warehouse_idx', '=', 'b.warehouse_idx')
+            ->leftJoin('lot as l', 'l.lot_idx', '=', 'b.lot_idx')
+            ->where('b.stock_balance_idx', $balanceIdx)
+            ->first(['b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty',
+                     'i.item_code', 'i.item_name', 'i.spec_unit', 'w.warehouse_name', 'l.lot_no', 'l.external_lot_no', 'l.spec_value']);
+        if (!$b) {
+            abort(404, '재고를 찾을 수 없습니다.');
+        }
+
+        return response()->json([
+            'balance'    => [
+                'stock_balance_idx' => $b->stock_balance_idx,
+                'item_idx'          => $b->item_idx,
+                'lot_idx'           => $b->lot_idx,
+                'warehouse_idx'     => $b->warehouse_idx,
+                'item_code'         => $b->item_code,
+                'item_name'         => $b->item_name,
+                'spec_unit'         => $b->spec_unit,
+                'warehouse_name'    => $b->warehouse_name,
+                'lot_no'            => $b->lot_no,
+                'external_lot_no'   => $b->external_lot_no,
+                'spec_value'        => $b->spec_value !== null ? (float) $b->spec_value : null,
+                'qty'               => (float) $b->qty,
+            ],
+            'warehouses' => Warehouse::options(),
+            'now'        => now()->format('Y-m-d\TH:i'),
+        ]);
     }
 
     // 창고와 그 하위 전부

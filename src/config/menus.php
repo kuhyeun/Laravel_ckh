@@ -332,6 +332,18 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Material',
                         'menu_route_name' => '',
+                        'url_path' => '/stock/adjust',
+                        'page_component' => 'Stock/StockAdjust',
+                        'menu_level' => 99,
+                    ],
+                    [
+                        'menu_code' => '3007',
+                        'menu_name' => '창고이동',
+                        'menu_icon' => null,
+                        'module_code' => 'Material',
+                        'menu_route_name' => '',
+                        'url_path' => '/stock/move',
+                        'page_component' => 'Stock/StockMove',
                         'menu_level' => 99,
                     ],
                 ]
