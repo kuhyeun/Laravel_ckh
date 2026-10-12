@@ -14,10 +14,14 @@ use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderOp;
 use MesCore\Production\Models\WorkOrderSource;
+use MesCore\Production\Services\MaterialIssueService;
 use MesCore\Production\Services\WorkOrderService;
+use MesCore\Menu\Models\Menu;
+use MesCore\Menu\Services\MenuPermissionService;
 use MesCore\Stock\Services\LotService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -108,7 +112,7 @@ class WorkOrderController extends Controller {
     }
 
     // 등록 모달 선택지 : 품목 · 라우팅 · 공정( 설비 후보 포함 ) · LOT 규칙 · 작업자
-    public function formData() {
+    public function formData(MenuPermissionService $permissions) {
         $items = Item::where('item_type', 'PRODUCT')->where('is_use', 'Y')->orderBy('item_code')
             ->get(['item_idx', 'item_code', 'item_name', 'item_kind', 'spec_unit', 'routing_idx', 'pack_qty']);
 
@@ -128,6 +132,9 @@ class WorkOrderController extends Controller {
             ],
             'workers'   => User::where('is_use', 'Y')->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
             'today'     => now()->toDateString(),
+            // 자재 탭의 [출고] — 자재출고 화면 권한이 있을 때만 그 화면 주소
+            'issue_url' => Auth::user() && $permissions->canPage(Auth::user(), 'Production/MaterialIssue', 'can_read')
+                ? Menu::where('page_component', 'Production/MaterialIssue')->value('url_path') : null,
         ]);
     }
 
@@ -301,6 +308,7 @@ class WorkOrderController extends Controller {
     private function toForm(WorkOrder $w): array {
         $stock = DB::table('stock_balance')->whereIn('item_idx', $w->materials->pluck('child_item_idx'))
             ->groupBy('item_idx')->selectRaw('item_idx, SUM(qty) AS qty')->pluck('qty', 'item_idx');
+        $held  = app(MaterialIssueService::class)->heldByItem($w->work_order_idx);
         return [
             'work_order_idx' => $w->work_order_idx,
             'wo_no'          => $w->wo_no,
@@ -344,6 +352,9 @@ class WorkOrderController extends Controller {
                 'required_qty'      => (float) $m->required_qty,
                 'work_order_op_idx' => $m->work_order_op_idx,
                 'stock_qty'         => (float) ($stock[$m->child_item_idx] ?? 0),
+                'issued_qty'        => (float) $m->issued_qty,
+                'consumed_qty'      => $held[$m->child_item_idx]['consumed'] ?? 0.0,
+                'held_qty'          => $held[$m->child_item_idx]['qty'] ?? 0.0,
             ])->values(),
             'sources'        => $w->sources->map(fn (WorkOrderSource $s) => $this->soLineRow($s->salesOrderLine, $w->work_order_idx) + ['qty_in' => (float) $s->qty])->values(),
         ];

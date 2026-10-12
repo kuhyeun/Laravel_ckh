@@ -22,6 +22,7 @@ use MesCore\Stock\Services\LotService;
  *
  *   공정 : 화면이 보낸 순서 그대로 사본을 만든다. 라우팅에서 온 공정은 표준시간 · 선행 승인 조건을 라우팅 줄에서 다시 읽는다( 화면 값을 믿지 않음 )
  *   자재 : 대기 상태에서 저장할 때마다 사용 중 BOM 에서 다시 복사 ( 투입 지점은 같은 라우팅 줄을 가진 지시 공정으로 )
+ *          출고된 자재가 있으면 다시 복사하지 않고 투입 지점 · 단순 소요만 맞춘다 ( 출고 줄이 자재 줄을 가리킨다 ) · 품목 변경 · 취소도 막는다
  *   LOT  : 새 지시 · 품목이나 LOT 규칙이 바뀐 대기 지시에 새로 발급 ( 앞 번호는 미사용으로 남긴다 — 결정 §9-7 )
  *   수주 : 연결 표로 분할 · 병합. 남은 지시 수량 초과는 경고만 ( 초과 생산 )
  *   진행 중 : 날짜 · 공정 기한 · 작업자 · 비고만 ( 수량 · 공정 구성은 잠금 )
@@ -52,6 +53,12 @@ class WorkOrderService {
         $sameItem = $wo->exists && (int) $wo->item_idx === (int) $data['item_idx'];
         if (!$item || (!$sameItem && ($item->item_type !== 'PRODUCT' || $item->is_use !== 'Y'))) {
             $errors['item_idx'] = ['작업지시할 수 있는 품목이 아닙니다. ( 제품 대분류의 사용 중 품목 )'];   // E_WO_ITEM_NOT_PRODUCT
+        }
+
+        // 출고된 자재가 있으면 품목을 바꿀 수 없다 ( 다른 제품의 자재가 지시에 남는다 )
+        $issued = $wo->exists && $this->hasIssue($wo->work_order_idx);
+        if ($issued && (int) $wo->item_idx !== (int) $data['item_idx']) {
+            $errors['item_idx'] = ['출고된 자재가 있어 품목을 바꿀 수 없습니다. 자재출고에서 출고를 먼저 취소하세요.'];
         }
 
         // LOT 규칙 : 생산 기준 사용 중 ( LOT 을 쓸 때 )
@@ -119,7 +126,12 @@ class WorkOrderService {
 
         // 경고
         $bom = Bom::with('lines')->where('item_idx', $item->item_idx)->where('is_active', 'Y')->first();
-        if (!$bom) {
+        if ($issued) {
+            if ($bom?->bom_idx !== $wo->bom_idx) {
+                $warnings[] = '출고된 자재가 있어 바뀐 BOM 을 다시 복사하지 않았습니다.';
+            }
+            $bom = null;
+        } elseif (!$bom) {
             $warnings[] = '사용 중 BOM 이 없습니다. 자재 없는 지시로 저장합니다.';   // W_WO_NO_BOM
         }
         if ($data['due_date'] < $data['start_date']) {
@@ -128,7 +140,7 @@ class WorkOrderService {
             $warnings[] = '생산 기한이 이미 지났습니다.';
         }
 
-        $saved = DB::transaction(function () use ($wo, $data, $item, $rule, $ops, $routingLines, $sources, $source, $bom) {
+        $saved = DB::transaction(function () use ($wo, $data, $item, $rule, $ops, $routingLines, $sources, $source, $bom, $issued) {
             $isNew    = !$wo->exists;
             $newLot   = $isNew || (int) $wo->item_idx !== (int) $item->item_idx || ($rule && (int) $wo->lot_rule_idx !== (int) $rule->lot_rule_idx);
 
@@ -136,7 +148,7 @@ class WorkOrderService {
                 'source'      => $source,
                 'item_idx'    => $item->item_idx,
                 'routing_idx' => $data['routing_idx'] ?? null,
-                'bom_idx'     => $bom?->bom_idx,
+                'bom_idx'     => $issued ? $wo->bom_idx : $bom?->bom_idx,
                 'target_qty'  => (string) $data['target_qty'],
                 'scan_qty'    => (string) ($data['scan_qty'] ?? 1),
                 'start_date'  => $data['start_date'],
@@ -155,7 +167,7 @@ class WorkOrderService {
             $wo->save();
 
             $opMap = $this->syncOps($wo, $ops, $routingLines);
-            $this->copyMaterials($wo, $bom, $opMap);
+            $issued ? $this->remapMaterials($wo, $opMap) : $this->copyMaterials($wo, $bom, $opMap);
             $this->syncSources($wo, $sources);
 
             return $wo;
@@ -168,6 +180,9 @@ class WorkOrderService {
     public function cancel(WorkOrder $wo): void {
         if ($wo->status !== 'WAIT') {
             throw ValidationException::withMessages(['status' => ["{$wo->wo_no} 는 " . WorkOrder::STATUSES[$wo->status] . ' 상태라 취소할 수 없습니다. ( 대기만 )']]);
+        }
+        if ($this->hasIssue($wo->work_order_idx)) {
+            throw ValidationException::withMessages(['status' => ["{$wo->wo_no} 는 출고된 자재가 있습니다. 자재출고에서 출고를 먼저 취소하세요."]]);
         }
         $wo->status = 'CANCELED';
         $wo->save();
@@ -269,6 +284,24 @@ class WorkOrderService {
                 'required_qty'      => $this->str((float) $l->qty * (float) $wo->target_qty),
             ]);
         }
+    }
+
+    // 출고된 지시 : 자재 줄은 그대로 두고 투입 지점( 공정이 바뀌었을 수 있다 ) · 단순 소요( 수량이 바뀌었을 수 있다 )만
+    private function remapMaterials(WorkOrder $wo, array $opMap): void {
+        $materials = WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->get();
+        $rlOf      = DB::table('bom_line')->whereIn('bom_line_idx', $materials->pluck('bom_line_idx')->filter())->pluck('routing_line_idx', 'bom_line_idx');
+        foreach ($materials as $m) {
+            $rl = $rlOf[$m->bom_line_idx] ?? null;
+            $m->fill([
+                'work_order_op_idx' => $rl ? ($opMap[$rl] ?? null) : null,
+                'required_qty'      => $this->str((float) $m->qty_per * (float) $wo->target_qty),
+            ])->save();
+        }
+    }
+
+    // 출고( 취소 제외 )가 한 번이라도 있는지
+    private function hasIssue(int $woIdx): bool {
+        return DB::table('wo_stock')->where('work_order_idx', $woIdx)->where('issued_qty', '>', 0)->exists();
     }
 
     private function syncSources(WorkOrder $wo, array $sources): void {

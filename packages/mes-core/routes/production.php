@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use MesCore\Production\Controllers\MaterialIssueController;
 use MesCore\Production\Controllers\WorkOrderController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
@@ -31,6 +32,19 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
 
         Route::middleware($delete)->group(function() {
             Route::post('/cancel', [WorkOrderController::class, 'cancel'])->name('cancel');
+        });
+    });
+
+    // 자재출고 ( Production/MaterialIssue — 메뉴는 자재관리 > 출고관리 3004 ) — 출고 · 출고 취소 모두 can_write
+    Route::prefix('material-issue')->name('materialIssue.')->group(function() {
+        Route::middleware(MenuAuth::class . ':Production/MaterialIssue,can_read')->group(function() {
+            Route::get('/list', [MaterialIssueController::class, 'list'])->name('list');
+            Route::get('/plan/{woIdx}', [MaterialIssueController::class, 'plan'])->whereNumber('woIdx')->name('plan');
+            Route::get('/history/{woIdx}', [MaterialIssueController::class, 'history'])->whereNumber('woIdx')->name('history');
+        });
+        Route::middleware(MenuAuth::class . ':Production/MaterialIssue,can_write')->group(function() {
+            Route::post('/save', [MaterialIssueController::class, 'save'])->name('save');
+            Route::post('/cancel', [MaterialIssueController::class, 'cancel'])->name('cancel');
         });
     });
 });

@@ -208,21 +208,29 @@
                 <div class="border rounded">
                     <table class="w-full text-xs">
                         <thead class="bg-gray-50 text-gray-500">
-                            <tr><th class="px-2 py-1.5 text-left">자재</th><th class="px-2 py-1.5 text-right">개당</th><th class="px-2 py-1.5 text-right">소요 ( × {{ fmt(form.target_qty) }} )</th><th class="px-2 py-1.5 text-left">투입 공정</th><th class="px-2 py-1.5 text-right">현재고</th></tr>
+                            <tr><th class="px-2 py-1.5 text-left">자재</th><th class="px-2 py-1.5 text-right">개당</th><th class="px-2 py-1.5 text-right">소요 ( × {{ fmt(form.target_qty) }} )</th><th class="px-2 py-1.5 text-left">투입 공정</th><th class="px-2 py-1.5 text-right">현재고</th><template v-if="showIssued"><th class="px-2 py-1.5 text-right">출고</th><th class="px-2 py-1.5 text-right">사용</th><th class="px-2 py-1.5 text-right">보유</th></template></tr>
                         </thead>
                         <tbody>
-                            <tr v-if="!materials.length"><td colspan="5" class="px-2 py-4 text-center text-gray-400">자재가 없습니다 ( 사용 중 BOM 없음 )</td></tr>
+                            <tr v-if="!materials.length"><td :colspan="showIssued ? 8 : 5" class="px-2 py-4 text-center text-gray-400">자재가 없습니다 ( 사용 중 BOM 없음 )</td></tr>
                             <tr v-for="m in materials" :key="m.child_item_idx + '-' + m.qty_per" class="border-t">
                                 <td class="px-2 py-1">{{ m.item_code }} {{ m.item_name }}</td>
                                 <td class="px-2 py-1 text-right">{{ fmt(m.qty_per) }}</td>
                                 <td class="px-2 py-1 text-right font-semibold">{{ fmt(m.qty_per * num(form.target_qty)) }} {{ m.spec_unit }}</td>
                                 <td class="px-2 py-1">{{ inputOpLabel(m) }}</td>
                                 <td class="px-2 py-1 text-right" :class="m.stock_qty < m.qty_per * num(form.target_qty) ? 'text-red-600' : 'text-gray-600'">{{ fmt(m.stock_qty) }}</td>
+                                <template v-if="showIssued">
+                                    <td class="px-2 py-1 text-right">{{ fmt(m.issued_qty) }}</td>
+                                    <td class="px-2 py-1 text-right text-gray-500">{{ fmt(m.consumed_qty) }}</td>
+                                    <td class="px-2 py-1 text-right font-semibold">{{ fmt(m.held_qty) }}</td>
+                                </template>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <p class="text-xs text-gray-400 mt-1">저장할 때 사용 중 BOM 을 복사해 둡니다. 출고와 계산식 소요( 절단 · 물림 손실 )는 자재출고에서 합니다. 현재고가 모자라도 지시는 막지 않습니다.</p>
+                <div class="flex items-start gap-2 mt-1">
+                    <p class="flex-1 text-xs text-gray-400">저장할 때 사용 중 BOM 을 복사해 둡니다( 출고된 자재가 있으면 다시 복사하지 않습니다 ). 출고와 계산식 소요( 절단 · 물림 손실 )는 자재출고에서 합니다. 현재고가 모자라도 지시는 막지 않습니다.</p>
+                    <BaseButton v-if="canIssue" size="sm" variant="secondary" @click="goIssue">출고 →</BaseButton>
+                </div>
             </div>
 
             <!-- 첨부 -->
@@ -243,6 +251,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
+import { router } from '@inertiajs/vue3';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
@@ -395,6 +404,15 @@ const errors   = ref({});
 const errorMsg = ref('');
 const saving   = ref(false);
 const TAB_OF = (k) => k.startsWith('ops') ? 'ops' : 'basic';
+// 자재출고 — 저장된 대기 · 진행 지시이고 자재출고 화면 권한이 있을 때 ( 그 화면을 이 지시로 연다 )
+const issueUrl   = ref(null);
+const showIssued = computed(() => isEdit.value && materials.value === savedMaterials.value);
+const canIssue   = computed(() => !!issueUrl.value && isEdit.value && ['WAIT', 'RUN'].includes(form.status) && savedMaterials.value.length > 0);
+function goIssue() {
+    emit('close');
+    router.visit(`${issueUrl.value}?wo=${form.work_order_idx}`);
+}
+
 const tabHasError = (key) => Object.keys(errors.value).some(k => TAB_OF(k) === key);
 
 onMounted(async () => {
@@ -404,6 +422,7 @@ onMounted(async () => {
         const [fd, show] = await Promise.all(reqs);
         items.value = fd.data.items ?? []; routings.value = fd.data.routings ?? []; processes.value = fd.data.processes ?? []; workers.value = fd.data.workers ?? [];
         Object.assign(lot, fd.data.lot ?? {});
+        issueUrl.value = fd.data.issue_url ?? null;
 
         if (show) {
             const o = show.data.order;

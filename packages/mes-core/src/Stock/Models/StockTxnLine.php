@@ -33,6 +33,7 @@ class StockTxnLine extends Model {
 
     protected $fillable = [
         'stock_txn_idx', 'line_no', 'item_idx', 'lot_idx', 'warehouse_idx', 'to_warehouse_idx', 'qty', 'book_qty', 'purchase_order_line_idx',
+        'work_order_idx', 'work_order_material_idx', 'consumed_qty',
         'insp_mode', 'line_status', 'pass_qty', 'fail_qty', 'reason_code', 'done_at', 'remark',
     ];
 
@@ -42,6 +43,7 @@ class StockTxnLine extends Model {
             'book_qty' => 'decimal:6',
             'pass_qty' => 'decimal:6',
             'fail_qty' => 'decimal:6',
+            'consumed_qty' => 'decimal:6',
             'done_at'  => 'datetime',
         ];
     }
