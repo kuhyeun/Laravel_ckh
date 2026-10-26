@@ -22,6 +22,7 @@ services:
       - ./src:/var/www/html:cached
       - ./packages:/var/www/packages
       - ./php/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini:ro
+      - ./php/security.ini:/usr/local/etc/php/conf.d/zz-security.ini:ro
       - /var/www/html/node_modules
       - /var/www/html/vendor
     working_dir: /var/www/html
