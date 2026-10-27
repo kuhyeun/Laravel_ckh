@@ -35,7 +35,7 @@
             />
             <BaseSelect v-model="search.item_type" :options="typeFilterOptions" class="w-32" size="sm" />
             <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="sm" />
-            <BaseButton size="sm" variant="primary" :disabled="loading" @click="loadItems">조회</BaseButton>
+            <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="loadItems">조회</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="resetSearch">초기화</BaseButton>
         </div>
 
@@ -71,6 +71,7 @@ import DataGrid from '@core/Components/Common/DataGrid.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import ExcelImportButton from '@core/Components/Common/ExcelImportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import { useDelayedBusy } from '@core/Composables/useDelayedBusy';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ItemForm from '@core/Components/Config/ItemForm.vue';
@@ -125,6 +126,7 @@ const itemColumns = [
 
 const items   = ref([]);
 const loading = ref(false);
+const showBusy = useDelayedBusy(() => loading.value);   // 조회가 길 때만 버튼 비활성 ( 깜빡임 방지 )
 
 // ---- 그리드 체크박스 ( DataGrid 의 select 이벤트 ) ----
 const checkedRows  = ref([]);

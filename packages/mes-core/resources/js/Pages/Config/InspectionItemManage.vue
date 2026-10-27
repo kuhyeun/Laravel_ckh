@@ -26,7 +26,7 @@
             />
             <BaseSelect v-model="search.is_quantitative" :options="NATURE_FILTER_OPTIONS" class="w-28" size="sm" />
             <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="sm" />
-            <BaseButton size="sm" variant="primary" :disabled="loading" @click="loadInspectionItems">조회</BaseButton>
+            <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="loadInspectionItems">조회</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="resetSearch">초기화</BaseButton>
         </div>
 
@@ -61,6 +61,7 @@ import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import { useDelayedBusy } from '@core/Composables/useDelayedBusy';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import InspectionItemForm from '@core/Components/Config/InspectionItemForm.vue';
@@ -126,6 +127,7 @@ const inspectionItemColumns = [
 
 const inspectionItems = ref([]);
 const loading         = ref(false);
+const showBusy        = useDelayedBusy(() => loading.value);   // 조회가 길 때만 버튼 비활성 ( 깜빡임 방지 )
 
 // ---- 그리드 체크박스 ( DataGrid 의 select 이벤트 ) ----
 const checkedRows  = ref([]);

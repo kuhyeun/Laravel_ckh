@@ -122,14 +122,14 @@ const codeColumns = [
     { header: '그룹키', name: 'system_code_group_key', minWidth: 120, className: 'cursor-pointer', align: 'center', formatter: ({value}) => value ? value : "-", validation: { required: true } },
     { header: '코드키', name: 'system_code_key', minWidth: 120, className: 'cursor-pointer', editor: "text", validation: { required: true } },
     { header: '코드명', name: 'system_code_name', minWidth: 160, className: 'cursor-pointer', editor: "text", validation: { required: true } },
-    { header: '코드값', name: 'system_code_value', minWidth: 120, className: 'cursor-pointer', editor: "text" },
+    // { header: '코드값', name: 'system_code_value', minWidth: 120, className: 'cursor-pointer', editor: "text" },
     { header: '설명',   name: 'system_code_desc', minWidth: 220, className: 'cursor-pointer', editor: "text" },
     // 정렬: 드롭다운 표시 순서 ( 오름차순, 같으면 코드키 순 )
     { header: '정렬',   name: 'sort_order', width: 70, align: 'center', className: 'cursor-pointer', editor: "text", validation: { dataType: 'number', min: 0, max: 9999 } },
     // 사용: 미사용( N )은 업무 화면 드롭다운에서 제외, 과거 데이터에는 그대로 표시 ( ADR 0019 )
     //   클릭 = 토글 ( 쓰기 권한 없으면 비활성 )
     {
-        header: '사용', name: 'is_use', width: 110, align: 'center',
+        header: '사용', name: 'is_use', width: 70, align: 'center',
         renderer: {
             type: ToggleRenderer,
             options: { onValue: 'Y', offValue: 'N', disabled: () => !canWrite.value },

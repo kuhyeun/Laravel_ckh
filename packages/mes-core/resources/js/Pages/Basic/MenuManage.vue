@@ -133,6 +133,7 @@
                     </div>
 
                     <p v-if="!form.menu_idx" class="text-sm text-gray-400">메뉴를 먼저 저장하면 레벨별 권한을 설정할 수 있습니다.</p>
+                    <p v-else-if="isSystemOnlyMenu" class="text-xs text-gray-400 mb-2">메뉴관리는 시스템 계정 전용입니다. 정렬만 바꿀 수 있습니다.</p>
 
                     <table v-else class="w-full text-sm">
                         <thead>
@@ -151,13 +152,13 @@
                             <tr v-for="row in perm" :key="row.menu_level" class="border-b last:border-0">
                                 <td class="py-2 text-gray-700">Level {{ row.menu_level }}</td>
                                 <td class="py-2 text-center">
-                                    <BaseCheckbox variant="switch" v-model="row.can_read" true-value="Y" false-value="N" />
+                                    <BaseCheckbox variant="switch" v-model="row.can_read" true-value="Y" false-value="N" :disabled="isSystemLevel(row)" />
                                 </td>
                                 <td class="py-2 text-center">
-                                    <BaseCheckbox variant="switch" v-model="row.can_write" true-value="Y" false-value="N" />
+                                    <BaseCheckbox variant="switch" v-model="row.can_write" true-value="Y" false-value="N" :disabled="isSystemLevel(row)" />
                                 </td>
                                 <td class="py-2 text-center">
-                                    <BaseCheckbox variant="switch" v-model="row.can_delete" true-value="Y" false-value="N" />
+                                    <BaseCheckbox variant="switch" v-model="row.can_delete" true-value="Y" false-value="N" :disabled="isSystemLevel(row)" />
                                 </td>
                                 <td class="py-2 text-center">
                                     <BaseInput type="number" v-model="row.menu_sort" size="sm" class="w-20" />
@@ -320,16 +321,31 @@ function selectMenu(m) {
 }
 
 // ---- 레벨별 권한 ----
-const levelSet = computed(() => isAdminFlag.value === 'Y' ? [0, 1] : [0, 1, 10, 99]);
+// 레벨 0( 시스템 )은 항상 전부 허용 → 권한 토글은 막고 정렬만 수정
+// 메뉴관리 메뉴 자신은 시스템 전용 ( 관리자 권한은 시스템 계정이 여기서, 일반 사용자 권한은 관리자가 사용자권한관리에서 )
+const SYSTEM_ONLY_PAGE = 'Basic/MenuManage';
+const isSystemOnlyMenu = computed(() => form.page_component === SYSTEM_ONLY_PAGE);
+const levelSet = computed(() => {
+    if (isSystemOnlyMenu.value) return [0];
+    return isAdminFlag.value === 'Y' ? [0, 1] : [0, 1, 10, 99];
+});
 const perm = ref([]);
+
+function isSystemLevel(row) {
+    return Number(row.menu_level) === 0;
+}
 
 function loadPerm(m) {
     const opts = m.menu_options || [];
     perm.value = levelSet.value.map(lv => {
         const o = opts.find(x => Number(x.menu_level) === lv);
+        if (lv === 0) {
+            return { menu_level: 0, can_read: 'Y', can_write: 'Y', can_delete: 'Y', menu_sort: o ? o.menu_sort : 99 };
+        }
+        // 옵션 행이 없는 레벨 = 노출 안 됨
         return {
             menu_level: lv,
-            can_read:   o ? o.can_read   : 'Y',
+            can_read:   o ? o.can_read   : 'N',
             can_write:  o ? o.can_write  : 'N',
             can_delete: o ? o.can_delete : 'N',
             menu_sort:  o ? o.menu_sort  : 99
@@ -337,16 +353,24 @@ function loadPerm(m) {
     });
 }
 function loadPermDefault() {
-    perm.value = levelSet.value.map(lv => ({ menu_level: lv, can_read: 'Y', can_write: 'N', can_delete: 'N', menu_sort: 99 }));
+    perm.value = levelSet.value.map(lv => lv === 0
+        ? { menu_level: 0, can_read: 'Y', can_write: 'Y', can_delete: 'Y', menu_sort: 99 }
+        : { menu_level: lv, can_read: 'Y', can_write: 'N', can_delete: 'N', menu_sort: 99 });
+}
+
+// 열 일괄 토글은 레벨 0 제외
+function editableRows() {
+    return perm.value.filter(r => !isSystemLevel(r));
 }
 
 function allChecked(field) {
-    return perm.value.length > 0 && perm.value.every(r => r[field] === 'Y');
+    const rows = editableRows();
+    return rows.length > 0 && rows.every(r => r[field] === 'Y');
 }
 
 function toggleColumn(field) {
     const next = allChecked(field) ? 'N' : 'Y';
-    perm.value.forEach(r => { r[field] = next; });
+    editableRows().forEach(r => { r[field] = next; });
 }
 
 // ---- 플래시 메시지 ----

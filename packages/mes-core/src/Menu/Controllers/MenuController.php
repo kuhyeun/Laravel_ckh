@@ -12,6 +12,9 @@ use Illuminate\Support\Facades\DB;
 
 class MenuController extends Controller {
 
+    // 시스템 계정만 쓰는 화면 ( 레벨 옵션은 레벨 0 행만 둔다 )
+    private const SYSTEM_ONLY_PAGE = 'Basic/MenuManage';
+
     // 메뉴 관리 화면용 - 전체 메뉴 + 레벨별 옵션 목록 ( JSON )
     public function list() {
         $menus = Menu::with( [ 'menuOptions' => function( $q ) {
@@ -79,9 +82,19 @@ class MenuController extends Controller {
         $validated = $request->validate( Menu::validateMenuData( $menu->menu_idx ) );
 
         try {
-            $menu->update( array_merge( $validated, [
-                'update_account_idx' => Auth::id(),
-            ] ) );
+            DB::transaction( function () use ( $menu, $validated ) {
+                $oldCode = $menu->menu_code;
+
+                $menu->update( array_merge( $validated, [
+                    'update_account_idx' => Auth::id(),
+                ] ) );
+
+                // 하위 메뉴는 코드 문자열로 부모 · 최상위를 가리킴 → 코드가 바뀌면 함께 변경
+                if( $oldCode !== $menu->menu_code ) {
+                    Menu::where( 'parent_menu_code', $oldCode )->update( [ 'parent_menu_code' => $menu->menu_code ] );
+                    Menu::where( 'top_menu_code', $oldCode )->update( [ 'top_menu_code' => $menu->menu_code ] );
+                }
+            } );
 
             return response()->json([
                 'message' => 'Success',
@@ -130,9 +143,16 @@ class MenuController extends Controller {
             'options.*.menu_sort'  => 'nullable|integer',
         ]);
 
+        // 메뉴관리 메뉴 자신은 시스템( 레벨 0 ) 전용 → 다른 레벨 행은 저장하지 않음
+        $systemOnly = Menu::where( 'menu_idx', $validated['menu_idx'] )->value( 'page_component' ) === self::SYSTEM_ONLY_PAGE;
+
         try {
-            DB::transaction(function () use ( $validated ) {
+            DB::transaction(function () use ( $validated, $systemOnly ) {
                 foreach( $validated['options'] as $opt ) {
+                    if( $systemOnly && (int) $opt['menu_level'] !== 0 ) {
+                        continue;
+                    }
+
                     $row = MenuOption::firstOrNew([
                         'menu_idx'   => $validated['menu_idx'],
                         'menu_level' => $opt['menu_level'],
@@ -142,10 +162,13 @@ class MenuController extends Controller {
                         $row->create_account_idx = Auth::id();
                     }
 
+                    // 레벨 0( 시스템 )은 항상 전부 허용 → 정렬만 반영
+                    $isSystem = (int) $opt['menu_level'] === 0;
+
                     $row->fill([
-                        'can_read'           => $opt['can_read'],
-                        'can_write'          => $opt['can_write'],
-                        'can_delete'         => $opt['can_delete'],
+                        'can_read'           => $isSystem ? 'Y' : $opt['can_read'],
+                        'can_write'          => $isSystem ? 'Y' : $opt['can_write'],
+                        'can_delete'         => $isSystem ? 'Y' : $opt['can_delete'],
                         'menu_sort'          => $opt['menu_sort'] ?? 99,
                         'update_account_idx' => Auth::id(),
                     ]);

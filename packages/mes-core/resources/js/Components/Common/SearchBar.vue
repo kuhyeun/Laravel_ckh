@@ -21,7 +21,7 @@
 
         <BaseInput v-model="model.keyword" :placeholder="placeholder" size="sm" class="w-60" @keyup.enter="emitSearch" />
         <slot />
-        <BaseButton size="sm" variant="primary" :disabled="loading" @click="emitSearch">조회</BaseButton>
+        <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="emitSearch">조회</BaseButton>
         <BaseButton size="sm" variant="secondary" @click="reset">초기화</BaseButton>
         <p v-if="rangeError" class="w-full text-xs text-red-500">{{ rangeError }}</p>
     </div>
@@ -35,6 +35,7 @@ let defaultsPromise = null;
 <script setup>
 import { computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
+import { useDelayedBusy } from '@core/Composables/useDelayedBusy';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
@@ -56,6 +57,10 @@ const emit  = defineEmits(['search', 'reset']);
 const model = defineModel({ type: Object, required: true });
 
 let today = null;   // 서버 기준 오늘
+
+// 조회 버튼 비활성은 조회가 길어질 때만 보인다 ( 빠른 조회에서 버튼이 깜빡이지 않도록 )
+//   중복 조회는 emitSearch 에서 loading 으로 막는다
+const showBusy = useDelayedBusy(() => props.loading);
 
 function loadDefaults() {
     defaultsPromise ??= window.axios.get(route('common.searchDefaults'))
@@ -82,7 +87,7 @@ async function applyDefaults() {
 const rangeError = computed(() => (model.value.from && model.value.to && model.value.from > model.value.to) ? '시작일이 종료일보다 늦습니다.' : '');
 
 function emitSearch() {
-    if (rangeError.value) return;
+    if (rangeError.value || props.loading) return;
     emit('search');
 }
 

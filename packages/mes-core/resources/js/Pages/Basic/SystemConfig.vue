@@ -234,6 +234,10 @@ function buildSections(items) {
 async function loadConfig() {
     const { data } = await window.axios.get(route('basic.config.datas'));
     sections.value = buildSections(data.items ?? []);
+    // 화면에 없는 선행 설정 값 ( 관리자에게 숨긴 시스템 설정 ) — 노출 판단에만 쓰고 저장하지 않음
+    for (const [policyKey, value] of Object.entries(data.depend_values ?? {})) {
+        values[policyKey.replace('.', '::')] = value ?? '';
+    }
     warnings.value = data.warnings ?? [];
     isSystem.value = data.is_system === true;
 }

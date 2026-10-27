@@ -109,7 +109,7 @@ class Menu extends Model {
             ]));
 
             $menu->menuOptions()->createMany([
-                ['menu_level' => 0, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'N', 'can_delete' => 'N', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 0, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
                 ['menu_level' => 1, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'N', 'can_delete' => 'N', 'create_account_idx' => Auth::id()],
             ]);
 

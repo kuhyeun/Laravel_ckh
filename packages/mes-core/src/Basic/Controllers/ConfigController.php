@@ -16,12 +16,14 @@ use Illuminate\Support\Facades\Log;
 class ConfigController extends Controller {
     // 설정 화면 : 정책 정의( 카탈로그 )로 그린다 — 정책-설정-설계 §8
     //   노출( is_visible )만 내려 주고, 선행 조건 · 수정 가능 여부 · 기본값을 함께 준다
-    //   section : system( 시스템 계정만 수정 ) / admin( 업체 관리자 )
+    //   section : system( 시스템 계정만 보고 수정 ) / admin( 업체 관리자 )
     public function getData(PolicyService $policy) {
         $isSystem = (int) (Auth::user()?->user_level ?? 99) === 0;
+        $defs     = $policy->definitions();
 
-        $items = collect($policy->definitions())
+        $items = collect($defs)
             ->filter(fn ($def) => $def['is_visible'])
+            ->filter(fn ($def) => $isSystem || $def['editable_by'] !== 'SYSTEM_ADMIN')
             ->map(fn ($def, $key) => [
                 'group'            => $def['group'],
                 'key'              => $def['key'],
@@ -39,7 +41,20 @@ class ConfigController extends Controller {
             ])
             ->values();
 
-        return response()->json(['items' => $items, 'is_system' => $isSystem, 'warnings' => $this->warnings()]);
+        // 내려 주지 않은 선행 설정의 값 ( 예: 관리자 화면의 출하 LOT → 시스템 설정 feature.lot ) — 노출 판단용
+        $shown = $items->map(fn ($i) => $i['group'] . '.' . $i['key'])->all();
+        $dependValues = $items->pluck('depends_on_key')
+            ->filter(fn ($key) => $key && !in_array($key, $shown, true) && isset($defs[$key]))
+            ->unique()
+            ->mapWithKeys(fn ($key) => [$key => $defs[$key]['value'] ?? $defs[$key]['default_value'] ?? ''])
+            ->all();
+
+        return response()->json([
+            'items'         => $items,
+            'depend_values' => (object) $dependValues,
+            'is_system'     => $isSystem,
+            'warnings'      => $this->warnings(),
+        ]);
     }
 
     public function getValue( string $group, string $key ) {

@@ -142,7 +142,7 @@ input[type="checkbox"][disabled] ~ .custom-input {
 /* 행 hover ( 선택 행 제외 )
    필수( cell-required ) · 검증 실패( cell-invalid ) 셀은 테마 배경색을 유지 → hover 시 색이 바뀌며 깜빡이지 않도록 제외 */
 .tui-grid-container .tui-grid-body-area tr:hover > .tui-grid-cell:not(.row-selected):not(.tui-grid-cell-required):not(.tui-grid-cell-invalid) {
-  background-color: #f8fafc !important;
+  background-color: #FFFFFF !important;
 }
 
 /* 선택 행 ( JS: addRowClassName('row-selected') ) */

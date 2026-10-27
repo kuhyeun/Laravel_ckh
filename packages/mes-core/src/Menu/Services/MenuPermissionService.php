@@ -94,7 +94,7 @@ class MenuPermissionService {
 
         // payload 의 menus 는 이미 "사용자 레벨의 menu_option 이 있는 메뉴"로 필터링됨.
         // → 맵에 없으면 그 레벨에서 접근 불가한 메뉴이므로 거부 ( 레벨 제약 강제 ).
-        //   bypass( 레벨 ≤1 )도 자기 payload 에 있는 메뉴에 대해선 permissions 가 전부 true 로 채워져 있음.
+        //   bypass( 레벨 0 )도 자기 payload 에 있는 메뉴에 대해선 permissions 가 전부 true 로 채워져 있음.
         $perm = $payload['permissions'][$menuCode] ?? null;
         if ($perm === null) {
             return false;
@@ -160,7 +160,8 @@ class MenuPermissionService {
         }
         $activeModules = array_merge($defaultModules, config('mes.modules', []));
 
-        $isBypass = ($userLevel <= 1);
+        // 시스템( 레벨 0 )만 전부 허용. 관리자( 레벨 1 )는 메뉴관리의 레벨 옵션 값을 그대로 권한으로 사용
+        $isBypass = ($userLevel === 0);
 
         $menus = Menu::select(
                 'system_menu.menu_idx',
@@ -188,7 +189,7 @@ class MenuPermissionService {
         $permissions = [];
 
         if ($isBypass) {
-            // Bypass 계정의 경우 모든 권한획득 ( ex. system, admin )
+            // Bypass 계정의 경우 모든 권한획득 ( ex. system )
             foreach ($menus as $menu) {
                 $permissions[$menu->menu_code] = [
                     'can_read'   => true,
@@ -197,21 +198,33 @@ class MenuPermissionService {
                 ];
             }
         } else {
-            $overrides = DB::table('account_menu_permission')
-                ->where('account_idx', $user->account_idx)
-                ->whereIn('menu_idx', $menus->pluck('menu_idx'))
-                ->get()
-                ->keyBy('menu_idx');
+            if ($userLevel === 1) {
+                // 관리자는 템플릿 · 개인 지정 대상이 아님 → 레벨 옵션 = 권한
+                foreach ($menus as $menu) {
+                    $opt = $menu->menuOptions->first();
+                    $permissions[$menu->menu_code] = [
+                        'can_read'   => $opt->can_read   === 'Y',
+                        'can_write'  => $opt->can_write  === 'Y',
+                        'can_delete' => $opt->can_delete === 'Y',
+                    ];
+                }
+            } else {
+                $overrides = DB::table('account_menu_permission')
+                    ->where('account_idx', $user->account_idx)
+                    ->whereIn('menu_idx', $menus->pluck('menu_idx'))
+                    ->get()
+                    ->keyBy('menu_idx');
 
-            $templateBase = $this->templatePermissions($user->permission_template_idx);
+                $templateBase = $this->templatePermissions($user->permission_template_idx);
 
-            foreach ($menus as $menu) {
-                $permissions[$menu->menu_code] = $this->resolve(
-                    $menu->menuOptions->first(),
-                    $templateBase,
-                    $overrides->get($menu->menu_idx),
-                    $menu->menu_idx
-                );
+                foreach ($menus as $menu) {
+                    $permissions[$menu->menu_code] = $this->resolve(
+                        $menu->menuOptions->first(),
+                        $templateBase,
+                        $overrides->get($menu->menu_idx),
+                        $menu->menu_idx
+                    );
+                }
             }
 
             // 읽기 권한 없는 메뉴는 트리에서 제외 ( 권한 맵에서도 제거 )

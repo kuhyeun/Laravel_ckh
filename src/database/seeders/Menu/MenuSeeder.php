@@ -60,7 +60,7 @@ class MenuSeeder extends Seeder {
             ]
         );
 
-        $this->seedMenuOptions( $menu, $menuData['menu_level'], $menu->is_admin === 'N' );
+        $this->seedMenuOptions( $menu, $menuData['menu_level'], $menu->is_admin === 'N', $menuData['level_perms'] ?? [] );
 
         if( !empty( $menuData['children'] ) ) {
             $childLevel     = ++$depth;
@@ -72,7 +72,8 @@ class MenuSeeder extends Seeder {
         }
     }
 
-    private function seedMenuOptions( Menu $menu, int $menuLevel, bool $isUserMenu ): void {
+    // $levelPerms : 신규 행의 레벨별 초기 권한 ( 예: [ 1 => [ 'can_write' => 'Y' ] ] ). 관리자 메뉴의 레벨 1 은 이 값대로 동작
+    private function seedMenuOptions( Menu $menu, int $menuLevel, bool $isUserMenu, array $levelPerms = [] ): void {
         $menuLevels    = [ 0, 1, 10, 99 ];
         $setMenuLevels = [];
 
@@ -87,10 +88,13 @@ class MenuSeeder extends Seeder {
 
             // 사용자 메뉴의 레벨 옵션 = 상한(cap) → 신규 생성 시에만 전부 Y
             // ( 재실행 시 메뉴관리에서 조정한 상한을 덮어쓰지 않음. 실제 권한은 템플릿/개인 지정으로 부여 )
-            if( !$option->exists && $isUserMenu ) {
+            // 레벨 0( 시스템 )은 관리자 메뉴여도 항상 전부 Y
+            if( !$option->exists && ( $isUserMenu || $level === 0 ) ) {
                 $option->can_read   = 'Y';
                 $option->can_write  = 'Y';
                 $option->can_delete = 'Y';
+            } elseif( !$option->exists && isset( $levelPerms[$level] ) ) {
+                $option->fill( $levelPerms[$level] );
             }
 
             $option->menu_sort          = 1;

@@ -85,7 +85,9 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Basic',
                         'menu_route_name' => 'basic.conf',
-                        'menu_level' => 0
+                        'menu_level' => 1,
+                        // 관리자는 관리자 설정 부분만 보고 수정 ( 시스템 설정 부분은 서버가 내려 주지 않음 )
+                        'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
                     ],
                     [
                         'menu_code' => '0002',
@@ -101,7 +103,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Basic',
                         'menu_route_name' => 'basic.mem',
-                        'menu_level' => 1
+                        'menu_level' => 1,
+                        'level_perms' => [ 1 => [ 'can_write' => 'Y', 'can_delete' => 'Y' ] ],
                     ],
                     [
                         'menu_code' => '0004',
@@ -109,7 +112,9 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Basic',
                         'menu_route_name' => 'basic.auth',
-                        'menu_level' => 1
+                        'menu_level' => 1,
+                        // 관리자는 여기서 일반 사용자의 메뉴 권한을 조정 ( 메뉴관리는 시스템 전용 )
+                        'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
                     ],
                     [
                         'menu_code' => '0005',
@@ -117,7 +122,9 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Basic',
                         'menu_route_name' => 'basic.code',
-                        'menu_level' => 0
+                        'menu_level' => 1,
+                        // 프로그램이 쓰는 코드 그룹이 있어 관리자 삭제는 막음
+                        'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
                     ]
                 ],
             ],
