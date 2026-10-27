@@ -6,6 +6,9 @@ use MesCore\Menu\Models\Menu;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
+// 메뉴는 없을 때만 만든다 ( 처음 설치 · Core 업데이트로 늘어난 메뉴 )
+//   이미 있는 메뉴( menu_code 기준 )는 이름 · 경로 · 정렬 · 레벨 옵션 모두 건드리지 않는다 → 메뉴관리에서 바꾼 값이 기준
+//   menus.php 에서 기존 메뉴의 값을 바꿔도 설치된 곳에는 반영되지 않는다 ( 메뉴관리에서 직접 고친다 )
 class MenuSeeder extends Seeder {
 
     // 기존 메뉴 → 렌더할 Vue 컴포넌트 매핑 ( 제네릭 라우팅 백필용. 신규 메뉴는 UI 에서 DB 에 직접 입력 )
@@ -23,24 +26,26 @@ class MenuSeeder extends Seeder {
     ];
 
     public function run(): void {
-        $menus = config( 'menus' );
-
-        foreach( $menus as $topMenuData ) {
+        foreach( $this->byCode( config( 'menus' ) ) as $topMenuData ) {
             $this->seedMenu( $topMenuData, $topMenuData['menu_code'] );
         }
+    }
 
-        $this->setMenuSort();
+    // 형제 메뉴는 코드 순으로 만든다 → 처음 설치의 정렬이 메뉴 코드 순
+    private function byCode( array $menus ): array {
+        usort( $menus, fn ( $a, $b ) => strcmp( $a['menu_code'], $b['menu_code'] ) );
+        return $menus;
     }
 
     private function seedMenu( Array $menuData, String $topMenuCode, String $parentMenuCode = "", int $depth = 1 ): void {
-        $routeName = $menuData['menu_route_name'] ?? '';
-        // config 에 url_path/page_component 가 명시돼 있으면 그대로, 없으면 route_name 에서 유도/매핑
-        $urlPath = $menuData['url_path'] ?? ( $routeName !== '' ? '/' . str_replace('.', '/', $routeName) : null );
-        $pageComponent = $menuData['page_component'] ?? ( $this->componentMap[$routeName] ?? null );
+        if( !Menu::where( 'menu_code', $menuData['menu_code'] )->exists() ) {
+            $routeName = $menuData['menu_route_name'] ?? '';
+            // config 에 url_path/page_component 가 명시돼 있으면 그대로, 없으면 route_name 에서 유도/매핑
+            $urlPath = $menuData['url_path'] ?? ( $routeName !== '' ? '/' . str_replace('.', '/', $routeName) : null );
+            $pageComponent = $menuData['page_component'] ?? ( $this->componentMap[$routeName] ?? null );
 
-        $menu = Menu::updateOrCreate(
-            ['menu_code' => $menuData['menu_code']],
-            [
+            $menu = Menu::create( [
+                'menu_code' => $menuData['menu_code'],
                 'top_menu_code' => $depth == 1 ? '****': $topMenuCode,
                 'parent_menu_code' => $depth == 1 ? null : $parentMenuCode,
                 'menu_name' => $menuData['menu_name'],
@@ -57,71 +62,51 @@ class MenuSeeder extends Seeder {
                 // 레벨 1 이하( 0 시스템 · 1 관리자 )까지만 노출되는 메뉴 = 관리자 메뉴
                 'is_admin' => $menuData['menu_level'] <= 1 ? 'Y' : 'N',
                 'create_account_idx' => 1
-            ]
-        );
+            ] );
 
-        $this->seedMenuOptions( $menu, $menuData['menu_level'], $menu->is_admin === 'N', $menuData['level_perms'] ?? [] );
+            $this->seedMenuOptions( $menu, $menuData['menu_level'], $menu->is_admin === 'N', $menuData['level_perms'] ?? [] );
+        }
 
+        // 기존 메뉴 아래에 새로 생긴 하위 메뉴도 만든다
         if( !empty( $menuData['children'] ) ) {
-            $childLevel     = ++$depth;
-            $parentMenuCode = $menuData['menu_code'];
-
-            foreach( $menuData['children'] as $childMenuData ) {
-                $this->seedMenu( $childMenuData, $topMenuCode, $parentMenuCode, $childLevel );
+            foreach( $this->byCode( $menuData['children'] ) as $childMenuData ) {
+                $this->seedMenu( $childMenuData, $topMenuCode, $menuData['menu_code'], $depth + 1 );
             }
         }
     }
 
     // $levelPerms : 신규 행의 레벨별 초기 권한 ( 예: [ 1 => [ 'can_write' => 'Y' ] ] ). 관리자 메뉴의 레벨 1 은 이 값대로 동작
     private function seedMenuOptions( Menu $menu, int $menuLevel, bool $isUserMenu, array $levelPerms = [] ): void {
-        $menuLevels    = [ 0, 1, 10, 99 ];
-        $setMenuLevels = [];
-
-        foreach( $menuLevels as $lvl ) {
-            if( $lvl <= $menuLevel ) {
-                $setMenuLevels[] = $lvl;
+        foreach( [ 0, 1, 10, 99 ] as $level ) {
+            if( $level > $menuLevel ) {
+                continue;
             }
-        }
 
-        foreach( $setMenuLevels as $level ) {
-            $option = $menu->menuOptions()->firstOrNew( [ 'menu_level' => $level ] );
-
-            // 사용자 메뉴의 레벨 옵션 = 상한(cap) → 신규 생성 시에만 전부 Y
-            // ( 재실행 시 메뉴관리에서 조정한 상한을 덮어쓰지 않음. 실제 권한은 템플릿/개인 지정으로 부여 )
+            // 사용자 메뉴의 레벨 옵션 = 상한(cap) → 전부 Y. 실제 권한은 템플릿/개인 지정으로 부여
             // 레벨 0( 시스템 )은 관리자 메뉴여도 항상 전부 Y
-            if( !$option->exists && ( $isUserMenu || $level === 0 ) ) {
-                $option->can_read   = 'Y';
-                $option->can_write  = 'Y';
-                $option->can_delete = 'Y';
-            } elseif( !$option->exists && isset( $levelPerms[$level] ) ) {
-                $option->fill( $levelPerms[$level] );
-            }
+            $perms = ( $isUserMenu || $level === 0 )
+                ? [ 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y' ]
+                : ( $levelPerms[$level] ?? [] );
 
-            $option->menu_sort          = 1;
-            $option->create_account_idx = $option->create_account_idx ?? 1;
-            $option->save();
+            $menu->menuOptions()->create( array_merge( $perms, [
+                'menu_level'         => $level,
+                'menu_sort'          => $this->nextSort( $menu, $level ),
+                'create_account_idx' => 1,
+            ] ) );
         }
-
-        // menu_level 축소 시 범위를 벗어난 옵션 정리 ( 예: 10 → 1 이면 레벨 10 옵션 제거 )
-        $menu->menuOptions()->whereNotIn( 'menu_level', $setMenuLevels )->delete();
     }
 
-    private function setMenuSort() {
-        $sql = <<<SQL
-            WITH MenuSortCTE AS (
-                SELECT smo.menu_option_idx,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY sm.parent_menu_code, smo.menu_level
-                           ORDER BY sm.menu_depth, sm.menu_code
-                       ) AS rn
-                  FROM system_menu AS sm
-                 INNER JOIN system_menu_option AS smo ON sm.menu_idx = smo.menu_idx
-            )
-            UPDATE system_menu_option AS smo_target
-              JOIN MenuSortCTE ON smo_target.menu_option_idx = MenuSortCTE.menu_option_idx
-               SET smo_target.menu_sort = MenuSortCTE.rn;
-        SQL;
+    // 같은 부모 · 같은 레벨의 형제 메뉴 맨 뒤 ( 메뉴관리에서 바꾼 기존 정렬은 그대로 )
+    private function nextSort( Menu $menu, int $level ): int {
+        $max = DB::table( 'system_menu_option as smo' )
+            ->join( 'system_menu as sm', 'sm.menu_idx', '=', 'smo.menu_idx' )
+            ->where( 'smo.menu_level', $level )
+            ->where( 'sm.menu_idx', '<>', $menu->menu_idx )
+            ->when( $menu->parent_menu_code === null,
+                fn ( $q ) => $q->whereNull( 'sm.parent_menu_code' ),
+                fn ( $q ) => $q->where( 'sm.parent_menu_code', $menu->parent_menu_code ) )
+            ->max( 'smo.menu_sort' );
 
-        DB::statement( $sql );
+        return (int) $max + 1;
     }
 }

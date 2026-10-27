@@ -31,7 +31,7 @@ docker compose up -d --build
 6. **처음 설치일 때만** ( 메뉴가 없을 때 ) `php artisan db:seed` — 재시작 때는 건너뜀 ( 메뉴관리에서 바꾼 값 보존 )
 
 > Core 업데이트로 메뉴 · 정책 · 공통 코드가 추가됐다면 직접 시드합니다 : `docker compose exec php php artisan db:seed --force`
-> ( 이때 메뉴는 `src/config/menus.php` 값으로 덮어써집니다 )
+> ( 메뉴 · 권한 템플릿 · 사용자 · 코드 · 공정은 **없는 것만 추가**하고 이미 있는 값은 그대로 둡니다. 정책은 정의만 갱신하고 업체가 고른 값은 유지 )
 
 ## 접속
 

@@ -39,8 +39,7 @@ until php artisan migrate --force 2>/dev/null; do
 done
 
 # 6. 초기 데이터 시드 — 처음 설치( 메뉴가 없음 ) 때만
-#    재시작마다 돌리면 메뉴관리에서 바꾼 이름 · 경로 · 정렬이 menus.php 값으로 되돌아간다
-#    Core 업데이트로 메뉴 · 정책 · 코드가 추가되면 수동으로 : php artisan db:seed --force
+#    Core 업데이트로 메뉴 · 정책 · 코드가 추가되면 수동으로 : php artisan db:seed --force ( 없는 것만 추가 )
 if php artisan mes:installed >/dev/null 2>&1; then
     echo "[entrypoint] 이미 설치됨 → 시드 건너뜀"
 else
