@@ -28,6 +28,10 @@ docker compose up -d --build
 3. `APP_KEY` 자동 생성
 4. `storage:link`
 5. DB 준비 대기 → `php artisan migrate`
+6. **처음 설치일 때만** ( 메뉴가 없을 때 ) `php artisan db:seed` — 재시작 때는 건너뜀 ( 메뉴관리에서 바꾼 값 보존 )
+
+> Core 업데이트로 메뉴 · 정책 · 공통 코드가 추가됐다면 직접 시드합니다 : `docker compose exec php php artisan db:seed --force`
+> ( 이때 메뉴는 `src/config/menus.php` 값으로 덮어써집니다 )
 
 ## 접속
 

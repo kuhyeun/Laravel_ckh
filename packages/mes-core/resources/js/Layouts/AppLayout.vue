@@ -1,12 +1,12 @@
 <template>
     <div class="flex flex-col h-screen">
         <header class="border-b">
-            <top-frame></top-frame>
+            <TopFrame></TopFrame>
         </header>
 
         <div class="flex flex-1 overflow-hidden">
             <aside id="app-sidebar" class="app-sidebar w-[250px] border-r transition-all duration-300 ease-in-out overflow-y-auto overflow-x-hidden">
-                <left-menu :menu-items="menuItems" :admin-items="adminItems"></left-menu>
+                <LeftMenu :menu-items="menuItems" :admin-items="adminItems"></LeftMenu>
             </aside>
 
             <main class="app-content flex flex-col flex-1 overflow-y-auto p-6 bg-white">
@@ -15,11 +15,11 @@
         </div>
         
         <footer class="app-footer border-t">
-            <bottom-frame></bottom-frame>
+            <BottomFrame></BottomFrame>
         </footer>
 
-        <base-modal></base-modal>
-        <session-watcher></session-watcher>
+        <BaseModal></BaseModal>
+        <SessionWatcher></SessionWatcher>
     </div>
 </template>
 
