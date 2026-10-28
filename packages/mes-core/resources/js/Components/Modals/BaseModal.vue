@@ -2,7 +2,7 @@
     <teleport to="body">
         <div v-for="(modal, index) in modalStore.modals" :key="modal.id">
             <div
-                class="modal-overlay fixed inset-0 w-full h-full bg-white/30 backdrop-blur-[1px] flex justify-center items-center"
+                class="modal-overlay fixed inset-0 w-full h-full bg-white/30 backdrop-blur-[1px] flex justify-center items-start"
                 :class="{ 'modal-closing': modal.closing }"
                 :style="{ zIndex: 1000 + index }"
                 @click.self="handleOverlayClick(modal)"
@@ -63,6 +63,15 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+    /* 위쪽 고정 : 가운데 정렬이면 탭을 바꿔 높이가 달라질 때 위쪽이 움직인다 → 위에서 일정 거리에 두고 아래로만 늘고 줄게
+       화면보다 길면 모달 안에서 스크롤 */
+    .modal-overlay {
+        padding-top: 6vh;
+    }
+    .modal-overlay .modal-inner {
+        max-height: 88vh;
+    }
+
     .size-sm { max-width: 400px; }
     .size-md { max-width: 600px; }
     .size-lg { max-width: 800px; }

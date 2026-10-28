@@ -107,6 +107,11 @@ class ItemRules {
             $v['min_usable_spec'] = null;
             $v['calc_code']       = null;
         }
+
+        // 라우팅 · BOM 은 만드는 품목( 제품 )만 → 자재는 기본 라우팅 비움 ( 주 자재 BOM 은 ItemController 에서 건너뜀 )
+        if (($v['item_type'] ?? null) !== 'PRODUCT') {
+            $v['routing_idx'] = null;
+        }
         return $v;
     }
 

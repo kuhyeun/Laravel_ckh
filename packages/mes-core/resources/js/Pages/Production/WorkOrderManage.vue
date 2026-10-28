@@ -1,7 +1,8 @@
-<!-- 작업지시 ( PRD-02 ) / 생산관리 > 작업지시 — docs/screens/50-생산.md §2
+<!-- 작업지시 ( PRD-02 ) / 생산관리 > 작업지시 — docs/screens/50-생산.md §2 · "1단계 보완" B-3
      - 검색 : 공통 검색바 — 기간( 착수 예정 / 생산 기한 ) + 검색어( 지시번호 · 품번 · 품명 · LOT · 수주번호 ) + 출처 + 상태( 기본 진행 중 )
-     - 목록 : 서버 페이징. 행 클릭 → 수정 모달( WorkOrderForm ) / [+ 등록] → 빈 모달 ( 수주 기반은 수주 창의 [작업지시] )
-     - 체크 → [취소] : 대기만 ( 진행 중은 3단계의 미달 종료로 ) -->
+     - 목록 : 지시서 행 아래 품목 줄 펼침 ( 줄이 하나면 그 줄 값을 지시서 행에 바로 ). 서버 페이징은 지시서 단위
+     - 행 클릭 → 지시서 수정 모달( WorkOrderForm — 품목 줄을 누르면 그 줄이 선택된 채로 ) / [+ 등록] → 빈 모달
+     - 체크( 지시서 ) → [취소] : 모든 줄이 대기인 지시서만 ( 줄 하나 취소는 지시서 창의 [줄 취소] ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
@@ -33,11 +34,11 @@
                     class="flex-1"
                     :data="rows"
                     :columns="columns"
-                    :options="{ rowHeaders: 'checkbox' }"
+                    :options="gridOptions"
                     :pagination="paging"
                     empty-text="조건에 맞는 작업지시가 없습니다."
                     @row-click="row => openModal(row)"
-                    @select="sel => checkedRows = sel"
+                    @select="sel => checkedRows = sel.filter(r => !r.is_line)"
                     @page="onPage"
                     @sort="onSort"
                 />
@@ -79,20 +80,33 @@ const search = reactive({ date_basis: 'start_date', from: '', to: '', keyword: '
 const num = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
+// 지시서 행 아래 품목 줄 ( 줄이 하나인 지시서는 펼침 없이 그 줄 값을 지시서 행에 )
+const gridOptions = {
+    rowHeaders: 'checkbox',
+    treeColumnOptions: { name: 'sheet_no', useIcon: false, useCascadingCheckbox: false },
+};
+
 const columns = [
-    { header: '지시번호', name: 'wo_no', width: 130, sortable: true, className: 'cursor-pointer' },
-    { header: '출처', name: 'source', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => woSourceLabel(value) },
-    { header: '품목', name: 'item_code', minWidth: 200, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => `${row.item_code} ${row.item_name}` },
-    { header: '수량', name: 'target_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => `${num(row.target_qty)} ${row.spec_unit ?? ''}` },
+    { header: '지시번호', name: 'sheet_no', width: 170, sortable: true, className: 'cursor-pointer' },
+    { header: '출처', name: 'source', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? woSourceLabel(value) : '' },
+    { header: '품목', name: 'item_label', minWidth: 200, className: 'cursor-pointer', escapeHTML: true },
+    { header: '수량', name: 'target_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.target_qty === undefined || row.target_qty === null ? '' : `${num(row.target_qty)} ${row.spec_unit ?? ''}` },
     { header: 'LOT', name: 'lot_no', width: 160, className: 'cursor-pointer', escapeHTML: true },
     { header: '착수 예정', name: 'start_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '생산 기한', name: 'due_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer',
-      formatter: ({ row }) => ['WAIT', 'RUN'].includes(row.status) && row.due_date < todayStr() ? `<span style="color:#dc2626">${row.due_date}</span>` : row.due_date },
+      formatter: ({ row }) => row.due_date && ['WAIT', 'RUN'].includes(row.status) && row.due_date < todayStr() ? `<span style="color:#dc2626">${row.due_date}</span>` : (row.due_date ?? '') },
+    { header: '담당', name: 'manager', width: 80, align: 'center', className: 'cursor-pointer', escapeHTML: true },
     { header: '수주', name: 'order_summary', width: 140, className: 'cursor-pointer', escapeHTML: true },
-    { header: '공정', name: 'ops_count', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => `${row.done_ops_count}/${row.ops_count}` },
+    { header: '공정', name: 'ops_count', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => row.ops_count === undefined || row.ops_count === null ? '' : `${row.done_ops_count}/${row.ops_count}` },
     { header: '상태', name: 'status', width: 70, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => `<span style="color:${woStatusColor(value)};font-weight:600">${woStatusLabel(value)}</span>` },
 ];
+
+// 품목 줄( 펼침 )은 체크하지 않는다 — 지시서 단위로 취소
+const toGridRows = (list) => list.map(r => ({
+    ...r,
+    _children: (r._children ?? []).map(c => ({ ...c, is_line: true, _attributes: { checkDisabled: true } })),
+}));
 
 const rows        = ref([]);
 const loading     = ref(false);
@@ -116,7 +130,7 @@ async function load() {
         if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
         const params = Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null));
         const { data } = await window.axios.get(route('production.workOrder.list'), { params });
-        rows.value   = data.rows ?? [];
+        rows.value   = toGridRows(data.rows ?? []);
         paging.total = data.total ?? 0;
         paging.page  = data.page ?? 1;
     } catch (e) {
@@ -129,18 +143,23 @@ function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
 function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage(); }
 
+// 지시서 행 → 그 지시서 / 품목 줄 행 → 그 줄이 선택된 지시서
 function openModal(row) {
+    const sheetNo = row ? (row.is_line ? row.sheet_no.replace(/-\d+$/, '') : row.sheet_no) : '';
     modalStore.open(
         WorkOrderForm,
         {
-            order: row ? { work_order_idx: row.work_order_idx } : null,
+            order: row ? { sheet_idx: row.sheet_idx, work_order_idx: row.is_line ? row.work_order_idx : null } : null,
             canWrite: canWrite.value,
+            canDelete: canDelete.value,
             onSaved: (saved, warnings = []) => {
-                const base = `${saved.wo_no} ${row ? '수정' : '등록'}되었습니다.${saved.lot_no ? ` LOT ${saved.lot_no}` : ''}`;
+                const base = saved.canceled ? `${saved.sheet_no} 를 취소했습니다.`
+                    : saved.canceled_line ? `${saved.canceled_line} 줄을 취소했습니다.`
+                    : `${saved.sheet_no} ${row ? '수정' : '등록'}되었습니다.${saved.lines ? ` 품목 줄 ${saved.lines.length}개` : ''}`;
                 showFlash(warnings.length ? `${base} ⚠ ${warnings.join(' / ')}` : base);
                 load();
             },
-            modalTitle: row ? `작업지시 [ ${row.wo_no} ]` : '작업지시 등록',
+            modalTitle: row ? `작업지시서 [ ${sheetNo} ]` : '작업지시서 등록',
         },
         { size: 'xl', closeOnClickOutside: false }
     );
@@ -149,15 +168,15 @@ function openModal(row) {
 async function cancelChecked() {
     const target = checkedRows.value.filter(r => r.status === 'WAIT');
     if (!target.length) {
-        showFlash('취소할 수 있는 지시( 대기 )가 없습니다.', true);
+        showFlash('취소할 수 있는 지시서( 모든 줄이 대기 )가 없습니다.', true);
         return;
     }
-    const names = target.slice(0, 3).map(r => r.wo_no).join(', ') + (target.length > 3 ? ` 외 ${target.length - 3}건` : '');
-    const r = await showAlert('작업지시 취소', `${target.length}건( ${names} )을 취소합니다.\n발급된 LOT 번호는 미사용으로 남습니다.`, 'warning', 'confirm');
+    const names = target.slice(0, 3).map(r => r.sheet_no).join(', ') + (target.length > 3 ? ` 외 ${target.length - 3}건` : '');
+    const r = await showAlert('작업지시서 취소', `${target.length}건( ${names} )의 품목 줄 전부를 취소합니다.\n발급된 LOT 번호는 미사용으로 남습니다.`, 'warning', 'confirm');
     if (!r.isConfirmed) return;
     busy.value = true;
     try {
-        const { data } = await window.axios.post(route('production.workOrder.cancel'), { work_order_idxs: target.map(x => x.work_order_idx) });
+        const { data } = await window.axios.post(route('production.workOrder.cancel'), { sheet_idxs: target.map(x => x.sheet_idx) });
         showFlash(`${data.canceled}건을 취소했습니다.`);
         load();
     } catch (e) {

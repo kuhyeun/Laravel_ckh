@@ -11,7 +11,7 @@ use MesCore\Auth\Middleware\MenuAuth;
 
 Route::prefix('production')->name('production.')->middleware([UserAuth::class])->group(function() {
 
-    // 작업지시 ( Production/WorkOrderManage )
+    // 작업지시 ( Production/WorkOrderManage ) — 목록 · 조회 · 저장 · 취소는 지시서 단위, 줄 취소는 품목 줄 하나
     Route::prefix('work-order')->name('workOrder.')->group(function() {
         $read   = MenuAuth::class . ':Production/WorkOrderManage,can_read';
         $write  = MenuAuth::class . ':Production/WorkOrderManage,can_write';
@@ -19,7 +19,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
 
         Route::middleware($read)->group(function() {
             Route::get('/list', [WorkOrderController::class, 'list'])->name('list');
-            Route::get('/show/{woIdx}', [WorkOrderController::class, 'show'])->whereNumber('woIdx')->name('show');
+            Route::get('/show/{sheetIdx}', [WorkOrderController::class, 'show'])->whereNumber('sheetIdx')->name('show');
             Route::get('/formData', [WorkOrderController::class, 'formData'])->name('formData');
             Route::get('/routingOps/{routingIdx}', [WorkOrderController::class, 'routingOps'])->whereNumber('routingIdx')->name('routingOps');
             Route::get('/itemDefaults', [WorkOrderController::class, 'itemDefaults'])->name('itemDefaults');
@@ -32,6 +32,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
 
         Route::middleware($delete)->group(function() {
             Route::post('/cancel', [WorkOrderController::class, 'cancel'])->name('cancel');
+            Route::post('/cancelLine', [WorkOrderController::class, 'cancelLine'])->name('cancelLine');
         });
     });
 

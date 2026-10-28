@@ -2,7 +2,6 @@
 
 namespace MesCore\Production\Services;
 
-use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MesCore\Config\Models\Bom;
@@ -14,29 +13,34 @@ use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderMaterial;
 use MesCore\Production\Models\WorkOrderOp;
+use MesCore\Production\Models\WorkOrderSheet;
 use MesCore\Production\Models\WorkOrderSource;
 use MesCore\Stock\Services\LotService;
 
 /**
- * 작업지시 저장 · 채번 · LOT · 사본 · 취소 ( 트랜잭션 경계 ) — docs/screens/50-생산.md
+ * 작업지시 품목 줄 저장 · LOT · 사본 · 취소 — docs/screens/50-생산.md
+ *   지시서( 머리 ) 단위 저장 · 채번 · 상태는 WorkOrderSheetService 가 부르고, 이 서비스는 줄 하나를 다룬다
+ *   줄 번호 = 지시서 번호 + 순번 ( WO-YYMMDD-NNN-01 )
  *
  *   공정 : 화면이 보낸 순서 그대로 사본을 만든다. 라우팅에서 온 공정은 표준시간 · 선행 승인 조건을 라우팅 줄에서 다시 읽는다( 화면 값을 믿지 않음 )
  *   자재 : 대기 상태에서 저장할 때마다 사용 중 BOM 에서 다시 복사 ( 투입 지점은 같은 라우팅 줄을 가진 지시 공정으로 )
  *          출고된 자재가 있으면 다시 복사하지 않고 투입 지점 · 단순 소요만 맞춘다 ( 출고 줄이 자재 줄을 가리킨다 ) · 품목 변경 · 취소도 막는다
  *   LOT  : 새 지시 · 품목이나 LOT 규칙이 바뀐 대기 지시에 새로 발급 ( 앞 번호는 미사용으로 남긴다 — 결정 §9-7 )
- *   수주 : 연결 표로 분할 · 병합. 남은 지시 수량 초과는 경고만 ( 초과 생산 )
+ *   수주 : 연결 표로 분할 · 병합. 남은 지시 수량 초과는 경고만 ( 초과 생산 ). 연결은 바뀐 것만 고친다 ( 병합 이력 유지 )
  *   진행 중 : 날짜 · 공정 기한 · 작업자 · 비고만 ( 수량 · 공정 구성은 잠금 )
  */
 class WorkOrderService {
 
-    public const NO_PREFIX = 'WO';
+    // 화면( toForm )이 쓰는 관계
+    public const FORM_RELATIONS = ['item', 'lot', 'ops.process', 'materials.childItem', 'sources.salesOrderLine.order', 'sources.creator'];
 
     public function __construct(private LotService $lots) {}
 
     /**
+     * 품목 줄 하나 저장. 새 줄은 $sheet( 저장된 지시서 )에 순번을 매겨 붙인다
      * @return array{0: WorkOrder, 1: string[]}
      */
-    public function save(array $data, ?WorkOrder $wo): array {
+    public function save(array $data, ?WorkOrder $wo, ?WorkOrderSheet $sheet = null): array {
         if ($wo && in_array($wo->status, ['DONE', 'CANCELED'], true)) {
             throw ValidationException::withMessages(['status' => [WorkOrder::STATUSES[$wo->status] . ' 상태의 작업지시는 고칠 수 없습니다.']]);
         }
@@ -140,7 +144,11 @@ class WorkOrderService {
             $warnings[] = '생산 기한이 이미 지났습니다.';
         }
 
-        $saved = DB::transaction(function () use ($wo, $data, $item, $rule, $ops, $routingLines, $sources, $source, $bom, $issued) {
+        if (!$wo->exists && !$sheet) {
+            throw new \LogicException('새 품목 줄은 지시서가 있어야 합니다.');
+        }
+
+        $saved = DB::transaction(function () use ($wo, $sheet, $data, $item, $rule, $ops, $routingLines, $sources, $source, $bom, $issued) {
             $isNew    = !$wo->exists;
             $newLot   = $isNew || (int) $wo->item_idx !== (int) $item->item_idx || ($rule && (int) $wo->lot_rule_idx !== (int) $rule->lot_rule_idx);
 
@@ -156,7 +164,10 @@ class WorkOrderService {
                 'remark'      => $data['remark'] ?? null,
             ]);
             if ($isNew) {
-                $wo->wo_no = $this->nextNo(now());
+                $lineNo = (int) WorkOrder::where('sheet_idx', $sheet->sheet_idx)->lockForUpdate()->max('line_no') + 1;
+                $wo->sheet_idx = $sheet->sheet_idx;
+                $wo->line_no   = $lineNo;
+                $wo->wo_no     = $sheet->sheet_no . '-' . str_pad((string) $lineNo, 2, '0', STR_PAD_LEFT);
             }
             if ($newLot && $rule) {
                 $date = $rule->rule_type === 'PRODUCE_END' ? $data['due_date'] : $data['start_date'];
@@ -173,7 +184,7 @@ class WorkOrderService {
             return $wo;
         });
 
-        return [$saved->fresh(['item', 'lot', 'ops.process', 'materials.childItem', 'sources.salesOrderLine.order']), array_values(array_unique($warnings))];
+        return [$saved->fresh(self::FORM_RELATIONS), array_values(array_unique($warnings))];
     }
 
     // 대기 지시만 취소 — LOT 은 남는다( 미사용 ). 진행 중이면 3단계의 미달 종료로
@@ -197,14 +208,6 @@ class WorkOrderService {
         return (float) $line->qty - $directed;
     }
 
-    // WO-YYMMDD-NNN ( 지시한 날 기준 )
-    public function nextNo(Carbon $date): string {
-        $head = self::NO_PREFIX . '-' . $date->format('ymd') . '-';
-        $last = WorkOrder::where('wo_no', 'like', $head . '%')->lockForUpdate()->orderByDesc('wo_no')->value('wo_no');
-        $seq  = $last ? ((int) substr($last, strlen($head))) + 1 : 1;
-        return $head . str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
-    }
-
     // ---- 내부 ----
 
     // 진행 중 : 날짜 · 비고 · 공정별 기한 · 작업자만 ( 수량 · 공정 구성은 잠금 — E_WO_LOCKED )
@@ -221,7 +224,7 @@ class WorkOrderService {
                 }
             }
         });
-        return $wo->fresh(['item', 'lot', 'ops.process', 'materials.childItem', 'sources.salesOrderLine.order']);
+        return $wo->fresh(self::FORM_RELATIONS);
     }
 
     /** @return array<int,int> routing_line_idx → work_order_op_idx */
@@ -304,15 +307,20 @@ class WorkOrderService {
         return DB::table('wo_stock')->where('work_order_idx', $woIdx)->where('issued_qty', '>', 0)->exists();
     }
 
+    // 병합 이력 유지 : 있던 연결은 담은 수량만 고치고( 수정자 · 수정일 ), 새 연결만 추가, 뺀 연결만 지운다
     private function syncSources(WorkOrder $wo, array $sources): void {
-        WorkOrderSource::where('work_order_idx', $wo->work_order_idx)->delete();
+        $existing = WorkOrderSource::where('work_order_idx', $wo->work_order_idx)->get()->keyBy('sales_order_line_idx');
+        $keep     = [];
         foreach ($sources as $s) {
-            WorkOrderSource::create([
-                'work_order_idx'       => $wo->work_order_idx,
-                'sales_order_line_idx' => $s['sales_order_line_idx'],
-                'qty'                  => (string) $s['qty'],
-            ]);
+            $row = $existing->get($s['sales_order_line_idx'])
+                ?? new WorkOrderSource(['work_order_idx' => $wo->work_order_idx, 'sales_order_line_idx' => $s['sales_order_line_idx']]);
+            $row->qty = (string) $s['qty'];
+            if (!$row->exists || $row->isDirty('qty')) {
+                $row->save();
+            }
+            $keep[] = (int) $s['sales_order_line_idx'];
         }
+        WorkOrderSource::where('work_order_idx', $wo->work_order_idx)->whereNotIn('sales_order_line_idx', $keep ?: [0])->delete();
     }
 
     private function isIfl(?Process $p): bool {

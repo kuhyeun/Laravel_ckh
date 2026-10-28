@@ -20,8 +20,8 @@ router.on('success', () => markActivity());
 
 createInertiaApp({
     resolve: name => {
+        // Core 화면 먼저, 업체 화면( src/resources/js/Pages ) 나중 → 같은 경로면 업체 화면이 이긴다 ( ADR 0028 화면 교체 )
         const pages = {
-            ...import.meta.glob('./Pages/**/*.vue'),
             ...Object.fromEntries(
                 Object.entries(import.meta.glob('../../../packages/mes-core/resources/js/Pages/**/*.vue'))
                     .map(([path, resolver]) => {
@@ -29,6 +29,7 @@ createInertiaApp({
                         return [key, resolver];
                     })
             ),
+            ...import.meta.glob('./Pages/**/*.vue'),
         };
         return resolvePageComponent(`./Pages/${name}.vue`, pages);
     },

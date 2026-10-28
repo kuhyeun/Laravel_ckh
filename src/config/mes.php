@@ -5,17 +5,18 @@ return [
     |--------------------------------------------------------------------------
     | 활성 모듈 목록
     |--------------------------------------------------------------------------
-    | 업체별로 필요한 모듈만 활성화할 수 있습니다.
-    | 모듈명은 app/Modules/ 하위 디렉토리명과 일치해야 합니다.
-    | Basic 모듈은 Core 패키지에 포함되어 있어 별도 등록 불필요합니다.
+    | 업체별로 필요한 모듈만 활성화할 수 있습니다. 끄면 그 모듈의 메뉴 · API 가 빠집니다.
+    | 모듈 코드 = 메뉴 module_code = 업체 폴더 app/Modules/{코드} ( Core 폴더 이름과는 다를 수 있음 —
+    | 대응표는 MesCore\CoreServiceProvider::MODULE_ROUTES )
+    | Basic( 설정 ) · Config( 기준정보 ) 는 항상 켜져 있어 등록 불필요합니다.
     */
     'modules' => [
-        'Order',
-        'Material',
-        'Production',
-        'Product',
-        'Quality',
-        'Shipment',
+        'Order',        // 수주관리
+        'Material',     // 자재관리 ( 발주 · 입고 · 출고 · 재고 )
+        'Production',   // 생산관리 ( Material 필요 )
+        'Product',      // 제품관리 ( 아직 Core 기능 없음 )
+        'Quality',      // 품질관리 ( Material 필요 — 입고검사 )
+        'Shipment',     // 출하관리 ( 아직 Core 기능 없음 )
     ],
 
     /*

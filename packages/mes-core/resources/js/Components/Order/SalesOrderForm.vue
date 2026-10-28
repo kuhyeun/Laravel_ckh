@@ -349,13 +349,13 @@ function openWorkOrder(l, i) {
                             partner_name: form.partner_name, due_date: l.due_date, remaining, qty: remaining }],
             },
             canWrite: true,
-            onSaved: async (wo) => {
+            onSaved: async (sheet) => {
                 errorMsg.value = '';
                 const { data } = await window.axios.get(route('order.sales.show', form.sales_order_idx));
                 fillForm(data.order);
-                props.onSaved?.(data.order, [`작업지시 ${wo.wo_no} 를 만들었습니다.`]);
+                props.onSaved?.(data.order, [`작업지시서 ${sheet.sheet_no} 를 만들었습니다.`]);
             },
-            modalTitle: `작업지시 등록 [ ${form.order_no} #${i + 1} ]`,
+            modalTitle: `작업지시서 등록 [ ${form.order_no} #${i + 1} ]`,
         },
         { size: 'xl', closeOnClickOutside: false }
     );

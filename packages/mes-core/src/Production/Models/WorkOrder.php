@@ -7,8 +7,9 @@ use MesCore\Config\Models\Item;
 use MesCore\Stock\Models\Lot;
 use MesCore\Support\RecordsAccount;
 
-// 작업지시 머리 ( PRD-03 ) — docs/screens/50-생산.md
-//   저장 · 채번 · LOT 발급 · 공정 / 자재 사본 · 취소는 WorkOrderService
+// 작업지시 품목 줄 ( PRD-03 ) — docs/screens/50-생산.md
+//   지시서( WorkOrderSheet ) 한 장에 여러 줄. 품목 · 라우팅 · BOM 사본 · 공정 · 자재 · 생산 LOT 은 줄마다
+//   저장 · LOT 발급 · 공정 / 자재 사본 · 취소는 WorkOrderService, 지시서 단위는 WorkOrderSheetService
 class WorkOrder extends Model {
     use RecordsAccount;
 
@@ -32,7 +33,7 @@ class WorkOrder extends Model {
     ];
 
     protected $fillable = [
-        'wo_no', 'source', 'item_idx', 'routing_idx', 'bom_idx', 'lot_idx', 'lot_rule_idx',
+        'sheet_idx', 'line_no', 'wo_no', 'source', 'item_idx', 'routing_idx', 'bom_idx', 'lot_idx', 'lot_rule_idx',
         'target_qty', 'scan_qty', 'start_date', 'due_date', 'status', 'approval_status', 'remark',
     ];
 
@@ -48,6 +49,10 @@ class WorkOrder extends Model {
             'start_date' => 'date:Y-m-d',
             'due_date'   => 'date:Y-m-d',
         ];
+    }
+
+    public function sheet() {
+        return $this->belongsTo(WorkOrderSheet::class, 'sheet_idx', 'sheet_idx');
     }
 
     public function item() {

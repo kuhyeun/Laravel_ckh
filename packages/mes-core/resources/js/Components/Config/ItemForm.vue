@@ -61,7 +61,8 @@
                 <BaseInput v-model="form.spec" class="w-full" :disabled="!canWrite" />
                 <p v-if="errors.spec" class="text-xs text-red-500 mt-0.5">{{ errors.spec[0] }}</p>
             </div>
-            <div>
+            <!-- 라우팅 · 주 자재( BOM ) 는 만드는 품목( 제품 )만 -->
+            <div v-if="isProduct">
                 <label class="block text-gray-500 font-medium mb-1">
                     기본 라우팅
                     <span v-if="!isEdit" class="text-xs text-gray-400">( 등록 시점에만 자동 적용 )</span>
@@ -69,10 +70,10 @@
                 <BaseSelect v-model="form.routing_idx" :options="routingOptions" class="w-full" :disabled="!canWrite" />
                 <p v-if="errors.routing_idx" class="text-xs text-red-500 mt-0.5">{{ errors.routing_idx[0] }}</p>
             </div>
-            <div></div>
+            <div v-if="isProduct"></div>
 
             <!-- 주 자재 : 가공품은 제품 1 : 원자재 1 이 대부분 → 저장하면 BOM V1 이 만들어진다 -->
-            <div class="col-span-2 border-t pt-3">
+            <div v-if="isProduct" class="col-span-2 border-t pt-3">
                 <div class="flex items-baseline gap-2 mb-1">
                     <span class="text-gray-500 font-medium">주 자재</span>
                     <span v-if="bomLocked" class="text-xs text-amber-600">BOM 자재가 {{ bomLineCount }}건이라 여기서는 수정할 수 없습니다. BOM관리에서 다루세요.</span>
@@ -383,6 +384,7 @@ const form = reactive({
 
 // ---- 기본 라우팅 · 주 자재 ( BOM ) ----
 const routings     = ref([]);
+const defaultRoutingIdx = ref(null);   // 신규 등록 기본 라우팅 ( 대분류를 제품으로 되돌릴 때 다시 채움 )
 const materials    = ref([]);
 const bomLineCount = ref(0);
 const mainMaterial = reactive({ bom_line_idx: null, child_item_idx: '', qty: '', calc_code: null, ext_n01: null });
@@ -421,8 +423,9 @@ async function loadFormData() {
         const own = data.lead_time?.item;
         leadTime.mode = own && own.is_use === 'Y' ? 'ITEM' : 'DEFAULT';
         LEAD_STAGES.forEach(st => { leadTime[st.key] = own?.[st.key] ?? ''; });
-        // 신규 등록은 기본 라우팅을 자동 선택 ( 등록 시점에만. 수정 화면에서는 건드리지 않는다 )
-        if (!isEdit.value && !form.routing_idx && data.default_routing_idx) {
+        // 신규 등록은 기본 라우팅을 자동 선택 ( 등록 시점에만 · 제품만. 수정 화면에서는 건드리지 않는다 )
+        defaultRoutingIdx.value = data.default_routing_idx ?? null;
+        if (!isEdit.value && isProduct.value && !form.routing_idx && data.default_routing_idx) {
             form.routing_idx = data.default_routing_idx;
         }
     } catch (e) {
@@ -461,10 +464,19 @@ const defaultLeadText = computed(() => {
 });
 
 // 대분류 변경 → 소분류가 맞지 않으면 첫 항목으로
+const isProduct = computed(() => form.item_type === 'PRODUCT');
+
 function onTypeChange(type) {
     const kinds = ITEM_KINDS[type] ?? [];
     if (!kinds.some(k => k.value === form.item_kind)) {
         form.item_kind = kinds[0]?.value ?? '';
+    }
+
+    // 자재 : 라우팅 비움 ( 서버도 비운다 ) / 다시 제품 : 신규면 기본 라우팅 다시 채움
+    if (type !== 'PRODUCT') {
+        form.routing_idx = '';
+    } else if (!isEdit.value && !form.routing_idx && defaultRoutingIdx.value) {
+        form.routing_idx = defaultRoutingIdx.value;
     }
 }
 
@@ -505,7 +517,7 @@ async function save() {
             ...form,
             routing_idx: form.routing_idx === '' ? null : Number(form.routing_idx),
             // 주 자재를 비우면 null → 서버가 BOM 줄을 삭제한다
-            main_material: (!bomLocked.value && mainMaterial.child_item_idx !== '')
+            main_material: (isProduct.value && !bomLocked.value && mainMaterial.child_item_idx !== '')
                 ? {
                     child_item_idx: Number(mainMaterial.child_item_idx),
                     qty: mainMaterial.qty === '' ? null : mainMaterial.qty,

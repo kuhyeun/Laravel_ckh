@@ -26,6 +26,18 @@ use MesCore\Production\Models\WorkOrder;
 
 class CoreServiceProvider extends ServiceProvider {
 
+    // 모듈 코드 → Core 라우트 파일
+    //   모듈 코드 = config/mes.php modules = 메뉴 module_code = src/app/Modules/{코드} ( 켜고 끄는 단위 · 메뉴 대분류 )
+    //   Core 폴더( 네임스페이스 )는 기능 단위라 이름이 다를 수 있다 ( 예: Material = Purchase + Stock )
+    //   의존 : Production 은 Material( 자재출고 · 재고 ) · Quality( 입고검사 )는 Material( 입고 )이 함께 켜져야 한다
+    //   Product · Shipment 는 아직 Core 라우트 없음 ( 메뉴만 )
+    private const MODULE_ROUTES = [
+        'Order'      => ['order.php'],
+        'Material'   => ['purchase.php', 'stock.php'],
+        'Quality'    => ['quality.php'],
+        'Production' => ['production.php'],
+    ];
+
     public function register(): void {
         $this->mergeConfigFrom(
             __DIR__ . '/../config/mes.php', 'mes'
@@ -116,22 +128,16 @@ class CoreServiceProvider extends ServiceProvider {
             $this->loadRoutesFrom(__DIR__ . '/../routes/config.php');
             $this->loadRoutesFrom(__DIR__ . '/../routes/attachment.php');
 
-            // 업무 모듈 ( 패키지 ) — 업체 config/mes.php 의 modules 로 켜고 끈다
-            if (in_array('Order', config('mes.modules', []), true)) {
-                $this->loadRoutesFrom(__DIR__ . '/../routes/order.php');
-            }
-            if (in_array('Material', config('mes.modules', []), true)) {
-                $this->loadRoutesFrom(__DIR__ . '/../routes/purchase.php');
-                $this->loadRoutesFrom(__DIR__ . '/../routes/stock.php');
-            }
-            if (in_array('Quality', config('mes.modules', []), true)) {
-                $this->loadRoutesFrom(__DIR__ . '/../routes/quality.php');
-            }
-            if (in_array('Production', config('mes.modules', []), true)) {
-                $this->loadRoutesFrom(__DIR__ . '/../routes/production.php');
+            // 업무 모듈 ( 패키지 ) — 업체 config/mes.php 의 modules 로 켜고 끈다 ( 모듈 코드는 MODULE_ROUTES 참고 )
+            foreach (self::MODULE_ROUTES as $module => $files) {
+                if (in_array($module, config('mes.modules', []), true)) {
+                    foreach ($files as $file) {
+                        $this->loadRoutesFrom(__DIR__ . '/../routes/' . $file);
+                    }
+                }
             }
 
-            // 모듈 라우트 자동 로딩
+            // 업체 모듈 라우트 ( src/app/Modules/{모듈 코드}/routes.php ) — Core 다음이라 같은 주소면 업체가 이긴다
             foreach (config('mes.modules', []) as $module) {
                 $path = base_path("app/Modules/{$module}/routes.php");
                 if (file_exists($path)) {

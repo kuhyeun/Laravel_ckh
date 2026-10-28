@@ -134,7 +134,9 @@ class ItemController extends Controller {
         // 빈 숫자 → 0, 소재 항목 정리 ( 엑셀 일괄 등록과 같은 규칙 )
         $validated = ItemRules::normalize($validated);
 
-        $mainMaterial = $validated['main_material'] ?? null;
+        // 주 자재( BOM 자동 생성 )는 제품만. 자재는 받지도 지우지도 않는다
+        $isProduct    = ($validated['item_type'] ?? null) === 'PRODUCT';
+        $mainMaterial = $isProduct ? ($validated['main_material'] ?? null) : null;
         $policyValues = $validated['policies'] ?? null;
         $leadTime     = $validated['lead_time'] ?? null;
         unset($validated['main_material'], $validated['policies'], $validated['lead_time']);
@@ -157,10 +159,12 @@ class ItemController extends Controller {
         try {
             $warnings = [];
 
-            DB::transaction(function () use ($item, $validated, $mainMaterial, $policyValues, $leadTime, $policy, &$warnings) {
+            DB::transaction(function () use ($item, $validated, $isProduct, $mainMaterial, $policyValues, $leadTime, $policy, &$warnings) {
                 $item->fill($validated)->save();
                 Item::refreshCycleTime([$item->item_idx]);   // 라우팅을 바꿨을 수 있다
-                $warnings = $this->syncMainMaterial($item, $mainMaterial);
+                if ($isProduct) {
+                    $warnings = $this->syncMainMaterial($item, $mainMaterial);
+                }
 
                 if ($policyValues !== null) {
                     // 대분류에 맞지 않는 정책의 덮어쓰기는 해제 ( 대분류를 바꾼 경우 )
