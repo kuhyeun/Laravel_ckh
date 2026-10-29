@@ -83,7 +83,7 @@ class ShipmentController extends Controller {
             return $head + [
                 'item_label'    => $first ? "{$first['item_code']} 외 " . ($lines->count() - 1) . '건' : '',
                 'order_summary' => $lines->pluck('order_label')->filter()->unique()->implode(', '),
-                '_children'     => $lines->map(fn ($l) => $l + ['shipment_idx' => $s->shipment_idx, 'shipment_no' => $s->shipment_no . '-' . str_pad((string) $l['line_no'], 2, '0', STR_PAD_LEFT)])->all(),
+                '_children'     => $lines->map(fn ($l) => $l + ['shipment_idx' => $s->shipment_idx, 'shipment_no' => $s->shipment_no . ' - ' . $l['line_no']])->all(),   // 줄 : 출하번호 - 줄 번호 ( 스타일 가이드 §5 트리 )
             ];
         });
     }

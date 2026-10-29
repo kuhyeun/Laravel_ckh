@@ -57,6 +57,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import { ditto, escapeHtml, fillHead } from '@core/Utils/gridTree';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -90,14 +91,14 @@ const gridOptions = {
     treeColumnOptions: { name: 'shipment_no', useIcon: false, useCascadingCheckbox: false },
 };
 const columns = [
-    { header: '출하번호', name: 'shipment_no', width: 170, sortable: true, className: 'cursor-pointer' },
+    { header: '출하번호', name: 'shipment_no', width: 190, sortable: true, className: 'cursor-pointer' },
     { header: '단계', name: 'stage_label', width: 90, align: 'center', className: 'cursor-pointer',
       formatter: ({ row }) => row.is_line
           ? (row.inspect_status && row.inspect_status !== 'NONE' ? `<span style="color:${inspectColor(row.inspect_status)}">${inspectLabel(row.inspect_status)}</span>` : '')
           : `<span style="color:${stageColor(row.stage)};font-weight:600">${row.stage_label}</span>` },
-    { header: '출하 예정', name: 'plan_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
-    { header: '출하 일시', name: 'shipped_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
-    { header: '고객사', name: 'partner_name', width: 140, className: 'cursor-pointer', escapeHTML: true },
+    { header: '출하 예정', name: 'plan_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.plan_date ?? '') },
+    { header: '출하 일시', name: 'shipped_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.shipped_at ?? '') },
+    { header: '고객사', name: 'partner_name', width: 140, className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.partner_name)) },
     { header: '품목', name: 'item_label', minWidth: 180, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 110, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.qty === undefined || row.qty === null ? '' : fmtQty(row.qty, row.spec_unit) },
     { header: 'LOT', name: 'lot_summary', width: 170, className: 'cursor-pointer', escapeHTML: true },
@@ -139,7 +140,7 @@ async function exportRows() {
     if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
     const params = Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null));
     const { data } = await window.axios.get(route('shipment.manage.list'), { params });
-    return toGridRows(data.rows ?? []).flatMap(r => [r, ...r._children]);
+    return fillHead(toGridRows(data.rows ?? []), ['plan_date', 'shipped_at', 'partner_name']);   // 트리 : 머리 + 줄 ( 줄에 머리 값을 채운다 )
 }
 function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }

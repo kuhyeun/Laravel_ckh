@@ -135,6 +135,21 @@
 - 체크 : `options.rowHeaders: 'checkbox'` → `@select` ( 선택된 행 배열 )
 - 트리 ( 머리 행 + 하위 행 ) : `options.treeColumnOptions: { name: '첫 열', useIcon: false, useCascadingCheckbox: false }`, 행에 `_children`
   - 하위 행이 있는 행은 **트리 칸을 누르면 펼침 / 접기**, 다른 칸은 row-click. 빈 `_children` 은 DataGrid 가 지운다
+  - **트리 칸( 번호 )** : 머리 행 = 번호 그대로, 하위 행 = **`{머리 번호} - {줄 번호}`** ( 예: `RC-261029-001 - 1` — `1.` 만 쓰지 않는다 ). 칸 너비는 그만큼 넓게 ( 190 )
+    - 하위 행이 **제 번호를 따로 가진 것**( 작업지시 줄 = 작업지시 번호 `WO-…-01` )이면 그 번호를 그대로 쓴다
+  - **머리 값을 그대로 물려받는 열**( 일시 · 날짜 · 거래처 · 담당처럼 줄마다 같은 값 ) : 하위 행은 빈칸 대신 연한 회색 **`〃`**( 위와 같음, 가운데 ) — `@core/Utils/gridTree`
+    ```js
+    import { ditto, escapeHtml, fillHead } from '@core/Utils/gridTree';
+    const HEAD_FIELDS = ['occurred_at', 'recorded_at', 'partner_name'];   // 〃 로 보이는 열
+    { header: '입고일시', name: 'occurred_at', formatter: ditto(r => r.occurred_at) },
+    { header: '구매처', name: 'partner_name', formatter: ditto(r => escapeHtml(r.partner_name)) },   // 사용자 글자는 escapeHtml
+    // 엑셀 : 하위 행에 머리 값을 채워 실제 값으로 ( 거르기 · 정렬이 되게 )
+    async function exportRows() { …; return fillHead(data.rows, HEAD_FIELDS); }
+    ```
+    - 줄마다 값이 다른 열( 발주번호 · 품목 · LOT · 수량 · 상태 )은 그 값을 그대로 쓴다
+    - `〃` 를 HTML 로 그리므로 그 열은 `escapeHTML` 을 못 쓴다 → 사용자 글자( 거래처명 · 수주명 · 담당 )는 `escapeHtml()` 로
+    - 엑셀 열을 따로 정한 화면( `exportColumns` — 수주 · 발주 )은 줄 행에 이미 머리 값이 있어 `fillHead` 가 필요 없다
+  - 적용 화면 ( 2026-10-29 ) : 입고관리 · 수주 · 발주 · 작업지시 · 출하 — 트리 그리드를 새로 만들면 이 규칙대로
   - 하위 행은 체크하지 않게 `_attributes: { checkDisabled: true }`
 
 ### 5-0. 목록 머리 : 열 설정 + 엑셀 — **일반 그리드는 기본 포함**

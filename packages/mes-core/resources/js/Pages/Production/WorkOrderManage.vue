@@ -59,6 +59,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import { ditto, escapeHtml, fillHead } from '@core/Utils/gridTree';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -101,10 +102,10 @@ const columns = [
     { header: '품목', name: 'item_label', minWidth: 200, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'target_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.target_qty === undefined || row.target_qty === null ? '' : `${num(row.target_qty)} ${row.spec_unit ?? ''}` },
     { header: 'LOT', name: 'lot_no', width: 160, className: 'cursor-pointer', escapeHTML: true },
-    { header: '착수 예정', name: 'start_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
+    { header: '착수 예정', name: 'start_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.start_date ?? '') },
     { header: '생산 기한', name: 'due_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer',
-      formatter: ({ row }) => row.due_date && ['WAIT', 'RUN'].includes(row.status) && row.due_date < todayStr() ? `<span style="color:#dc2626">${row.due_date}</span>` : (row.due_date ?? '') },
-    { header: '담당', name: 'manager', width: 80, align: 'center', className: 'cursor-pointer', escapeHTML: true },
+      formatter: ditto(r => r.due_date && ['WAIT', 'RUN'].includes(r.status) && r.due_date < todayStr() ? `<span style="color:#dc2626">${r.due_date}</span>` : (r.due_date ?? '')) },
+    { header: '담당', name: 'manager', width: 80, align: 'center', className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.manager)) },
     { header: '수주', name: 'order_summary', width: 140, className: 'cursor-pointer', escapeHTML: true },
     { header: '공정', name: 'ops_count', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => row.ops_count === undefined || row.ops_count === null ? '' : `${row.done_ops_count}/${row.ops_count}` },
     { header: '상태', name: 'status', width: 70, align: 'center', className: 'cursor-pointer',
@@ -154,7 +155,7 @@ async function exportRows() {
     if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
     const params = Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null));
     const { data } = await window.axios.get(route('production.workOrder.list'), { params });
-    return toGridRows(data.rows ?? []).flatMap(r => [r, ...r._children]);
+    return fillHead(toGridRows(data.rows ?? []), ['start_date', 'due_date', 'manager']);   // 트리 : 머리 + 줄 ( 줄에 머리 값을 채운다 )
 }
 function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }

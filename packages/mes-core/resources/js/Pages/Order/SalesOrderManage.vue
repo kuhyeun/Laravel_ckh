@@ -66,6 +66,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import { ditto, escapeHtml } from '@core/Utils/gridTree';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
@@ -110,7 +111,6 @@ const gridOptions = {
 
 const num    = (v) => (v === null || v === undefined || v === '') ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const pick   = (head, line) => ({ row }) => row.is_line ? line(row) : head(row);
-const blank  = () => '';
 const todayStr = () => {   // 현지 날짜 ( toISOString 은 UTC 라 오전에 하루 밀린다 )
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -118,14 +118,14 @@ const todayStr = () => {   // 현지 날짜 ( toISOString 은 UTC 라 오전에 
 
 // 사용자가 입력한 글자가 들어가는 열은 escapeHTML ( formatter 결과도 글자 그대로 )
 const columns = [
-    { header: '수주번호', name: 'order_no', width: 170, sortable: true, className: 'cursor-pointer',
-      formatter: pick(r => r.order_no, r => `${r.line_no}.`) },
+    { header: '수주번호', name: 'order_no', width: 190, sortable: true, className: 'cursor-pointer',
+      formatter: pick(r => r.order_no, r => `${r.order_no} - ${r.line_no}`) },
     { header: '수주일', name: 'order_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer',
-      formatter: pick(r => r.order_date, blank) },
-    { header: '고객사', name: 'partner_name', width: 140, sortable: true, className: 'cursor-pointer', escapeHTML: true,
-      formatter: pick(r => r.partner_name, blank) },
-    { header: '수주명', name: 'order_name', minWidth: 150, className: 'cursor-pointer', escapeHTML: true,
-      formatter: pick(r => r.order_name ?? '', blank) },
+      formatter: ditto(r => r.order_date ?? '') },
+    { header: '고객사', name: 'partner_name', width: 140, sortable: true, className: 'cursor-pointer',
+      formatter: ditto(r => escapeHtml(r.partner_name)) },
+    { header: '수주명', name: 'order_name', minWidth: 150, className: 'cursor-pointer',
+      formatter: ditto(r => escapeHtml(r.order_name)) },
     { header: '품목', name: 'item_summary', minWidth: 200, className: 'cursor-pointer', escapeHTML: true,
       formatter: pick(r => r.item_summary, r => `${r.item_code} ${r.item_name}`) },
     { header: '수량', name: 'total_qty', width: 100, align: 'right', className: 'cursor-pointer',

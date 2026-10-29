@@ -57,6 +57,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import { ditto, escapeHtml, fillHead } from '@core/Utils/gridTree';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -85,13 +86,15 @@ const gridOptions = { treeColumnOptions: { name: 'txn_no', useIcon: false, useCa
 
 const pick = (head, line) => ({ row }) => row.is_line ? line(row) : head(row);
 const blank = () => '';
+// 줄 행에서 머리 값을 그대로 물려받는 열 ( 화면 〃 · 엑셀 실제 값 — 스타일 가이드 §5 트리 )
+const HEAD_FIELDS = ['occurred_at', 'recorded_at', 'partner_name'];
 
 const columns = [
-    { header: '입고번호', name: 'txn_no', width: 160, sortable: true, className: 'cursor-pointer', formatter: pick(r => r.txn_no, r => `${r.line_no}.`) },
-    { header: '입고일시', name: 'occurred_at', width: 125, align: 'center', sortable: true, className: 'cursor-pointer', formatter: pick(r => r.occurred_at, blank) },
+    { header: '입고번호', name: 'txn_no', width: 190, sortable: true, className: 'cursor-pointer', formatter: pick(r => r.txn_no, r => `${r.txn_no} - ${r.line_no}`) },
+    { header: '입고일시', name: 'occurred_at', width: 125, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.occurred_at) },
     { header: '등록', name: 'recorded_at', width: 125, align: 'center', sortable: true, className: 'cursor-pointer',
-      formatter: pick(r => `<span style="color:#9ca3af">${r.recorded_at}</span>`, blank) },
-    { header: '구매처', name: 'partner_name', width: 180, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: pick(r => r.partner_name, blank) },
+      formatter: ditto(r => `<span style="color:#9ca3af">${r.recorded_at}</span>`) },
+    { header: '구매처', name: 'partner_name', width: 180, sortable: true, className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.partner_name)) },
     { header: '발주', name: 'po_summary', width: 140, className: 'cursor-pointer', escapeHTML: true, formatter: pick(r => r.po_summary, r => r.order_no ?? '( 직접 )') },
     { header: '품목', name: 'item_summary', minWidth: 180, className: 'cursor-pointer', escapeHTML: true,
       formatter: pick(r => r.item_summary, r => `${r.item_code} ${r.item_name}`) },
@@ -142,7 +145,7 @@ async function exportRows() {
     if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
     const params = Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null));
     const { data } = await window.axios.get(route('purchase.receipt.list'), { params });
-    return (data.rows ?? []).flatMap(r => [r, ...(r._children ?? [])]);   // 트리 : 머리 + 줄
+    return fillHead(data.rows, HEAD_FIELDS);   // 트리 : 머리 + 줄 ( 줄에 머리 값을 채운다 )
 }
 function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
