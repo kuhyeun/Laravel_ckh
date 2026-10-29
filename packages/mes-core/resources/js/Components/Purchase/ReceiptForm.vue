@@ -5,7 +5,8 @@
      - LOT : 자재 기준 규칙이 여럿이면 고른다 · 거래처 요소가 ASK 면 [LOT 번호에 거래처 넣기]
              공급처 LOT 을 그대로 쓰는 설정( EXTERNAL )이면 공급처 LOT 필수
      - 원소재( item_kind STOCK )는 조각 1개 규격값 필수 — 수량은 개수
-     - 수정은 없다 ( 저장 후에는 줄 취소 → 다시 입고 ) -->
+     - 수정은 없다 ( 저장 후에는 줄 취소 → 다시 입고 )
+     - preset { item_idx, warehouse_idx } : 재고관리의 [입고] — 그 품목 · 창고로 직접 추가 줄 하나를 채워 연다 ( 입고는 늘 새 LOT ) -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <p v-if="loading" class="py-8 text-center text-gray-400">불러오는 중...</p>
@@ -174,6 +175,7 @@ import { inspModeLabel } from '@core/Components/Stock/stockCodes';
 
 const props = defineProps({
     onSaved: { type: Function, default: null },   // 저장 후 ( { stock_txn_idx, txn_no, status }, 경고 )
+    preset:  { type: Object, default: null },     // { item_idx, warehouse_idx } — 직접 추가 줄 하나를 채워 연다
 });
 const emit = defineEmits(['close']);
 
@@ -295,6 +297,12 @@ onMounted(async () => {
         form.occurred_at  = data.now;
         today.value       = (data.now ?? '').slice(0, 10);
         form.lot_rule_idx = lot.rules[0]?.lot_rule_idx ?? '';
+        if (props.preset?.item_idx) {
+            const line = blankLine({ item_idx: props.preset.item_idx });
+            if (props.preset.warehouse_idx && warehouses.value.some(w => w.warehouse_idx === props.preset.warehouse_idx)) line.warehouse_idx = props.preset.warehouse_idx;
+            form.lines.push(line);
+            onItemChange(form.lines[0], props.preset.item_idx);
+        }
     } catch (e) {
         errorMsg.value = '입고 정보를 불러오지 못했습니다.';
     } finally {

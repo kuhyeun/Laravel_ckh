@@ -26,11 +26,17 @@
         <div class="flex-1 min-h-0 flex gap-3">
             <!-- 품목 줄 -->
             <div class="w-[460px] shrink-0 flex flex-col border border-gray-200 overflow-hidden">
-                <div class="px-3 py-2 bg-gray-50/70 shrink-0 text-sm font-semibold text-gray-600">
-                    품목 줄 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건</span>
+                <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
+                    <span class="text-sm font-semibold text-gray-600">품목 줄 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건</span></span>
+                    <div class="flex items-center gap-1.5">
+                        <GridSettingButton :grid="mainGrid" />
+                        <ExcelExportButton :rows="exportRows" :columns="columns" :grid="mainGrid" filename="공정실적_품목줄" />
+                    </div>
                 </div>
                 <div class="flex-1 min-h-0 flex flex-col">
                     <DataGrid
+                        ref="mainGrid"
+                        setting-key="main"
                         class="flex-1"
                         :data="rows"
                         :columns="columns"
@@ -223,6 +229,8 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
+import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
@@ -233,6 +241,7 @@ import { woStatusLabel, woStatusColor } from '@core/Components/Production/produc
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
 
 defineOptions({ layout: AppLayout });
+const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const page      = usePage();
 const menuCode  = page.props.menuCode;
@@ -333,6 +342,14 @@ async function load() {
     } finally {
         loading.value = false;
     }
+}
+// 엑셀 : 지금 조건 전체 ( export=1 — 페이지와 상관없이 )
+async function exportRows() {
+    const p = { ...search, export: 1 };
+    if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
+    const params = Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null));
+    const { data } = await window.axios.get(route('production.opResult.list'), { params });
+    return data.rows ?? [];
 }
 function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }

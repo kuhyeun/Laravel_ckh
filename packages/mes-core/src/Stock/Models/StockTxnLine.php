@@ -69,6 +69,10 @@ class StockTxnLine extends Model {
         return $this->belongsTo(Warehouse::class, 'to_warehouse_idx', 'warehouse_idx');
     }
 
+    public function workOrder() {
+        return $this->belongsTo(\MesCore\Production\Models\WorkOrder::class, 'work_order_idx', 'work_order_idx');
+    }
+
     public function purchaseOrderLine() {
         return $this->belongsTo(PurchaseOrderLine::class, 'purchase_order_line_idx', 'purchase_order_line_idx');
     }

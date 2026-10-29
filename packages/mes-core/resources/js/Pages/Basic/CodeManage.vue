@@ -81,7 +81,9 @@
                         <span class="text-gray-400 font-normal">[ {{ selectedGroupKey ? selectedGroupName : '전체' }} ]</span>
                         <span class="text-xs text-gray-400 ml-1">{{ codes.length }} 건</span>
                     </span>
-                    <div class="flex gap-1.5">
+                    <div class="flex items-center gap-1.5">
+                        <GridSettingButton :grid="gridRef" />
+                        <ExcelExportButton :rows="codes" :columns="codeColumns" :grid="gridRef" filename="공통코드" />
                         <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="newCode">신규</BaseButton>
                         <BaseButton v-if="canWrite" size="sm" variant="primary" @click="saveCode">저장</BaseButton>
                         <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0" @click="deleteCode">삭제</BaseButton>
@@ -90,6 +92,7 @@
                 <div class="flex-1 min-h-0">
                     <DataGrid
                         ref="gridRef"
+                        setting-key="main"
                         class="h-full"
                         :data="codes"
                         :columns="codeColumns"
@@ -111,6 +114,8 @@ import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
+import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import { clearCommonCodeCache } from '@core/Composables/useCommonCode';
 import { ToggleRenderer } from '@core/Composables/gridClass';
 

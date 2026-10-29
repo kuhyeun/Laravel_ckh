@@ -24,6 +24,8 @@ class StockTxn extends Model {
         'ISSUE_WO'      => '자재출고',
         'IN_RETURN'     => '자재반납',
         'IN_PRODUCTION' => '생산 입고',
+        'OUT_SHIPMENT'  => '출하',
+        'OUT_MISC'      => '기타출고',
     ];
 
     const STATUSES = [

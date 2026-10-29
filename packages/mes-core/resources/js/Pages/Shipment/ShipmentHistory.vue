@@ -25,10 +25,15 @@
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                 <span class="text-sm font-semibold text-gray-600">출하 이력 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건 ( 줄 × LOT )</span></span>
-                <ExcelExportButton layout="shipment.history" :rows="exportRows" :columns="exportColumns" filename="출하이력" />
+                <div class="flex items-center gap-1.5">
+                    <GridSettingButton :grid="mainGrid" />
+                    <ExcelExportButton layout="shipment.history" :rows="exportRows" :columns="exportColumns" filename="출하이력" />
+                </div>
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
+                    ref="mainGrid"
+                    setting-key="main"
                     class="flex-1"
                     :data="rows"
                     :columns="columns"
@@ -48,6 +53,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -58,6 +64,7 @@ import { fmtNum, fmtQty } from '@core/Utils/format';
 import { woStatusColor } from '@core/Components/Production/productionCodes';
 
 defineOptions({ layout: AppLayout });
+const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const modalStore = useModalStore();
 const { flash, showFlash } = useFlash();

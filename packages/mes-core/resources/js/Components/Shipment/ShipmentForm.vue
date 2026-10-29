@@ -95,7 +95,7 @@
                         <span class="font-semibold truncate">{{ l.item_label }}</span>
                         <span v-if="l.due_date" class="text-xs text-gray-400">납품 {{ l.due_date }}</span>
                         <span v-if="l.so_remaining !== null" class="text-xs text-gray-500">남은 {{ fmtNum(l.so_remaining) }}</span>
-                        <span class="text-xs text-gray-500">가용 {{ fmtNum(available(l)) }}</span>
+                        <span v-if="pending" class="text-xs text-gray-500">가용 {{ fmtNum(available(l)) }}</span>
                         <div class="flex-1"></div>
                         <span v-if="l.inspect_required || l.inspect_status !== 'NONE'" class="text-xs font-semibold" :style="{ color: inspectColor(l.inspect_status) }">{{ inspectLabel(l.inspect_status) }}</span>
                         <label class="text-xs text-gray-500">출하</label>
@@ -106,8 +106,8 @@
                         <button v-if="editable" type="button" class="text-gray-400 hover:text-red-500" title="줄 빼기" @click="lines.splice(i, 1)">✕</button>
                     </div>
                     <p v-if="lineErr(i)" class="px-3 py-1 text-xs text-red-500">{{ lineErr(i) }}</p>
-                    <p v-if="l.qty !== '' && Number(l.qty) > available(l) + 1e-9" class="px-3 py-1 text-xs text-amber-600">⚠ 가용 재고( {{ fmtNum(available(l)) }} )보다 많습니다.</p>
-                    <p v-if="l.so_remaining !== null && Number(l.qty) > l.so_remaining + 1e-9" class="px-3 py-1 text-xs text-amber-600">⚠ 수주 남은 수량( {{ fmtNum(l.so_remaining) }} )보다 많습니다. ( 추가 납품 )</p>
+                    <p v-if="pending && l.qty !== '' && Number(l.qty) > available(l) + 1e-9" class="px-3 py-1 text-xs text-amber-600">⚠ 가용 재고( {{ fmtNum(available(l)) }} )보다 많습니다.</p>
+                    <p v-if="pending && l.so_remaining !== null && Number(l.qty) > l.so_remaining + 1e-9" class="px-3 py-1 text-xs text-amber-600">⚠ 수주 남은 수량( {{ fmtNum(l.so_remaining) }} )보다 많습니다. ( 추가 납품 )</p>
 
                     <!-- LOT 지정 -->
                     <div v-if="l._open" class="px-2 py-1">
@@ -207,6 +207,8 @@ const shippedAt    = ref('');
 let keySeq = 0;
 
 const editable = computed(() => props.canWrite && (!form.shipment_idx || (form.status === 'WAIT' && form.approval_status !== 'PENDING')));
+// 아직 나가지 않은 건 ( 신규 · 출하대기 ) — 가용 · 수주 남은 수량 경고는 여기서만 ( 완료 건은 이미 재고 · 출하 수량에 반영돼 0 과 비교하게 된다 )
+const pending  = computed(() => !form.shipment_idx || form.status === 'WAIT');
 const partnerOptions = computed(() => ctx.partners.map(p => ({ value: p.partner_idx, label: p.partner_name })));
 const itemOptions    = computed(() => ctx.items.map(it => ({ value: it.item_idx, label: `${it.item_code} ${it.item_name}` })));
 

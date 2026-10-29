@@ -10,17 +10,19 @@ use MesCore\Stock\Models\StockTxn;
 use MesCore\Stock\Models\StockTxnLine;
 use MesCore\Stock\Services\StockAdjustService;
 use MesCore\Stock\Services\StockMoveService;
+use MesCore\Stock\Services\StockMiscOutService;
+use MesCore\Production\Models\WorkOrder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
-// 창고이동 ( INV-04 ) · 재고조정 ( INV-05 ) — docs/screens/40-구매자재.md §17 ~ §20
+// 창고이동 ( INV-04 ) · 재고조정 ( INV-05 ) · 기타출고 — docs/screens/40-구매자재.md §17 ~ §20
 //   처리는 재고현황 팝업 · 각 메뉴 어디서든 같은 API. 목록은 이력( 한 행 = 전표 하나 = 줄 하나 ) + 취소
 //   권한은 라우트( 창고이동 · 재고조정 메뉴 )가 본다
 class StockProcessController extends Controller {
     use RespondsWithList;
 
-    public function __construct(private StockMoveService $moves, private StockAdjustService $adjusts) {}
+    public function __construct(private StockMoveService $moves, private StockAdjustService $adjusts, private StockMiscOutService $miscs) {}
 
     // ---- 창고이동 ----
 
@@ -79,6 +81,49 @@ class StockProcessController extends Controller {
         return response()->json(['message' => 'Success']);
     }
 
+    // ---- 기타출고 ( 권한 = 출고관리 ) ----
+
+    public function miscList(Request $request) {
+        return $this->history($request, StockMiscOutService::TXN_TYPE, 'miscs');
+    }
+
+    public function miscOut(Request $request) {
+        $data = $request->validate([
+            'stock_balance_idx' => 'required|integer',
+            'qty'               => 'required|numeric|gt:0|max:999999999999',
+            'occurred_at'       => 'required|date_format:Y-m-d\TH:i',
+            'remark'            => 'required|string|max:200',
+            'work_order_idx'    => 'nullable|integer|exists:work_order,work_order_idx',
+        ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'remark.required' => '메모( 출고 사유 )를 넣으세요.'], [
+            'qty' => '수량', 'occurred_at' => '출고일시', 'remark' => '메모', 'work_order_idx' => '관련 작업지시',
+        ]);
+
+        return $this->run(fn () => $this->miscs->out($data), '기타출고');
+    }
+
+    public function miscCancel(int $txnIdx) {
+        $this->miscs->cancel($this->findTxn($txnIdx, StockMiscOutService::TXN_TYPE));
+        return response()->json(['message' => 'Success']);
+    }
+
+    // 이 품목을 자재로 쓰는 작업지시 ( 최근 순 ) — open = 대기 · 진행만 ( 작업지시 출고 ) / 아니면 완료까지 ( 기타출고의 관련 지시 )
+    public function workOrders(Request $request) {
+        $v = $request->validate(['item_idx' => 'required|integer', 'open' => 'nullable|boolean']);
+        $statuses = !empty($v['open']) ? ['WAIT', 'RUN'] : ['WAIT', 'RUN', 'DONE'];
+
+        $rows = WorkOrder::with('item:item_idx,item_code,item_name')
+            ->whereIn('status', $statuses)
+            ->whereHas('materials', fn ($q) => $q->where('child_item_idx', $v['item_idx']))
+            ->orderByDesc('work_order_idx')->limit(100)
+            ->get(['work_order_idx', 'wo_no', 'item_idx', 'status', 'target_qty', 'start_date']);
+
+        return response()->json(['work_orders' => $rows->map(fn (WorkOrder $w) => [
+            'value'  => $w->work_order_idx,
+            'label'  => "{$w->wo_no} · " . trim(($w->item?->item_code ?? '') . ' ' . ($w->item?->item_name ?? '')) . ' · ' . (WorkOrder::STATUSES[$w->status] ?? $w->status),
+            'status' => $w->status,
+        ])->values()]);
+    }
+
     // ---- 내부 ----
 
     private function run(callable $fn, string $what) {
@@ -114,7 +159,7 @@ class StockProcessController extends Controller {
             ->select('stock_txn_line.*', 'stock_txn.txn_no', 'stock_txn.occurred_at', 'stock_txn.recorded_at', 'stock_txn.status as txn_status', 'stock_txn.create_account_idx as txn_creator')
             ->join('stock_txn', 'stock_txn.stock_txn_idx', '=', 'stock_txn_line.stock_txn_idx')
             ->where('stock_txn.txn_type', $type)
-            ->with(['item:item_idx,item_code,item_name,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name', 'toWarehouse:warehouse_idx,warehouse_name'])
+            ->with(['item:item_idx,item_code,item_name,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name', 'toWarehouse:warehouse_idx,warehouse_name', 'workOrder:work_order_idx,wo_no'])
             ->orderByDesc('stock_txn.recorded_at')->orderByDesc('stock_txn.stock_txn_idx');
 
         if (!empty($v['from']))   $query->where('stock_txn.occurred_at', '>=', $v['from'] . ' 00:00:00');
@@ -150,6 +195,7 @@ class StockProcessController extends Controller {
             'delta'           => (float) $l->pass_qty,
             'reason'          => $l->reason_code ? ($reasons[$l->reason_code] ?? $l->reason_code) : null,
             'remark'          => $l->remark,
+            'wo_no'           => $l->workOrder?->wo_no,
             'user_name'       => $users[$l->txn_creator] ?? '',
         ]);
     }

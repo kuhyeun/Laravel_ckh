@@ -1,5 +1,5 @@
 <!-- LOT 입출고 이력 ( INV-01 행 클릭 — INV-02 의 최소형 ) — 원장 행을 그대로, 집계 없음
-     - 아래 [창고이동] · [재고조정]이 처리 창을 연다 ( 그 메뉴 쓰기 권한이 있을 때 )
+     - 아래 [입고] · [출고] · [창고이동] · [재고조정]이 처리 창을 연다 ( 그 메뉴 쓰기 권한이 있을 때 — 입고 = 입고관리 · 출고 = 출고관리 )
      - 발생 시각( 업무 순서 ) · 등록 시각( 전산 입력 ) 둘 다 보여 준다 ( 재고-수불-설계 §4.3 )
      - 누계는 화면이 행을 따라 더한 값 ( 원장 GROUP BY 아님 ) -->
 <template>
@@ -38,6 +38,8 @@
         <p class="text-xs text-gray-400 mt-1">취소된 입출고는 줄을 그어 보이고, 되돌린 행( 취소 )이 따로 있습니다.</p>
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
             <!-- 진입점 ( 화면목록 §5-2 ) — 처리는 각 화면의 창이 한다 -->
+            <BaseButton v-if="canReceipt" size="sm" variant="secondary" @click="act('receipt')">입고</BaseButton>
+            <BaseButton v-if="canIssue && balanceIdx" size="sm" variant="secondary" @click="act('issue')">출고</BaseButton>
             <BaseButton v-if="canMove && balanceIdx" size="sm" variant="secondary" @click="act('move')">창고이동</BaseButton>
             <BaseButton v-if="canAdjust && balanceIdx" size="sm" variant="secondary" @click="act('adjust')">재고조정</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
@@ -58,13 +60,17 @@ const props = defineProps({
     balanceIdx:   { type: Number, default: null },     // 있으면 이동 · 조정 버튼 ( 권한이 있을 때 )
     canMove:      { type: Boolean, default: false },
     canAdjust:    { type: Boolean, default: false },
-    onAction:     { type: Function, default: null },   // ( 'move' | 'adjust' ) — 이 창을 닫고 처리 창을 연다
+    canIssue:     { type: Boolean, default: false },
+    canReceipt:   { type: Boolean, default: false },
+    onAction:     { type: Function, default: null },   // ( type, reload ) — 처리 창을 연다. 처리 후 reload() 로 이 이력을 다시 읽는다
 });
 const emit = defineEmits(['close']);
 
+// 입고 · 출고는 이 창을 열어 둔 채 위에 처리 창을 띄운다 / 창고이동 · 재고조정은 이 창을 닫고 연다
+const KEEP_OPEN = ['receipt', 'issue'];
 function act(type) {
-    emit('close');
-    props.onAction?.(type);
+    if (!KEEP_OPEN.includes(type)) emit('close');
+    props.onAction?.(type, load);
 }
 
 const loading   = ref(true);
@@ -73,7 +79,11 @@ const rows      = ref([]);
 const truncated = ref(false);
 const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 
-onMounted(async () => {
+onMounted(load);
+
+async function load() {
+    loading.value = true;
+    error.value   = '';
     try {
         const params = { item_idx: props.itemIdx, lot_idx: props.lotIdx };
         if (props.warehouseIdx) params.warehouse_idx = props.warehouseIdx;
@@ -85,5 +95,5 @@ onMounted(async () => {
     } finally {
         loading.value = false;
     }
-});
+}
 </script>

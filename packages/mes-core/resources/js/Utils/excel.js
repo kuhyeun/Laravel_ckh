@@ -55,17 +55,19 @@ export async function exportExcel({ layout = null, rows = [], columns = [], cont
 // ---- 열 구성형 ----
 
 // 양식이 없을 때 : 그리드 열 그대로 ( 행 머리 · 숨긴 열 · 상세보기 칸 제외, 값은 화면 표시값 )
+//   열 설정( DataGrid setting-key )으로 사용자가 숨긴 열( _userHidden )은 내보내고 엑셀에서 숨긴다 — 순서 · 이름은 화면 설정 그대로
 function defaultLayout(columns) {
     return {
         type: 'list',
         freeze: 'A2',
         columns: columns
-            .filter(c => c.name && !c.name.startsWith('_') && !c.hidden && c.name !== 'mesDetail')
+            .filter(c => c.name && !c.name.startsWith('_') && (!c.hidden || c._userHidden) && c.name !== 'mesDetail')
             .map(c => ({
                 field:   c.name,
                 header:  c.header,
                 width:   Math.max(8, Math.round((c.width ?? c.minWidth ?? 100) / 8)),
                 display: true,
+                hidden:  !!c._userHidden,
             })),
     };
 }
@@ -74,7 +76,7 @@ function buildList(wb, layout, rows, gridColumns, context) {
     const ws = wb.addWorksheet(layout.sheet ?? 'Sheet1');
     const cols = layout.columns ?? [];
 
-    ws.columns = cols.map(c => ({ header: c.header ?? c.field, key: c.field, width: c.width ?? 12 }));
+    ws.columns = cols.map(c => ({ header: c.header ?? c.field, key: c.field, width: c.width ?? 12, hidden: !!c.hidden }));
 
     rows.forEach((row, i) => {
         ws.addRow(cols.map(c => listValue(c, row, i, rows, gridColumns, context)));

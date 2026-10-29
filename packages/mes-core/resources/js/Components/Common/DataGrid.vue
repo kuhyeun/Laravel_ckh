@@ -9,6 +9,8 @@
      - 트리( options.treeColumnOptions ) : 하위 행이 있는 행은 트리 칸을 누르면 펼침 / 접기 ( row-click 대신 ). 아이콘은 그리드가 처리
        빈 _children( [] )은 지운다 — 남아 있으면 하위 행이 없는데도 펼침 아이콘이 생긴다
      - 엑셀은 ExcelExportButton 을 화면의 목록 머리에 둔다 ( columns · data 를 그대로 넘긴다 )
+     - setting-key : 사용자별 열 설정( 표시 · 이름 · 순서 · 너비 — 사용자 × 화면 × 키 ) 켜기. 오른쪽 클릭 "열 설정…" · GridSettingButton
+       열에 lockHide: true 를 주면 숨길 수 없다 / 끌어서 바꾼 너비는 저장된다 / 엑셀은 ExcelExportButton :grid 로 이 설정을 따른다
      - 기능은 더하기만 한다 — 새 prop 을 안 쓰는 화면은 예전과 같다 ( 공통컴포넌트 §7 ) -->
 <template>
     <div class="flex flex-col min-h-0">
@@ -42,8 +44,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { usePage } from '@inertiajs/vue3';
+import { route } from 'ziggy-js';
 import { useGrid } from '@core/Composables/useGrid';
+import { useModalStore } from '@core/Stores/modalStore';
+import GridColumnSettings from '@core/Components/Common/GridColumnSettings.vue';
+import { applyGridSetting, toSetting } from '@core/Utils/gridSetting';
 
 const PER_PAGE_OPTIONS = [20, 50, 100, 200];
 
@@ -53,6 +60,7 @@ const props = defineProps({
     options:    { type: Object,  default: () => ({}) },
     pagination: { type: Object,  default: null },    // { page, perPage, total } — 있으면 서버 페이징
     emptyText:  { type: String,  default: '' },
+    settingKey: { type: String,  default: '' },      // 있으면 사용자별 열 설정 ( 한 화면에 그리드가 여럿이면 다르게 )
 });
 
 const emit = defineEmits(['row-click', 'grid-mounted', 'select', 'page', 'sort']);
@@ -69,7 +77,67 @@ const copyOnlyContextMenu = () => [[
     { name: 'copyRows',    label: '행 복사', action: 'copyRows' },
 ]];
 
-defineExpose({ gridInstance });
+// ---- 열 설정 ( setting-key ) ----
+const page        = usePage();
+const modalStore  = useModalStore();
+const gridColumns = shallowRef(props.columns);   // 그리드에 준 열 ( 설정 적용 ) — 엑셀도 이것을 쓴다 ( 열 객체는 반응형으로 감싸지 않는다 — TUI 에 그대로 )
+const settable    = () => gridColumns.value.filter(c => c._origHeader !== undefined);
+const settingParams = () => ({ page: page.component, key: props.settingKey });
+// 설정에 쓰는 화면 열 : 트리 펼침 열은 숨기면 트리가 깨지므로 늘 잠근다
+const baseColumns = () => {
+    const tree = props.options?.treeColumnOptions?.name;
+    return tree ? props.columns.map(c => c.name === tree ? { ...c, lockHide: true } : c) : props.columns;
+};
+
+async function loadSetting() {
+    try {
+        const { data } = await window.axios.get(route('common.gridSetting.show'), { params: settingParams() });
+        return data.columns ?? null;
+    } catch (e) {
+        return null;   // 못 읽으면 기본 구성
+    }
+}
+function applyColumns(cols) {
+    gridColumns.value = cols;
+    gridInstance.value?.setColumns(cols);
+}
+async function saveSetting(list) {
+    await window.axios.post(route('common.gridSetting.save'), { ...settingParams(), columns: list });
+}
+
+function openSettings() {
+    if (!props.settingKey) return;
+    modalStore.open(GridColumnSettings, {
+        modalTitle: '열 설정',
+        columns: settable(),
+        onApply: async (list) => {
+            const widths = Object.fromEntries(settable().map(c => [c.name, c._savedWidth]));
+            const saved  = list.map(l => ({ ...l, width: widths[l.name] ?? null }));
+            await saveSetting(saved);
+            applyColumns(applyGridSetting(baseColumns(), saved));
+        },
+        onReset: async () => {
+            await window.axios.post(route('common.gridSetting.reset'), settingParams());
+            applyColumns(applyGridSetting(baseColumns(), null));
+        },
+    }, { size: 'md' });
+}
+
+// 끌어서 바꾼 너비 : 잠깐 모았다가 저장
+let widthTimer = null;
+function onColumnResize(ev) {
+    (ev.resizedColumns ?? []).forEach(({ columnName, width }) => {
+        const c = gridColumns.value.find(x => x.name === columnName && x._origHeader !== undefined);
+        if (c) { c._savedWidth = Math.round(width); c.width = Math.round(width); }
+    });
+    clearTimeout(widthTimer);
+    widthTimer = setTimeout(() => saveSetting(toSetting(gridColumns.value)).catch(() => {}), 800);
+}
+onBeforeUnmount(() => clearTimeout(widthTimer));
+
+const exportColumns = computed(() => gridColumns.value);
+
+defineExpose({ gridInstance, openSettings, exportColumns });
 
 // 빈 _children 은 지운다 ( 아래 단계까지 )
 function treeRows(rows) {
@@ -87,15 +155,22 @@ function emitSelect() {
     emit('select', gridInstance.value?.getCheckedRows() ?? []);
 }
 
-onMounted(() => {
+onMounted(async () => {
+    if (props.settingKey) {
+        const saved = await loadSetting();
+        if (!gridContainer.value) return;   // 읽는 사이 화면을 떠났다
+        gridColumns.value = applyGridSetting(baseColumns(), saved);
+    }
     setGrid(gridContainer, {
         // useGrid 기본값은 scroll 이 꺼져 있어( scrollX/Y:false ) 여기서 켠다.
         // bodyHeight:'fitToParent' → 부모(컨테이너) 높이에 맞추고 넘치면 내부 스크롤
         scrollX: true,
         scrollY: true,
         bodyHeight: 'fitToParent',
-        columns: props.columns,
-        contextMenu: copyOnlyContextMenu,   // 화면이 options.contextMenu 로 바꿀 수 있다
+        columns: gridColumns.value,
+        contextMenu: props.settingKey
+            ? () => [...copyOnlyContextMenu(), [{ name: 'columnSetting', label: '열 설정…', action: openSettings }]]
+            : copyOnlyContextMenu,   // 화면이 options.contextMenu 로 바꿀 수 있다
         // 정렬은 sortable: true 를 준 열만. useGrid 기본값( false )이면 TUI 가 DataSource( 서버 API ) 경로로 가서 오류가 난다
         //   서버 페이징이면 beforeSort 에서 막고 sort 이벤트로 알린다 ( 이 이벤트는 client 경로에서만 나온다 )
         useClientSort: true,
@@ -126,6 +201,7 @@ onMounted(() => {
     });
 
     ['check', 'uncheck', 'checkAll', 'uncheckAll'].forEach(ev => grid?.on(ev, emitSelect));
+    if (props.settingKey) grid?.on('columnResize', onColumnResize);
 
     // 서버 페이징이면 정렬도 서버가 한다 ( 그리드의 자체 정렬을 막고 알리기만 )
     //   막으면 그리드의 정렬 상태가 그대로라 ascending 이 늘 같은 값으로 온다 → 방향은 여기서 기억해 번갈아 보낸다

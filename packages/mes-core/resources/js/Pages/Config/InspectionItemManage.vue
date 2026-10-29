@@ -35,11 +35,16 @@
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                 <span class="text-sm font-semibold text-gray-600">검사항목 목록 · <span class="text-xs text-gray-400">{{ inspectionItems.length }} 건</span></span>
                 <div class="flex items-center gap-2">
-                    <ExcelExportButton layout="inspection_item.list" :rows="inspectionItems" :columns="inspectionItemColumns" filename="검사항목목록" />
+                    <div class="flex items-center gap-1.5">
+                        <GridSettingButton :grid="mainGrid" />
+                        <ExcelExportButton :grid="mainGrid" layout="inspection_item.list" :rows="inspectionItems" :columns="inspectionItemColumns" filename="검사항목목록" />
+                    </div>
                 </div>
             </div>
             <div class="flex-1 min-h-0">
                 <DataGrid
+                    ref="mainGrid"
+                    setting-key="main"
                     class="h-full"
                     :data="inspectionItems"
                     :columns="inspectionItemColumns"
@@ -59,6 +64,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { useDelayedBusy } from '@core/Composables/useDelayedBusy';
@@ -70,6 +76,7 @@ import { fetchCommonCodes } from '@core/Composables/useCommonCode';
 import { showAlert } from '@core/Utils/message';
 
 defineOptions({ layout: AppLayout });
+const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const modalStore = useModalStore();
 

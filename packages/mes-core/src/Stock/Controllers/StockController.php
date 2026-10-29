@@ -134,6 +134,8 @@ class StockController extends Controller {
             'warehouses' => Warehouse::options(),
             'can_move'   => $permissions->canPage($user, 'Stock/StockMove', 'can_write'),
             'can_adjust' => $permissions->canPage($user, 'Stock/StockAdjust', 'can_write'),
+            'can_issue'  => $permissions->canPage($user, 'Production/MaterialIssue', 'can_write'),   // [출고] — 작업지시 출고 · 기타출고
+            'can_receipt'=> $permissions->canPage($user, 'Purchase/ReceiptManage', 'can_write'),     // [입고]
         ]);
     }
 
@@ -141,7 +143,7 @@ class StockController extends Controller {
     public function balance(MenuPermissionService $permissions, int $balanceIdx) {
         /** @var User|null $user */
         $user = Auth::user();
-        if (!$user || !$permissions->canPage($user, ['Stock/StockStatus', 'Stock/StockMove', 'Stock/StockAdjust'], 'can_read')) {
+        if (!$user || !$permissions->canPage($user, ['Stock/StockStatus', 'Stock/StockMove', 'Stock/StockAdjust', 'Production/MaterialIssue'], 'can_read')) {
             abort(403, 'Permission Denied.');
         }
 

@@ -39,11 +39,16 @@
                     <span class="ml-2 text-xs font-normal text-gray-400">( 단위 : 일 · 수량과 무관 · — 는 해당 없음 = 0일 )</span>
                 </span>
                 <div class="flex items-center gap-2">
-                    <ExcelExportButton layout="lead_time.list" :rows="rows" :columns="columns" filename="리드타임목록" />
+                    <div class="flex items-center gap-1.5">
+                        <GridSettingButton :grid="mainGrid" />
+                        <ExcelExportButton :grid="mainGrid" layout="lead_time.list" :rows="rows" :columns="columns" filename="리드타임목록" />
+                    </div>
                 </div>
             </div>
             <div class="flex-1 min-h-0">
                 <DataGrid
+                    ref="mainGrid"
+                    setting-key="main"
                     class="h-full"
                     :data="rows"
                     :columns="columns"
@@ -62,6 +67,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { useDelayedBusy } from '@core/Composables/useDelayedBusy';
@@ -72,6 +78,7 @@ import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 
 defineOptions({ layout: AppLayout });
+const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const modalStore = useModalStore();
 

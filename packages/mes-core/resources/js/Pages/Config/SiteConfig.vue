@@ -24,7 +24,7 @@
 
                 <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 max-w-5xl">
                     <div v-for="it in sec.items" :key="it.id" class="flex items-center gap-3" :class="WIDE.includes(it.id) ? 'md:col-span-2' : ''">
-                        <label class="w-28 shrink-0 text-sm text-gray-600" :for="`site-${it.id}`">{{ it.name }}</label>
+                        <label class="w-28 shrink-0 text-sm text-gray-600 font-semibold" :for="`site-${it.id}`">{{ it.name }}</label>
                         <BaseSelect v-if="it.type === 'ENUM'" :id="`site-${it.id}`" v-model="values[it.id]" :options="it.options" class="flex-1 max-w-sm" :disabled="!canWrite" />
                         <BaseInput v-else :id="`site-${it.id}`" v-model="values[it.id]" class="flex-1" :placeholder="it.remark || ''" :disabled="!canWrite" />
                     </div>
@@ -33,20 +33,22 @@
                 <!-- 회사 설정 : 직인 · 로고 -->
                 <div v-if="sec.key === 'company'" class="px-4 pb-4 flex flex-wrap gap-6">
                     <div v-for="img in IMAGES" :key="img.kind" class="w-56">
-                        <div class="text-sm text-gray-600 mb-1">{{ img.label }} <span class="text-xs text-gray-400">{{ img.hint }}</span></div>
+                        <div class="text-sm text-gray-600 mb-1 font-semibold">{{ img.label }} <span class="text-xs text-gray-400">{{ img.hint }}</span></div>
                         <div class="h-32 border border-dashed border-gray-300 rounded flex items-center justify-center bg-[repeating-conic-gradient(#f3f4f6_0_25%,#fff_0_50%)] bg-[length:16px_16px]">
                             <img v-if="images[img.kind]" :src="imageUrl(img.kind)" :alt="img.label" class="max-h-28 max-w-[13rem] object-contain" />
                             <span v-else class="text-xs text-gray-400">없음</span>
                         </div>
                         <div v-if="canWrite" class="mt-2 flex gap-2">
-                            <BaseButton size="sm" variant="secondary" :disabled="uploading === img.kind" @click="pick(img.kind)">{{ images[img.kind] ? '바꾸기' : '올리기' }}</BaseButton>
+                            <BaseButton size="sm" variant="secondary" :disabled="uploading === img.kind" @click="pick(img.kind)">{{ images[img.kind] ? '수정' : '등록' }}</BaseButton>
                             <BaseButton v-if="images[img.kind]" size="sm" variant="secondary" :disabled="uploading === img.kind" @click="removeImage(img)">삭제</BaseButton>
                         </div>
                     </div>
-                    <input ref="fileInput" type="file" class="hidden" :accept="ACCEPT" @change="onFile" />
                 </div>
             </section>
         </div>
+
+        <!-- 이미지 파일 고르기 ( v-for 밖 — 안에 두면 ref 가 배열이 된다 ) -->
+        <input ref="fileInput" type="file" class="hidden" :accept="ACCEPT" @change="onFile" />
     </div>
 </template>
 
@@ -78,8 +80,8 @@ const SECTION_META = {
 };
 const WIDE   = ['company.address', 'company.homepage'];   // 두 칸 너비
 const IMAGES = [
-    { kind: 'seal', label: '직인', hint: '배경 투명 PNG 권장 · 거래명세서 ( 인 ) 자리' },
-    { kind: 'logo', label: '로고', hint: '가로형 권장 · 거래명세서 제목 왼쪽' },
+    { kind: 'seal', label: '직인', hint: '문서 양식 ( 인 ) 자리' },
+    { kind: 'logo', label: '로고', hint: '문서 양식 왼쪽 상단' },
 ];
 const ACCEPT = '.png,.jpg,.jpeg,.gif,.webp';
 

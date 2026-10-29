@@ -4,9 +4,21 @@
      - 오른쪽 : 자재 줄마다 계산 소요( ⓘ 계산 과정 ) · 규격 묶음 · 후보 LOT( 선입선출 ) 채움 → [출고]
      - 아래 : 이 지시의 출고 이력 — 체크 → [출고 취소] ( 보유분 안에서만 ) -->
 <template>
-    <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
+    <!-- [기타출고] 탭 : 재고관리 LOT 창의 [출고 → 기타출고] 이력 + 취소 -->
+    <StockTxnHistory v-if="tab === 'misc'" type="misc">
+        <template #head>
+            <div class="flex items-center gap-1">
+                <button v-for="t in TABS" :key="t.key" type="button" class="px-2 py-0.5 rounded font-bold text-lg tracking-tight"
+                    :class="tab === t.key ? 'text-gray-800' : 'text-gray-300 hover:text-gray-500'" @click="tab = t.key">{{ t.label }}</button>
+            </div>
+        </template>
+    </StockTxnHistory>
+    <div v-else class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">자재출고</h2>
+            <div class="flex items-center gap-1">
+                <button v-for="t in TABS" :key="t.key" type="button" class="px-2 py-0.5 rounded font-bold text-lg tracking-tight"
+                    :class="tab === t.key ? 'text-gray-800' : 'text-gray-300 hover:text-gray-500'" @click="tab = t.key">{{ t.label }}</button>
+            </div>
             <div class="flex-1"></div>
             <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
         </div>
@@ -26,11 +38,17 @@
         <div class="flex-1 min-h-0 flex gap-3">
             <!-- 작업지시 -->
             <div class="w-[520px] shrink-0 flex flex-col border border-gray-200 overflow-hidden">
-                <div class="px-3 py-2 bg-gray-50/70 shrink-0 text-sm font-semibold text-gray-600">
-                    작업지시 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건 ( 대기 · 진행 )</span>
+                <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
+                    <span class="text-sm font-semibold text-gray-600">작업지시 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건 ( 대기 · 진행 )</span></span>
+                    <div class="flex items-center gap-1.5">
+                        <GridSettingButton :grid="mainGrid" />
+                        <ExcelExportButton :rows="exportRows" :columns="columns" :grid="mainGrid" filename="자재출고_작업지시" />
+                    </div>
                 </div>
                 <div class="flex-1 min-h-0 flex flex-col">
                     <DataGrid
+                        ref="mainGrid"
+                        setting-key="main"
                         class="flex-1"
                         :data="rows"
                         :columns="columns"
@@ -58,13 +76,21 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
+import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
+import StockTxnHistory from '@core/Components/Stock/StockTxnHistory.vue';
 
 defineOptions({ layout: AppLayout });
+
+// 탭 : 작업지시 자재출고 / 기타출고 이력
+const TABS = [{ key: 'wo', label: '자재출고' }, { key: 'misc', label: '기타출고' }];
+const tab  = ref('wo');
+const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const page     = usePage();
 const menuCode = page.props.menuCode;
@@ -120,6 +146,14 @@ async function load() {
     } finally {
         loading.value = false;
     }
+}
+// 엑셀 : 지금 조건 전체 ( export=1 — 페이지와 상관없이 )
+async function exportRows() {
+    const p = { ...search, include_done: search.include_done === 'Y' ? 1 : '', export: 1 };
+    if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
+    const params = Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null));
+    const { data } = await window.axios.get(route('production.materialIssue.list'), { params });
+    return data.rows ?? [];
 }
 function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }

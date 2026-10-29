@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use MesCore\Basic\Controllers\CommonCodeController;
 use MesCore\Basic\Controllers\ExcelLayoutController;
 use MesCore\Basic\Controllers\SearchDefaultsController;
+use MesCore\Basic\Controllers\GridSettingController;
 use MesCore\Auth\Middleware\UserAuth;
 
 // 업무 화면 공용 조회 API ( 로그인만 필요, 메뉴 권한과 무관 )
@@ -21,4 +22,9 @@ Route::prefix('common')->name('common.')->middleware([UserAuth::class])->group(f
     // 엑셀 양식 ( 업체 → 공통 순서로 파일을 찾는다 )
     Route::get('/excel/layouts', [ExcelLayoutController::class, 'layouts'])->name('excel.layouts');
     Route::get('/excel/template', [ExcelLayoutController::class, 'template'])->name('excel.template');
+
+    // 그리드 열 설정 ( DataGrid setting-key ) — 예외로 쓰기가 있다 : 로그인한 사용자 자신의 화면 설정만 ( 업무 데이터 아님 )
+    Route::get('/grid-setting', [GridSettingController::class, 'show'])->name('gridSetting.show');
+    Route::post('/grid-setting', [GridSettingController::class, 'save'])->name('gridSetting.save');
+    Route::post('/grid-setting/reset', [GridSettingController::class, 'reset'])->name('gridSetting.reset');
 });

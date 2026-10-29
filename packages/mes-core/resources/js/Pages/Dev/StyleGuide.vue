@@ -38,9 +38,13 @@
                         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                                 <span class="text-sm font-semibold text-gray-600">품목 목록 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건</span></span>
+                                <div class="flex items-center gap-1.5">
+                                    <GridSettingButton :grid="demoGrid" />
+                                    <ExcelExportButton :rows="found" :columns="columns" :grid="demoGrid" filename="스타일가이드_예시" />
+                                </div>
                             </div>
                             <div class="flex-1 min-h-0 flex flex-col">
-                                <DataGrid class="flex-1" :data="pageRows" :columns="columns" :options="{ rowHeaders: 'checkbox' }" :pagination="paging"
+                                <DataGrid ref="demoGrid" setting-key="demo" class="flex-1" :data="pageRows" :columns="columns" :options="{ rowHeaders: 'checkbox' }" :pagination="paging"
                                     empty-text="조건에 맞는 품목이 없습니다." @row-click="() => openDemoModal('lg')" @select="sel => checked = sel" @page="onPage" />
                             </div>
                         </div>
@@ -256,6 +260,8 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import ShowcaseCard from '@core/Components/Base/ShowcaseCard.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
+import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import StyleGuideDemoForm from '@core/Components/Dev/StyleGuideDemoForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
@@ -264,6 +270,8 @@ import { useFlash } from '@core/Composables/useFlash';
 import { fmtNum, fmtQty, dash } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
+
+const demoGrid = ref(null);   // 예시 목록 그리드 — 열 설정 · 엑셀
 
 const SECTIONS = [
     { id: 'layout',   label: '화면 틀' },
@@ -399,9 +407,14 @@ const code = {
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                 <span class="text-sm font-semibold text-gray-600">품목 목록 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건</span></span>
+                <!-- 목록 머리 오른쪽 : 열 설정 + 엑셀 ( 메인 목록 그리드는 기본으로 둘 다 ) -->
+                <div class="flex items-center gap-1.5">
+                    <GridSettingButton :grid="mainGrid" />
+                    <ExcelExportButton :rows="exportRows" :columns="columns" :grid="mainGrid" filename="품목목록" />
+                </div>
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
-                <DataGrid class="flex-1" :data="rows" :columns="columns" :options="{ rowHeaders: 'checkbox' }" :pagination="paging"
+                <DataGrid ref="mainGrid" setting-key="main" class="flex-1" :data="rows" :columns="columns" :options="{ rowHeaders: 'checkbox' }" :pagination="paging"
                     empty-text="조건에 맞는 품목이 없습니다."
                     @row-click="openModal" @select="sel => checkedRows = sel" @page="onPage" @sort="onSort" />
             </div>

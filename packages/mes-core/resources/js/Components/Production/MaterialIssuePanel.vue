@@ -2,6 +2,7 @@
      - 자재 줄마다 계산 소요( ⓘ 계산 과정 ) · 규격 묶음 · 후보 LOT( 선입선출 ) 채움 → [출고]
      - 아래 : 이 지시의 출고 이력 — 체크 → [출고 취소] ( 보유분 안에서만 )
      - 쓰는 곳 : 자재출고 화면( Production/MaterialIssue ) · 공정실적 화면의 [출고] ( Production/OpResult — 그 화면 권한으로 부르는 주소 )
+               · 재고관리 LOT 창의 [출고] ( preferBalanceIdx — 그 LOT 을 먼저 채운다 )
      - routes : { plan, history, save, cancel, returnPlan, returnSave, returnCancel } route name. 처리 후 changed, 알림은 flash( text, error )
      - 탭 [출고] / [반납]( MaterialReturnPanel — §15-1 ). 완료 · 취소된 줄은 출고를 끄고 반납 탭으로 연다 -->
 <template>
@@ -155,6 +156,7 @@ const props = defineProps({
     woIdx:     { type: Number, required: true },
     canWrite:  { type: Boolean, default: false },
     canCancel: { type: Boolean, default: false },
+    preferBalanceIdx: { type: Number, default: null },   // 이 잔고 행을 선입선출보다 먼저 채운다 ( 같은 규격 묶음 안에서 )
     routes:    { type: Object, default: () => ({
         plan: 'production.materialIssue.plan', history: 'production.materialIssue.history',
         save: 'production.materialIssue.save', cancel: 'production.materialIssue.cancel',
@@ -220,6 +222,7 @@ async function loadPlan() {
             _open: m.need_qty > 0 || !m.issued_qty,
             groups: m.groups.map(g => ({ ...g, _trace: false, lots: g.lots.map(l => ({ ...l, fill: l.fill ? String(l.fill) : '' })) })),
         }));
+        if (props.preferBalanceIdx) preferLot(props.preferBalanceIdx);
         history.value   = hist.data.rows ?? [];
         checked.value   = [];
         form.occurred_at = data.now;
@@ -228,6 +231,23 @@ async function loadPlan() {
         emit('flash', e.response?.status === 403 ? '권한이 없습니다.' : '출고 정보를 불러오지 못했습니다.', true);
     } finally {
         planLoading.value = false;
+    }
+}
+
+// 고른 LOT 을 먼저 : 그 묶음의 채운 합은 그대로 두고, 그 LOT → 나머지( 원래 순서 ) 로 다시 나눈다
+function preferLot(balanceIdx) {
+    for (const m of materials.value) {
+        for (const g of m.groups) {
+            const first = g.lots.find(l => l.stock_balance_idx === balanceIdx);
+            if (!first) continue;
+            let left = g.lots.reduce((s, l) => s + num(l.fill), 0);
+            for (const l of [first, ...g.lots.filter(x => x !== first)]) {
+                const take = Math.min(l.qty, left);
+                l.fill = take > 1e-9 ? String(+take.toFixed(6)) : '';
+                left -= take;
+            }
+            m._open = true;
+        }
     }
 }
 

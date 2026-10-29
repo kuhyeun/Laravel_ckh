@@ -137,6 +137,39 @@
   - 하위 행이 있는 행은 **트리 칸을 누르면 펼침 / 접기**, 다른 칸은 row-click. 빈 `_children` 은 DataGrid 가 지운다
   - 하위 행은 체크하지 않게 `_attributes: { checkDisabled: true }`
 
+### 5-0. 목록 머리 : 열 설정 + 엑셀 — **일반 그리드는 기본 포함**
+
+`DataGrid` 로 목록을 보여 주면( 메뉴의 메인 목록 · 좌우 분할의 고르는 목록 포함 ) **목록 머리 오른쪽에 [⚙ 열 설정] · [엑셀] 을 꼭 둔다.**
+빼는 것은 모달 안의 작은 표 · 입력용 그리드 · 엑셀 업로드 결과처럼 "목록"이 아닌 그리드뿐이다.
+
+```html
+<div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
+    <span class="text-sm font-semibold text-gray-600">품목 목록 · <span class="text-xs text-gray-400">{{ n }} 건</span></span>
+    <div class="flex items-center gap-1.5">
+        <GridSettingButton :grid="mainGrid" />
+        <ExcelExportButton :rows="exportRows" :columns="columns" :grid="mainGrid" filename="품목목록" />
+        <!-- 화면 버튼( 신규 · 저장 · 삭제 )은 이 뒤에 -->
+    </div>
+</div>
+<DataGrid ref="mainGrid" setting-key="main" … />
+```
+```js
+const mainGrid = ref(null);
+// 서버 페이징이면 엑셀은 지금 조건 전체 ( export=1 — RespondsWithList ) / 화면 데이터면 :rows="rows"
+async function exportRows() {
+    const { data } = await window.axios.get(route('….list'), { params: { ...search, export: 1 } });
+    return data.rows ?? [];   // 트리면 (data.rows ?? []).flatMap(r => [r, ...(r._children ?? [])])
+}
+```
+
+- **열 설정** = 사용자별 표시 · 이름 · 순서 · 너비 ( 사용자 × 화면 × `setting-key` — 테이블 `user_grid_setting` ). 오른쪽 클릭 "열 설정…" 으로도 연다 / 끌어서 바꾼 너비는 자동 저장
+  - 한 화면에 그리드가 여럿이면 키를 다르게 ( 예: 재고관리 `lot` · `item`, 생산실적현황 `list` · `summary-묶음` )
+  - 꼭 있어야 하는 열( 번호 · 품번 등 )은 열 정의에 `lockHide: true` — 숨길 수 없다. 트리 펼침 열은 DataGrid 가 알아서 잠근다
+  - 화면 코드에 새 열을 넣으면 저장된 설정 끝에 보이게 붙고, 지운 열은 설정에서 무시된다
+- **엑셀** 기본 내보내기 ( `:grid` 를 주면 ) : 순서 · 이름은 화면 설정 그대로, **숨긴 열도 내보내고 엑셀에서 숨김 처리** ( 필요하면 펼쳐 본다 )
+  - 엑셀 열을 따로 정한 화면( `exportColumns` — 수주 · 발주 · 출하이력 · 생산실적 이력처럼 줄 단위로 펼쳐 내보내는 곳 )은 `:grid` 를 주지 않는다 ( 그 열 목록대로 나간다 )
+  - 양식 JSON( `resources/excel/*.list.json` )이 있으면 양식이 우선이다 ( `:grid` 를 줘도 양식대로 )
+
 ### 5-1. 얇은 표 목록 ( 그리드 대신 `<table>` )
 
 패널 · 모달 **안에** 붙는 짧은 목록 — 출고 이력 · 반납 이력 · 입고 상세 줄 · 실적 줄 · 자재 표.

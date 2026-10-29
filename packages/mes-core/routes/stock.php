@@ -41,4 +41,16 @@ Route::prefix('stock')->name('stock.')->middleware([UserAuth::class])->group(fun
             Route::post('/cancel/{txnIdx}', [StockProcessController::class, 'adjustCancel'])->whereNumber('txnIdx')->name('cancel');
         });
     });
+
+    // 기타출고 ( 재고관리 LOT 창의 [출고] — 권한 = 출고관리 Production/MaterialIssue ) · 이력은 출고관리의 [기타출고] 탭
+    Route::prefix('misc')->name('misc.')->group(function() {
+        Route::middleware(MenuAuth::class . ':Production/MaterialIssue,can_read')->group(function() {
+            Route::get('/list', [StockProcessController::class, 'miscList'])->name('list');
+            Route::get('/workOrders', [StockProcessController::class, 'workOrders'])->name('workOrders');
+        });
+        Route::middleware(MenuAuth::class . ':Production/MaterialIssue,can_write')->group(function() {
+            Route::post('/save', [StockProcessController::class, 'miscOut'])->name('save');
+            Route::post('/cancel/{txnIdx}', [StockProcessController::class, 'miscCancel'])->whereNumber('txnIdx')->name('cancel');
+        });
+    });
 });

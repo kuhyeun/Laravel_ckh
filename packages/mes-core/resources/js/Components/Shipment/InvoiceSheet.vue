@@ -5,25 +5,25 @@
     <div class="sheet">
         <template v-for="copy in COPIES" :key="copy.key">
             <div class="copy">
+                <!-- 머리 : 거래일자 · 제목 / 공급받는자 · 공급자 — 품목 표와 칸 격자를 따로 둔다 -->
                 <table class="inv" :class="copy.cls">
                     <colgroup>
-                        <!-- 9칸 : No · 제품명( 2 ) · 품목코드( 2 ) · 수량 · 단가 · 공급가액 · 세액 — 머리 칸도 이 격자에 맞춘다 -->
-                        <col style="width: 6%"><col style="width: 11%"><col style="width: 25%"><col style="width: 5%">
-                        <col style="width: 11%"><col style="width: 10%"><col style="width: 10%"><col style="width: 11%"><col style="width: 11%">
+                        <!-- 공급받는자 : 세로 제목 · 라벨 · 값 / 공급자 : 세로 제목 · 라벨 · 값 · 라벨 · 값 -->
+                        <col style="width: 4%"><col style="width: 10%"><col style="width: 29%">
+                        <col style="width: 4%"><col style="width: 10%"><col style="width: 20%"><col style="width: 8%"><col style="width: 15%">
                     </colgroup>
-                    <!-- 머리 -->
                     <tr class="h-title">
                         <td colspan="2" class="c lbl-sm">거 래 일 자<br><span class="val">{{ page.doc.date }}</span></td>
-                        <td colspan="7" class="title"><img v-if="images.logo" :src="images.logo" alt="" class="logo">거 래 명 세 서 <span class="sub">( {{ copy.label }} )</span>
+                        <td colspan="6" class="title"><img v-if="images.logo" :src="images.logo" alt="" class="logo">거 래 명 세 서 <span class="sub">( {{ copy.label }} )</span>
                             <span v-if="page.of > 1" class="pageno">{{ page.no }} / {{ page.of }}</span></td>
                     </tr>
                     <tr class="h-info">
                         <td rowspan="4" class="vlabel">공<br>급<br>받<br>는<br>자</td>
                         <td class="c lbl">상 호<br><span class="lbl-sm">( 법인명 )</span></td>
                         <td class="c val">{{ page.doc.receiver.name }}</td>
-                        <td rowspan="4" class="vlabel">공<br>급<br>자</td>
+                        <td rowspan="4" class="vlabel zone-l">공<br>급<br>자</td>
                         <td class="c lbl">등록번호</td>
-                        <td colspan="4" class="c val big">{{ page.doc.supplier.biz_no }}</td>
+                        <td colspan="3" class="c val big">{{ page.doc.supplier.biz_no }}</td>
                     </tr>
                     <tr class="h-info">
                         <td class="c lbl">사업장<br>주 소</td>
@@ -31,13 +31,13 @@
                         <td class="c lbl">상 호<br><span class="lbl-sm">( 법인명 )</span></td>
                         <td class="c val">{{ page.doc.supplier.name }}</td>
                         <td class="c lbl">성 명</td>
-                        <td colspan="2" class="c val seal-cell">{{ page.doc.supplier.ceo_name }}<span class="seal">( 인 )</span><img v-if="images.seal" :src="images.seal" alt="" class="seal-img"></td>
+                        <td class="c val seal-cell">{{ page.doc.supplier.ceo_name }}<span class="seal">( 인 )</span><img v-if="images.seal" :src="images.seal" alt="" class="seal-img"></td>
                     </tr>
                     <tr class="h-info">
                         <td class="c lbl">전화번호</td>
                         <td class="c val">{{ page.doc.receiver.tel }}</td>
                         <td class="c lbl">사업장<br>주 소</td>
-                        <td colspan="4" class="c val small">{{ page.doc.supplier.address }}</td>
+                        <td colspan="3" class="c val small">{{ page.doc.supplier.address }}</td>
                     </tr>
                     <tr class="h-info">
                         <td class="c lbl">합계금액<br><span class="lbl-sm">{{ vatLabel(page.doc.vat) }}</span></td>
@@ -45,30 +45,45 @@
                         <td class="c lbl">전 화</td>
                         <td class="c val small">{{ page.doc.supplier.tel }}</td>
                         <td class="c lbl">팩 스</td>
-                        <td colspan="2" class="c val small">{{ page.doc.supplier.fax }}</td>
+                        <td class="c val small">{{ page.doc.supplier.fax }}</td>
                     </tr>
-                    <!-- 품목 -->
+                </table>
+
+                <!-- 품목 -->
+                <table class="inv" :class="copy.cls">
+                    <colgroup>
+                        <!-- No · 제품명 · 품목코드 · 수량 · 단가 · 공급가액 · 세액 -->
+                        <col style="width: 6%"><col style="width: 30%"><col style="width: 17%"><col style="width: 9%">
+                        <col style="width: 12%"><col style="width: 14%"><col style="width: 12%">
+                    </colgroup>
                     <tr class="head">
-                        <td class="c">No.</td><td colspan="2" class="c">제품명</td><td colspan="2" class="c">품목코드</td>
+                        <td class="c">No.</td><td class="c">제품명</td><td class="c">품목코드</td>
                         <td class="c">수량</td><td class="c">단가</td><td class="c">공급가액</td><td class="c">세액</td>
                     </tr>
                     <tr v-for="(l, i) in page.rows" :key="i" class="row">
                         <td class="c">{{ (page.no - 1) * rowsPerPage + i + 1 }}</td>
-                        <td colspan="2" class="c">{{ l?.item_name }}</td>
-                        <td colspan="2" class="c">{{ l?.item_code }}</td>
+                        <td class="c">{{ l?.item_name }}</td>
+                        <td class="c">{{ l?.item_code }}</td>
                         <td class="c">{{ l ? num(l.qty) : '' }}</td>
                         <td class="r">{{ l ? won(l.unit_price) : '' }}</td>
                         <td class="r">{{ l ? won(l.supply) : '' }}</td>
                         <td class="r">{{ l ? won(l.tax) : '' }}</td>
                     </tr>
                     <tr class="remark-row">
-                        <td colspan="9" class="remark">비고 : {{ page.doc.remark || '' }}</td>
+                        <td colspan="7" class="remark">비고 : {{ page.doc.remark || '' }}</td>
                     </tr>
+                </table>
+
+                <!-- 아래 : 인수자 · 납품자 · 미수금 -->
+                <table class="inv" :class="copy.cls">
+                    <colgroup>
+                        <col style="width: 12%"><col style="width: 21%"><col style="width: 12%"><col style="width: 21%"><col style="width: 12%"><col style="width: 22%">
+                    </colgroup>
                     <tr class="foot">
-                        <td colspan="2" class="c lbl">인 수 자</td>
+                        <td class="c lbl">인 수 자</td>
                         <td class="r">인</td>
-                        <td colspan="2" class="c lbl">납 품 자</td>
-                        <td colspan="2" class="r">인</td>
+                        <td class="c lbl">납 품 자</td>
+                        <td class="r">인</td>
                         <td class="c lbl">미 수 금</td>
                         <td class="r">원</td>
                     </tr>
@@ -109,6 +124,11 @@ const vatLabel = (v) => ({ INCLUDED: '( VAT포함 )', EXEMPT: '( 면세 )' }[v] 
 
 /* 한 부 = 제목 11 + 머리 4 × 9 + 품목 머리 6 + 11 × 6 + 비고 6 + 아래 8 = 133mm */
 .inv { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.5pt; line-height: 1.15; }
+/* 선 : 안쪽 1px · 바깥선과 구역 사이( 제목 | 공급받는자 | 공급자 | 품목 | 아래 ) 2px — collapse 는 굵은 선이 이긴다 */
+.inv { border: 2px solid var(--c); }
+.inv + .inv { margin-top: -2px; }   /* 표 사이 : 위 표 바깥선과 겹쳐 한 줄( 2px ) */
+.inv tr.h-title td { border-bottom-width: 2px; }
+.inv td.zone-l { border-left-width: 2px; }
 .inv td { border: 1px solid var(--c); padding: 0 1.2mm; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .inv tr.h-title  { height: 11mm; }
 .inv tr.h-info   { height: 9mm; }

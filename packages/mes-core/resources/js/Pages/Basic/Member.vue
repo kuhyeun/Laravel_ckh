@@ -20,11 +20,15 @@
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                 <span class="text-sm font-semibold text-gray-600">사용자 목록 · <span class="text-xs text-gray-400">{{ members.length }} 명</span></span>
                 <div class="flex items-center gap-2">
-                    <ExcelExportButton layout="member.list" :rows="members" :columns="memberColumns" filename="사용자목록" />
+                    <div class="flex items-center gap-1.5">
+                        <GridSettingButton :grid="gridRef" />
+                        <ExcelExportButton :grid="gridRef" layout="member.list" :rows="members" :columns="memberColumns" filename="사용자목록" />
+                    </div>
                 </div>
             </div>
             <div class="flex-1 min-h-0">
                 <DataGrid
+                    setting-key="main"
                     ref="gridRef"
                     class="h-full"
                     :data="members"
@@ -44,6 +48,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import MemberDetail from '@core/Components/Modals/MemberDetail.vue';

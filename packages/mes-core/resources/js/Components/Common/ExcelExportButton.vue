@@ -3,6 +3,7 @@
                 양식이 없으면 그리드 열 그대로, 하나면 바로, 여럿이면 고르는 목록
      - rows   : 내보낼 행. 배열이면 그대로, 함수면 눌렀을 때 호출 ( 서버 페이징 화면은 export=1 로 전체를 받아 오는 함수 )
      - columns: 화면 그리드 열 ( 기본 내보내기 · 표시값 )
+     - grid   : DataGrid ref ( setting-key 를 쓴 그리드 ) — 주면 그 그리드의 열 설정( 순서 · 이름 · 숨김 → 엑셀 숨긴 열 )을 따른다
      - context: 양식 칸에 넣을 값 ( 출력자 등 )
      - label  : 버튼 글자 ( 기본 '엑셀' — 한 건 출력 양식이면 '발주서' 등 )
      - 양식은 개발자가 만들어 배포한다 — 사용자는 고르기만 한다 -->
@@ -44,6 +45,7 @@ const props = defineProps({
     layout:   { type: String,          default: null },
     rows:     { type: [Array, Function], default: () => [] },
     columns:  { type: Array,           default: () => [] },
+    grid:     { type: Object,          default: null },     // DataGrid ref — 열 설정을 따른다
     context:  { type: Object,          default: () => ({}) },
     filename: { type: String,          default: '목록' },
     disabled: { type: Boolean,         default: false },
@@ -90,7 +92,7 @@ async function run(layout) {
         await exportExcel({
             layout,
             rows,
-            columns: props.columns,
+            columns: props.grid?.exportColumns ?? props.columns,
             context: { userName: page.props.auth?.user?.user_name ?? '', ...props.context },
             filename: props.filename,
         });

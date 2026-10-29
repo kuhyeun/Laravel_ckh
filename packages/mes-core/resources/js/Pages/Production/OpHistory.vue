@@ -38,10 +38,15 @@
         <div v-show="tab === 'list'" class="flex-1 min-w-0 min-h-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                 <span class="text-sm font-semibold text-gray-600">실적 이력 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건</span></span>
-                <ExcelExportButton layout="op_history.list" :rows="exportRows" :columns="exportColumns" filename="생산실적이력" />
+                <div class="flex items-center gap-1.5">
+                    <GridSettingButton :grid="listGrid" />
+                    <ExcelExportButton layout="op_history.list" :rows="exportRows" :columns="exportColumns" filename="생산실적이력" />
+                </div>
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
+                    ref="listGrid"
+                    setting-key="list"
                     class="flex-1"
                     :data="rows"
                     :columns="columns"
@@ -61,11 +66,14 @@
                 <BaseSelect v-model="group" :options="GROUPS" size="sm" class="w-28" @update:modelValue="loadSummary" />
                 <span class="text-xs text-gray-400">취소된 실적은 빼고 셉니다 · 행을 누르면 그 값으로 이력을 봅니다</span>
                 <div class="flex-1"></div>
-                <ExcelExportButton layout="op_history.summary" :rows="summaryRows" :columns="summaryColumns" filename="생산실적집계" />
+                <GridSettingButton :grid="summaryGrid" />
+                <ExcelExportButton layout="op_history.summary" :rows="summaryRows" :columns="summaryColumns" :grid="summaryGrid" filename="생산실적집계" />
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
+                    ref="summaryGrid"
                     :key="group"
+                    :setting-key="`summary-${group}`"
                     class="flex-1"
                     :data="summaryRows"
                     :columns="summaryColumns"
@@ -82,6 +90,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -92,6 +101,8 @@ import { useFlash, failMsg } from '@core/Composables/useFlash';
 import { fmtNum, fmtQty } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
+const listGrid    = ref(null);   // 실적 이력 그리드 — 열 설정 ( 엑셀은 따로 정한 exportColumns )
+const summaryGrid = ref(null);   // 집계 그리드 — 묶음마다 열이 달라 설정도 묶음마다
 
 const { flash, showFlash } = useFlash();
 const modalStore = useModalStore();
