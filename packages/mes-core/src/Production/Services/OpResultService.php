@@ -27,6 +27,8 @@ use MesCore\Stock\Services\StockService;
  *
  *   실적   : 수량 공정( 시스템 · 검사 공정이 아닌 공정 + 포장 )에 입력 1건 = 1줄. 공정 수량 = 취소 안 된 실적의 합
  *   기준   : 첫 수량 공정 = 지시 수량 ( 넘으면 경고 — 초과 생산 ) / 이후 수량 공정 = 앞 수량 공정의 실적 ( 넘으면 차단 )
+ *            검사 공정도 기준 사슬에 든다 : 검사 완료 때 수량 = 합격 수량 → 뒤 공정 기준 · 제품 입고는 합격분만 ( 70-품질 §3 )
+ *            품질 모듈이 켜져 있으면 검사 공정은 검사 창( ProcessInspectionService )에서만 완료, 꺼져 있으면 [완료] = 전부 합격
  *   진행   : 바로 앞 공정이 검사 · 시스템 공정이면 완료돼야, 수량 공정이면 시작만 되면 ( 정책 op_after_prev_done = Y 면 완료돼야 )
  *            자재는 막지 않는다 ( ADR 0008 )
  *   완료   : 수량 공정은 앞 공정이 모두 완료된 뒤 사람이 [공정 완료] — 실적 < 기준이면 미달 종료( 사유 필수 ).
@@ -193,6 +195,12 @@ class OpResultService {
                 if ($why = $this->workBlock($ops, $op)) {
                     throw ValidationException::withMessages(['op' => [$why]]);   // E_OP_ORDER
                 }
+                if ($op->isInspectionOp()) {
+                    if (!array_key_exists('_pass_qty', $data) && $this->qualityOn()) {
+                        throw ValidationException::withMessages(['op' => ["{$this->opName($op)} 은 검사 공정입니다. [검사] 창에서 합격 · 불합격을 넣어 완료하세요."]]);   // E_OP_INSPECT
+                    }
+                    $op->qty = $this->str((float) ($data['_pass_qty'] ?? $this->baseQty($wo, $ops, $op)));
+                }
                 // 원자재출고 : 덜 나간 자재가 있으면 한 번 묻는다 ( force_issue 로 그대로 완료 )
                 if ($op->isRmOut() && ($left = $this->unissued($wo))) {
                     if (empty($data['force_issue'])) {
@@ -257,9 +265,9 @@ class OpResultService {
 
     // ---- 화면용 계산 ----
 
-    // 공정의 기준 수량 ( 수량 공정만 ) — 첫 수량 공정 = 지시 수량, 이후 = 앞 수량 공정 실적
+    // 공정의 기준 수량 ( 수량 · 검사 공정 ) — 첫 공정 = 지시 수량, 이후 = 앞 수량 공정 실적 · 앞 검사 공정의 합격 수량
     public function baseQty(WorkOrder $wo, Collection $ops, WorkOrderOp $op): ?float {
-        if (!$op->isQtyOp()) {
+        if (!$op->isQtyOp() && !$op->isInspectionOp()) {
             return null;
         }
         $prev = $this->prevQtyOp($ops, $op);
@@ -326,6 +334,10 @@ class OpResultService {
         if ($later) {
             throw ValidationException::withMessages(['op' => ["뒤 공정( {$this->opName($later)} )이 이미 시작되어 완료를 취소할 수 없습니다. 뒤 공정부터 되돌리세요."]]);
         }
+        if ($op->isInspectionOp()) {
+            $this->cancelOpInspection($op);
+            $op->qty = '0';
+        }
         $op->fill([
             'status'       => $op->isQtyOp() && (float) $op->qty > self::EPS ? 'RUN' : 'WAIT',
             'done_at'      => null,
@@ -358,7 +370,7 @@ class OpResultService {
 
     // 줄 완료 때 입고할 수량
     public function receiveLeft(WorkOrder $wo, Collection $ops): float {
-        $last = $ops->filter(fn (WorkOrderOp $o) => $o->isQtyOp())->last();
+        $last = $ops->filter(fn (WorkOrderOp $o) => $o->isQtyOp() || $o->isInspectionOp())->last();   // 검사 공정이 뒤에 있으면 합격 수량
         $qty  = $last ? (float) $last->qty : (float) $wo->target_qty;
         return max(0, $qty - $this->receivedQty($wo));
     }
@@ -486,8 +498,22 @@ class OpResultService {
         return (float) WorkOrderOpRun::where('work_order_op_idx', $op->work_order_op_idx)->where('is_canceled', 'N')->sum('qty');
     }
 
+    // 기준이 되는 앞 공정 : 수량 공정 또는 검사 공정( 완료되면 수량 = 합격 )
     private function prevQtyOp(Collection $ops, WorkOrderOp $op): ?WorkOrderOp {
-        return $ops->filter(fn (WorkOrderOp $o) => $o->seq < $op->seq && $o->isQtyOp())->last();
+        return $ops->filter(fn (WorkOrderOp $o) => $o->seq < $op->seq && ($o->isQtyOp() || $o->isInspectionOp()))->last();
+    }
+
+    private function qualityOn(): bool {
+        return in_array('Quality', config('mes.modules', []), true);
+    }
+
+    // 검사 공정 완료 취소 : 그 공정의 종합 검사 기록( PROCESS ) · 불량을 취소 표시 ( 초 · 중 · 종 기록은 그대로 둔다 )
+    private function cancelOpInspection(WorkOrderOp $op): void {
+        $ids = DB::table('inspection')->where('ref_type', 'work_order_op')->where('ref_idx', $op->work_order_op_idx)
+            ->where('insp_type', 'PROCESS')->where('is_canceled', 'N')->pluck('inspection_idx');
+        if ($ids->isEmpty()) return;
+        DB::table('inspection')->whereIn('inspection_idx', $ids)->update(['is_canceled' => 'Y', 'update_datetime' => now()]);
+        DB::table('defect')->whereIn('inspection_idx', $ids)->update(['is_canceled' => 'Y']);
     }
 
     private function nextQtyOp(Collection $ops, WorkOrderOp $op): ?WorkOrderOp {

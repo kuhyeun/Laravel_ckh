@@ -55,6 +55,17 @@ class SystemCodeSeeder extends Seeder {
                 'ETC'      => '기타',
             ],
         ],
+        'DEFECT_TYPE' => [
+            'name'  => '불량 유형',
+            'desc'  => '검사 불합격 유형 ( 입고 · 공정 · 출고검사 · 불량이력 집계 ) — 기타( ETC )면 상세 필수',
+            'codes' => [
+                'DIMENSION'  => '치수',
+                'APPEARANCE' => '외관',
+                'FUNCTION'   => '기능',
+                'MATERIAL'   => '재질',
+                'ETC'        => '기타',
+            ],
+        ],
         'ADJUST_REASON' => [
             'name'  => '재고조정 사유',
             'desc'  => '재고조정( INV-05 ) 사유 — 기타( ETC )면 상세 필수',

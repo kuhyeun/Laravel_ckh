@@ -97,7 +97,10 @@
                         <span v-if="l.so_remaining !== null" class="text-xs text-gray-500">남은 {{ fmtNum(l.so_remaining) }}</span>
                         <span v-if="pending" class="text-xs text-gray-500">가용 {{ fmtNum(available(l)) }}</span>
                         <div class="flex-1"></div>
-                        <span v-if="l.inspect_required || l.inspect_status !== 'NONE'" class="text-xs font-semibold" :style="{ color: inspectColor(l.inspect_status) }">{{ inspectLabel(l.inspect_status) }}</span>
+                        <span v-if="l.inspect_required || l.inspect_status !== 'NONE'" class="text-xs font-semibold" :style="{ color: inspectColor(l.inspect_status) }">{{ inspectLabel(l.inspect_status === 'NONE' ? 'WAIT' : l.inspect_status) }}</span>
+                        <!-- 출고검사 창 ( 6003 — 판정 · 취소는 출고검사 쓰기 권한, 저장된 줄만 ) -->
+                        <button v-if="l.shipment_line_idx && !dirty && (l.inspect_required || l.inspect_status !== 'NONE')" type="button"
+                            class="text-xs text-blue-700 hover:underline" @click="openInspection(l)">검사</button>
                         <label class="text-xs text-gray-500">출하</label>
                         <BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-24 text-right" :disabled="!editable" @update:modelValue="fillFifo(l)" />
                         <span class="text-xs text-gray-500 w-8">{{ l.spec_unit }}</span>
@@ -178,6 +181,7 @@ import { failMsg } from '@core/Composables/useFlash';
 import { fmtNum } from '@core/Utils/format';
 import { stageLabel, stageColor, inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
 import InvoicePreview from '@core/Components/Shipment/InvoicePreview.vue';
+import ShippingInspectionForm from '@core/Components/Quality/ShippingInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 
 const props = defineProps({
@@ -406,6 +410,18 @@ async function cancel() {
     const r = await showAlert(form.status === 'DONE' ? '출하 취소' : '대기 취소', text, 'warning', 'confirm');
     if (!r.isConfirmed) return;
     run(() => window.axios.post(route('shipment.manage.cancel'), { shipment_idxs: [form.shipment_idx] }), () => `${form.shipment_no} 취소했습니다.`);
+}
+
+// 출고검사 창 ( 6003 — 같은 창 ) : 판정 · 취소 뒤 이 창과 목록을 다시 읽는다
+function openInspection(l) {
+    modalStore.open(ShippingInspectionForm, {
+        lineIdx: l.shipment_line_idx,
+        onDone: (what, result) => {
+            load();
+            props.onSaved?.(`${form.shipment_no} 출고검사 ${what === '완료' ? (result === 'FAIL' ? '불합격' : '합격') : '취소'}했습니다.`, []);
+        },
+        modalTitle: `출고검사 [ ${form.shipment_no} ]`,
+    }, { size: 'lg', closeOnClickOutside: false });
 }
 
 // 거래명세서 ( 미리보기 · 인쇄 모달 — 7003 권한 )

@@ -90,6 +90,7 @@ class OpResultController extends Controller {
                 'code'              => $o->process?->process_code,
                 'is_qty'            => $o->isQtyOp(),
                 'is_rm_out'         => $o->isRmOut(),
+                'is_inspection'     => $o->isInspectionOp(),   // 품질 모듈이 켜져 있으면 [검사] 창 ( 6002 — 수량 = 합격 )
                 'is_first_qty'      => $first && $first->work_order_op_idx === $o->work_order_op_idx,
                 'base_qty'          => $this->results->baseQty($wo, $ops, $o),
                 'qty'               => (float) $o->qty,
@@ -126,6 +127,7 @@ class OpResultController extends Controller {
 
         return response()->json(['line' => [
             'work_order_idx' => $wo->work_order_idx,
+            'quality_on'     => in_array('Quality', config('mes.modules', []), true),   // 검사 공정 = [검사] 창
             'wo_no'          => $wo->wo_no,
             'sheet_no'       => $wo->sheet?->sheet_no,
             'item_label'     => trim(($wo->item?->item_code ?? '') . ' ' . ($wo->item?->item_name ?? '')),

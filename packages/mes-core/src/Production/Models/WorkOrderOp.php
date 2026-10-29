@@ -46,6 +46,20 @@ class WorkOrderOp extends Model {
     }
 
     // 원자재출고 공정 : 완료만 처리 + 완료 때 출고 확인
+    // 검사 공정 — 검사 완료 때 수량 = 합격 수량 ( 뒤 공정 기준 · 제품 입고가 따른다 )
+    public function isInspectionOp(): bool {
+        return (bool) $this->process?->isInspection();
+    }
+
+    public function isIflOp(): bool {
+        return (bool) $this->process?->isIfl();
+    }
+
+    // 켜진 초 · 중 · 종 ( 순서대로 ) — [ FIRST, MIDDLE, LAST ] 중
+    public function iflStages(): array {
+        return array_keys(array_filter(['FIRST' => $this->insp_first === 'Y', 'MIDDLE' => $this->insp_middle === 'Y', 'LAST' => $this->insp_last === 'Y']));
+    }
+
     public function isRmOut(): bool {
         return (bool) $this->process?->isRmOut();
     }

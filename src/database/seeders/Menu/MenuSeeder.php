@@ -9,21 +9,8 @@ use Illuminate\Support\Facades\DB;
 // 메뉴는 없을 때만 만든다 ( 처음 설치 · Core 업데이트로 늘어난 메뉴 )
 //   이미 있는 메뉴( menu_code 기준 )는 이름 · 경로 · 정렬 · 레벨 옵션 모두 건드리지 않는다 → 메뉴관리에서 바꾼 값이 기준
 //   menus.php 에서 기존 메뉴의 값을 바꿔도 설치된 곳에는 반영되지 않는다 ( 메뉴관리에서 직접 고친다 )
+//   새 메뉴의 값은 menus.php 그대로 : url_path · page_component ( 없으면 페이지 없는 메뉴 ) · is_use · is_display ( 없으면 Y )
 class MenuSeeder extends Seeder {
-
-    // 기존 메뉴 → 렌더할 Vue 컴포넌트 매핑 ( 제네릭 라우팅 백필용. 신규 메뉴는 UI 에서 DB 에 직접 입력 )
-    private array $componentMap = [
-        'chart.bar'    => 'Sample/BarChart',
-        'chart.line'   => 'Sample/LineChart',
-        'chart.circle' => 'Sample/CircleChart',
-        'chart.combo'  => 'Sample/ComboChart',
-        'dev.api'      => 'Sample/ApiSample',
-        'basic.conf'   => 'Basic/SystemConfig',
-        'basic.menu'   => 'Basic/MenuManage',
-        'basic.mem'    => 'Basic/Member',
-        'basic.auth'   => 'Basic/MemberAuth',
-        'basic.code'   => 'Basic/CodeManage',
-    ];
 
     public function run(): void {
         foreach( $this->byCode( config( 'menus' ) ) as $topMenuData ) {
@@ -39,11 +26,6 @@ class MenuSeeder extends Seeder {
 
     private function seedMenu( Array $menuData, String $topMenuCode, String $parentMenuCode = "", int $depth = 1 ): void {
         if( !Menu::where( 'menu_code', $menuData['menu_code'] )->exists() ) {
-            $routeName = $menuData['menu_route_name'] ?? '';
-            // config 에 url_path/page_component 가 명시돼 있으면 그대로, 없으면 route_name 에서 유도/매핑
-            $urlPath = $menuData['url_path'] ?? ( $routeName !== '' ? '/' . str_replace('.', '/', $routeName) : null );
-            $pageComponent = $menuData['page_component'] ?? ( $this->componentMap[$routeName] ?? null );
-
             $menu = Menu::create( [
                 'menu_code' => $menuData['menu_code'],
                 'top_menu_code' => $depth == 1 ? '****': $topMenuCode,
@@ -55,10 +37,11 @@ class MenuSeeder extends Seeder {
                 // 기능 스위치가 꺼지면 메뉴 미표시 ( system_config feature.* )
                 'feature_key' => $menuData['feature_key'] ?? null,
                 'menu_route_name' => $menuData['menu_route_name'],
-                'url_path' => $urlPath,
-                'page_component' => $pageComponent,
-                'is_use' => 'Y',
-                'is_display' => 'Y',
+                'url_path' => $menuData['url_path'] ?? null,
+                'page_component' => $menuData['page_component'] ?? null,
+                // 아직 쓰지 않는 메뉴( 미개발 등 )는 menus.php 에 is_use / is_display => 'N'
+                'is_use' => $menuData['is_use'] ?? 'Y',
+                'is_display' => $menuData['is_display'] ?? 'Y',
                 // 레벨 1 이하( 0 시스템 · 1 관리자 )까지만 노출되는 메뉴 = 관리자 메뉴
                 'is_admin' => $menuData['menu_level'] <= 1 ? 'Y' : 'N',
                 'create_account_idx' => 1

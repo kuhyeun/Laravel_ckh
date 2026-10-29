@@ -23,6 +23,8 @@ return [
                                 'menu_icon' => null,
                                 'module_code' => 'Debug',
                                 'menu_route_name' => 'chart.bar',
+                                'url_path' => '/chart/bar',
+                                'page_component' => 'Sample/BarChart',
                                 'menu_level' => 0
                             ],
                             [
@@ -31,6 +33,8 @@ return [
                                 'menu_icon' => null,
                                 'module_code' => 'Debug',
                                 'menu_route_name' => 'chart.line',
+                                'url_path' => '/chart/line',
+                                'page_component' => 'Sample/LineChart',
                                 'menu_level' => 0
                             ],
                             [
@@ -39,6 +43,8 @@ return [
                                 'menu_icon' => null,
                                 'module_code' => 'Debug',
                                 'menu_route_name' => 'chart.circle',
+                                'url_path' => '/chart/circle',
+                                'page_component' => 'Sample/CircleChart',
                                 'menu_level' => 0
                             ],
                             [
@@ -47,6 +53,8 @@ return [
                                 'menu_icon' => null,
                                 'module_code' => 'Debug',
                                 'menu_route_name' => 'chart.combo',
+                                'url_path' => '/chart/combo',
+                                'page_component' => 'Sample/ComboChart',
                                 'menu_level' => 0
                             ],
                         ]
@@ -57,6 +65,8 @@ return [
                         'menu_icon' => 'CodeBracketIcon',
                         'module_code' => 'Debug',
                         'menu_route_name' => 'dev.api',
+                        'url_path' => '/dev/api',
+                        'page_component' => 'Sample/ApiSample',
                         'menu_level' => 0
                     ],
                     [
@@ -85,6 +95,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Basic',
                         'menu_route_name' => 'basic.conf',
+                        'url_path' => '/basic/conf',
+                        'page_component' => 'Basic/SystemConfig',
                         'menu_level' => 1,
                         // 관리자는 관리자 설정 부분만 보고 수정 ( 시스템 설정 부분은 서버가 내려 주지 않음 )
                         'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
@@ -95,6 +107,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Basic',
                         'menu_route_name' => 'basic.menu',
+                        'url_path' => '/basic/menu',
+                        'page_component' => 'Basic/MenuManage',
                         'menu_level' => 0
                     ],
                     [
@@ -103,6 +117,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Basic',
                         'menu_route_name' => 'basic.mem',
+                        'url_path' => '/basic/mem',
+                        'page_component' => 'Basic/Member',
                         'menu_level' => 1,
                         'level_perms' => [ 1 => [ 'can_write' => 'Y', 'can_delete' => 'Y' ] ],
                     ],
@@ -112,6 +128,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Basic',
                         'menu_route_name' => 'basic.auth',
+                        'url_path' => '/basic/auth',
+                        'page_component' => 'Basic/MemberAuth',
                         'menu_level' => 1,
                         // 관리자는 여기서 일반 사용자의 메뉴 권한을 조정 ( 메뉴관리는 시스템 전용 )
                         'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
@@ -122,6 +140,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Basic',
                         'menu_route_name' => 'basic.code',
+                        'url_path' => '/basic/code',
+                        'page_component' => 'Basic/CodeManage',
                         'menu_level' => 1,
                         // 프로그램이 쓰는 코드 그룹이 있어 관리자 삭제는 막음
                         'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
@@ -304,6 +324,8 @@ return [
                         'module_code' => 'Material',
                         'menu_route_name' => '',
                         'menu_level' => 99,
+                        'is_use' => 'N',   // 미개발
+                        'is_display' => 'N',
                     ],
                     [
                         'menu_code' => '3002',
@@ -382,10 +404,12 @@ return [
                         'module_code' => 'Production',
                         'menu_route_name' => '',
                         'menu_level' => 99,
+                        'is_use' => 'N',   // 미개발
+                        'is_display' => 'N',
                     ],
                     [
                         'menu_code' => '4006',
-                        'menu_name' => '작업지시',
+                        'menu_name' => '작업지시관리',
                         'menu_icon' => null,
                         'module_code' => 'Production',
                         'menu_route_name' => '',
@@ -420,6 +444,8 @@ return [
                         'module_code' => 'Production',
                         'menu_route_name' => '',
                         'menu_level' => 99,
+                        'is_use' => 'N',   // 미개발
+                        'is_display' => 'N',
                     ],
                     [
                         'menu_code' => '4005',
@@ -515,6 +541,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Quality',
                         'menu_route_name' => '',
+                        'url_path' => '/quality/process',
+                        'page_component' => 'Quality/ProcessInspection',
                         'menu_level' => 99,
                     ],
                     [
@@ -523,6 +551,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Quality',
                         'menu_route_name' => '',
+                        'url_path' => '/quality/shipping',
+                        'page_component' => 'Quality/ShippingInspection',
                         'menu_level' => 99,
                     ],
                     [

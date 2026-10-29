@@ -65,6 +65,8 @@ class CoreServiceProvider extends ServiceProvider {
             // 입고 줄 ( 성적서 · 밀시트 ) — 검사 전에도 붙인다. 입고검사 · 입고관리 어느 쪽 권한으로도
             $service->register('receipt_line', ['Quality/IncomingInspection', 'Purchase/ReceiptManage'], StockTxnLine::class);
             $service->register('work_order', 'Production/WorkOrderManage', WorkOrder::class);
+            // 출하 줄 ( 출고검사 성적서 ) — 출고검사 · 출하관리 어느 쪽 권한으로도
+            $service->register('shipment_line', ['Quality/ShippingInspection', 'Shipment/ShipmentManage'], \MesCore\Shipment\Models\ShipmentLine::class);
             return $service;
         });
     }

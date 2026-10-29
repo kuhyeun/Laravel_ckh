@@ -72,7 +72,7 @@ class SalesOrderService {
                 if (!$sameItem) {
                     $errors["lines.{$i}.item_idx"] = ['생산 · 출하가 시작된 줄은 품목을 바꿀 수 없습니다.'];
                 } elseif ((float) $row['qty'] < $old->minQty()) {
-                    $errors["lines.{$i}.qty"] = ['생산 · 출하된 수량( ' . $this->num($old->minQty()) . ' )보다 줄일 수 없습니다.'];
+                    $errors["lines.{$i}.qty"] = ['생산 · 출하( 출하대기 포함 )된 수량( ' . $this->num($old->minQty()) . ' )보다 줄일 수 없습니다.'];
                 }
             }
 

@@ -51,11 +51,18 @@
                     <BaseDatePicker v-model="form.inspected_at" mode="datetime" class="w-full" :disabled="!canWrite" />
                     <p v-if="errors.inspected_at" class="text-xs text-red-500 mt-0.5">{{ errors.inspected_at[0] }}</p>
                 </div>
-                <div v-if="num(form.fail_qty) > 0" class="col-span-4">
-                    <label class="block text-gray-500 font-medium mb-1">불량 사유 <span class="text-red-500">*</span></label>
-                    <BaseInput v-model="form.reason" class="w-full" placeholder="예: 표면 흠집 · 치수 불량" :disabled="!canWrite" />
-                    <p v-if="errors.reason" class="text-xs text-red-500 mt-0.5">{{ errors.reason[0] }}</p>
-                </div>
+                <template v-if="num(form.fail_qty) > 0">
+                    <div>
+                        <label class="block text-gray-500 font-medium mb-1">불량 유형 <span class="text-red-500">*</span></label>
+                        <BaseSelect v-model="form.defect_type_code" :options="options('DEFECT_TYPE')" class="w-full" placeholder="유형 선택" :disabled="!canWrite" />
+                        <p v-if="errors.defect_type_code" class="text-xs text-red-500 mt-0.5">{{ errors.defect_type_code[0] }}</p>
+                    </div>
+                    <div class="col-span-3">
+                        <label class="block text-gray-500 font-medium mb-1">상세 <span v-if="form.defect_type_code === 'ETC'" class="text-red-500">*</span></label>
+                        <BaseInput v-model="form.reason" class="w-full" placeholder="예: 표면 흠집 2곳" maxlength="200" :disabled="!canWrite" />
+                        <p v-if="errors.reason" class="text-xs text-red-500 mt-0.5">{{ errors.reason[0] }}</p>
+                    </div>
+                </template>
                 <div class="col-span-4">
                     <label class="block text-gray-500 font-medium mb-1">비고</label>
                     <BaseInput v-model="form.remark" class="w-full" :disabled="!canWrite" />
@@ -66,7 +73,7 @@
             <!-- 검사완료 · 취소 → 결과 -->
             <div v-else-if="inspection" class="mt-4 px-3 py-2.5 rounded border" :class="inspection.fail_qty > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'">
                 <p class="font-medium">{{ INSP_RESULTS[inspection.result] }} — 합격 {{ fmt(inspection.pass_qty) }} · 불합격 {{ fmt(inspection.fail_qty) }}</p>
-                <p class="text-xs text-gray-600 mt-0.5">검사자 {{ inspection.inspector_name }} · {{ inspection.inspected_at }}<template v-if="inspection.reason"> · 사유 : {{ inspection.reason }}</template></p>
+                <p class="text-xs text-gray-600 mt-0.5">검사자 {{ inspection.inspector_name }} · {{ inspection.inspected_at }}<template v-if="inspection.defect_type || inspection.reason"> · 불량 : {{ [inspection.defect_type, inspection.reason].filter(Boolean).join(' — ') }}</template></p>
                 <p v-if="inspection.remark" class="text-xs text-gray-500 mt-0.5">{{ inspection.remark }}</p>
             </div>
             <p v-else class="mt-4 text-gray-500">{{ line.line_status === 'CANCELED' ? '취소된 입고 줄입니다.' : '검사 기록이 없습니다.' }}</p>
@@ -100,6 +107,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import { showAlert } from '@core/Utils/message';
+import { useCommonCode } from '@core/Composables/useCommonCode';
 import { INSP_RESULTS, inspModeLabel, qtyText } from '@core/Components/Stock/stockCodes';
 
 const props = defineProps({
@@ -118,7 +126,8 @@ const spec       = ref(null);
 const inspection = ref(null);
 const inspectors = ref([]);
 
-const form = reactive({ pass_qty: '', fail_qty: '0', reason: '', inspector_idx: '', inspected_at: '', remark: '' });
+const form = reactive({ pass_qty: '', fail_qty: '0', defect_type_code: '', reason: '', inspector_idx: '', inspected_at: '', remark: '' });
+const { options } = useCommonCode(['DEFECT_TYPE']);
 
 const inspectorOptions = computed(() => inspectors.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 
@@ -149,7 +158,7 @@ async function load() {
         inspection.value = data.inspection;
         inspectors.value = data.inspectors ?? [];
         Object.assign(form, {
-            pass_qty: String(data.line.qty), fail_qty: '0', reason: '', remark: '',
+            pass_qty: String(data.line.qty), fail_qty: '0', defect_type_code: '', reason: '', remark: '',
             inspector_idx: data.me, inspected_at: data.now,
         });
     } catch (e) {
@@ -168,6 +177,7 @@ async function complete() {
         await window.axios.post(route('quality.incoming.complete', props.lineIdx), {
             pass_qty:      form.pass_qty === '' ? null : form.pass_qty,
             fail_qty:      form.fail_qty === '' ? 0 : form.fail_qty,
+            defect_type_code: form.defect_type_code || null,
             reason:        form.reason || null,
             inspector_idx: Number(form.inspector_idx),
             inspected_at:  form.inspected_at,
@@ -183,7 +193,7 @@ async function complete() {
 }
 
 async function cancelInspection() {
-    const r = await showAlert('검사 취소', '검사를 취소하고 다시 검사대기로 돌립니다.\n합격분은 재고에서 빠지고, 불량 기록은 지워집니다.', 'warning', 'confirm');
+    const r = await showAlert('검사 취소', '검사를 취소하고 다시 검사대기로 돌립니다.\n합격분은 재고에서 빠지고, 불량 기록은 취소로 남습니다.', 'warning', 'confirm');
     if (!r.isConfirmed) return;
     saving.value   = true;
     errorMsg.value = '';
@@ -202,7 +212,7 @@ function handleError(e, fallback) {
     const status = e.response?.status;
     if (status === 422) {
         errors.value = e.response.data.errors || {};
-        const shown = ['pass_qty', 'inspected_at', 'reason'];
+        const shown = ['pass_qty', 'inspected_at', 'defect_type_code', 'reason'];
         const other = Object.entries(errors.value).filter(([k]) => !shown.includes(k)).flatMap(([, v]) => v);
         if (other.length) errorMsg.value = other.join('\n');
     } else if (status === 403) {

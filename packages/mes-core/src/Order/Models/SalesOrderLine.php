@@ -73,10 +73,20 @@ class SalesOrderLine extends Model {
         return $this->belongsTo(Item::class, 'item_idx', 'item_idx');
     }
 
-    // 아래 단계가 붙었는가 — 생산 · 출하 수량이 있거나 이 줄을 담은 작업지시( 취소 제외 )가 있으면
-    //   붙은 줄은 품목 변경 · 삭제 불가, 수량은 생산 · 출하량 아래로 못 줄임 ( 30-수주 §6 · 50-생산 §4 )
+    // 아래 단계가 붙었는가 — 생산 · 출하 수량이 있거나 이 줄을 담은 작업지시( 취소 제외 ) · 출하대기가 있으면
+    //   붙은 줄은 품목 변경 · 삭제 불가, 수량은 생산량 · ( 출하량 + 출하대기 ) 아래로 못 줄임 ( 30-수주 §6 · 50-생산 §4 · 60-출하 )
     public function hasDownstream(): bool {
-        return (float) $this->produced_qty > 0 || (float) $this->shipped_qty > 0 || $this->directedQty() > 0;
+        return (float) $this->produced_qty > 0 || (float) $this->shipped_qty > 0 || $this->directedQty() > 0 || $this->pendingShipQty() > 0;
+    }
+
+    // 이 줄을 담은 출하대기( 아직 안 나간 출하 )의 수량 합
+    public function pendingShipQty(): float {
+        if (!$this->sales_order_line_idx) {
+            return 0;
+        }
+        return (float) \MesCore\Shipment\Models\ShipmentLine::where('sales_order_line_idx', $this->sales_order_line_idx)
+            ->whereHas('shipment', fn ($q) => $q->where('status', 'WAIT'))
+            ->sum('qty');
     }
 
     // 이 줄을 담은 작업지시( 취소 제외 )의 담은 수량 합
@@ -91,6 +101,6 @@ class SalesOrderLine extends Model {
 
     // 수량을 이 아래로 줄일 수 없다
     public function minQty(): float {
-        return max((float) $this->produced_qty, (float) $this->shipped_qty);
+        return max((float) $this->produced_qty, (float) $this->shipped_qty + $this->pendingShipQty());
     }
 }

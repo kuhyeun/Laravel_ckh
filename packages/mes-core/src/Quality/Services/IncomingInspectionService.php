@@ -6,7 +6,6 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MesCore\Purchase\Services\ReceiptService;
-use MesCore\Quality\Models\Defect;
 use MesCore\Quality\Models\Inspection;
 use MesCore\Stock\Models\StockTxnLine;
 
@@ -21,10 +20,10 @@ class IncomingInspectionService {
 
     public const REF_TYPE = 'stock_txn_line';
 
-    public function __construct(private ReceiptService $receipts) {}
+    public function __construct(private ReceiptService $receipts, private DefectService $defects) {}
 
     /**
-     * @param array{pass_qty:string, fail_qty:string, reason:?string, inspector_idx:int, inspected_at:string, remark:?string} $data
+     * @param array{pass_qty:string, fail_qty:string, defect_type_code:?string, reason:?string, inspector_idx:int, inspected_at:string, remark:?string} $data
      */
     public function complete(StockTxnLine $line, array $data): Inspection {
         if ($line->line_status !== 'WAIT') {
@@ -36,9 +35,7 @@ class IncomingInspectionService {
         if (abs(($pass + $fail) - (float) $line->qty) > 0.000001) {
             throw ValidationException::withMessages(['pass_qty' => ['합격과 불합격을 더하면 입고 수량( ' . $this->num((float) $line->qty) . ' )이 되어야 합니다.']]);
         }
-        if ($fail > 0 && blank($data['reason'] ?? null)) {
-            throw ValidationException::withMessages(['reason' => ['불합격이 있으면 불량 사유를 넣으세요.']]);
-        }
+        $this->defects->validate($fail, $data['defect_type_code'] ?? null, $data['reason'] ?? null);
 
         $at = Carbon::parse($data['inspected_at']);
         if ($at->gt(now()->addMinutes(10))) {
@@ -64,16 +61,15 @@ class IncomingInspectionService {
                 'remark'        => $data['remark'] ?? null,
             ]);
 
-            if ($fail > 0) {
-                Defect::create([
-                    'inspection_idx' => $inspection->inspection_idx,
-                    'item_idx'       => $line->item_idx,
-                    'lot_idx'        => $line->lot_idx,
-                    'qty'            => (string) $fail,
-                    'reason'         => mb_substr((string) $data['reason'], 0, 200),
-                    'occurred_at'    => $at,
-                ]);
-            }
+            $this->defects->record($inspection, [
+                'item_idx'         => $line->item_idx,
+                'lot_idx'          => $line->lot_idx,
+                'partner_idx'      => $line->txn->partner_idx,
+                'qty'              => $fail,
+                'defect_type_code' => $data['defect_type_code'] ?? null,
+                'reason'           => $data['reason'] ?? null,
+                'occurred_at'      => $at,
+            ]);
 
             $this->receipts->confirm($line, (string) $pass, (string) $fail, $at);
             $line->txn->refreshStatus();
@@ -82,7 +78,7 @@ class IncomingInspectionService {
         });
     }
 
-    // 검사취소 — 합격분 되돌리고 다시 검사대기 ( 불량 기록은 지운다 — 검사가 없던 일이 되므로 )
+    // 검사취소 — 합격분 되돌리고 다시 검사대기 ( 불량 기록은 취소 표시 — 불량이력에 취소분으로 남는다 )
     public function cancel(StockTxnLine $line): void {
         DB::transaction(function () use ($line) {
             $line = StockTxnLine::whereKey($line->stock_txn_line_idx)->lockForUpdate()->first();
@@ -93,7 +89,7 @@ class IncomingInspectionService {
 
             $this->receipts->unconfirm($line);
 
-            $inspection->defects()->delete();
+            $this->defects->cancel($inspection);
             $inspection->fill(['is_canceled' => 'Y'])->save();
 
             $line->fill(['line_status' => 'WAIT', 'pass_qty' => '0', 'fail_qty' => '0', 'done_at' => null])->save();

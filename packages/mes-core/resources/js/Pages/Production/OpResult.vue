@@ -4,7 +4,8 @@
        · 뒤 공정은 앞 수량 공정 실적까지만 ( 서버가 막음 ) · 포장도 수량 공정
        · 마지막 공정이 수량 공정이면 실적마다 그 수량만큼 바로 제품 입고( 실적 입력 때 창고 ) — 아니면 줄 완료 때 남은 수량 입고
      - 원자재출고 공정 · 자재의 [출고 · 반납] : 이 화면 안에서 자재출고 · 반납( MaterialIssuePanel ) — 완료할 때 덜 나간 자재가 있으면 한 번 묻는다 · 완료된 줄은 반납만
-     - 되돌리기 : 실적 취소 · 완료 취소 · 줄 완료 취소 · 출고 취소 ( can_delete ) -->
+     - 되돌리기 : 실적 취소 · 완료 취소 · 줄 완료 취소 · 출고 취소 ( can_delete )
+     - 검사 공정 ( 품질 모듈이 켜져 있으면 ) : [검사] = 공정검사 창( ProcessInspectionForm — 6002 와 같은 창 ) · 공정 수량 = 합격 → 뒤 공정 기준 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
@@ -83,21 +84,23 @@
                                     :class="selectedOp?.work_order_op_idx === o.work_order_op_idx ? 'bg-blue-50' : 'hover:bg-gray-50'"
                                     @click="pickOp(o)">
                                     <td class="px-2 py-1.5 text-center text-gray-500">{{ String(o.seq).padStart(3, '0') }}</td>
-                                    <td class="px-2 py-1.5">{{ o.name }} <span class="text-xs text-gray-400">{{ o.is_qty ? '' : '( 완료만 )' }}</span></td>
+                                    <td class="px-2 py-1.5">{{ o.name }} <span class="text-xs text-gray-400">{{ o.is_qty ? '' : (o.is_inspection && line.quality_on ? '( 검사 )' : '( 완료만 )') }}</span></td>
                                     <td class="px-2 py-1.5 text-right text-gray-500">{{ o.base_qty === null ? '—' : fmt(o.base_qty) }}</td>
-                                    <td class="px-2 py-1.5 text-right font-semibold">{{ o.is_qty ? fmt(o.qty) : '—' }}</td>
+                                    <td class="px-2 py-1.5 text-right font-semibold">{{ o.is_qty || (o.is_inspection && o.status === 'DONE') ? fmt(o.qty) : '—' }}</td>
                                     <td class="px-2 py-1.5 text-center font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</td>
                                     <td class="px-2 py-1.5 text-xs">
                                         <span v-if="o.short_qty" class="text-amber-700">미달 {{ fmt(o.short_qty) }} · {{ o.short_reason }}</span>
                                         <span v-else-if="o.block" class="text-gray-400">{{ o.block }}</span>
                                     </td>
                                     <td class="px-2 py-1 text-right whitespace-nowrap" @click.stop>
-                                        <template v-if="canWrite && o.status !== 'DONE' && line.status !== 'DONE'">
+                                        <!-- 검사 공정 : 검사 창 ( 완료 뒤에도 기록을 본다 · 취소도 그 창에서 ) -->
+                                        <BaseButton v-if="o.is_inspection && line.quality_on" size="sm" :variant="o.status === 'DONE' ? 'secondary' : 'primary'" @click="openInspection(o)">검사</BaseButton>
+                                        <template v-else-if="canWrite && o.status !== 'DONE' && line.status !== 'DONE'">
                                             <BaseButton v-if="o.is_qty" size="sm" variant="secondary" :disabled="!!o.block" @click="openPanel(o, 'run')">실적 입력</BaseButton>
                                             <BaseButton v-if="o.is_rm_out && line.materials.length" size="sm" variant="secondary" @click="openIssue">출고</BaseButton>
                                             <BaseButton size="sm" variant="primary" class="ml-1" :disabled="!o.is_qty && !!o.block" @click="openPanel(o, 'done')">{{ o.is_qty ? '공정 완료' : '완료' }}</BaseButton>
                                         </template>
-                                        <BaseButton v-if="canDelete && o.status === 'DONE' && line.status !== 'DONE'" size="sm" variant="secondary" :disabled="busy" @click="cancelComplete(o)">완료 취소</BaseButton>
+                                        <BaseButton v-if="canDelete && o.status === 'DONE' && line.status !== 'DONE' && !(o.is_inspection && line.quality_on)" size="sm" variant="secondary" :disabled="busy" @click="cancelComplete(o)">완료 취소</BaseButton>
                                     </td>
                                 </tr>
                             </tbody>
@@ -239,6 +242,8 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
+import ProcessInspectionForm from '@core/Components/Quality/ProcessInspectionForm.vue';
+import { useModalStore } from '@core/Stores/modalStore';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -478,6 +483,16 @@ const cancelLineDone = () => confirmAnd('완료 취소', `${line.value.wo_no} �
     () => window.axios.post(route('production.opResult.cancelLineDone'), { work_order_idx: line.value.work_order_idx }), `${line.value.wo_no} 완료를 취소했습니다.`);
 
 // 출고 패널 열기 ( 자재 표 아래 ) — 원자재출고 공정의 [출고] 도 여기로
+// 공정검사 창 ( 6002 와 같은 창 ) — 판정 · 취소 뒤 이 줄과 목록을 다시 읽는다
+const modalStore = useModalStore();
+function openInspection(o) {
+    modalStore.open(ProcessInspectionForm, {
+        opIdx: o.work_order_op_idx,
+        onDone: (text, warnings = []) => { showFlash(okMsg(text, warnings)); refresh(); },
+        modalTitle: `공정검사 [ ${line.value.wo_no} · ${o.name} ]`,
+    }, { size: 'lg', closeOnClickOutside: false });
+}
+
 async function openIssue() {
     issueOpen.value = true;
     await nextTick();

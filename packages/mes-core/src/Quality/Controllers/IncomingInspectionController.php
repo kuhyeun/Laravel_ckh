@@ -128,6 +128,7 @@ class IncomingInspectionController extends Controller {
                 'inspected_at'   => $inspection->inspected_at?->format('Y-m-d H:i'),
                 'inspector_name' => $inspection->inspector?->user_name ?: $inspection->inspector?->user_id,
                 'reason'         => $inspection->defects->first()?->reason,
+                'defect_type'    => app(\MesCore\Quality\Services\DefectService::class)->typeName($inspection->defects->first()?->defect_type_code),
                 'remark'         => $inspection->remark,
             ] : null,
             'inspectors' => User::where('is_use', 'Y')->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
@@ -143,12 +144,13 @@ class IncomingInspectionController extends Controller {
         $data = $request->validate([
             'pass_qty'      => 'required|numeric|min:0|max:999999999999',
             'fail_qty'      => 'nullable|numeric|min:0|max:999999999999',
+            'defect_type_code' => 'nullable|string|max:30',
             'reason'        => 'nullable|string|max:200',
             'inspector_idx' => 'required|integer|exists:account_member,account_idx',
             'inspected_at'  => 'required|date_format:Y-m-d\TH:i',
             'remark'        => 'nullable|string|max:2000',
         ], [], [
-            'pass_qty' => '합격', 'fail_qty' => '불합격', 'reason' => '불량 사유', 'inspector_idx' => '검사자', 'inspected_at' => '검사일시',
+            'pass_qty' => '합격', 'fail_qty' => '불합격', 'defect_type_code' => '불량 유형', 'reason' => '불량 상세', 'inspector_idx' => '검사자', 'inspected_at' => '검사일시',
         ]);
 
         try {

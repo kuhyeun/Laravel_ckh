@@ -68,6 +68,15 @@ class Process extends Model {
         return !$this->isSystem() || $this->system_key === self::SYS_PACK;
     }
 
+    public function isInspection(): bool {
+        return $this->process_type === self::TYPE_INSPECTION;
+    }
+
+    // 초 · 중 · 종 검사 공정 ( 켜진 검사마다 판정 — 70-품질 §3 )
+    public function isIfl(): bool {
+        return $this->isInspection() && $this->inspection_kind === 'IFL';
+    }
+
     public function isRmOut(): bool {
         return $this->isSystem() && $this->system_key === self::SYS_RM_OUT;
     }
