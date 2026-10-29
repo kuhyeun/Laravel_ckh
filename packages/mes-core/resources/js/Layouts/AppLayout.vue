@@ -14,9 +14,9 @@
             </main>
         </div>
         
-        <footer class="app-footer border-t">
+        <!-- <footer class="app-footer border-t">
             <BottomFrame></BottomFrame>
-        </footer>
+        </footer> -->
 
         <BaseModal></BaseModal>
         <SessionWatcher></SessionWatcher>

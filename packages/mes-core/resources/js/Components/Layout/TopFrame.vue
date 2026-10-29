@@ -4,7 +4,7 @@
             <button id="sidebar-toggle" class="p-1 mr-2 border border-transparent rounded-md box-border hover:border-black" @click="toggleSidebar">
                 <Bars3BottomLeftIcon class="h-5 w-5" />
             </button>
-            <h1 class="top-frame-title">{{ title }}</h1>
+            <h1 class="top-frame-title"></h1>
         </div>
         <div class="flex-1"></div>
         <div class="flex items-center">
@@ -18,7 +18,7 @@
                     {{ alarmCount > 99 ? '99+' : alarmCount }}
                 </span>
             </button>
-            <Link :href="route('user.dashboard')" class="mr-3 text-gray-700  hover:text-blue-500">DashBoard</Link>
+            <!-- <Link :href="route('user.dashboard')" class="mr-3 text-gray-700  hover:text-blue-500">DashBoard</Link> -->
             <a :href="route('user.logout')" class="text-gray-700 hover:text-blue-500">Logout</a>
         </div>
     </div>

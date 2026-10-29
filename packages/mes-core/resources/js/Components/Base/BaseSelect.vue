@@ -8,7 +8,7 @@
         @change="$emit('update:modelValue', $event.target.value)"
     >
         <option v-if="placeholder" value="" disabled>{{ placeholder }}</option>
-        <option v-for="opt in options" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+        <option v-for="opt in options" :key="opt.value" :value="opt.value" :disabled="opt.disabled === true">{{ opt.label }}</option>
     </select>
 </template>
 
@@ -17,7 +17,7 @@ import { computed } from 'vue';
 
 const props = defineProps({
     modelValue:  { type: [String, Number], default: '' },
-    options:     { type: Array, default: () => [] },   // [{ value, label }]
+    options:     { type: Array, default: () => [] },   // [{ value, label, disabled? }] — disabled 면 그 항목만 고를 수 없음
     size:        { type: String, default: 'md' },      // sm | md | lg
     placeholder: { type: String, default: '' },
     disabled:    { type: Boolean, default: false }

@@ -162,7 +162,7 @@ function resolveField(item) {
 
 // ---- 그룹 제목 : group_key → 표시 제목. 없으면 group_key 를 그대로 사용 ----
 const GROUP_TITLES = {
-    Common:     '사이트 설정',
+    Common:     '공통',
     feature:    '기능 스위치',
     stock:      '재고 · 수불',
     plan:       '부족 계산',

@@ -7,8 +7,10 @@ use MesCore\Basic\Models\SystemConfig;
 use MesCore\Basic\Services\PolicyException;
 use MesCore\Basic\Services\PolicyService;
 use MesCore\Config\Models\LotRule;
+use MesCore\Config\Services\SiteConfigService;
 use InvalidArgumentException;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -23,6 +25,7 @@ class ConfigController extends Controller {
 
         $items = collect($defs)
             ->filter(fn ($def) => $def['is_visible'])
+            ->filter(fn ($def) => !in_array($def['group'], SiteConfigService::GROUPS, true))   // 사이트설정( 1012 ) 화면이 맡는다
             ->filter(fn ($def) => $isSystem || $def['editable_by'] !== 'SYSTEM_ADMIN')
             ->map(fn ($def, $key) => [
                 'group'            => $def['group'],
@@ -82,7 +85,7 @@ class ConfigController extends Controller {
     public function save(Request $request, PolicyService $policy) {
         $validated = $request->validate([
             'items'         => 'required|array|min:1',
-            'items.*.group' => 'required|string|max:50',
+            'items.*.group' => ['required', 'string', 'max:50', Rule::notIn(SiteConfigService::GROUPS)],
             'items.*.key'   => 'required|string|max:50',
             'items.*.value' => 'nullable|string|max:300',
         ]);

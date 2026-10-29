@@ -87,7 +87,7 @@ const gridOptions = {
 };
 
 const columns = [
-    { header: '지시번호', name: 'sheet_no', width: 170, sortable: true, className: 'cursor-pointer' },
+    { header: '지시번호', name: 'sheet_no', width: 200, sortable: true, className: 'cursor-pointer' },
     { header: '출처', name: 'source', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? woSourceLabel(value) : '' },
     { header: '품목', name: 'item_label', minWidth: 200, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'target_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.target_qty === undefined || row.target_qty === null ? '' : `${num(row.target_qty)} ${row.spec_unit ?? ''}` },

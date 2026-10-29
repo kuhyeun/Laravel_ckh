@@ -8,7 +8,7 @@ use MesCore\Config\Models\Process;
 use MesCore\Support\RecordsAccount;
 
 // 작업지시 공정 — 라우팅의 사본 ( 지시에서 순서 · 추가 · 삭제 가능, 라우팅이 바뀌어도 소급 안 됨 )
-//   status · qty · short_* 는 3단계( 실적 )에서 쓴다
+//   status · qty( 실적 합 ) · short_* · started_at · done_at 은 3단계 공정실적( OpResultService )이 고친다
 class WorkOrderOp extends Model {
     use RecordsAccount;
 
@@ -21,7 +21,7 @@ class WorkOrderOp extends Model {
     protected $fillable = [
         'work_order_idx', 'seq', 'process_idx', 'routing_line_idx', 'equipment_idx', 'worker_idx',
         'cycle_time_sec', 'due_date', 'insp_first', 'insp_middle', 'insp_last',
-        'pre_approve_min', 'pre_approved_by_design', 'status', 'qty', 'short_qty', 'short_reason', 'remark',
+        'pre_approve_min', 'pre_approved_by_design', 'status', 'started_at', 'done_at', 'qty', 'short_qty', 'short_reason', 'remark',
     ];
 
     protected $attributes = [
@@ -35,7 +35,27 @@ class WorkOrderOp extends Model {
             'due_date'       => 'date:Y-m-d',
             'qty'            => 'decimal:6',
             'short_qty'      => 'decimal:6',
+            'started_at'     => 'datetime',
+            'done_at'        => 'datetime',
         ];
+    }
+
+    // 수량 공정 : 실적 수량을 쌓는다 ( Process::isQtyProcess — 포장 포함 ). 나머지는 완료만 처리
+    public function isQtyOp(): bool {
+        return (bool) $this->process?->isQtyProcess();
+    }
+
+    // 원자재출고 공정 : 완료만 처리 + 완료 때 출고 확인
+    public function isRmOut(): bool {
+        return (bool) $this->process?->isRmOut();
+    }
+
+    public function runs() {
+        return $this->hasMany(WorkOrderOpRun::class, 'work_order_op_idx', 'work_order_op_idx')->where('is_canceled', 'N')->orderBy('worked_at')->orderBy('run_idx');   // 같은 일시면 입력 순
+    }
+
+    public function workOrder() {
+        return $this->belongsTo(WorkOrder::class, 'work_order_idx', 'work_order_idx');
     }
 
     public function process() {

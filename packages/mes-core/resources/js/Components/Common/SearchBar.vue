@@ -10,9 +10,9 @@
         <template v-if="dateBases.length">
             <BaseSelect v-if="dateBases.length > 1" v-model="model.date_basis" :options="dateBases" size="sm" class="w-24" />
             <span v-else class="text-xs text-gray-500">{{ dateBases[0].label }}</span>
-            <BaseInput v-model="model.from" type="date" size="sm" class="w-36" />
+            <BaseDatePicker v-model="model.from" size="sm" class="w-36" />
             <span class="text-gray-400">~</span>
-            <BaseInput v-model="model.to" type="date" size="sm" class="w-36" />
+            <BaseDatePicker v-model="model.to" size="sm" class="w-36" />
             <div class="flex items-center gap-0.5">
                 <button v-for="q in QUICK" :key="q.key" type="button" class="h-[30px] px-2 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50" @click="quick(q.key)">{{ q.label }}</button>
             </div>
@@ -37,6 +37,7 @@ import { computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import { useDelayedBusy } from '@core/Composables/useDelayedBusy';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 

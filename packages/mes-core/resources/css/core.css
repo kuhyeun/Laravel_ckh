@@ -101,6 +101,20 @@ html.sidebar-collapsed #app-sidebar {
     cursor: not-allowed;
   }
 
+  /* 얇은 표 목록의 행 체크박스 ( 출고 · 반납 이력 · 입고 줄 … — text-xs 줄 높이 약 20px )
+     기본 체크박스는 13px · 글자 기준선에 붙어 위로 치우친다 → 16px · 칸 가운데( 블록 + 좌우 auto ) */
+  .row-check {
+    display: block;
+    width: 16px;
+    height: 16px;
+    margin: 0 auto;
+    accent-color: #2563eb;
+    cursor: pointer;
+  }
+  .row-check:disabled {
+    cursor: not-allowed;
+  }
+
   /* 공용 인풋 : base-select 와 동일한 톤( 보더·포커스링·색 ). size 로 높이/여백 조절 */
   .base-input {
     width: 100%;
@@ -148,6 +162,15 @@ html.sidebar-collapsed #app-sidebar {
     height: 42px;
     padding: 0 14px;
     font-size: 15px;
+  }
+
+  /* 일시 입력( datetime-local ) : "2026. 10. 29. 오후 03:00" + 달력 아이콘이 다 보이는 최소 너비
+     사용처의 w-44 · w-48 같은 너비가 좁아도 min-width 가 이긴다 ( 한국어 표기 기준 — 시간이 잘리던 것 ) */
+  .base-input[type="datetime-local"] {
+    min-width: 14.5rem;
+  }
+  .base-input.sm[type="datetime-local"] {
+    min-width: 14rem;
   }
 
   /* 여러 줄 입력( textarea ) : 고정 높이 대신 rows 로 높이 결정 + 위아래 여백으로 커서 위치 맞춤

@@ -1,7 +1,8 @@
 <!-- 작업지시서 등록 / 수정 ( PRD-03 ) — 모달 본체. docs/screens/50-생산.md §3 · "1단계 보완" B-4
      - 지시서 칸 : 착수 예정 · 생산 기한 · 담당 · 비고 — 모든 품목 줄에 적용 ( 줄마다 두지 않음 )
      - 품목 줄 : 줄 하나 = 지금의 작업지시 하나. 왼쪽 목록에서 고르면 오른쪽에 그 줄의 탭( WorkOrderLinePanel )
-     - [+ 품목] 빈 줄 / [+ 수주 줄] 확정 수주 줄을 골라 같은 품목 줄이 있으면 병합, 없으면 새 줄
+     - [+ 품목] 빈 줄 / [+ 수주 줄] 확정 수주 줄을 골라 같은 품목 줄이 있으면 병합, 품목을 안 고른 빈 줄이 있으면 그 줄에 채움, 없으면 새 줄
+     - 줄 목록 · 줄 탭 내용은 모달 높이 안에서 각자 스크롤 ( 지시서 칸 · 아래 버튼은 고정 )
      - 저장 : 지시서 + 줄 전부 한 번에 ( 하나라도 틀리면 전부 취소 ) · 생산 LOT 은 줄마다 서버가 발급
      - 취소 : [줄 취소] 대기 줄 하나 / [지시서 취소] 모든 줄이 대기일 때 전부 ( 저장 안 한 줄은 ✕ 로 지움 )
      - 수주에서 열면( prefill ) 그 수주 줄을 담은 줄 하나짜리 지시서 -->
@@ -28,12 +29,12 @@
                 </div>
                 <div>
                     <label class="lbl">착수 예정일 <span class="text-red-500">*</span></label>
-                    <BaseInput v-model="sheet.start_date" type="date" class="w-full" :disabled="!sheetEditable" />
+                    <BaseDatePicker v-model="sheet.start_date" class="w-full" :disabled="!sheetEditable" />
                     <p v-if="errors.start_date" class="err">{{ errors.start_date[0] }}</p>
                 </div>
                 <div>
                     <label class="lbl">생산 기한 <span class="text-red-500">*</span></label>
-                    <BaseInput v-model="sheet.due_date" type="date" class="w-full" :disabled="!sheetEditable" />
+                    <BaseDatePicker v-model="sheet.due_date" class="w-full" :disabled="!sheetEditable" />
                     <p v-if="errors.due_date" class="err">{{ errors.due_date[0] }}</p>
                     <p v-else-if="sheet.due_date && sheet.start_date && sheet.due_date < sheet.start_date" class="text-[11px] text-amber-600">착수 예정일보다 앞입니다</p>
                 </div>
@@ -71,16 +72,16 @@
                             <td class="px-2 py-1">{{ l.partner_name }}</td>
                             <td class="px-2 py-1">납품 {{ l.due_date }}</td>
                             <td class="px-2 py-1 text-right">남은 {{ fmt(l.remaining) }}</td>
-                            <td class="px-2 py-1 text-gray-500">{{ mergeTarget(l) ? `→ ${lineLabel(mergeTarget(l))} 에 병합` : '→ 새 줄' }}</td>
+                            <td class="px-2 py-1 text-gray-500">{{ mergeTarget(l) ? `→ ${lineLabel(mergeTarget(l))} 에 병합` : emptyLine() ? `→ ${lineLabel(emptyLine())}빈 줄에 채움` : '→ 새 줄' }}</td>
                             <td class="px-2 py-1 text-right"><button type="button" class="text-blue-700 hover:underline" @click="pickSource(l)">담기</button></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <div class="flex gap-4 min-h-0">
+            <div class="flex gap-4 flex-1 min-h-0">
                 <!-- 줄 목록 -->
-                <div class="w-60 shrink-0 border rounded overflow-y-auto self-start">
+                <div class="w-60 shrink-0 border rounded overflow-y-auto self-start max-h-full">
                     <button v-for="(l, i) in lines" :key="l._key" type="button"
                         class="w-full text-left px-2.5 py-2 border-b last:border-b-0 transition-colors"
                         :class="selected === i ? 'bg-blue-50' : 'hover:bg-gray-50'"
@@ -101,8 +102,8 @@
                 </div>
 
                 <!-- 선택한 줄 -->
-                <div class="flex-1 min-w-0">
-                    <WorkOrderLinePanel v-if="current" :line="current" :ctx="ctx" :can-write="canWrite" :errors="currentErrors" @issue="goIssue" />
+                <div class="flex-1 min-w-0 min-h-0 flex flex-col">
+                    <WorkOrderLinePanel v-if="current" class="flex-1" :line="current" :ctx="ctx" :can-write="canWrite" :errors="currentErrors" @issue="goIssue" />
                 </div>
             </div>
         </template>
@@ -123,7 +124,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import { router } from '@inertiajs/vue3';
-import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import WorkOrderLinePanel from '@core/Components/Production/WorkOrderLinePanel.vue';
@@ -180,6 +181,9 @@ const picker = reactive({ open: false, loading: false, lines: [] });
 const pickable = computed(() => picker.lines.filter(l => !lines.value.some(x => x.sources.some(s => s.sales_order_line_idx === l.sales_order_line_idx))));
 // 병합 대상 : 같은 품목의 대기 줄
 const mergeTarget = (l) => lines.value.find(x => Number(x.item_idx) === Number(l.item_idx) && x.status === 'WAIT');
+// 채울 빈 줄 : 저장 전 · 품목 미선택 · 수주 연결 없음 ( 기본으로 만든 줄 ) — 고른 줄이 비었으면 그 줄, 아니면 첫 빈 줄
+const isEmptyLine = (x) => !x.work_order_idx && !x.item_idx && !x.sources.length;
+const emptyLine = () => (lines.value[selected.value] && isEmptyLine(lines.value[selected.value])) ? lines.value[selected.value] : lines.value.find(isEmptyLine);
 async function togglePicker() {
     if (picker.open) { picker.open = false; return; }
     picker.open = true; picker.loading = true;
@@ -197,18 +201,19 @@ async function pickSource(l) {
         target.sources.push(src);
         selected.value = lines.value.indexOf(target);
     } else {
-        const line = newLine();
-        line.item_idx   = l.item_idx;
-        line.target_qty = String(l.remaining);
+        const empty = emptyLine();
+        const line  = empty ?? newLine();
         try {
             await applyItemDefaults(line, l.item_idx);
         } catch (e) {
             errorMsg.value = '품목 정보를 불러오지 못했습니다.';
             return;
         }
-        line.sources = [src];
-        lines.value.push(line);
-        selected.value = lines.value.length - 1;
+        line.item_idx   = l.item_idx;
+        line.target_qty = String(l.remaining);
+        line.sources    = [src];
+        if (!empty) lines.value.push(line);
+        selected.value = lines.value.indexOf(line);
     }
     // 생산 기한 기본 = 가장 이른 납품일
     const dues = lines.value.flatMap(x => x.sources.map(s => s.due_date)).filter(Boolean).sort();

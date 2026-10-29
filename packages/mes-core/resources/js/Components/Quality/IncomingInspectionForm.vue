@@ -48,7 +48,7 @@
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">검사일시 <span class="text-red-500">*</span></label>
-                    <BaseInput v-model="form.inspected_at" type="datetime-local" class="w-full" :disabled="!canWrite" />
+                    <BaseDatePicker v-model="form.inspected_at" mode="datetime" class="w-full" :disabled="!canWrite" />
                     <p v-if="errors.inspected_at" class="text-xs text-red-500 mt-0.5">{{ errors.inspected_at[0] }}</p>
                 </div>
                 <div v-if="num(form.fail_qty) > 0" class="col-span-4">
@@ -95,6 +95,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';

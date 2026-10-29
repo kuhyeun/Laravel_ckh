@@ -158,7 +158,7 @@ class WorkOrderService {
                 'routing_idx' => $data['routing_idx'] ?? null,
                 'bom_idx'     => $issued ? $wo->bom_idx : $bom?->bom_idx,
                 'target_qty'  => (string) $data['target_qty'],
-                'scan_qty'    => (string) ($data['scan_qty'] ?? 1),
+                'scan_qty'    => (string) ($data['scan_qty'] ?? ($wo->exists ? $wo->scan_qty : 1)),
                 'start_date'  => $data['start_date'],
                 'due_date'    => $data['due_date'],
                 'remark'      => $data['remark'] ?? null,

@@ -5,7 +5,8 @@
      - 자재 탭 : BOM 사본 보기 ( 소요 = 개당 × 지시 수량, 현재고 참고 ) · [출고 →]
      - 수주 연결 : 분할 · 병합. 수주 줄마다 담은 수량 · 추가한 사람 · 일시( 병합 이력 )
      - 대기면 전부, 진행이면 공정 기한 · 작업자만, 완료 · 취소는 읽기 전용
-     - line 은 부모( 지시서 )의 줄 객체 — 여기서 직접 고친다 -->
+     - line 은 부모( 지시서 )의 줄 객체 — 여기서 직접 고친다
+     - 탭 내용은 이 패널 높이 안에서 스크롤 ( 부모가 높이를 정함 ) -->
 <template>
     <div class="text-sm flex flex-col min-h-0">
         <div class="flex gap-1 border-b shrink-0">
@@ -21,6 +22,8 @@
             </button>
         </div>
 
+        <!-- 탭 내용 : 모달 높이 안에서 스크롤 ( 탭 머리는 고정 ) -->
+        <div class="flex-1 min-h-0 overflow-y-auto pr-1">
         <!-- 기본 -->
         <div v-show="tab === 'basic'" class="pt-4 space-y-4">
             <div class="grid grid-cols-4 gap-x-4 gap-y-3">
@@ -56,8 +59,8 @@
                     <BaseInput v-model="line.target_qty" type="number" min="0" class="w-full text-right" :disabled="!structEditable" />
                     <p v-if="errors.target_qty" class="err">{{ errors.target_qty[0] }}</p>
                 </div>
-                <div>
-                    <label class="lbl">회당 상승 수량 <span class="text-red-500">*</span></label>
+                <div v-if="SHOW_SCAN_QTY">
+                    <label class="lbl">회당 상승 수량</label>
                     <BaseInput v-model="line.scan_qty" type="number" min="0" class="w-full text-right" :disabled="!structEditable" />
                     <p v-if="errors.scan_qty" class="err">{{ errors.scan_qty[0] }}</p>
                 </div>
@@ -163,7 +166,7 @@
                                 <p v-if="errors[`ops.${i}.equipment_idx`]" class="err">{{ errors[`ops.${i}.equipment_idx`][0] }}</p>
                             </td>
                             <td class="px-1.5 py-1"><BaseSelect v-model="o.worker_idx" :options="workerOptions" size="sm" class="w-full" :disabled="!runEditable" /></td>
-                            <td class="px-1.5 py-1"><BaseInput v-model="o.due_date" type="date" size="sm" class="w-full" :disabled="!runEditable" /></td>
+                            <td class="px-1.5 py-1"><BaseDatePicker v-model="o.due_date" size="sm" class="w-full" :disabled="!runEditable" /></td>
                             <td class="px-2 py-1 text-center">
                                 <template v-if="isIfl(procOf(o))">
                                     <input v-for="k in ['insp_first', 'insp_middle', 'insp_last']" :key="k" type="checkbox" class="accent-blue-600 mx-0.5" true-value="Y" false-value="N" v-model="o[k]" :disabled="!structEditable" />
@@ -217,6 +220,7 @@
             <AttachFiles v-if="line.work_order_idx" ref-type="work_order" :ref-id="line.work_order_idx" category="DRAWING" :readonly="!canWrite" @change="n => fileCount = n" />
             <p v-else class="py-4 text-center text-xs text-gray-400">지시서를 저장한 뒤 첨부할 수 있습니다.</p>
         </div>
+        </div>
     </div>
 </template>
 
@@ -224,6 +228,7 @@
 import { ref, reactive, computed, watch } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
@@ -238,6 +243,9 @@ const props = defineProps({
     errors:   { type: Object,  default: () => ({}) },   // 이 줄의 오류 ( lines.{n}. 을 뗀 키 )
 });
 defineEmits(['issue']);
+
+// 회당 상승 수량 : 스캔 · 라우트시트를 만들 때까지 숨김 ( 값은 품목 포장 수량 기본값으로 저장 )
+const SHOW_SCAN_QTY = false;
 
 const TABS = [
     { key: 'basic', label: '기본' },

@@ -39,6 +39,9 @@ export default defineConfig(({ mode }) => {
                 'chart.js': path.resolve(nodeModulesPath, 'chart.js'),
                 // 엑셀 내보내기 ( Utils/excel.js 가 버튼을 누를 때만 불러온다 )
                 'exceljs': path.resolve(nodeModulesPath, 'exceljs'),
+                // 날짜 · 일시 선택 ( Components/Base/BaseDatePicker.vue 만 쓴다 )
+                '@vuepic/vue-datepicker/dist/main.css': path.resolve(nodeModulesPath, '@vuepic/vue-datepicker/dist/main.css'),
+                '@vuepic/vue-datepicker': path.resolve(nodeModulesPath, '@vuepic/vue-datepicker'),
             },
         },
         server: {

@@ -61,12 +61,12 @@ return [
                     ],
                     [
                         'menu_code' => '90003',
-                        'menu_name' => 'UI Kit',
+                        'menu_name' => '스타일 가이드',
                         'menu_icon' => 'RectangleGroupIcon',
                         'module_code' => 'Debug',
                         'menu_route_name' => '',
-                        'url_path' => '/dev/uikit',
-                        'page_component' => 'Dev/UiKit',
+                        'url_path' => '/dev/style-guide',
+                        'page_component' => 'Dev/StyleGuide',
                         'menu_level' => 0
                     ]
                 ]
@@ -249,6 +249,16 @@ return [
                         'feature_key' => 'feature.lot',
                         'menu_level' => 99,
                     ],
+                    [
+                        'menu_code' => '1012',
+                        'menu_name' => '사이트설정',
+                        'menu_icon' => null,
+                        'module_code' => 'Config',
+                        'menu_route_name' => '',
+                        'url_path' => '/config/site',
+                        'page_component' => 'Config/SiteConfig',
+                        'menu_level' => 99,
+                    ],
                 ]
             ],
             [
@@ -389,6 +399,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Production',
                         'menu_route_name' => '',
+                        'url_path' => '/production/op-result',
+                        'page_component' => 'Production/OpResult',
                         'menu_level' => 99,
                     ],
                     [
@@ -397,6 +409,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Production',
                         'menu_route_name' => '',
+                        'url_path' => '/production/op-history',
+                        'page_component' => 'Production/OpHistory',
                         'menu_level' => 99,
                     ],
                     [
@@ -535,6 +549,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Shipment',
                         'menu_route_name' => '',
+                        'url_path' => '/shipment/manage',
+                        'page_component' => 'Shipment/ShipmentManage',
                         'menu_level' => 99,
                     ],
                     [
@@ -543,6 +559,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Shipment',
                         'menu_route_name' => '',
+                        'url_path' => '/shipment/history',
+                        'page_component' => 'Shipment/ShipmentHistory',
                         'menu_level' => 99,
                     ],
                     [
@@ -551,6 +569,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Shipment',
                         'menu_route_name' => '',
+                        'url_path' => '/shipment/invoice',
+                        'page_component' => 'Shipment/InvoiceManage',
                         'menu_level' => 99,
                     ],
                 ]

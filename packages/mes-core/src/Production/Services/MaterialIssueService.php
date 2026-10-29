@@ -9,6 +9,7 @@ use Illuminate\Validation\ValidationException;
 use MesCore\Basic\Services\PolicyService;
 use MesCore\Config\Models\Process;
 use MesCore\Config\Models\ProcessEquipment;
+use MesCore\Config\Models\Warehouse;
 use MesCore\Production\Calc\Formula;
 use MesCore\Production\Calc\FormulaException;
 use MesCore\Production\Models\CalcDef;
@@ -27,6 +28,10 @@ use MesCore\Stock\Services\StockService;
  *   plan()   : 지시의 자재 줄마다 계산식으로 소요 → 규격별 묶음( 식에 SPEC 이 있으면 ) → 후보 LOT( 선입선출 ) 채움
  *   issue()  : 창고 → 지시. 원장 OUT( ISSUE_WO ) + wo_stock 보유 + 자재 줄 출고 합계. consume_timing = ISSUE 면 같은 자리에서 사용처리
  *   cancel() : 줄 단위 역분개. 그 LOT 의 보유분 안에서만 ( 이미 쓴 것은 못 되돌린다 )
+ *   consumeForOp() : 3단계 — 투입 공정이 시작될 때 그 공정 자재의 보유분을 사용처리. 시작된 뒤 출고하면 issue() 가 바로 사용처리
+ *   returnMaterials() : 반납 — 출고한 그대로( 같은 LOT )를 창고로. 원장 IN_RETURN + · 보유에서 먼저, 모자라면 사용에서( 덜 썼다 )
+ *                       품목 줄 상태와 상관없이 ( 완료 · 취소된 줄의 남은 자재도 ). 잔재 재입고( 새 LOT ) · 폐기는 따로( 재고-수불 §8 )
+ *   returnCancel()    : 반납 취소 = 역분개. 그 LOT · 창고에 반납 수량만큼 재고가 남아 있을 때
  *
  *   계산 경고는 막지 않는다 ( W_* ). 한 LOT 의 잔고보다 많이 내는 것만 막는다 ( 그 조각이 없다 — §17-5 )
  */
@@ -34,6 +39,10 @@ class MaterialIssueService {
 
     public const TXN_TYPE  = 'ISSUE_WO';
     public const NO_PREFIX = 'IS';
+
+    public const RETURN_TYPE   = 'IN_RETURN';
+    public const RETURN_PREFIX = 'RT';
+    public const RETURN_MODES  = ['RETURN'];   // 이번에 켠 처리 — 잔재 재입고( LEFTOVER ) · 폐기( SCRAP ) 는 자리만 ( 화면에서 꺼 둠 )
 
     private const EPS = 0.000001;
 
@@ -71,7 +80,7 @@ class MaterialIssueService {
             $op = $m->work_order_op_idx ? $ops->get($m->work_order_op_idx) : $firstOp;
             [$setup, $setupSrc] = $this->setup($op, $equips, $warnings);
 
-            $issued = (float) $m->issued_qty;
+            $issued = (float) $m->issued_qty - (float) $m->returned_qty;   // 반납한 몫은 다시 필요하다
             $base   = (float) $m->qty_per * (float) $wo->target_qty;
             $cands  = $lots->get($m->child_item_idx) ?? collect();
             $vars   = [
@@ -80,7 +89,7 @@ class MaterialIssueService {
                 'SPEC2'     => [null, 'Phase 2'],
                 'PACK'      => [$item->pack_qty !== null ? (float) $item->pack_qty : null, '품목 포장 수량'],
                 'STOCK'     => [(float) $cands->sum('qty'), '현재고 합계'],
-                'ISSUED'    => [$issued, '이미 출고'],
+                'ISSUED'    => [$issued, '이미 출고 ( 반납 뺌 )'],
                 'REMAIN'    => [max(0, $base - $issued), '개당 × 지시 − 출고'],
                 'SETUP'     => [$setup, $setupSrc],
             ] + $this->customVars($m, $wo);
@@ -177,6 +186,7 @@ class MaterialIssueService {
             $this->assertOpen($wo);
 
             $materials = WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->get()->keyBy('work_order_material_idx');
+            $ops       = WorkOrderOp::with('process')->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get();
 
             // 같은 자재 줄 × 잔고 행은 합친다
             $lines = [];
@@ -222,7 +232,8 @@ class MaterialIssueService {
 
                 $qty      = $this->str($l['qty']);
                 $timing   = (string) ($this->policy->get('material.consume_timing', ['item' => $m->child_item_idx]) ?? 'PROCESS_START');
-                $consumed = $timing === 'ISSUE' ? $qty : '0';
+                // 출고 시점 사용 · 또는 투입 공정이 이미 시작됐으면 출고하자마자 사용 ( 3단계 — 공정을 시작한 뒤 늦게 낸 자재 )
+                $consumed = ($timing === 'ISSUE' || $this->inputOpStarted($m, $ops)) ? $qty : '0';
 
                 $line = StockTxnLine::create([
                     'stock_txn_idx'           => $txn->stock_txn_idx,
@@ -314,14 +325,210 @@ class MaterialIssueService {
     public function heldByItem(int $woIdx): array {
         return DB::table('wo_stock')->where('work_order_idx', $woIdx)
             ->groupBy('item_idx')
-            ->selectRaw('item_idx, SUM(issued_qty) AS issued, SUM(consumed_qty) AS consumed, SUM(qty) AS qty')
+            ->selectRaw('item_idx, SUM(issued_qty) AS issued, SUM(consumed_qty) AS consumed, SUM(returned_qty) AS returned, SUM(qty) AS qty')
             ->get()
-            ->mapWithKeys(fn ($r) => [$r->item_idx => ['issued' => (float) $r->issued, 'consumed' => (float) $r->consumed, 'qty' => (float) $r->qty]])
+            ->mapWithKeys(fn ($r) => [$r->item_idx => ['issued' => (float) $r->issued, 'consumed' => (float) $r->consumed, 'returned' => (float) $r->returned, 'qty' => (float) $r->qty]])
             ->all();
     }
 
     public function hasIssue(int $woIdx): bool {
         return DB::table('wo_stock')->where('work_order_idx', $woIdx)->where('issued_qty', '>', 0)->exists();
+    }
+
+    // ---- 반납 ----
+
+    // 반납할 수 있는 것 : 지시가 출고한 LOT 마다 출고 · 사용 · 보유 · 반납 · 반납 가능( 출고 − 반납 ) · 기본 창고( 마지막으로 낸 창고 )
+    public function returnPlan(WorkOrder $wo): array {
+        $rows = DB::table('wo_stock as s')
+            ->join('item as i', 'i.item_idx', '=', 's.item_idx')
+            ->leftJoin('lot as l', 'l.lot_idx', '=', 's.lot_idx')
+            ->where('s.work_order_idx', $wo->work_order_idx)->where('s.issued_qty', '>', 0)
+            ->orderBy('i.item_code')->orderBy('l.lot_no')
+            ->get(['s.item_idx', 's.lot_idx', 's.issued_qty', 's.consumed_qty', 's.returned_qty', 's.qty', 'i.item_code', 'i.item_name', 'i.spec_unit', 'l.lot_no', 'l.spec_value']);
+
+        return $rows->map(fn ($r) => [
+            'key'          => "{$r->item_idx}:{$r->lot_idx}",
+            'item_idx'     => (int) $r->item_idx,
+            'lot_idx'      => (int) $r->lot_idx,
+            'item_code'    => $r->item_code,
+            'item_name'    => $r->item_name,
+            'spec_unit'    => $r->spec_unit,
+            'lot_no'       => $r->lot_no,
+            'spec_value'   => $r->spec_value !== null ? (float) $r->spec_value : null,
+            'issued'       => (float) $r->issued_qty,
+            'consumed'     => (float) $r->consumed_qty,
+            'held'         => (float) $r->qty,
+            'returned'     => (float) $r->returned_qty,
+            'returnable'   => max(0, (float) $r->issued_qty - (float) $r->returned_qty),
+            'warehouse_idx'=> StockTxnLine::where('work_order_idx', $wo->work_order_idx)->where('item_idx', $r->item_idx)->where('lot_idx', $r->lot_idx)
+                ->where('line_status', 'DONE')->whereHas('txn', fn ($q) => $q->where('txn_type', self::TXN_TYPE))
+                ->orderByDesc('stock_txn_line_idx')->value('warehouse_idx'),
+        ])->values()->all();
+    }
+
+    /**
+     * @param array{occurred_at:string, remark:?string, lines: array<int, array{item_idx:int, lot_idx:int, qty:string, warehouse_idx:int, mode:string}>} $data
+     * @return array{0: StockTxn, 1: string[]}
+     */
+    public function returnMaterials(WorkOrder $wo, array $data): array {
+        $occurredAt = Carbon::parse($data['occurred_at']);
+        $warnings   = array_filter([$this->stock->checkBackdate($occurredAt)]);
+
+        $txn = DB::transaction(function () use ($wo, $data, $occurredAt) {
+            $wo    = WorkOrder::whereKey($wo->work_order_idx)->lockForUpdate()->first();
+            $lines = array_values(array_filter($data['lines'], fn ($l) => (float) $l['qty'] > 0));
+            if (!$lines) {
+                throw ValidationException::withMessages(['lines' => ['반납할 수량을 넣으세요.']]);
+            }
+
+            $txn = StockTxn::create([
+                'txn_no'      => $this->stock->nextTxnNo(self::RETURN_PREFIX, $occurredAt),
+                'txn_type'    => self::RETURN_TYPE,
+                'occurred_at' => $occurredAt,
+                'recorded_at' => now(),
+                'status'      => 'DONE',
+                'remark'      => $data['remark'] ?? "자재 반납 {$wo->wo_no}",
+            ]);
+
+            foreach ($lines as $n => $l) {
+                $err = "lines.{$n}.qty";
+                if (!in_array($l['mode'] ?? 'RETURN', self::RETURN_MODES, true)) {
+                    throw ValidationException::withMessages([$err => ['잔재 재입고 · 폐기는 아직 준비 중입니다. ( 그대로 반납만 )']]);
+                }
+                $key   = ['work_order_idx' => $wo->work_order_idx, 'item_idx' => (int) $l['item_idx'], 'lot_idx' => (int) $l['lot_idx']];
+                $stock = DB::table('wo_stock')->where($key)->lockForUpdate()->first();
+                $wh    = Warehouse::whereKey($l['warehouse_idx'])->where('is_use', 'Y')->first();
+                if (!$stock) {
+                    throw ValidationException::withMessages([$err => ['이 작업지시가 출고한 자재가 아닙니다. 새로고침하세요.']]);
+                }
+                if (!$wh) {
+                    throw ValidationException::withMessages(["lines.{$n}.warehouse_idx" => ['반납할 창고를 고르세요. ( 사용 중 창고 )']]);
+                }
+                $qty  = (float) $l['qty'];
+                $left = (float) $stock->issued_qty - (float) $stock->returned_qty;
+                if ($qty > $left + self::EPS) {
+                    throw ValidationException::withMessages([$err => ["출고 {$this->num((float) $stock->issued_qty)} 중 반납할 수 있는 것은 {$this->num(max(0, $left))} 입니다."]]);
+                }
+
+                // 보유에서 먼저, 모자라면 사용에서 ( 투입 공정이 시작되면 보유를 모두 사용으로 돌리므로 — 실제로는 덜 썼다 )
+                $fromHeld     = min($qty, (float) $stock->qty);
+                $fromConsumed = $qty - $fromHeld;
+                $material     = WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->where('child_item_idx', $l['item_idx'])->orderBy('seq')->first();
+
+                $line = StockTxnLine::create([
+                    'stock_txn_idx'           => $txn->stock_txn_idx,
+                    'line_no'                 => $n + 1,
+                    'item_idx'                => (int) $l['item_idx'],
+                    'lot_idx'                 => (int) $l['lot_idx'],
+                    'warehouse_idx'           => $wh->warehouse_idx,
+                    'qty'                     => $this->str($qty),
+                    'work_order_idx'          => $wo->work_order_idx,
+                    'work_order_material_idx' => $material?->work_order_material_idx,
+                    'line_status'             => 'DONE',
+                    'pass_qty'                => $this->str($qty),
+                    'consumed_qty'            => $this->str($fromConsumed),   // 반납 줄 : 사용에서 되돌린 몫 ( 반납 취소 때 복원 )
+                    'done_at'                 => $occurredAt,
+                ]);
+                $this->stock->post([
+                    'stock_txn_idx'      => $txn->stock_txn_idx,
+                    'stock_txn_line_idx' => $line->stock_txn_line_idx,
+                    'item_idx'           => (int) $l['item_idx'],
+                    'lot_idx'            => (int) $l['lot_idx'],
+                    'warehouse_idx'      => $wh->warehouse_idx,
+                    'txn_type'           => self::RETURN_TYPE,
+                ], $this->str($qty), $occurredAt);
+
+                DB::table('wo_stock')->where($key)->update([
+                    'qty'          => DB::raw('qty - ' . $this->str($fromHeld)),
+                    'consumed_qty' => DB::raw('consumed_qty - ' . $this->str($fromConsumed)),
+                    'returned_qty' => DB::raw('returned_qty + ' . $this->str($qty)),
+                ]);
+                if ($material) {
+                    DB::table('work_order_material')->where('work_order_material_idx', $material->work_order_material_idx)
+                        ->update(['returned_qty' => DB::raw('returned_qty + ' . $this->str($qty))]);
+                }
+            }
+            return $txn;
+        });
+
+        return [$txn, array_values($warnings)];
+    }
+
+    /**
+     * 반납 취소 ( 줄 단위 · 역분개 ) — 그 LOT · 창고에 반납 수량만큼 재고가 있어야 ( 이미 다시 출고 · 이동했으면 막음 )
+     * @param int[] $lineIdxs
+     */
+    public function returnCancel(WorkOrder $wo, array $lineIdxs): int {
+        return DB::transaction(function () use ($wo, $lineIdxs) {
+            $lines = StockTxnLine::with('lot')->whereIn('stock_txn_line_idx', $lineIdxs)
+                ->where('work_order_idx', $wo->work_order_idx)->where('line_status', 'DONE')
+                ->whereHas('txn', fn ($q) => $q->where('txn_type', self::RETURN_TYPE))
+                ->lockForUpdate()->get();
+            if (!$lines->count()) {
+                throw ValidationException::withMessages(['lines' => ['취소할 수 있는 반납 줄이 없습니다.']]);
+            }
+            foreach ($lines as $line) {
+                $have = $this->stock->balanceQty($line->item_idx, (int) $line->lot_idx, $line->warehouse_idx);
+                if ($have + self::EPS < (float) $line->qty) {
+                    throw ValidationException::withMessages(['lines' => [
+                        ( $line->lot?->lot_no ? "{$line->lot->lot_no} 의 " : '' ) . "창고 재고( {$this->num($have)} )가 반납 수량( {$this->num((float) $line->qty)} )보다 적어 취소할 수 없습니다. ( 다시 출고 · 이동됨 )",
+                    ]]);
+                }
+                StockLedger::where('stock_txn_line_idx', $line->stock_txn_line_idx)->whereNull('reverses_idx')->whereNull('reversed_by_idx')->get()
+                    ->each(fn (StockLedger $l) => $this->stock->reverse($l, now()));
+
+                $toConsumed = (float) $line->consumed_qty;
+                DB::table('wo_stock')->where(['work_order_idx' => $wo->work_order_idx, 'item_idx' => $line->item_idx, 'lot_idx' => $line->lot_idx])->update([
+                    'qty'          => DB::raw('qty + ' . $this->str((float) $line->qty - $toConsumed)),
+                    'consumed_qty' => DB::raw('consumed_qty + ' . $this->str($toConsumed)),
+                    'returned_qty' => DB::raw('returned_qty - ' . $this->str((float) $line->qty)),
+                ]);
+                if ($line->work_order_material_idx) {
+                    DB::table('work_order_material')->where('work_order_material_idx', $line->work_order_material_idx)
+                        ->update(['returned_qty' => DB::raw('returned_qty - ' . $this->str((float) $line->qty))]);
+                }
+                $line->fill(['line_status' => 'CANCELED'])->save();
+            }
+            foreach ($lines->pluck('stock_txn_idx')->unique() as $txnIdx) {
+                if (!StockTxnLine::where('stock_txn_idx', $txnIdx)->where('line_status', '!=', 'CANCELED')->exists()) {
+                    StockTxn::whereKey($txnIdx)->first()?->fill(['status' => 'CANCELED'])->save();
+                }
+            }
+            return $lines->count();
+        });
+    }
+
+    /**
+     * 사용처리 — 투입 공정이 시작될 때( 3단계 공정실적 ) 그 공정에 붙은 자재의 보유분을 전부 사용으로 돌린다
+     *   투입 지점이 비어 있는 자재는 첫 수량 공정에 붙은 것으로 본다. 정책 consume_timing = ISSUE 인 자재는 이미 출고 때 사용했다
+     *   원장은 남기지 않는다 ( wo_stock 만 — 재고-수불 §9.2-1 ). 호출하는 쪽의 트랜잭션 안에서
+     * @return string[] 경고 ( 출고 안 된 자재 — W_MAT_NOT_ISSUED )
+     */
+    public function consumeForOp(WorkOrder $wo, WorkOrderOp $op): array {
+        $ops      = WorkOrderOp::with('process')->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get();
+        $first    = $this->firstQtyOp($ops);
+        $warnings = [];
+
+        $materials = WorkOrderMaterial::with('childItem:item_idx,item_code,item_name')->where('work_order_idx', $wo->work_order_idx)->get()
+            ->filter(fn (WorkOrderMaterial $m) => (int) ($m->work_order_op_idx ?: $first?->work_order_op_idx) === (int) $op->work_order_op_idx);
+
+        foreach ($materials->groupBy('child_item_idx') as $itemIdx => $rows) {
+            $timing = (string) ($this->policy->get('material.consume_timing', ['item' => $itemIdx]) ?? 'PROCESS_START');
+            if ($timing === 'ISSUE') {
+                continue;
+            }
+            $held = DB::table('wo_stock')->where('work_order_idx', $wo->work_order_idx)->where('item_idx', $itemIdx)->where('qty', '>', 0)->lockForUpdate()->get();
+            foreach ($held as $h) {
+                DB::table('wo_stock')->where(['work_order_idx' => $wo->work_order_idx, 'item_idx' => $itemIdx, 'lot_idx' => $h->lot_idx])
+                    ->update(['consumed_qty' => DB::raw('consumed_qty + qty'), 'qty' => 0]);
+            }
+            $issued = (float) $rows->sum('issued_qty');
+            if ($issued <= self::EPS) {
+                $it = $rows->first()->childItem;
+                $warnings[] = "{$it?->item_code} {$it?->item_name} 은 아직 출고되지 않았습니다. 자재출고에서 내면 그때 바로 사용처리합니다.";
+            }
+        }
+        return $warnings;
     }
 
     // ---- 내부 ----
@@ -333,7 +540,7 @@ class MaterialIssueService {
         }
     }
 
-    // wo_stock : 없으면 만들고 있으면 더한다 ( 보유 = 출고 − 사용 )
+    // wo_stock : 없으면 만들고 있으면 더한다 ( 보유 = 출고 − 사용 − 반납 )
     private function bumpHeld(int $woIdx, int $itemIdx, int $lotIdx, string $issued, string $consumed): void {
         $held = $this->str((float) $issued - (float) $consumed);
         DB::statement(
@@ -343,10 +550,15 @@ class MaterialIssueService {
         );
     }
 
+    // 자재의 투입 공정( 비면 첫 수량 공정 )이 이미 시작됐는지 — 대기가 아니면 시작
+    private function inputOpStarted(WorkOrderMaterial $m, Collection $ops): bool {
+        $op = $m->work_order_op_idx ? $ops->firstWhere('work_order_op_idx', $m->work_order_op_idx) : $this->firstQtyOp($ops);
+        return $op && $op->status !== 'WAIT';
+    }
+
     // 첫 수량 공정 : 시스템 · 검사 공정이 아닌 첫 공정 ( 없으면 첫 공정 )
     private function firstQtyOp(Collection $ops): ?WorkOrderOp {
-        return $ops->first(fn (WorkOrderOp $o) => $o->process && !$o->process->isSystem() && $o->process->process_type !== Process::TYPE_INSPECTION)
-            ?? $ops->first();
+        return $ops->first(fn (WorkOrderOp $o) => $o->isQtyOp()) ?? $ops->first();
     }
 
     /** @return array{0: float, 1: string} SETUP 값과 출처 */

@@ -16,7 +16,7 @@ return [
         'Production',   // 생산관리 ( Material 필요 )
         'Product',      // 제품관리 ( 아직 Core 기능 없음 )
         'Quality',      // 품질관리 ( Material 필요 — 입고검사 )
-        'Shipment',     // 출하관리 ( 아직 Core 기능 없음 )
+        'Shipment',     // 출하관리 ( Order · Material 필요 )
     ],
 
     /*

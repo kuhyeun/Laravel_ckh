@@ -39,7 +39,7 @@
                     </div>
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">수주일 <span class="text-red-500">*</span></label>
-                        <BaseInput v-model="form.order_date" type="date" class="w-full" :disabled="readonly" />
+                        <BaseDatePicker v-model="form.order_date" class="w-full" :disabled="readonly" />
                         <p v-if="errors.order_date" class="text-xs text-red-500 mt-0.5">{{ errors.order_date[0] }}</p>
                     </div>
                     <div>
@@ -86,7 +86,7 @@
                         <div class="flex-1"></div>
                         <template v-if="!readonly">
                             <span class="text-xs text-gray-500">납품일 일괄</span>
-                            <BaseInput v-model="bulkDue" type="date" size="sm" class="w-36" />
+                            <BaseDatePicker v-model="bulkDue" size="sm" class="w-36" />
                             <BaseButton size="sm" variant="secondary" :disabled="!bulkDue" @click="applyBulkDue">빈 칸에 적용</BaseButton>
                             <BaseButton size="sm" variant="secondary" @click="addLine">+ 품목</BaseButton>
                         </template>
@@ -131,7 +131,7 @@
                                     </td>
                                     <td class="px-2 py-1.5 text-right text-gray-700">{{ fmt(lineAmount(l)) }}</td>
                                     <td class="px-1.5 py-1">
-                                        <BaseInput v-model="l.due_date" type="date" size="sm" class="w-full" :disabled="readonly" />
+                                        <BaseDatePicker v-model="l.due_date" size="sm" class="w-full" :disabled="readonly" />
                                         <p v-if="lineError(i, 'due_date')" class="text-[11px] text-red-500">{{ lineError(i, 'due_date') }}</p>
                                     </td>
                                     <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500 whitespace-nowrap">
@@ -181,6 +181,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';

@@ -45,6 +45,16 @@ class SystemCodeSeeder extends Seeder {
                 'ETC'     => '기타',
             ],
         ],
+        'SHORT_REASON' => [
+            'name'  => '공정 미달 사유',
+            'desc'  => '공정실적( PRD-06 ) 미달 종료 사유 — 지시 수량보다 적게 끝낼 때 필수',
+            'codes' => [
+                'MATERIAL' => '자재 부족',
+                'EQUIP'    => '설비 고장',
+                'DUE'      => '납기 우선',
+                'ETC'      => '기타',
+            ],
+        ],
         'ADJUST_REASON' => [
             'name'  => '재고조정 사유',
             'desc'  => '재고조정( INV-05 ) 사유 — 기타( ETC )면 상세 필수',

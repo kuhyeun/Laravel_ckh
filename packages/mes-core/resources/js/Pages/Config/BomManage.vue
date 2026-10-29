@@ -78,7 +78,7 @@
                                 <label class="block text-gray-500 font-medium mb-1">
                                     변경일 <span class="text-xs text-gray-400">( 설계변경 발효일 )</span>
                                 </label>
-                                <BaseInput v-model="form.changed_at" type="date" class="w-full" :disabled="!canWrite" />
+                                <BaseDatePicker v-model="form.changed_at" class="w-full" :disabled="!canWrite" />
                                 <p v-if="errors.changed_at" class="text-xs text-red-500 mt-0.5">{{ errors.changed_at[0] }}</p>
                             </div>
                             <div>
@@ -193,6 +193,7 @@ import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import { showAlert } from '@core/Utils/message';
 

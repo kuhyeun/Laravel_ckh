@@ -21,7 +21,9 @@ class StockTxn extends Model {
         'IN_PURCHASE' => '구매 입고',
         'MOVE'        => '창고이동',
         'ADJUST'      => '재고조정',
-        'ISSUE_WO'    => '자재출고',
+        'ISSUE_WO'      => '자재출고',
+        'IN_RETURN'     => '자재반납',
+        'IN_PRODUCTION' => '생산 입고',
     ];
 
     const STATUSES = [

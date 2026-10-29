@@ -32,7 +32,7 @@
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">조정일시 <span class="text-red-500">*</span></label>
-                    <BaseInput v-model="form.occurred_at" type="datetime-local" class="w-full" />
+                    <BaseDatePicker v-model="form.occurred_at" mode="datetime" class="w-full" />
                     <p v-if="errors.occurred_at" class="text-xs text-red-500 mt-0.5">{{ errors.occurred_at[0] }}</p>
                 </div>
                 <div class="col-span-3">
@@ -55,6 +55,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { qtyText } from '@core/Components/Stock/stockCodes';

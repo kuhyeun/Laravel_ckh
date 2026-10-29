@@ -6,11 +6,16 @@
      - pagination { page, perPage, total } 을 주면 서버 페이징 : 아래 페이지 바 → page { page, perPage }
        이때 열에 sortable: true 를 주면 그리드가 직접 정렬하지 않고 → sort { key, dir } ( 서버가 정렬 )
      - empty-text : 결과 0건일 때 문구
+     - 트리( options.treeColumnOptions ) : 하위 행이 있는 행은 트리 칸을 누르면 펼침 / 접기 ( row-click 대신 ). 아이콘은 그리드가 처리
+       빈 _children( [] )은 지운다 — 남아 있으면 하위 행이 없는데도 펼침 아이콘이 생긴다
      - 엑셀은 ExcelExportButton 을 화면의 목록 머리에 둔다 ( columns · data 를 그대로 넘긴다 )
      - 기능은 더하기만 한다 — 새 prop 을 안 쓰는 화면은 예전과 같다 ( 공통컴포넌트 §7 ) -->
 <template>
     <div class="flex flex-col min-h-0">
-        <div ref="gridContainer" class="flex-1 min-h-0 overflow-hidden"></div>
+        <!-- 그리드 자리 : TUI 의 fitToParent 는 그리드 요소의 바로 위 부모 높이에 맞춘다 → 페이징 바를 뺀 이 칸만 부모가 되게 감싼다 -->
+        <div class="relative flex-1 min-h-0">
+            <div ref="gridContainer" class="absolute inset-0 overflow-hidden"></div>
+        </div>
 
         <!-- 서버 페이징 바 -->
         <div v-if="pagination" class="flex items-center justify-between gap-4 px-4 py-2.5 border-t text-sm text-gray-600 shrink-0">
@@ -66,6 +71,18 @@ const copyOnlyContextMenu = () => [[
 
 defineExpose({ gridInstance });
 
+// 빈 _children 은 지운다 ( 아래 단계까지 )
+function treeRows(rows) {
+    return (rows ?? []).map(r => {
+        if (!Array.isArray(r._children)) return r;
+        if (!r._children.length) {
+            const { _children, ...rest } = r;
+            return rest;
+        }
+        return { ...r, _children: treeRows(r._children) };
+    });
+}
+
 function emitSelect() {
     emit('select', gridInstance.value?.getCheckedRows() ?? []);
 }
@@ -82,7 +99,7 @@ onMounted(() => {
         // 정렬은 sortable: true 를 준 열만. useGrid 기본값( false )이면 TUI 가 DataSource( 서버 API ) 경로로 가서 오류가 난다
         //   서버 페이징이면 beforeSort 에서 막고 sort 이벤트로 알린다 ( 이 이벤트는 client 경로에서만 나온다 )
         useClientSort: true,
-        data: props.data ?? [],
+        data: treeRows(props.data),
         ...props.options,
     });
     autoResizeGrid(gridContainer, gridInstance.value);
@@ -90,10 +107,20 @@ onMounted(() => {
 
     const grid = gridInstance.value;
 
+    const treeColumn = props.options?.treeColumnOptions?.name;
     grid?.on('click', (ev) => {
         if (ev.rowKey == null) return;   // 헤더 · 빈 영역
         // 행 헤더( _checked 체크박스, _number 등 ) 클릭은 무시
         if (ev.columnName?.startsWith('_')) return;
+        // 트리 칸 : 하위 행이 있으면 펼침 / 접기 ( 아이콘을 누른 것은 그리드가 이미 처리 )
+        if (treeColumn && ev.columnName === treeColumn && grid.getChildRows(ev.rowKey)?.length) {
+            if (!ev.nativeEvent?.target?.closest?.('.tui-grid-btn-tree')) {
+                // 펼침 상태는 _attributes.tree.expanded ( TUI tree.isExpanded )
+                grid.getRow(ev.rowKey)?._attributes?.tree?.expanded ? grid.collapse(ev.rowKey) : grid.expand(ev.rowKey);
+            }
+            return;
+        }
+        if (ev.nativeEvent?.target?.closest?.('.tui-grid-btn-tree')) return;
         const row = grid.getRow(ev.rowKey);
         if (row) emit('row-click', row);
     });
@@ -116,7 +143,7 @@ onMounted(() => {
 
 // 외부 data 변경 → 그리드 갱신 ( 체크가 풀리므로 선택도 비었다고 알린다 )
 watch(() => props.data, (next) => {
-    gridInstance.value?.resetData(next ?? []);
+    gridInstance.value?.resetData(treeRows(next));
     emit('select', []);
 });
 

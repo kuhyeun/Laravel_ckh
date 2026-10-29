@@ -149,3 +149,20 @@ input[type="checkbox"][disabled] ~ .custom-input {
 .tui-grid-cell.row-selected {
   background-color: #e0f2fe !important;
 }
+
+/* 트리 펼침 아이콘 : TUI 기본은 화살표( i )가 버튼( 15px ) 맨 위에 붙어 1.5 ~ 2.5px 위로 치우친다 → 버튼 안 가운데 + 버튼을 셀 정가운데 */
+.tui-grid-container .tui-grid-btn-tree {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: -7.5px;
+}
+.tui-grid-container .tui-grid-btn-tree i {
+  margin-top: 0 !important;
+}
+
+/* 취소된 행 ( 데이터에 _attributes: { className: { row: ['row-canceled'] } } ) — 지우지 않고 남긴 기록 */
+.tui-grid-container .tui-grid-cell.row-canceled {
+  color: #9ca3af !important;
+  text-decoration: line-through;
+}

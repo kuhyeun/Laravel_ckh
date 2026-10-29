@@ -38,7 +38,7 @@
                     <tbody>
                         <tr v-for="l in rc._children" :key="l.stock_txn_line_idx" class="border-t" :class="l.line_status === 'CANCELED' ? 'text-gray-400' : ''">
                             <td v-if="canWrite" class="px-2 py-1.5 text-center">
-                                <input v-if="l.line_status !== 'CANCELED'" type="checkbox" class="accent-blue-600" v-model="checked" :value="l.stock_txn_line_idx" />
+                                <input v-if="l.line_status !== 'CANCELED'" type="checkbox" class="row-check" v-model="checked" :value="l.stock_txn_line_idx" />
                             </td>
                             <td class="px-2 py-1.5 text-center text-gray-400">{{ l.line_no }}</td>
                             <td class="px-2 py-1.5">{{ l.item_code }} {{ l.item_name }}</td>

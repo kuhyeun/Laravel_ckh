@@ -205,7 +205,7 @@ class WorkOrderController extends Controller {
             'lines.*.source'                         => ['nullable', Rule::in(['MANUAL', 'STOCK', 'ORDER'])],
             'lines.*.item_idx'                       => 'required|integer',
             'lines.*.target_qty'                     => 'required|numeric|gt:0|max:999999999999',
-            'lines.*.scan_qty'                       => 'required|numeric|gt:0|max:999999999999',
+            'lines.*.scan_qty'                       => 'nullable|numeric|gt:0|max:999999999999',
             'lines.*.lot_rule_idx'                   => 'nullable|integer',
             'lines.*.routing_idx'                    => 'nullable|integer',
             'lines.*.ops'                            => 'required|array|min:1|max:100',

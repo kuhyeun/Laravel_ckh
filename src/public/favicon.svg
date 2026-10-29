@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 임시 favicon ( 업체 로고가 오면 이 파일만 바꾼다 ) — 흰 바탕 + Laravel 빨강( #FF2D20 ) MS -->
+  <rect x="1" y="1" width="62" height="62" rx="12" fill="#FFFFFF" stroke="#FF2D20" stroke-width="2"/>
+  <text x="32" y="43" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" letter-spacing="-1" fill="#FF2D20">MS</text>
+</svg>

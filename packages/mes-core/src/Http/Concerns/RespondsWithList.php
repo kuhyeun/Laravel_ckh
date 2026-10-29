@@ -24,6 +24,11 @@ trait RespondsWithList {
         return 10000;
     }
 
+    // 열 정렬 때 같은 값끼리의 순서 ( 예 : 'r.run_idx' ) — 없으면 페이지마다 순서가 흔들릴 수 있다. 화면별로 재정의
+    protected function listTieBreaker(): ?string {
+        return null;
+    }
+
     protected function listResponse(Request $request, Builder $query, array $sortable, string $legacyKey, ?callable $map = null): JsonResponse {
         $validated = $request->validate([
             'page'    => 'nullable|integer|min:1',
@@ -36,6 +41,9 @@ trait RespondsWithList {
         // 정렬 : 허용 목록에 있을 때만 ( 컬럼명을 그대로 SQL 에 넣지 않는다 )
         if (!empty($validated['sort']) && in_array($validated['sort'], $sortable, true)) {
             $query->reorder($validated['sort'], $validated['dir'] ?? 'asc');
+            if ($tie = $this->listTieBreaker()) {
+                $query->orderBy($tie, $validated['dir'] ?? 'asc');
+            }
         }
 
         $mapRows = fn ($rows) => $map ? $rows->map($map)->values() : $rows->values();

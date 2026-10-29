@@ -40,7 +40,9 @@ return [
         'bom'             => [ 'name' => 'BOM 메뉴 사용',            'value' => 'Y', 'category' => 'FEATURE', 'type' => 'BOOL',
                                'remark' => '실 가공만 하는 업체는 끕니다 — 품목의 주 자재로만 관리' ],
         'barcode'         => [ 'name' => '바코드관리 사용',          'value' => 'Y', 'category' => 'FEATURE', 'type' => 'BOOL', 'visible' => false ],
-        'approval'        => [ 'name' => '전자결재 사용',            'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL', 'visible' => false ],
+        // 문서별로 다시 켠다 ( 지금은 출하 — shipment.approval ). 결재선 · 결재함은 Phase 2, 그 전까지는 간이 승인
+        'approval'        => [ 'name' => '전자결재 사용',            'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL',
+                               'remark' => '켜면 문서별 결재 사용이 보입니다 ( 지금은 출하 ). 결재선 · 결재함 전까지는 승인 권한자 한 명의 간이 승인' ],
         'subcontract'     => [ 'name' => '외주관리 사용',            'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL', 'visible' => false ],
         // 설비 보전 · 가동 ( Phase 3 ). 설비관리( 등록 )와 공정의 설비 선택은 이 스위치와 무관
         'equipment'       => [ 'name' => '설비 보전 · 가동 관리 사용', 'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL', 'visible' => false ],
@@ -80,12 +82,17 @@ return [
         'consume_source' => [ 'name' => '자재 차감 위치', 'value' => 'FIFO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
                               'options' => [ 'ORDER_LINKED' => '수주연동 입고자재만', 'FIFO' => '창고 선입선출' ] ],
         'consume_timing' => [ 'name' => '자재 차감 시점', 'value' => 'PROCESS_START', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
-                              'options' => [ 'PROCESS_START' => '생산 공정 시작 시', 'ISSUE' => '출고 시', 'MANUAL' => '수동' ] ],
+                              // MANUAL( 수동 사용처리 화면 )은 미룸 — 3단계 최소판은 공정 시작 · 출고 둘만
+                              'options' => [ 'PROCESS_START' => '생산 공정 시작 시', 'ISSUE' => '출고 시' ] ],
         'consume_mode'   => [ 'name' => '자재 차감 방식', 'value' => 'AUTO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
                               'options' => [ 'AUTO' => '자동', 'MANUAL' => '수동' ] ],
     ],
 
     'shipment' => [
+        // 출하대기 → ( 결재 ) → ( 출하검사 ) → 출하처리 — docs/screens/60-출하.md §0-1
+        'approval'       => [ 'name' => '출하 전자결재 사용', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
+                              'remark' => '켜면 출하대기 건은 승인을 받아야 출하처리됩니다 ( 승인 = 출하관리 삭제 권한 )',
+                              'depends_on' => [ 'feature.approval', 'Y' ] ],
         'consume_source' => [ 'name' => '제품 차감 위치', 'value' => 'FIFO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
                               'options' => [ 'ORDER_LINKED' => '수주연동 생산품만', 'FIFO' => '창고 선입선출' ] ],
     ],
@@ -131,6 +138,8 @@ return [
     'production' => [
         'process_order_block'  => [ 'name' => '공정 순서 차단', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'visible' => false,
                                     'remark' => '끄면 경고 후 허용' ],
+        'op_after_prev_done'   => [ 'name' => '앞 공정 완료 후 다음 공정', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
+                                    'remark' => '켜면 앞 생산 공정을 [공정 완료] 한 뒤에만 다음 공정 실적을 넣는다 ( 묶음 이동 ). 끄면 흐름 생산 — 뒤 공정은 앞 공정 실적까지만' ],
         'scan_qty_presets'     => [ 'name' => '수량 바코드 값', 'value' => '5,10,50,100,150,200', 'category' => 'RULE', 'type' => 'STRING', 'visible' => false ],
         'equipment_manual_qty' => [ 'name' => '설비 실적 수동 입력 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false ],
     ],
@@ -155,6 +164,31 @@ return [
     'ui' => [
         'search_range_from_days' => [ 'name' => '기본 검색 시작일 ( 오늘 + N일 )', 'value' => '-10', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
         'search_range_to_days'   => [ 'name' => '기본 검색 종료일 ( 오늘 + N일 )', 'value' => '10', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
+    ],
+
+    // ---- B-7. 회사 정보 · 거래명세서 ( 10-29 — docs/screens/60-출하.md §9 ) ----
+    // 거래명세서의 공급자 칸. 업체마다 다르다 — 관리자 설정에서 넣는다
+    'company' => [
+        'name'     => [ 'name' => '상호 ( 법인명 )', 'value' => null, 'category' => 'RULE', 'type' => 'STRING' ],
+        'biz_no'   => [ 'name' => '사업자 등록번호', 'value' => null, 'category' => 'RULE', 'type' => 'STRING', 'remark' => '예 : 123-45-67890' ],
+        'ceo_name' => [ 'name' => '대표자 성명',     'value' => null, 'category' => 'RULE', 'type' => 'STRING' ],
+        'biz_type' => [ 'name' => '업태',            'value' => null, 'category' => 'RULE', 'type' => 'STRING' ],
+        'biz_item' => [ 'name' => '종목',            'value' => null, 'category' => 'RULE', 'type' => 'STRING' ],
+        'address'  => [ 'name' => '사업장 주소',     'value' => null, 'category' => 'RULE', 'type' => 'STRING' ],
+        'tel'      => [ 'name' => '전화',            'value' => null, 'category' => 'RULE', 'type' => 'STRING' ],
+        'fax'      => [ 'name' => '팩스',            'value' => null, 'category' => 'RULE', 'type' => 'STRING' ],
+        'email'    => [ 'name' => '이메일',          'value' => null, 'category' => 'RULE', 'type' => 'STRING' ],
+        'homepage' => [ 'name' => '홈페이지',        'value' => null, 'category' => 'RULE', 'type' => 'STRING' ],
+        // 이미지 파일 경로 — 사이트설정 화면의 이미지 칸이 올리고 지운다 ( 값 칸으로는 보이지 않음 )
+        'seal_image' => [ 'name' => '직인 이미지', 'value' => null, 'category' => 'RULE', 'type' => 'STRING', 'visible' => false ],
+        'logo_image' => [ 'name' => '로고 이미지', 'value' => null, 'category' => 'RULE', 'type' => 'STRING', 'visible' => false ],
+    ],
+
+    'invoice' => [
+        'vat'      => [ 'name' => '부가세', 'value' => 'EXCLUDED', 'category' => 'RULE', 'type' => 'ENUM',
+                        'options' => [ 'EXCLUDED' => '별도 10% ( 단가에 부가세 없음 )', 'INCLUDED' => '포함 ( 단가에 부가세 들어 있음 )', 'EXEMPT' => '면세' ] ],
+        'rounding' => [ 'name' => '원 미만', 'value' => 'FLOOR', 'category' => 'RULE', 'type' => 'ENUM',
+                        'options' => [ 'FLOOR' => '버림', 'ROUND' => '반올림' ] ],
     ],
 
 ];

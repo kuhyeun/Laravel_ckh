@@ -21,6 +21,10 @@ class Process extends Model {
     const TYPE_EQUIPMENT   = 'EQUIPMENT';   // 설비생산 : 사용 가능 설비 1개 이상 필수
     const INSPECTION_KINDS = ['NORMAL', 'IFL'];
 
+    // 시스템 공정 system_key ( ProcessSeeder ) — 원자재출고 : 완료할 때 지시 자재가 다 출고됐는지 본다 / 포장 : 수량을 쌓는다
+    const SYS_RM_OUT = 'RM_OUT';
+    const SYS_PACK   = 'PACK';
+
     protected $fillable = [
         'process_code',
         'process_name',
@@ -54,6 +58,18 @@ class Process extends Model {
     // 시스템 기본 공정 여부 ( 표시용. 작업지시·실적에서 "완료만 처리" 판단 기준으로 사용 예정 )
     public function isSystem(): bool {
         return $this->is_system === 'Y';
+    }
+
+    // 수량 공정 : 실적 수량을 쌓는 공정 — 검사 · 시스템 공정이 아닌 공정 + 시스템 공정 중 포장
+    public function isQtyProcess(): bool {
+        if ($this->process_type === self::TYPE_INSPECTION) {
+            return false;
+        }
+        return !$this->isSystem() || $this->system_key === self::SYS_PACK;
+    }
+
+    public function isRmOut(): bool {
+        return $this->isSystem() && $this->system_key === self::SYS_RM_OUT;
     }
 
     public function equipments(): HasMany {

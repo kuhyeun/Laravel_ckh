@@ -25,7 +25,7 @@
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">입고일시 <span class="text-red-500">*</span></label>
-                    <BaseInput v-model="form.occurred_at" type="datetime-local" class="w-full" />
+                    <BaseDatePicker v-model="form.occurred_at" mode="datetime" class="w-full" />
                     <p v-if="errors.occurred_at" class="text-xs text-red-500 mt-0.5">{{ errors.occurred_at[0] }}</p>
                 </div>
                 <div v-if="lot.enabled && lot.source === 'INTERNAL' && lot.rules.length">
@@ -61,7 +61,7 @@
                     <table v-else class="w-full text-xs">
                         <thead class="text-gray-500">
                             <tr>
-                                <th class="px-2 py-1.5 w-8"><input type="checkbox" class="accent-blue-600" :checked="allPicked" @change="pickAll($event.target.checked)" /></th>
+                                <th class="px-2 py-1.5 w-8"><input type="checkbox" class="row-check" :checked="allPicked" @change="pickAll($event.target.checked)" /></th>
                                 <th class="px-2 py-1.5 text-left">발주</th>
                                 <th class="px-2 py-1.5 text-left">품목</th>
                                 <th class="px-2 py-1.5 text-right">발주</th>
@@ -72,7 +72,7 @@
                         </thead>
                         <tbody>
                             <tr v-for="pl in picker.lines" :key="pl.purchase_order_line_idx" class="border-t border-blue-100" :class="alreadyAdded(pl) ? 'opacity-40' : ''">
-                                <td class="px-2 py-1 text-center"><input type="checkbox" class="accent-blue-600" v-model="picker.checked" :value="pl.purchase_order_line_idx" :disabled="alreadyAdded(pl)" /></td>
+                                <td class="px-2 py-1 text-center"><input type="checkbox" class="row-check" v-model="picker.checked" :value="pl.purchase_order_line_idx" :disabled="alreadyAdded(pl)" /></td>
                                 <td class="px-2 py-1">{{ pl.order_no }}-{{ pl.line_no }}</td>
                                 <td class="px-2 py-1">{{ pl.item_code }} {{ pl.item_name }}</td>
                                 <td class="px-2 py-1 text-right">{{ fmt(pl.qty) }}</td>
@@ -167,6 +167,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { inspModeLabel } from '@core/Components/Stock/stockCodes';

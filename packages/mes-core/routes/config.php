@@ -12,6 +12,7 @@ use MesCore\Config\Controllers\InspectionItemController;
 use MesCore\Config\Controllers\InspectionSpecController;
 use MesCore\Config\Controllers\LeadTimeController;
 use MesCore\Config\Controllers\LotRuleController;
+use MesCore\Config\Controllers\SiteConfigController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -252,6 +253,23 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($lotRuleDelete)->group(function() {
             Route::post('/delete', [LotRuleController::class, 'deleteMany'])->name('del');
+        });
+    });
+
+    // 사이트설정 ( Config/SiteConfig ) — 회사 정보 · 거래명세서 · 직인 / 로고 이미지
+    Route::prefix('site')->name('site.')->group(function() {
+        $siteRead  = MenuAuth::class . ':Config/SiteConfig,can_read';
+        $siteWrite = MenuAuth::class . ':Config/SiteConfig,can_write';
+
+        Route::middleware($siteRead)->group(function() {
+            Route::get('/data', [SiteConfigController::class, 'data'])->name('data');
+            Route::get('/image/{kind}', [SiteConfigController::class, 'image'])->whereIn('kind', ['seal', 'logo'])->name('image');
+        });
+
+        Route::middleware($siteWrite)->group(function() {
+            Route::post('/save', [SiteConfigController::class, 'save'])->name('save');
+            Route::post('/image/{kind}', [SiteConfigController::class, 'uploadImage'])->whereIn('kind', ['seal', 'logo'])->name('image.upload');
+            Route::post('/image/{kind}/delete', [SiteConfigController::class, 'deleteImage'])->whereIn('kind', ['seal', 'logo'])->name('image.delete');
         });
     });
 });
