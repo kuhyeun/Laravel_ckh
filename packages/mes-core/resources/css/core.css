@@ -25,7 +25,7 @@ html.sidebar-collapsed #app-sidebar {
 }
 
 :focus-visible {
-  outline: 2px solid #C5C5C5;
+  outline: 2px solid theme('colors.gray.300');
   outline-offset: 1px;
   border-radius: 4px;
 }
@@ -60,7 +60,7 @@ html.sidebar-collapsed #app-sidebar {
   .toggle-switch span {
     position: absolute;
     inset: 0;
-    background: #d1d5db;
+    background: theme('colors.gray.300');
     border-radius: 13px;
     transition: .2s;
   }
@@ -73,12 +73,12 @@ html.sidebar-collapsed #app-sidebar {
     left: 3px;
     top: 3px;
     border-radius: 50%;
-    background: #fff;
+    background: theme('colors.white');
     transition: .2s;
   }
 
   .toggle-switch input:checked + span {
-    background: #2563eb;
+    background: theme('colors.blue.600');
   }
 
   .toggle-switch input:checked + span::before {
@@ -94,7 +94,7 @@ html.sidebar-collapsed #app-sidebar {
   .base-checkbox {
     width: 18px;
     height: 18px;
-    accent-color: #2563eb;
+    accent-color: theme('colors.blue.600');
     cursor: pointer;
   }
   .base-checkbox:disabled {
@@ -108,7 +108,7 @@ html.sidebar-collapsed #app-sidebar {
     width: 16px;
     height: 16px;
     margin: 0 auto;
-    accent-color: #2563eb;
+    accent-color: theme('colors.blue.600');
     cursor: pointer;
   }
   .row-check:disabled {
@@ -121,29 +121,29 @@ html.sidebar-collapsed #app-sidebar {
     height: 36px;
     padding: 0 12px;
 
-    border: 1px solid #d1d5db;
+    border: 1px solid theme('colors.gray.300');
     border-radius: 6px;
-    background: #fff;
+    background: theme('colors.white');
 
     font-size: 14px;
-    color: #374151;
+    color: theme('colors.gray.700');
 
     outline: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
   .base-input::placeholder {
-    color: #9ca3af;
+    color: theme('colors.gray.400');
   }
   .base-input:hover:not(:disabled) {
-    border-color: #9ca3af;
+    border-color: theme('colors.gray.400');
   }
   .base-input:focus {
-    border-color: #6b7280;
-    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.12);
+    border-color: theme('colors.gray.500');
+    box-shadow: 0 0 0 2px theme('colors.gray.500 / 12%');
   }
   .base-input:disabled {
-    background: #f3f4f6;
-    color: #9ca3af;
+    background: theme('colors.gray.100');
+    color: theme('colors.gray.400');
     cursor: not-allowed;
   }
 
@@ -186,12 +186,12 @@ html.sidebar-collapsed #app-sidebar {
     height: 36px;
     padding: 0 36px 0 12px;
 
-    border: 1px solid #d1d5db;
+    border: 1px solid theme('colors.gray.300');
     border-radius: 6px;
-    background-color: #fff;
+    background-color: theme('colors.white');
 
     font-size: 14px;
-    color: #374151;
+    color: theme('colors.gray.700');
 
     cursor: pointer;
     outline: none;
@@ -204,22 +204,22 @@ html.sidebar-collapsed #app-sidebar {
   }
 
   .base-select:hover {
-      border-color: #9ca3af;
+      border-color: theme('colors.gray.400');
   }
 
   .base-select:focus {
-      border-color: #6b7280;
-      box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.12);
+      border-color: theme('colors.gray.500');
+      box-shadow: 0 0 0 2px theme('colors.gray.500 / 12%');
   }
   .base-btn {
     height: 36px;
     padding: 0 14px;
 
-    border: 1px solid #d1d5db;
+    border: 1px solid theme('colors.gray.300');
     border-radius: 6px;
 
-    background: #fff;
-    color: #374151;
+    background: theme('colors.white');
+    color: theme('colors.gray.700');
 
     font-size: 14px;
     font-weight: 500;
@@ -234,17 +234,17 @@ html.sidebar-collapsed #app-sidebar {
   }
 
   .base-btn:not(:disabled):hover {
-    background: #f3f4f6;
-    border-color: #9ca3af;
+    background: theme('colors.gray.100');
+    border-color: theme('colors.gray.400');
   }
 
   .base-btn:not(:disabled):active {
-    background: #e5e7eb;
+    background: theme('colors.gray.200');
   }
 
   .base-btn:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.15);
+    box-shadow: 0 0 0 3px theme('colors.gray.500 / 15%');
   }
 
   /* disabled : 모든 variant 공통 - 흐리게 + 상호작용 차단 ( hover/active 는 :not(:disabled) 로 이미 차단됨 ) */
@@ -257,55 +257,55 @@ html.sidebar-collapsed #app-sidebar {
 
   /* 색상 variant : 기본(.base-btn)은 secondary 톤이며, variant 로 강조색을 덧입힌다 */
   .base-btn.primary {
-    background: #2563eb;
-    border-color: #2563eb;
-    color: #fff;
+    background: theme('colors.blue.600');
+    border-color: theme('colors.blue.600');
+    color: theme('colors.white');
   }
   .base-btn.primary:not(:disabled):hover {
-    background: #1d4ed8;
-    border-color: #1d4ed8;
+    background: theme('colors.blue.700');
+    border-color: theme('colors.blue.700');
   }
   .base-btn.primary:not(:disabled):active {
-    background: #1e40af;
-    border-color: #1e40af;
+    background: theme('colors.blue.800');
+    border-color: theme('colors.blue.800');
   }
   .base-btn.primary:focus-visible {
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
+    box-shadow: 0 0 0 3px theme('colors.blue.600 / 25%');
   }
 
-  /* secondary : 슬레이트 채움 버튼( 기본 outline 톤과 구분되는 별도 색 ) */
+  /* secondary : 회색 채움 버튼( 기본 outline 톤과 구분되는 별도 색 · 예전 slate → gray, 스타일 가이드 §7-1 ) */
   .base-btn.secondary {
-    background: #64748b;
-    border-color: #64748b;
-    color: #fff;
+    background: theme('colors.gray.500');
+    border-color: theme('colors.gray.500');
+    color: theme('colors.white');
   }
   .base-btn.secondary:not(:disabled):hover {
-    background: #475569;
-    border-color: #475569;
+    background: theme('colors.gray.600');
+    border-color: theme('colors.gray.600');
   }
   .base-btn.secondary:not(:disabled):active {
-    background: #334155;
-    border-color: #334155;
+    background: theme('colors.gray.700');
+    border-color: theme('colors.gray.700');
   }
   .base-btn.secondary:focus-visible {
-    box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.25);
+    box-shadow: 0 0 0 3px theme('colors.gray.500 / 25%');
   }
 
   .base-btn.danger {
-    background: #dc2626;
-    border-color: #dc2626;
-    color: #fff;
+    background: theme('colors.red.600');
+    border-color: theme('colors.red.600');
+    color: theme('colors.white');
   }
   .base-btn.danger:not(:disabled):hover {
-    background: #b91c1c;
-    border-color: #b91c1c;
+    background: theme('colors.red.700');
+    border-color: theme('colors.red.700');
   }
   .base-btn.danger:not(:disabled):active {
-    background: #991b1b;
-    border-color: #991b1b;
+    background: theme('colors.red.800');
+    border-color: theme('colors.red.800');
   }
   .base-btn.danger:focus-visible {
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
+    box-shadow: 0 0 0 3px theme('colors.red.600 / 25%');
   }
 }
 
@@ -315,5 +315,5 @@ html.sidebar-collapsed #app-sidebar {
 }
 
 .swal2-container .swal2-toast:hover {
-  background-color: #F7F7F7;
+  background-color: theme('colors.gray.50');
 }

@@ -109,11 +109,11 @@
                             <tr v-if="!form.lines.length">
                                 <td colspan="10" class="px-2 py-4 text-center text-gray-400">구매처를 고르고 발주를 불러오거나 직접 추가하세요.</td>
                             </tr>
-                            <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
+                            <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-middle">
                                 <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
                                 <td class="px-1.5 py-1">
                                     <p v-if="l.purchase_order_line_idx" class="py-1.5">{{ l.item_code }} {{ l.item_name }}</p>
-                                    <BaseSelect v-else v-model="l.item_idx" :options="itemOptions" size="sm" class="w-full" placeholder="품목 선택" @update:modelValue="v => onItemChange(l, v)" />
+                                    <BaseSelect v-else v-model="l.item_idx" :options="itemOptions" size="sm" class="w-full h-[30px]" placeholder="품목 선택" @update:modelValue="v => onItemChange(l, v)" />
                                     <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                 </td>
                                 <td class="px-2 py-1.5 text-gray-600 whitespace-nowrap">{{ l.order_label || '( 직접 )' }}
@@ -131,7 +131,7 @@
                                     <p v-if="lineError(i, 'spec_value')" class="text-[11px] text-red-500">{{ lineError(i, 'spec_value') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseSelect v-model="l.warehouse_idx" :options="warehouseOptions" size="sm" class="w-full" @update:modelValue="rememberWarehouse" />
+                                    <BaseSelect v-model="l.warehouse_idx" :options="warehouseOptions" size="sm" class="w-full h-[30px]" @update:modelValue="rememberWarehouse" />
                                     <p v-if="lineError(i, 'warehouse_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'warehouse_idx') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">

@@ -94,5 +94,5 @@ const columns = computed(() => [
 <style>
     /* 그리드 셀은 컴포넌트 밖에서 그려지므로 scoped 를 쓰지 않는다 */
     /* 행 className 은 그 행의 셀( td )마다 붙는다 */
-    .tui-grid-cell.import-row-error { background-color: #fef2f2; color: #b91c1c; }
+    .tui-grid-cell.import-row-error { background-color: theme('colors.red.50'); color: theme('colors.red.700'); }
 </style>

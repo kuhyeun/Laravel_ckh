@@ -31,7 +31,7 @@
             <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
 
             <!-- 검사대기 → 입력 -->
-            <div v-if="line.line_status === 'WAIT'" class="mt-4 grid grid-cols-4 gap-x-4 gap-y-3">
+            <div v-if="line.line_status === 'WAIT'" class="mt-4 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">합격 <span class="text-red-500">*</span></label>
                     <BaseInput v-model="form.pass_qty" type="number" min="0" class="w-full text-right" :disabled="!canWrite" @update:modelValue="onPass" />

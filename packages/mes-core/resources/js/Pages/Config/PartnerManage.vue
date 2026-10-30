@@ -82,6 +82,7 @@ import PartnerForm from '@core/Components/Config/PartnerForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { PARTNER_ROLES, partnerRoleText } from '@core/Components/Config/partnerCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -125,14 +126,14 @@ const partnerColumns = [
         header: '입고검사', name: 'incoming_inspection', width: 90, align: 'center', className: 'cursor-pointer',
         formatter: ({ row, value }) => (row.is_supplier !== 'Y' && row.is_subcon !== 'Y')
             ? ''
-            : ({ NONE: '무검사', SAMPLING: '샘플링', FULL: '전수' }[value] ?? '<span style="color:#9ca3af">설정에 맞춤</span>'),
+            : ({ NONE: '무검사', SAMPLING: '샘플링', FULL: '전수' }[value] ?? `<span style="color:${COLORS.gray400}">설정에 맞춤</span>`),
     },
     { header: '담당자',     name: 'contacts_count', width: 70, align: 'right', className: 'cursor-pointer' },
     { header: '출고지',     name: 'sites_count',    width: 70, align: 'right', className: 'cursor-pointer' },
     {
         header: '사용', name: 'is_use', width: 70, align: 'center', className: 'cursor-pointer',
         // 미사용은 회색 텍스트
-        formatter: ({ value }) => value === 'Y' ? '사용' : '<span style="color:#9ca3af">미사용</span>',
+        formatter: ({ value }) => value === 'Y' ? '사용' : `<span style="color:${COLORS.gray400}">미사용</span>`,
     },
 ];
 

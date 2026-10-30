@@ -37,7 +37,7 @@
             <p v-if="blocked" class="mt-3 text-xs text-amber-700">⚠ {{ blocked }}</p>
 
             <!-- 검사대기 → 판정 -->
-            <div v-if="waiting && !blocked" class="mt-4 grid grid-cols-4 gap-x-4 gap-y-3">
+            <div v-if="waiting && !blocked" class="mt-4 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
                 <div class="col-span-2">
                     <label class="block text-gray-500 font-medium mb-1">판정 <span class="text-red-500">*</span></label>
                     <div class="flex gap-2">

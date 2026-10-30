@@ -1,13 +1,12 @@
 {
     "compilerOptions": {
-        "baseUrl": ".",
         "module": "esnext",
         "moduleResolution": "bundler",
         "checkJs": false,
         "paths": {
-            "@/*": ["src/resources/js/*"],
-            "@core/*": ["packages/mes-core/resources/js/*"],
-            "@core-css/*": ["packages/mes-core/resources/css/*"]
+            "@/*": ["./src/resources/js/*"],
+            "@core/*": ["./packages/mes-core/resources/js/*"],
+            "@core-css/*": ["./packages/mes-core/resources/css/*"]
         }
     },
     "include": [

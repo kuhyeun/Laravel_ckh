@@ -1,7 +1,8 @@
 // 트리 목록( 머리 행 + 하위 행 is_line ) 표시 도우미 — 스타일 가이드 §5 트리
 //   하위 행에서 머리 값을 그대로 물려받는 열 = 연한 회색 〃( 위와 같음 ) / 엑셀은 실제 값( fillHead 가 채운 _filled 행 )
+import { COLORS } from '@core/Utils/colors';
 
-export const DITTO = '<span style="display:block;text-align:center;color:#c4c8ce">〃</span>';
+export const DITTO = `<span style="display:block;text-align:center;color:${COLORS.gray300}">〃</span>`;
 
 // formatter : 머리 행은 head(row), 하위 행은 〃 ( 엑셀용으로 채운 행은 head(row) 그대로 )
 export const ditto = (head) => ({ row }) => row.is_line && !row._filled ? DITTO : head(row);

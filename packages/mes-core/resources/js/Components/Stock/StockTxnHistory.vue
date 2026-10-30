@@ -62,6 +62,7 @@ import SearchBar from '@core/Components/Common/SearchBar.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import { showAlert } from '@core/Utils/message';
 import { qtyText } from '@core/Components/Stock/stockCodes';
+import { COLORS } from '@core/Utils/colors';
 
 const props = defineProps({
     type: { type: String, required: true },   // move | adjust | misc
@@ -80,11 +81,11 @@ const STATUS_OPTIONS = [
 const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', status: '' });
 
 const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
-const statusCell = ({ value }) => value === 'CANCELED' ? '<span style="color:#9ca3af">취소</span>' : '<span style="color:#16a34a;font-weight:600">완료</span>';
+const statusCell = ({ value }) => value === 'CANCELED' ? `<span style="color:${COLORS.gray400}">취소</span>` : `<span style="color:${COLORS.green600};font-weight:600">완료</span>`;
 
 const common = [
     { name: 'occurred_at', width: 115, align: 'center', sortable: true },
-    { header: '등록', name: 'recorded_at', width: 110, align: 'center', sortable: true, formatter: ({ value }) => `<span style="color:#9ca3af">${value}</span>` },
+    { header: '등록', name: 'recorded_at', width: 110, align: 'center', sortable: true, formatter: ({ value }) => `<span style="color:${COLORS.gray400}">${value}</span>` },
     { header: '품목', name: 'item_code', minWidth: 140, escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '규격', name: 'item_spec', width: 110, escapeHTML: true },
     { header: '재질', name: 'item_material', width: 90, escapeHTML: true },
@@ -115,7 +116,7 @@ const CONFIG = {
             { header: '창고', name: 'warehouse_name', width: 90, escapeHTML: true },
             { header: '장부 → 조정 후', name: 'book_qty', width: 105, align: 'right', formatter: ({ row }) => `${fmt(row.book_qty)} → ${fmt(row.qty)}` },
             { header: '증감', name: 'delta', width: 65, align: 'right',
-              formatter: ({ value }) => `<span style="color:${value < 0 ? '#dc2626' : '#1d4ed8'}">${value > 0 ? '+' : ''}${fmt(value)}</span>` },
+              formatter: ({ value }) => `<span style="color:${value < 0 ? COLORS.red600 : COLORS.blue700}">${value > 0 ? '+' : ''}${fmt(value)}</span>` },
             { header: '사유', name: 'reason', width: 70, align: 'center', escapeHTML: true },
             { header: '상세', name: 'remark', minWidth: 90, escapeHTML: true },
             { header: '조정자', name: 'user_name', width: 70, escapeHTML: true },

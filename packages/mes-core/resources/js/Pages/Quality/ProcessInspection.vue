@@ -60,6 +60,7 @@ import { useModalStore } from '@core/Stores/modalStore';
 import { useFlash, failMsg } from '@core/Composables/useFlash';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -87,7 +88,7 @@ const columns = [
     { header: '검사 수량', name: 'base_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.base_qty === null ? '' : fmtQty(row.base_qty, row.spec_unit) },
     { header: '합격', name: 'pass_qty', width: 80, align: 'right', className: 'cursor-pointer', formatter: ({ value }) => value === null ? '' : fmtNum(value) },
     { header: '불합격', name: 'fail_qty', width: 80, align: 'right', className: 'cursor-pointer',
-      formatter: ({ value }) => value ? `<span style="color:#dc2626">${fmtNum(value)}</span>` : '' },
+      formatter: ({ value }) => value ? `<span style="color:${COLORS.red600}">${fmtNum(value)}</span>` : '' },
     { header: '상태', name: 'status', width: 70, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => `<span style="color:${woStatusColor(value)};font-weight:600">${value === 'DONE' ? '검사 완료' : woStatusLabel(value)}</span>` },
     { header: '검사일시', name: 'inspected_at', width: 125, align: 'center', className: 'cursor-pointer' },

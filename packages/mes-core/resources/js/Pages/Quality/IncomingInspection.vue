@@ -61,6 +61,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import IncomingInspectionForm from '@core/Components/Quality/IncomingInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { receiptStatusLabel, receiptStatusColor, inspModeLabel, qtyText } from '@core/Components/Stock/stockCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -93,7 +94,7 @@ const columns = [
       formatter: ({ row }) => qtyText(row.qty, row.spec_unit) },
     { header: '검사', name: 'insp_mode', width: 70, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => inspModeLabel(value) },
     { header: '결과', name: 'pass_qty', width: 120, align: 'center', className: 'cursor-pointer',
-      formatter: ({ row }) => row.line_status === 'DONE' ? `합격 ${num(row.pass_qty)}${row.fail_qty > 0 ? ` · <span style="color:#dc2626">불합격 ${num(row.fail_qty)}</span>` : ''}` : '' },
+      formatter: ({ row }) => row.line_status === 'DONE' ? `합격 ${num(row.pass_qty)}${row.fail_qty > 0 ? ` · <span style="color:${COLORS.red600}">불합격 ${num(row.fail_qty)}</span>` : ''}` : '' },
     { header: '상태', name: 'line_status', width: 80, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => `<span style="color:${receiptStatusColor(value)};font-weight:600">${value === 'DONE' ? '검사완료' : receiptStatusLabel(value)}</span>` },
 ];

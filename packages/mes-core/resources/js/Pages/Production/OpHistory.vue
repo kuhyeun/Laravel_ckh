@@ -99,6 +99,7 @@ import OpHistoryDetail from '@core/Components/Production/OpHistoryDetail.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useFlash, failMsg } from '@core/Composables/useFlash';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const listGrid    = ref(null);   // 실적 이력 그리드 — 열 설정 ( 엑셀은 따로 정한 exportColumns )
@@ -152,7 +153,7 @@ const columns = [
     { header: '설비', name: 'equipment_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
     { header: '작업자', name: 'operator_name', width: 80, align: 'center', className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmtQty(row.qty, row.spec_unit) },
-    { header: '입고', name: 'received', width: 50, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? '<span style="color:#1d4ed8">입고</span>' : '' },
+    { header: '입고', name: 'received', width: 50, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? `<span style="color:${COLORS.blue700}">입고</span>` : '' },
     { header: '비고', name: 'remark', minWidth: 120, className: 'cursor-pointer', escapeHTML: true },
     { header: '입력자', name: 'creator_name', width: 80, align: 'center', className: 'cursor-pointer', escapeHTML: true },
     { header: '등록 일시', name: 'created_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },

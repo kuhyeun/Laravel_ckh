@@ -85,6 +85,7 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
 import StockTxnHistory from '@core/Components/Stock/StockTxnHistory.vue';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 
@@ -114,7 +115,7 @@ const columns = [
     { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmt(row.target_qty) },
     { header: '착수', name: 'start_date', width: 90, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '출고', name: 'issued_count', width: 60, align: 'center', className: 'cursor-pointer',
-      formatter: ({ row }) => !row.materials_count ? '-' : row.issued_count ? `${row.issued_count}/${row.materials_count}` : '<span style="color:#9ca3af">미출고</span>' },
+      formatter: ({ row }) => !row.materials_count ? '-' : row.issued_count ? `${row.issued_count}/${row.materials_count}` : `<span style="color:${COLORS.gray400}">미출고</span>` },
     { header: '상태', name: 'status', width: 50, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => `<span style="color:${woStatusColor(value)};font-weight:600">${woStatusLabel(value)}</span>` },
 ];

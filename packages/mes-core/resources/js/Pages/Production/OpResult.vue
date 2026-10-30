@@ -43,6 +43,8 @@
                         :columns="columns"
                         :pagination="paging"
                         empty-text="실적을 넣을 품목 줄이 없습니다."
+                        active-field="work_order_idx"
+                        :active-key="activeWo"
                         @row-click="row => select(row.work_order_idx)"
                         @page="onPage"
                         @sort="onSort"
@@ -282,6 +284,7 @@ const paging  = reactive({ page: 1, perPage: 50, total: 0 });
 const sort    = reactive({ key: '', dir: '' });
 
 const line          = ref(null);
+const activeWo      = ref(null);   // 왼쪽 목록에 칠할 줄 — 누르는 즉시 칠하고, 못 불러오면 뺀다
 const selectedIdx   = ref(null);
 const selectedOp    = computed(() => line.value?.ops.find(o => o.work_order_op_idx === selectedIdx.value) ?? null);
 const panel         = ref('');      // '' | 'run' | 'done'
@@ -364,6 +367,7 @@ function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage();
 
 // ---- 상세 ----
 async function select(woIdx) {
+    activeWo.value = woIdx;
     selectedIdx.value = null;
     panel.value = '';
     issueOpen.value = false;
@@ -382,6 +386,7 @@ async function loadDetail(woIdx = line.value?.work_order_idx) {
         }
     } catch (e) {
         line.value = null;
+        activeWo.value = null;
         showFlash(e.response?.status === 404 ? '품목 줄을 찾을 수 없습니다.' : '품목 줄을 불러오지 못했습니다.', true);
     } finally {
         detailLoading.value = false;
@@ -516,5 +521,5 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.lbl { display: block; color: #6b7280; font-weight: 500; font-size: 12px; margin-bottom: 0.25rem; }
+.lbl { display: block; color: theme('colors.gray.500'); font-weight: 500; font-size: 12px; margin-bottom: 0.25rem; }
 </style>

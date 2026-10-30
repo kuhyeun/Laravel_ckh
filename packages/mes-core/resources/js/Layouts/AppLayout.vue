@@ -9,7 +9,7 @@
                 <LeftMenu :menu-items="menuItems" :admin-items="adminItems"></LeftMenu>
             </aside>
 
-            <main class="app-content flex flex-col flex-1 overflow-y-auto p-6 bg-white">
+            <main class="app-content flex flex-col flex-1 overflow-y-auto p-6 pt-[10px] bg-white">
                 <slot></slot>
             </main>
         </div>

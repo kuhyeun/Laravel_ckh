@@ -76,6 +76,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import LeadTimeForm from '@core/Components/Config/LeadTimeForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -109,7 +110,7 @@ const gridOptions = {
     rowHeaders: 'checkbox',
 };
 
-const dash = '<span style="color:#d1d5db">—</span>';
+const dash = `<span style="color:${COLORS.gray300}">—</span>`;
 const dayCol = (header, name) => ({
     header, name, width: 80, align: 'right', className: 'cursor-pointer',
     formatter: ({ value }) => (value === null || value === undefined || value === '') ? dash : value,
@@ -121,7 +122,7 @@ const columns = [
         formatter: ({ row }) => {
             if (row.is_default !== 'Y') return row.item_name ?? '';
             return row._missing
-                ? '<b>( 기본값 )</b> <span style="color:#d97706">미등록 — 클릭해서 등록</span>'
+                ? `<b>( 기본값 )</b> <span style="color:${COLORS.amber600}">미등록 — 클릭해서 등록</span>`
                 : '<b>( 기본값 )</b>';
         },
     },
@@ -142,7 +143,7 @@ const columns = [
     { header: '비고', name: 'remark', minWidth: 160, className: 'cursor-pointer' },
     {
         header: '사용', name: 'is_use', width: 70, align: 'center', className: 'cursor-pointer',
-        formatter: ({ row, value }) => row._missing ? '' : (value === 'Y' ? '사용' : '<span style="color:#9ca3af">미사용</span>'),
+        formatter: ({ row, value }) => row._missing ? '' : (value === 'Y' ? '사용' : `<span style="color:${COLORS.gray400}">미사용</span>`),
     },
 ];
 

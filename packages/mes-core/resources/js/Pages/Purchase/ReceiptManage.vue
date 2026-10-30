@@ -68,6 +68,7 @@ import ReceiptForm from '@core/Components/Purchase/ReceiptForm.vue';
 import ReceiptDetail from '@core/Components/Purchase/ReceiptDetail.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { RECEIPT_STATUSES, receiptStatusLabel, receiptStatusColor, inspModeLabel } from '@core/Components/Stock/stockCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -94,7 +95,7 @@ const toGridRows = (list) => (list ?? []).map(r => {
     return { ...head, ..._children[0], is_line: false, _single: true };
 });
 const num  = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
-const failText = (v) => v === null || v === undefined ? '-' : (v > 0 ? `<span style="color:#dc2626">${num(v)}</span>` : '0');
+const failText = (v) => v === null || v === undefined ? '-' : (v > 0 ? `<span style="color:${COLORS.red600}">${num(v)}</span>` : '0');
 const blank = () => '';
 // 줄 행에서 머리 값을 그대로 물려받는 열 ( 화면 〃 · 엑셀 실제 값 — 스타일 가이드 §5 트리 )
 const HEAD_FIELDS = ['occurred_at', 'recorded_at', 'partner_name'];
@@ -111,14 +112,14 @@ const columns = [
     { header: 'LOT', name: 'lot_no', minWidth: 150, className: 'cursor-pointer', escapeHTML: true, formatter: pick(blank, r => r.lot_no ?? '') },
     // 발주 · 불량 · 입고 — 입고 = 재고에 잡힌 수량( 합격분 · 무검사면 전부 ). 검사대기는 입고 칸에 회색으로 ( 아직 재고 아님 )
     { header: '발주 수량', name: 'po_qty_total', width: 90, align: 'right', className: 'cursor-pointer',
-      formatter: pick(r => r.po_qty_total === null ? '-' : num(r.po_qty_total), r => r.po_qty === null ? '<span style="color:#9ca3af">( 직접 )</span>' : num(r.po_qty)) },
+      formatter: pick(r => r.po_qty_total === null ? '-' : num(r.po_qty_total), r => r.po_qty === null ? `<span style="color:${COLORS.gray400}">( 직접 )</span>` : num(r.po_qty)) },
     { header: '불량 수량', name: 'fail_total', width: 90, align: 'right', className: 'cursor-pointer',
     formatter: pick(r => failText(r.fail_total), r => r.line_status === 'DONE' ? failText(r.fail_qty) : '') },
     { header: '입고 수량', name: 'pass_total', width: 90, align: 'right', className: 'cursor-pointer',
     formatter: pick(
-          r => r.pass_total === null ? '-' : `${num(r.pass_total)}${r.wait_total > 0 ? ` <span style="color:#9ca3af">· 대기 ${num(r.wait_total)}</span>` : ''}`,
-          r => r.line_status === 'WAIT' ? `<span style="color:#9ca3af">검사대기 ${num(r.qty)}</span>`
-              : r.line_status === 'CANCELED' ? '<span style="color:#9ca3af">-</span>'
+          r => r.pass_total === null ? '-' : `${num(r.pass_total)}${r.wait_total > 0 ? ` <span style="color:${COLORS.gray400}">· 대기 ${num(r.wait_total)}</span>` : ''}`,
+          r => r.line_status === 'WAIT' ? `<span style="color:${COLORS.gray400}">검사대기 ${num(r.qty)}</span>`
+              : r.line_status === 'CANCELED' ? `<span style="color:${COLORS.gray400}">-</span>`
               : (r.spec_value !== null && r.spec_value !== undefined && r.spec_value !== '' ? `${num(r.spec_value)} × ${num(r.pass_qty)}` : num(r.pass_qty))) },   // 단위 없이 ( 원소재는 규격 × 개수 )
     { header: '검사', name: 'insp_mode', width: 70, align: 'center', className: 'cursor-pointer', formatter: pick(blank, r => inspModeLabel(r.insp_mode)) },
     { header: '상태', name: 'status', width: 110, align: 'center', className: 'cursor-pointer',
@@ -128,7 +129,7 @@ const columns = [
           return `<span style="color:${receiptStatusColor(s)};font-weight:${row.is_line ? 400 : 600}">${t}</span>`;
         } },
     { header: '등록', name: 'recorded_at', width: 125, align: 'center', sortable: true, className: 'cursor-pointer',
-        formatter: ditto(r => `<span style="color:#9ca3af">${r.recorded_at}</span>`) },
+        formatter: ditto(r => `<span style="color:${COLORS.gray400}">${r.recorded_at}</span>`) },
 ];
 
 const rows    = ref([]);

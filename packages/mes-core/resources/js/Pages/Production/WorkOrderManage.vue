@@ -69,6 +69,7 @@ import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { WO_SOURCES, WO_STATUS_FILTER, woSourceLabel, woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -106,7 +107,7 @@ const columns = [
     { header: 'LOT', name: 'lot_no', width: 160, className: 'cursor-pointer', escapeHTML: true },
     { header: '착수 예정', name: 'start_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.start_date ?? '') },
     { header: '생산 기한', name: 'due_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer',
-      formatter: ditto(r => r.due_date && ['WAIT', 'RUN'].includes(r.status) && r.due_date < todayStr() ? `<span style="color:#dc2626">${r.due_date}</span>` : (r.due_date ?? '')) },
+      formatter: ditto(r => r.due_date && ['WAIT', 'RUN'].includes(r.status) && r.due_date < todayStr() ? `<span style="color:${COLORS.red600}">${r.due_date}</span>` : (r.due_date ?? '')) },
     { header: '담당', name: 'manager', width: 80, align: 'center', className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.manager)) },
     { header: '수주', name: 'order_summary', width: 140, className: 'cursor-pointer', escapeHTML: true },
     { header: '공정', name: 'ops_count', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => row.ops_count === undefined || row.ops_count === null ? '' : `${row.done_ops_count}/${row.ops_count}` },

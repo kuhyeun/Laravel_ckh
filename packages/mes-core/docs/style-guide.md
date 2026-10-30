@@ -323,6 +323,108 @@ if (!r.isConfirmed) return;
 - 상태 값 · 이름 · 색은 모듈의 `*Codes.js` 한 곳에 ( 예 : `productionCodes.js` 의 `WO_STATUSES` ) — 화면에 색을 직접 쓰지 않는다
 - 경고 문구 `text-amber-600` ~ `700`, 안내 문구 `text-gray-400` ~ `500`, 강조 수치 `text-blue-700`
 
+### 7-1. 색 팔레트 — 쓰는 색 전부 ( 2026-10-30 정리 )
+
+**규칙 : Tailwind 기본 팔레트의 다섯 계열( 회색 · 파랑 · 빨강 · 주황 · 초록 )만 쓴다.** 새 색을 눈으로 고르지 않는다.
+
+**HEX 를 손으로 치지 않는다** — 쓰는 곳마다 이름으로 가져온다 ( 값이 조금씩 틀어지지 않게 )
+
+| 어디 | 쓰는 법 | 예 |
+|---|---|---|
+| 화면 template | Tailwind **클래스** | `text-gray-400` · `bg-blue-50` · 임의 값 안에서는 `shadow-[inset_0_-1px_0_0_theme(colors.gray.200)]` |
+| CSS · `<style>` | **`theme()`** ( Tailwind 가 빌드 때 값으로 바꾼다 ) | `color: theme('colors.gray.400')` · 반투명 `theme('colors.gray.500 / 12%')` |
+| JS ( 그리드 formatter · TUI 테마 · 차트 ) | **`@core/Utils/colors`** | `` `<span style="color:${COLORS.red600}">…</span>` `` |
+| 상태 색 ( `*Codes.js` ) | **`STATUS_COLOR`** ( 뜻 이름 ) | `color: STATUS_COLOR.done` |
+
+```js
+import { COLORS, STATUS_COLOR, CHART } from '@core/Utils/colors';
+// COLORS.gray400 · COLORS.blue600 … ( 아래 표의 단계만 ) / STATUS_COLOR.idle · active · done · attention · bad · off / CHART.blue · orange · green · faded · ink
+```
+
+- 표에 없는 단계가 필요하면 **`colors.js` 와 이 표에 같이 올리고** 쓴다
+- 다른 계열( `emerald` · `slate` · `sky` · `yellow` · `purple` )은 새로 쓰지 않는다 — 초록은 `green`, 회색은 `gray`
+
+> 실제 사용 빈도 ( 2026-10-30, mes-core 클래스 기준 ) : gray 1,128 · red 384 · blue 178 · amber 75 · green 60 · 그 밖 14
+
+#### 회색 ( gray ) — 글자 · 배경 · 테두리
+
+| 단계 | HEX | 쓰는 곳 |
+|---|---|---|
+| `gray-50` | `#f9fafb` | 박스 머리 배경( `bg-gray-50/70` ) · 표 머리 |
+| `gray-100` | `#f3f4f6` | 비활성 입력 배경 · 옅은 칸 |
+| `gray-200` | `#e5e7eb` | 박스 테두리( `border-gray-200` ) · 차트 격자 |
+| `gray-300` | `#d1d5db` | 입력 · 셀렉트 테두리 · `—` 같은 빈 값 표시 |
+| `gray-400` | `#9ca3af` | 안내 문구 · 자리표시 · **취소 · 미사용 상태** |
+| `gray-500` | `#6b7280` | 라벨 · 보조 글자 · **시작 전 상태** |
+| `gray-600` | `#4b5563` | 박스 제목 ( `text-gray-600` ) |
+| `gray-700` | `#374151` | 입력 글자 · 그리드 글자 |
+| `gray-800` | `#1f2937` | 화면 기본 글자 ( 화면 틀 `text-gray-800` ) |
+
+#### 파랑 ( blue ) — 주색 · 진행 · 선택
+
+| 단계 | HEX | 쓰는 곳 |
+|---|---|---|
+| `blue-50` | `#eff6ff` | 선택 · 펼친 영역 배경 · hover |
+| `blue-200` | `#bfdbfe` | 선택 영역 테두리 · 그리드 끌어 고른 범위 테두리 |
+| `blue-300` | `#93c5fd` | 달력 오늘 표시 · 비활성 주색 |
+| `blue-400` | `#60a5fa` | 그리드 끌어 고른 범위 배경( TUI 가 옅게 깐다 ) |
+| `blue-500` | `#3b82f6` | 그리드 포커스 칸 테두리 · 링크 hover |
+| `blue-600` | `#2563eb` | **주 버튼 · 체크박스 · 진행 · 확정 상태** · 현재 페이지 |
+| `blue-700` | `#1d4ed8` | 강조 수치 · 주 버튼 hover |
+| `blue-800` | `#1e40af` | 주 버튼 누름 |
+| *( sky-100 )* | `#e0f2fe` | 그리드 **고른 행**( `row-selected` ) — 이 하나만 예외 |
+
+#### 빨강 ( red ) — 오류 · 필수 · 불량
+
+| 단계 | HEX | 쓰는 곳 |
+|---|---|---|
+| `red-50` | `#fef2f2` | 오류 칸 배경 |
+| `red-500` | `#ef4444` | **오류 문구 · 필수 `*`** ( `text-red-500` ) |
+| `red-600` | `#dc2626` | 그리드의 불합격 · 불량 수치 · 삭제 버튼 |
+| `red-700` | `#b91c1c` | 진한 오류 글자 · 삭제 버튼 hover |
+| `red-800` | `#991b1b` | 삭제 버튼 누름 |
+
+#### 주황 ( amber ) — 손이 필요함 · 경고
+
+| 단계 | HEX | 쓰는 곳 |
+|---|---|---|
+| `amber-50` | `#fffbeb` | 경고 박스 배경 |
+| `amber-200` | `#fde68a` | 경고 박스 테두리 |
+| `amber-600` | `#d97706` | **검사대기 · 미달 상태** · 경고 문구 |
+| `amber-700` | `#b45309` | 진한 경고 글자 |
+
+#### 초록 ( green ) — 끝남 · 성공
+
+| 단계 | HEX | 쓰는 곳 |
+|---|---|---|
+| `green-50` | `#f0fdf4` | 성공 박스 배경 |
+| `green-200` | `#bbf7d0` | 성공 박스 테두리 |
+| `green-600` | `#16a34a` | **완료 상태 · 성공 알림**( `text-green-600` ) |
+| `green-700` | `#15803d` | 진한 성공 글자 |
+
+#### 일부러 팔레트 밖인 것 ( 바꾸지 않는다 )
+
+| 곳 | 색 | 이유 |
+|---|---|---|
+| 거래명세서 `InvoiceSheet.vue` | 파랑 `#1d1df0` · 빨강 `#e11d1d` · 글자 `#111` | 공급자용 / 공급받는자용 인쇄 양식 색 |
+| 차트 ( 불량이력 ) | `CHART` — `#2a78d6` · `#eb6834` · `#1baf7a` · 흐림 `#c9d9ee` · 글자 `#0b0b0b` | 차트 계열색 ( 화면 상태색과 섞이지 않게 따로 — 값은 `colors.js` 에만 ) |
+
+#### 정리 이력 ( 2026-10-30 — 팔레트에서 살짝 벗어난 값을 바꿈 )
+
+| 곳 | 예전 | 지금 |
+|---|---|---|
+| `gridTree.js` `〃` | `#c4c8ce` | `gray-300` |
+| `grid.css` 체크박스 | `#4596ED` · `#f0f7f9` · `#c4c4c4` · `#e8e8e8` · `#d0d0d0` | `blue-600` · `blue-50` · `gray-300` · `gray-100` · `gray-300` |
+| `grid.css` 머리 배경 · 테두리 · 글자 | `#f8fafc` · `#eef2f6` · `#64748b` ( slate ) | `gray-50` · `gray-100` · `gray-500` |
+| `grid.css` 셀 테두리 | `#e6e6e6` | `gray-200` |
+| `useGrid.js` TUI 테마 | `#D7D7D7` · `#4daaf9` · `#C2D6FB` · `#EDEDED` · `#E3E3E3` · `#8f9af2` | `gray-300` · `blue-400` · `blue-200` · `gray-100` · `gray-200` · `blue-500` |
+| `MenuItem.vue` 사이드바 글자 | `#2B2D31` · `#6C717A` | `gray-800` · `gray-500` |
+| `core.css` 회색 채움 버튼 ( `.base-btn.secondary` ) | slate `#64748b` · `#475569` · `#334155` | `gray-500` · `gray-600` · `gray-700` |
+| `core.css` 그 밖 | `#C5C5C5` ( outline ) · `#F7F7F7` | `gray-300` · `gray-50` |
+| `BaseDatePicker.vue` | `#c0c4cc` · `#f1f5f9` | `gray-300` · `gray-100` |
+
+> 남은 HEX 는 `Utils/colors.js` 와 거래명세서 인쇄색( `InvoiceSheet.vue` ) 뿐이다. 새로 생기면 위 규칙대로 바꾼다
+
 ---
 
 ## 8. 글 · 숫자 · 날짜

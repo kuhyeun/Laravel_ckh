@@ -366,6 +366,6 @@ const tabHasError = (key) => Object.keys(props.errors).some(k => TAB_OF(k) === k
 </script>
 
 <style scoped>
-.lbl { display: block; color: #6b7280; font-weight: 500; margin-bottom: 0.25rem; }
-.err { font-size: 11px; color: #ef4444; margin-top: 0.125rem; }
+.lbl { display: block; color: theme('colors.gray.500'); font-weight: 500; margin-bottom: 0.25rem; }
+.err { font-size: 11px; color: theme('colors.red.500'); margin-top: 0.125rem; }
 </style>

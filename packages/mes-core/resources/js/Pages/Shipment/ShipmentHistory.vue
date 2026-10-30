@@ -62,6 +62,7 @@ import { useModalStore } from '@core/Stores/modalStore';
 import { useFlash, failMsg } from '@core/Composables/useFlash';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 import { woStatusColor } from '@core/Components/Production/productionCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -98,7 +99,7 @@ const columns = [
     { header: '금액', name: 'amount', width: 110, align: 'right', className: 'cursor-pointer', formatter: ({ value }) => value === null || value === undefined ? '' : fmtNum(value, 2) },
     { header: '출하 예정', name: 'plan_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '상태', name: 'status_label', width: 80, align: 'center', className: 'cursor-pointer',
-      formatter: ({ row }) => `<span style="color:${STATUS_COLOR[row.status] ?? '#6b7280'};font-weight:600">${row.status_label}</span>` },
+      formatter: ({ row }) => `<span style="color:${STATUS_COLOR[row.status] ?? COLORS.gray500};font-weight:600">${row.status_label}</span>` },
 ];
 
 const rows    = ref([]);

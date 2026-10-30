@@ -62,43 +62,43 @@ const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
     --dp-action-buttons-padding: 0 12px;
     --dp-time-font-size: 1.6rem;
 
-    --dp-primary-color: #2563eb;
-    --dp-primary-disabled-color: #93c5fd;
-    --dp-text-color: #374151;
-    --dp-secondary-color: #c0c4cc;
-    --dp-hover-color: #eff6ff;
-    --dp-hover-text-color: #1d4ed8;
-    --dp-hover-icon-color: #2563eb;
-    --dp-icon-color: #9ca3af;
-    --dp-border-color: #d1d5db;
-    --dp-border-color-hover: #9ca3af;
-    --dp-border-color-focus: #6b7280;
-    --dp-menu-border-color: #e5e7eb;
-    --dp-disabled-color: #f3f4f6;
-    --dp-disabled-color-text: #9ca3af;
-    --dp-highlight-color: rgb(37 99 235 / 10%);
+    --dp-primary-color: theme('colors.blue.600');
+    --dp-primary-disabled-color: theme('colors.blue.300');
+    --dp-text-color: theme('colors.gray.700');
+    --dp-secondary-color: theme('colors.gray.300');
+    --dp-hover-color: theme('colors.blue.50');
+    --dp-hover-text-color: theme('colors.blue.700');
+    --dp-hover-icon-color: theme('colors.blue.600');
+    --dp-icon-color: theme('colors.gray.400');
+    --dp-border-color: theme('colors.gray.300');
+    --dp-border-color-hover: theme('colors.gray.400');
+    --dp-border-color-focus: theme('colors.gray.500');
+    --dp-menu-border-color: theme('colors.gray.200');
+    --dp-disabled-color: theme('colors.gray.100');
+    --dp-disabled-color-text: theme('colors.gray.400');
+    --dp-highlight-color: theme('colors.blue.600 / 10%');
 }
 
 /* 입력칸 : BaseInput 과 같은 높이 · 테두리 · 포커스 */
-.base-dp .dp__input { height: 36px; color: #374151; }
+.base-dp .dp__input { height: 36px; color: theme('colors.gray.700'); }
 .base-dp--sm .dp__input { height: 30px; font-size: 13px; }
-.base-dp .dp__input_focus { box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.12); }
-.base-dp .dp__input_icon { color: #9ca3af; }
+.base-dp .dp__input_focus { box-shadow: 0 0 0 2px theme('colors.gray.500 / 12%'); }
+.base-dp .dp__input_icon { color: theme('colors.gray.400'); }
 .base-dp .dp__input:hover + .dp__input_icon,
-.base-dp .dp__input_focus ~ .dp__input_icon { color: #2563eb; }
+.base-dp .dp__input_focus ~ .dp__input_icon { color: theme('colors.blue.600'); }
 .base-dp--d  { min-width: 8.75rem; }
 .base-dp--dt { min-width: 13rem; }
 
 /* 메뉴 : 그림자 · 머리 · 오늘 · 선택 · 주말 색 */
 .dp__menu { box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14); border-radius: 10px; }
 .dp__month_year_select { font-weight: 600; }
-.dp__calendar_header { font-weight: 500; color: #6b7280; }
-.dp__calendar_header_item:first-child { color: #dc2626; }
-.dp__calendar_header_item:last-child { color: #2563eb; }
-.dp__calendar_row > .dp__calendar_item:first-child .dp__cell_inner:not(.dp__active_date):not(.dp__cell_offset) { color: #dc2626; }
-.dp__calendar_row > .dp__calendar_item:last-child .dp__cell_inner:not(.dp__active_date):not(.dp__cell_offset) { color: #2563eb; }
-.dp__today { border-color: #93c5fd; font-weight: 600; }
+.dp__calendar_header { font-weight: 500; color: theme('colors.gray.500'); }
+.dp__calendar_header_item:first-child { color: theme('colors.red.600'); }
+.dp__calendar_header_item:last-child { color: theme('colors.blue.600'); }
+.dp__calendar_row > .dp__calendar_item:first-child .dp__cell_inner:not(.dp__active_date):not(.dp__cell_offset) { color: theme('colors.red.600'); }
+.dp__calendar_row > .dp__calendar_item:last-child .dp__cell_inner:not(.dp__active_date):not(.dp__cell_offset) { color: theme('colors.blue.600'); }
+.dp__today { border-color: theme('colors.blue.300'); font-weight: 600; }
 .dp__active_date { font-weight: 600; }
-.dp__action_row { border-top: 1px solid #f1f5f9; }
+.dp__action_row { border-top: 1px solid theme('colors.gray.100'); }
 .dp__action_select { padding: 0 14px !important; }
 </style>

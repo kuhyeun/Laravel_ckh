@@ -115,12 +115,12 @@ const vatLabel = (v) => ({ INCLUDED: '( VAT포함 )', EXEMPT: '( 면세 )' }[v] 
 
 <style scoped>
 /* 장 280mm = 한 부 135mm × 2 + 자르는 선 영역 10mm ( A4 297 − 여백 16 = 281 — 1mm 여유 ) */
-.sheet { width: 194mm; height: 280mm; overflow: hidden; background: #fff; display: flex; flex-direction: column;
+.sheet { width: 194mm; height: 280mm; overflow: hidden; background: theme('colors.white'); display: flex; flex-direction: column;
     font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; color: #111;
     -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .copy { height: 135mm; overflow: hidden; }
 .cut { flex: 1; display: flex; align-items: center; }
-.cut::before { content: ''; flex: 1; border-top: 1px dashed #6b7280; }
+.cut::before { content: ''; flex: 1; border-top: 1px dashed theme('colors.gray.500'); }
 
 /* 한 부 = 제목 11 + 머리 4 × 9 + 품목 머리 6 + 11 × 6 + 비고 6 + 아래 8 = 133mm */
 .inv { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.5pt; line-height: 1.15; }
@@ -150,11 +150,11 @@ const vatLabel = (v) => ({ INCLUDED: '( VAT포함 )', EXEMPT: '( 면세 )' }[v] 
 .inv .vlabel { text-align: center; line-height: 1.3; font-size: 8.5pt; }
 .inv .title { text-align: center; font-size: 17pt; letter-spacing: 4px; position: relative; }
 .inv .title .sub { font-size: 9.5pt; letter-spacing: 1px; }
-.inv .title .pageno { position: absolute; right: 2mm; bottom: 1mm; font-size: 7.5pt; letter-spacing: 0; color: #6b7280; }
+.inv .title .pageno { position: absolute; right: 2mm; bottom: 1mm; font-size: 7.5pt; letter-spacing: 0; color: theme('colors.gray.500'); }
 .inv .row td { color: #111; }
 .inv .remark { text-align: left; }
 .inv .seal-cell { position: relative; }
-.inv .seal { position: absolute; right: 2mm; top: 50%; transform: translateY(-50%); color: #9ca3af; font-size: 7.5pt; }
+.inv .seal { position: absolute; right: 2mm; top: 50%; transform: translateY(-50%); color: theme('colors.gray.400'); font-size: 7.5pt; }
 .inv .seal-cell { overflow: visible; }
 .inv .seal-img { position: absolute; right: 0.5mm; top: 50%; transform: translateY(-50%); width: 13mm; height: 13mm; object-fit: contain; z-index: 1; }
 .inv .title .logo { position: absolute; left: 2mm; top: 50%; transform: translateY(-50%); max-height: 8mm; max-width: 30mm; object-fit: contain; }

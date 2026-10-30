@@ -77,6 +77,7 @@ import SalesOrderForm from '@core/Components/Order/SalesOrderForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { STATUS_FILTER_OPTIONS, orderStatusLabel, orderStatusColor, lineStatusLabel } from '@core/Components/Order/orderCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -143,11 +144,11 @@ const columns = [
           const d    = row.is_line ? row.due_date : row.next_due_date;
           const open = row.is_line ? row.line_status === 'OPEN' : ['DRAFT', 'CONFIRMED'].includes(row.status);
           if (!d) return '';
-          return open && d < todayStr() ? `<span style="color:#dc2626">${d}</span>` : d;
+          return open && d < todayStr() ? `<span style="color:${COLORS.red600}">${d}</span>` : d;
       } },
     { header: '상태', name: 'status', width: 80, align: 'center', className: 'cursor-pointer',
       formatter: ({ row }) => row.is_line
-          ? `<span style="color:#6b7280">${lineStatusLabel(row.line_status)}</span>`
+          ? `<span style="color:${COLORS.gray500}">${lineStatusLabel(row.line_status)}</span>`
           : `<span style="color:${orderStatusColor(row.status)};font-weight:600">${orderStatusLabel(row.status)}</span>` },
 ];
 

@@ -84,6 +84,7 @@ import ItemForm from '@core/Components/Config/ItemForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { ITEM_TYPES, itemTypeLabel, itemKindLabel } from '@core/Components/Config/itemCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -118,17 +119,17 @@ const fmtNum = ({ value }) => (value === null || value === undefined || value ==
 const itemColumns = [
     { header: '품번',     name: 'item_code',    minWidth: 140, className: 'cursor-pointer' },
     { header: '품명',     name: 'item_name',    minWidth: 200, className: 'cursor-pointer' },
-    { header: '대분류',   name: 'item_type',    width: 80,  align: 'center', className: 'cursor-pointer', formatter: ({ value }) => itemTypeLabel(value) },
+    { header: '대분류',   name: 'item_type',    width: 90,  align: 'center', className: 'cursor-pointer', formatter: ({ value }) => itemTypeLabel(value) },
     { header: '소분류',   name: 'item_kind',    width: 90,  align: 'center', className: 'cursor-pointer', formatter: ({ value }) => itemKindLabel(value) },
-    { header: '단위',     name: 'spec_unit',    width: 70,  align: 'center', className: 'cursor-pointer' },
-    { header: '규격',     name: 'spec',         minWidth: 120, className: 'cursor-pointer' },
-    { header: '재질',     name: 'material',     width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '단위',     name: 'spec_unit',    width: 80,  align: 'center', className: 'cursor-pointer' },
+    { header: '규격',     name: 'spec',         width: 180, className: 'cursor-pointer', formatter: ({value}) => value ? value: "-" },
+    { header: '재질',     name: 'material',     width: 180, className: 'cursor-pointer', escapeHTML: true, formatter: ({value}) => value ? value: "-" },
     { header: '안전재고', name: 'safety_stock', width: 100, align: 'right',  className: 'cursor-pointer', formatter: fmtNum },
     { header: '판매단가', name: 'std_sale_price', width: 110, align: 'right', className: 'cursor-pointer', formatter: fmtNum },
     {
-        header: '사용', name: 'is_use', width: 70, align: 'center', className: 'cursor-pointer',
+        header: '사용', name: 'is_use', width: 60, align: 'center', className: 'cursor-pointer',
         // 미사용은 회색 텍스트
-        formatter: ({ value }) => value === 'Y' ? '사용' : '<span style="color:#9ca3af">미사용</span>',
+        formatter: ({ value }) => value === 'Y' ? '사용' : `<span style="color:${COLORS.gray400}">미사용</span>`,
     },
 ];
 

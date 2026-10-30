@@ -1,6 +1,6 @@
 <!-- 스타일 가이드 ( 개발 메뉴 · 권한 레벨 0 ) — 규칙 원본 : packages/mes-core/docs/style-guide.md
      - 이 화면은 규칙을 **살아 있는 예시**로 보여 주고 코드를 복사하게 한다. 규칙 글은 md 에만 ( 두 군데 쓰지 않는다 )
-     - 구역 : 화면 틀 · 좌우 분할 · 모달 · 알림 · 상태 색 · 숫자 · 부품( 예전 UI Kit ) -->
+     - 구역 : 화면 틀 · 좌우 분할 · 모달 · 알림 · 상태 색 · 색 팔레트 · 숫자 · 부품( 예전 UI Kit ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 제목 줄 -->
@@ -177,6 +177,30 @@
                 </ShowcaseCard>
             </section>
 
+            <!-- 5-1. 색 팔레트 -->
+            <section id="palette" class="scroll-mt-4">
+                <SectionHead title="색 팔레트" note="Tailwind 기본 5계열만 · HEX 를 손으로 치지 않는다 — 클래스 / theme() / @core/Utils/colors ( md §7-1 ) · 칸을 누르면 이름 복사" />
+                <ShowcaseCard title="쓰는 색 전부" :code="code.palette">
+                    <div class="w-full space-y-4">
+                        <div v-for="f in PALETTE" :key="f.family">
+                            <p class="text-xs text-gray-500 mb-1.5"><b class="text-gray-700">{{ f.label }}</b> · {{ f.note }}</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button v-for="c in f.colors" :key="c.key" type="button" :title="`${c.key} 복사`"
+                                    class="w-[112px] text-left rounded-md border border-gray-200 overflow-hidden hover:border-gray-400 transition-colors"
+                                    @click="copyColor(c.key)">
+                                    <span class="block h-10 border-b border-gray-200" :style="{ background: c.hex }"></span>
+                                    <span class="block px-2 py-1 leading-tight">
+                                        <span class="block text-xs font-semibold text-gray-700">{{ c.tw }}</span>
+                                        <span class="block text-[11px] text-gray-400 font-mono">{{ c.hex }}</span>
+                                        <span class="block text-[11px] text-blue-700 font-mono">{{ c.key }}</span>
+                                    </span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </ShowcaseCard>
+            </section>
+
             <!-- 6. 숫자 · 날짜 -->
             <section id="format" class="scroll-mt-4">
                 <SectionHead title="숫자 · 날짜" note="천 단위 · 소수 최대 6 자리 · 오른쪽 정렬 / 해당 없음은 — ( md §8 )" />
@@ -268,6 +292,7 @@ import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { useFlash } from '@core/Composables/useFlash';
 import { fmtNum, fmtQty, dash } from '@core/Utils/format';
+import { STATUS_COLOR, COLORS, CHART } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 
@@ -280,6 +305,7 @@ const SECTIONS = [
     { id: 'modal',    label: '모달' },
     { id: 'feedback', label: '알림 · 확인' },
     { id: 'status',   label: '상태 색' },
+    { id: 'palette',  label: '색 팔레트' },
     { id: 'format',   label: '숫자 · 날짜' },
     { id: 'picker',   label: '날짜 선택' },
     { id: 'parts',    label: '부품' },
@@ -355,13 +381,42 @@ async function confirmDemo() {
 
 // ---- 5. 상태 색 ( md §7 표 ) ----
 const STATUS_TONES = [
-    { value: 'WAIT',     label: '대기',     meaning: '시작 전',       color: '#6b7280' },
-    { value: 'RUN',      label: '진행',     meaning: '진행 · 확정',   color: '#2563eb' },
-    { value: 'DONE',     label: '완료',     meaning: '끝남',          color: '#16a34a' },
-    { value: 'HOLD',     label: '검사대기', meaning: '손이 필요함',   color: '#d97706' },
-    { value: 'CANCELED', label: '취소',     meaning: '취소 · 미사용', color: '#9ca3af' },
+    { value: 'WAIT',     label: '대기',     meaning: '시작 전',       color: STATUS_COLOR.idle },
+    { value: 'RUN',      label: '진행',     meaning: '진행 · 확정',   color: STATUS_COLOR.active },
+    { value: 'DONE',     label: '완료',     meaning: '끝남',          color: STATUS_COLOR.done },
+    { value: 'HOLD',     label: '검사대기', meaning: '손이 필요함',   color: STATUS_COLOR.attention },
+    { value: 'CANCELED', label: '취소',     meaning: '취소 · 미사용', color: STATUS_COLOR.off },
 ];
 const STATUS_BY_VALUE = Object.fromEntries(STATUS_TONES.map(t => [t.value, t]));
+
+// ---- 5-1. 색 팔레트 ( 값은 @core/Utils/colors 그대로 — 여기서 HEX 를 다시 쓰지 않는다 ) ----
+const FAMILIES = [
+    { family: 'gray',  label: '회색 gray',   note: '글자 · 배경 · 테두리 · 시작 전( 500 ) · 취소( 400 )' },
+    { family: 'blue',  label: '파랑 blue',   note: '주색 · 진행 · 확정( 600 ) · 선택 · 강조 수치( 700 )' },
+    { family: 'red',   label: '빨강 red',    note: '오류 · 필수 *( 500 ) · 불합격 · 불량 수치( 600 )' },
+    { family: 'amber', label: '주황 amber',  note: '손이 필요함 · 검사대기 · 경고( 600 )' },
+    { family: 'green', label: '초록 green',  note: '끝남 · 완료 · 성공 알림( 600 )' },
+    { family: 'sky',   label: '예외 sky',    note: '그리드 고른 행( row-selected ) 하나만' },
+];
+const PALETTE = [
+    ...FAMILIES.map(f => ({
+        ...f,
+        colors: Object.entries(COLORS)
+            .map(([key, hex]) => ({ key, hex, m: key.match(/^([a-z]+)(\d+)$/) }))
+            .filter(c => c.m && c.m[1] === f.family)
+            .map(c => ({ key: `COLORS.${c.key}`, hex: c.hex, tw: `${c.m[1]}-${c.m[2]}` })),
+    })),
+    { family: 'chart', label: '차트 CHART', note: '차트 계열색 — 화면 상태색과 섞지 않는다 ( 일부러 팔레트 밖 )',
+      colors: Object.entries(CHART).map(([key, hex]) => ({ key: `CHART.${key}`, hex, tw: key })) },
+];
+async function copyColor(key) {
+    try {
+        await navigator.clipboard.writeText(key);
+        showFlash(`${key} 복사했습니다.`);
+    } catch (e) {
+        showFlash('복사하지 못했습니다.', true);
+    }
+}
 
 // ---- 6. 숫자 ----
 const FORMAT_DEMO = [
@@ -511,12 +566,28 @@ showFlash(failMsg(e), true);                        // 422 서버 문구 · 403 
 const r = await showAlert('출고 취소', \`\${n}줄( \${names} )의 출고를 취소합니다.\\n자재는 출고한 창고로 돌아갑니다.\`, 'warning', 'confirm');
 if (!r.isConfirmed) return;`,
 
+    palette: `<!-- 화면 template : 클래스 -->
+<span class="text-gray-400">안내</span>  <div class="bg-blue-50 border border-blue-200">…</div>
+
+/* CSS · <style> : theme() — 빌드 때 값으로 바뀐다 */
+.box { color: theme('colors.gray.700'); border-color: theme('colors.gray.300'); }
+.box:focus { box-shadow: 0 0 0 2px theme('colors.gray.500 / 12%'); }
+
+// JS ( 그리드 formatter · TUI 테마 · 차트 ) : @core/Utils/colors
+import { COLORS, STATUS_COLOR, CHART } from '@core/Utils/colors';
+formatter: ({ value }) => \`<span style="color:\${COLORS.red600}">\${value}</span>\`
+{ value: 'DONE', label: '완료', color: STATUS_COLOR.done }   // *Codes.js 는 뜻 이름
+
+// 표에 없는 단계가 필요하면 colors.js 와 md §7-1 표에 같이 올리고 쓴다`,
+
     status: `// 모듈의 *Codes.js — 예 : Components/Production/productionCodes.js
+import { STATUS_COLOR } from '@core/Utils/colors';   // 색은 이름으로 — HEX 를 치지 않는다 ( §7-1 )
+
 export const WO_STATUSES = [
-    { value: 'WAIT',     label: '대기', color: '#6b7280' },
-    { value: 'RUN',      label: '진행', color: '#2563eb' },
-    { value: 'DONE',     label: '완료', color: '#16a34a' },
-    { value: 'CANCELED', label: '취소', color: '#9ca3af' },
+    { value: 'WAIT',     label: '대기', color: STATUS_COLOR.idle },
+    { value: 'RUN',      label: '진행', color: STATUS_COLOR.active },
+    { value: 'DONE',     label: '완료', color: STATUS_COLOR.done },
+    { value: 'CANCELED', label: '취소', color: STATUS_COLOR.off },
 ];
 // 그리드 열
 { header: '상태', name: 'status', width: 70, align: 'center',

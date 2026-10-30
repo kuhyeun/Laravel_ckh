@@ -82,12 +82,12 @@
                     <table v-else class="w-full text-sm">
                         <thead>
                             <tr class="text-gray-500">
-                                <th class="sticky top-0 z-10 bg-white px-3 py-2 shadow-[inset_0_-1px_0_0_#e5e7eb]"></th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_#e5e7eb] cursor-pointer select-none hover:text-blue-500"
+                                <th class="sticky top-0 z-10 bg-white px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)]"></th>
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
                                     @click="toggleColumn('can_read')">노출(읽기)</th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_#e5e7eb] cursor-pointer select-none hover:text-blue-500"
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
                                     @click="toggleColumn('can_write')">등록·수정</th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-24 shadow-[inset_0_-1px_0_0_#e5e7eb] cursor-pointer select-none hover:text-blue-500"
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-24 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
                                     @click="toggleColumn('can_delete')">삭제</th>
                             </tr>
                         </thead>

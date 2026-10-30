@@ -1,4 +1,5 @@
 // 작업지시 출처 · 상태 ( 서버 WorkOrder::SOURCES · STATUSES 와 맞출 것 )
+import { STATUS_COLOR } from '@core/Utils/colors';
 
 export const WO_SOURCES = [
     { value: 'ORDER',  label: '수주' },
@@ -7,15 +8,15 @@ export const WO_SOURCES = [
 ];
 
 export const WO_STATUSES = [
-    { value: 'WAIT',     label: '대기', color: '#6b7280' },
-    { value: 'RUN',      label: '진행', color: '#2563eb' },
-    { value: 'DONE',     label: '완료', color: '#16a34a' },
-    { value: 'CANCELED', label: '취소', color: '#9ca3af' },
+    { value: 'WAIT',     label: '대기', color: STATUS_COLOR.idle },
+    { value: 'RUN',      label: '진행', color: STATUS_COLOR.active },
+    { value: 'DONE',     label: '완료', color: STATUS_COLOR.done },
+    { value: 'CANCELED', label: '취소', color: STATUS_COLOR.off },
 ];
 
 export const woSourceLabel = (v) => WO_SOURCES.find(s => s.value === v)?.label ?? v ?? '';
 export const woStatusLabel = (v) => WO_STATUSES.find(s => s.value === v)?.label ?? v ?? '';
-export const woStatusColor = (v) => WO_STATUSES.find(s => s.value === v)?.color ?? '#6b7280';
+export const woStatusColor = (v) => WO_STATUSES.find(s => s.value === v)?.color ?? STATUS_COLOR.idle;
 
 export const WO_STATUS_FILTER = [
     { value: 'OPEN', label: '진행 중' },

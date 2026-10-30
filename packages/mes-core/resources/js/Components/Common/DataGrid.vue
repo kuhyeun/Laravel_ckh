@@ -11,6 +11,7 @@
      - 엑셀은 ExcelExportButton 을 화면의 목록 머리에 둔다 ( columns · data 를 그대로 넘긴다 )
      - setting-key : 사용자별 열 설정( 표시 · 이름 · 순서 · 너비 — 사용자 × 화면 × 키 ) 켜기. 오른쪽 클릭 "열 설정…" · GridSettingButton
        열에 lockHide: true 를 주면 숨길 수 없다 / 끌어서 바꾼 너비는 저장된다 / 엑셀은 ExcelExportButton :grid 로 이 설정을 따른다
+     - active-field · active-key : 지금 고른 행 하나만 색칠( row-selected ) — 목록 · 상세가 나란한 화면 ( 데이터가 바뀌어도 다시 찾아 칠한다 )
      - 기능은 더하기만 한다 — 새 prop 을 안 쓰는 화면은 예전과 같다 ( 공통컴포넌트 §7 ) -->
 <template>
     <div class="flex flex-col min-h-0">
@@ -61,6 +62,8 @@ const props = defineProps({
     pagination: { type: Object,  default: null },    // { page, perPage, total } — 있으면 서버 페이징
     emptyText:  { type: String,  default: '' },
     settingKey: { type: String,  default: '' },      // 있으면 사용자별 열 설정 ( 한 화면에 그리드가 여럿이면 다르게 )
+    activeField: { type: String, default: '' },      // 지금 고른 행 표시 : row[activeField] === activeKey 인 행 하나만 색칠 ( row-selected )
+    activeKey:   { type: [String, Number], default: null },
 });
 
 const emit = defineEmits(['row-click', 'grid-mounted', 'select', 'page', 'sort']);
@@ -134,6 +137,23 @@ function onColumnResize(ev) {
     widthTimer = setTimeout(() => saveSetting(toSetting(gridColumns.value)).catch(() => {}), 800);
 }
 onBeforeUnmount(() => clearTimeout(widthTimer));
+
+// 칸이 아닌 곳( 그리드 바깥 · 그리드 안 빈 곳 · 머리 )을 누르면 칸 포커스 · 선택 테두리를 뺀다
+//   오른쪽 클릭 메뉴( 복사는 포커스 칸을 쓴다 ) · 편집기 · 그리드 달력은 그대로 둔다
+const KEEP_FOCUS = 'td.tui-grid-cell, .tui-grid-context-menu, .tui-grid-layer-editing, .tui-datepicker';
+function onDocPointerDown(ev) {
+    const grid = gridInstance.value;
+    if (!grid || !gridContainer.value) return;
+    const t = ev.target;
+    if (gridContainer.value.contains(t) && t.closest?.(KEEP_FOCUS)) return;
+    if (t.closest?.('.tui-grid-context-menu, .tui-datepicker')) return;   // 메뉴 · 달력이 body 로 나가 있을 때
+    // TUI 가 빈 곳( cell-dummy )을 눌렀을 때 하는 순서와 같다 — 편집 저장 → 포커스 → 끌어 고른 범위 ( 범위는 공개 API 가 없어 dispatch )
+    grid.dispatch?.('saveAndFinishEditing');
+    grid.blur();
+    grid.dispatch?.('initSelection');
+}
+onMounted(() => document.addEventListener('pointerdown', onDocPointerDown, true));
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDown, true));
 
 const exportColumns = computed(() => gridColumns.value);
 
@@ -214,14 +234,31 @@ onMounted(async () => {
         emit('sort', { key: ev.columnName, dir });
     });
 
+    paintActive();
     emit('grid-mounted', grid);
 });
 
 // 외부 data 변경 → 그리드 갱신 ( 체크가 풀리므로 선택도 비었다고 알린다 )
 watch(() => props.data, (next) => {
     gridInstance.value?.resetData(treeRows(next));
+    activeRowKey = null;   // resetData 가 행 클래스를 지웠다
+    paintActive();
     emit('select', []);
 });
+
+// ---- 지금 고른 행 ( active-field · active-key ) ----
+let activeRowKey = null;
+function paintActive() {
+    const grid = gridInstance.value;
+    if (!grid || !props.activeField) return;
+    if (activeRowKey !== null) grid.removeRowClassName(activeRowKey, 'row-selected');
+    const hit = props.activeKey === null || props.activeKey === ''
+        ? null
+        : grid.findRows(r => String(r[props.activeField]) === String(props.activeKey))[0];
+    activeRowKey = hit ? hit.rowKey : null;
+    if (activeRowKey !== null) grid.addRowClassName(activeRowKey, 'row-selected');
+}
+watch(() => props.activeKey, paintActive);
 
 // ---- 빈 결과 문구 ----
 function applyEmptyText() {
@@ -256,15 +293,15 @@ function changePerPage(n) {
     min-width: 34px;
     height: 32px;
     padding: 0 10px;
-    border: 1px solid #d1d5db;
+    border: 1px solid theme('colors.gray.300');
     border-radius: 4px;
-    background: #fff;
+    background: theme('colors.white');
 }
 .pg-btn:disabled { opacity: .4; cursor: default; }
-.pg-btn:not(:disabled):hover { background: #eff6ff; }
+.pg-btn:not(:disabled):hover { background: theme('colors.blue.50'); }
 /* 현재 페이지 ( scoped 배경이 Tailwind 클래스를 이기므로 여기서 칠한다 ) */
 .pg-btn.is-current,
-.pg-btn.is-current:hover { background: #2563eb; border-color: #2563eb; color: #fff; }
+.pg-btn.is-current:hover { background: theme('colors.blue.600'); border-color: theme('colors.blue.600'); color: theme('colors.white'); }
 
 
 /* 빈 결과 문구 ( TUI 기본 문구를 바꾼다 ) */

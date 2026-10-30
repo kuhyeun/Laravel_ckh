@@ -1,9 +1,9 @@
 <template>
     <li class="mt-1">
         <div
-            class="flex items-center justify-between h-[32px] px-1 rounded font-inter font-medium hover:bg-gray-200 hover:text-[#2B2D31]"
+            class="flex items-center justify-between h-[32px] px-1 rounded font-inter font-medium hover:bg-gray-200 hover:text-gray-800"
             :class="[
-                isActive ? 'bg-gray-200 text-[#2B2D31]' : 'text-[#6C717A]',
+                isActive ? 'bg-gray-200 text-gray-800' : 'text-gray-500',
                 { 'cursor-pointer': hasChildren }
             ]"
             @click="hasChildren ? toggle() : null"

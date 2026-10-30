@@ -61,6 +61,7 @@ import { useModalStore } from '@core/Stores/modalStore';
 import { useFlash, failMsg } from '@core/Composables/useFlash';
 import { fmtQty, itemLabel } from '@core/Utils/format';
 import { inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -95,7 +96,7 @@ const columns = [
     { header: '불합격 사유', name: 'inspect_remark', minWidth: 140, className: 'cursor-pointer', escapeHTML: true,
       formatter: ({ row }) => row.inspect_status === 'FAIL' ? (row.inspect_remark ?? '') : '' },
     { header: '출하', name: 'shipment_status', width: 70, align: 'center', className: 'cursor-pointer',
-      formatter: ({ value }) => ({ WAIT: '대기', DONE: '<span style="color:#16a34a">완료</span>' }[value] ?? value) },
+      formatter: ({ value }) => ({ WAIT: '대기', DONE: `<span style="color:${COLORS.green600}">완료</span>` }[value] ?? value) },
 ];
 
 const rows    = ref([]);

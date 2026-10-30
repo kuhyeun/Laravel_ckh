@@ -74,6 +74,7 @@ import InspectionItemForm from '@core/Components/Config/InspectionItemForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { fetchCommonCodes } from '@core/Composables/useCommonCode';
 import { showAlert } from '@core/Utils/message';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -107,7 +108,7 @@ const gridOptions = {
     rowHeaders: 'checkbox',
 };
 
-const dash = '<span style="color:#d1d5db">—</span>';
+const dash = `<span style="color:${COLORS.gray300}">—</span>`;
 
 const inspectionItemColumns = [
     { header: '항목명',    name: 'inspection_item_name', minWidth: 180, className: 'cursor-pointer' },
@@ -128,7 +129,7 @@ const inspectionItemColumns = [
     { header: '비고',      name: 'remark',    minWidth: 160, className: 'cursor-pointer' },
     {
         header: '사용', name: 'is_use', width: 70, align: 'center', className: 'cursor-pointer',
-        formatter: ({ value }) => value === 'Y' ? '사용' : '<span style="color:#9ca3af">미사용</span>',
+        formatter: ({ value }) => value === 'Y' ? '사용' : `<span style="color:${COLORS.gray400}">미사용</span>`,
     },
 ];
 

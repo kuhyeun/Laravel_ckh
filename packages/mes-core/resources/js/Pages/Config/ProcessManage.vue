@@ -74,6 +74,7 @@ import ProcessForm from '@core/Components/Config/ProcessForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { PROCESS_TYPES, processTypeLabel, inspectionKindLabel } from '@core/Components/Config/processCodes';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -108,7 +109,7 @@ const processColumns = [
         header: '공정코드', name: 'process_code', minWidth: 130, className: 'cursor-pointer',
         // 시스템 공정 표시
         formatter: ({ row, value }) => row.is_system === 'Y'
-            ? `${value} <span style="margin-left:4px;padding:0 4px;border-radius:3px;font-size:11px;background:#f3f4f6;color:#6b7280">시스템</span>`
+            ? `${value} <span style="margin-left:4px;padding:0 4px;border-radius:3px;font-size:11px;background:${COLORS.gray100};color:${COLORS.gray500}">시스템</span>`
             : value,
     },
     { header: '공정명',    name: 'process_name',    minWidth: 180, className: 'cursor-pointer' },
@@ -119,7 +120,7 @@ const processColumns = [
     { header: '설비 수',   name: 'equipments_count', width: 70, align: 'right', className: 'cursor-pointer' },
     {
         header: '사용', name: 'is_use', width: 70, align: 'center', className: 'cursor-pointer',
-        formatter: ({ value }) => value === 'Y' ? '사용' : '<span style="color:#9ca3af">미사용</span>',
+        formatter: ({ value }) => value === 'Y' ? '사용' : `<span style="color:${COLORS.gray400}">미사용</span>`,
     },
 ];
 

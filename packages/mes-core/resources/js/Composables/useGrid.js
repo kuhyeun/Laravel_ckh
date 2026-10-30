@@ -2,6 +2,7 @@ import { ref, onUnmounted } from 'vue';
 import Grid from 'tui-grid';
 import 'tui-grid/dist/tui-grid.css';
 import { CheckboxRenderer, RequiredHeaderRenderer } from '@core/Composables/gridClass';
+import { COLORS } from '@core/Utils/colors';
 
 export function useGrid() {
     const gridInstance = ref(null);
@@ -80,7 +81,7 @@ export function useGrid() {
         Grid.setLanguage('ko'); // Grid 생성전 호출해야함
 
         const newGrid = new Grid( finalOptions );
-        const borderColor = "#D7D7D7";
+        const borderColor = COLORS.gray300;
         
         Grid.applyTheme( 'clean', {
             grid: {
@@ -90,8 +91,8 @@ export function useGrid() {
                 border: borderColor,
             },
             selection: {
-                background: "#4daaf9",
-                border: "#C2D6FB"
+                background: COLORS.blue400,
+                border: COLORS.blue200
             },
             area: {
                 border: borderColor
@@ -103,7 +104,7 @@ export function useGrid() {
                     showHorizontalBorder: true,
                     },
                 header: {
-                    background: "#EDEDED",
+                    background: COLORS.gray100,
                     border: borderColor,
                 },
                 rowHeader: {
@@ -112,10 +113,10 @@ export function useGrid() {
                     showHorizontalBorder: true
                 },
                 selectedHeader: {
-                    background: "#E3E3E3"
+                    background: COLORS.gray200
                 },
                 focused: {
-                    border: "#8f9af2"
+                    border: COLORS.blue500
                 }
             }
         });

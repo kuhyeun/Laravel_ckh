@@ -37,7 +37,7 @@
                     <BaseButton v-if="canWrite && !st.block" size="sm" :variant="stageForm.stage === st.stage ? 'primary' : 'secondary'" @click="openStage(st.stage)">판정 기록</BaseButton>
                 </div>
                 <!-- 단계 기록 입력 -->
-                <div v-if="stageForm.stage" class="px-3 py-3 border-t bg-blue-50/40 grid grid-cols-4 gap-x-4 gap-y-3">
+                <div v-if="stageForm.stage" class="px-3 py-3 border-t bg-blue-50/40 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
                     <div class="col-span-2">
                         <label class="block text-gray-500 font-medium mb-1">{{ STAGE_NAMES[stageForm.stage] }} 판정 <span class="text-red-500">*</span></label>
                         <div class="flex gap-2">
@@ -79,7 +79,7 @@
             <p v-if="open && block" class="mt-3 text-xs text-amber-700">⚠ {{ block }}</p>
 
             <!-- 검사 완료 ( 일반 = 수량 입력 / IFL = 종합 ) -->
-            <div v-if="open && !block && canWrite" class="mt-4 grid grid-cols-4 gap-x-4 gap-y-3">
+            <div v-if="open && !block && canWrite" class="mt-4 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
                 <template v-if="!op.is_ifl">
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">합격 <span class="text-red-500">*</span></label>
@@ -186,6 +186,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { showAlert } from '@core/Utils/message';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { fmtNum, fmtQty } from '@core/Utils/format';
+import { STATUS_COLOR } from '@core/Utils/colors';
 
 const props = defineProps({
     opIdx:  { type: Number,   required: true },
@@ -199,7 +200,7 @@ const RESULTS = [
 ];
 const RESULT_NAMES = { PASS: '합격', FAIL: '불합격', PARTIAL: '부분 합격' };
 const STAGE_NAMES  = { FIRST: '초물', MIDDLE: '중물', LAST: '종물' };
-const resultColor  = (r) => ({ PASS: '#16a34a', FAIL: '#dc2626', PARTIAL: '#d97706' }[r] ?? '#9ca3af');
+const resultColor  = (r) => ({ PASS: STATUS_COLOR.done, FAIL: STATUS_COLOR.bad, PARTIAL: STATUS_COLOR.attention }[r] ?? STATUS_COLOR.off);
 
 const loading    = ref(true);
 const saving     = ref(false);

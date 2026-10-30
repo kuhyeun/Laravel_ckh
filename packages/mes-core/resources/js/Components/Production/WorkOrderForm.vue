@@ -109,10 +109,9 @@
         </template>
 
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
+            <div class="flex-1"></div>
             <BaseButton v-if="canDelete && current?.work_order_idx && current.status === 'WAIT'" variant="danger" size="sm" :disabled="busy" @click="cancelLine">줄 취소</BaseButton>
             <BaseButton v-if="canDelete && sheet.sheet_idx && ['WAIT'].includes(sheet.status)" variant="danger" size="sm" :disabled="busy" @click="cancelSheet">지시서 취소</BaseButton>
-            <div class="flex-1"></div>
-            <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ sheetEditable ? '취소' : '닫기' }}</BaseButton>
             <BaseButton v-if="sheetEditable" variant="primary" size="sm" :disabled="saving || loading || lotRuleMissing" @click="save">
                 {{ saving ? '저장 중…' : (isEdit ? '수정' : '등록') }}
             </BaseButton>
@@ -366,6 +365,6 @@ const failMsg = (e) => {
 </script>
 
 <style scoped>
-.lbl { display: block; color: #6b7280; font-weight: 500; margin-bottom: 0.25rem; }
-.err { font-size: 11px; color: #ef4444; margin-top: 0.125rem; }
+.lbl { display: block; color: theme('colors.gray.500'); font-weight: 500; margin-bottom: 0.25rem; }
+.err { font-size: 11px; color: theme('colors.red.500'); margin-top: 0.125rem; }
 </style>

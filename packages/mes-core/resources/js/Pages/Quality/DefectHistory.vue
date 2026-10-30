@@ -85,18 +85,19 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BasicChart from '@core/Components/Basic/BasicChart.vue';
 import { fmtNum } from '@core/Utils/format';
 import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { COLORS, CHART } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);
 
 // 검사 종류 = 범주 색 1 · 2 · 3 ( 차트 가이드 기본 팔레트 — 검증 통과, 청록은 대비가 낮아 범례 · 목록을 같이 둔다 )
 const INSP = {
-    INCOMING: { label: '입고', color: '#2a78d6' },
-    PROCESS:  { label: '공정', color: '#eb6834' },
-    SHIPPING: { label: '출고', color: '#1baf7a' },
+    INCOMING: { label: '입고', color: CHART.blue },
+    PROCESS:  { label: '공정', color: CHART.orange },
+    SHIPPING: { label: '출고', color: CHART.green },
 };
-const ONE_SERIES = '#2a78d6';   // 한 계열 차트
-const INK = { primary: '#0b0b0b', muted: '#6b7280', grid: '#e5e7eb' };
+const ONE_SERIES = CHART.blue;   // 한 계열 차트
+const INK = { primary: CHART.ink, muted: COLORS.gray500, grid: COLORS.gray200 };
 
 const INSP_FILTER = [{ value: '', label: '검사 전체' }, ...Object.entries(INSP).map(([value, v]) => ({ value, label: `${v.label}검사` }))];
 const defectTypes = ref([]);   // 코드관리 DEFECT_TYPE
@@ -186,7 +187,7 @@ const months = computed(() => {
 const monthlyData = computed(() => ({
     labels: months.value.map(m => `${Number(m.slice(5))}월`),
     datasets: Object.entries(INSP).map(([k, v]) => ({
-        label: v.label, backgroundColor: v.color, borderColor: '#ffffff', borderWidth: { top: 2 }, ...bar,
+        label: v.label, backgroundColor: v.color, borderColor: COLORS.white, borderWidth: { top: 2 }, ...bar,
         data: months.value.map(m => counted.value.filter(r => r.insp_type === k && r.occurred_at.startsWith(m)).reduce((s, r) => s + r.qty, 0)),
     })),
 }));
@@ -201,7 +202,7 @@ function hbar(entries, selected, onPick) {
         data: {
             labels: entries.map(e => e[0]),
             datasets: [{ label: '불량', data: entries.map(e => e[1]), ...bar,
-                backgroundColor: entries.map(e => !selected || selected === e[0] ? ONE_SERIES : '#c9d9ee') }],
+                backgroundColor: entries.map(e => !selected || selected === e[0] ? ONE_SERIES : CHART.faded) }],
         },
         options: baseOptions({
             indexAxis: 'y',
@@ -225,24 +226,24 @@ const chips = computed(() => [
 ].filter(Boolean));
 const listRows = computed(() => all.value.filter(r => (!pickType.value || r.defect_type === pickType.value) && (!pickItem.value || r.item_code === pickItem.value)));
 
-const strike = (row, html) => row.is_canceled ? `<span style="color:#9ca3af;text-decoration:line-through">${html}</span>` : html;
+const strike = (row, html) => row.is_canceled ? `<span style="color:${COLORS.gray400};text-decoration:line-through">${html}</span>` : html;
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const columns = [
     { header: '발생일시', name: 'occurred_at', width: 125, align: 'center', sortable: true, formatter: ({ row, value }) => strike(row, value) },
     { header: '검사', name: 'insp_type', width: 70, align: 'center', lockHide: true,
-      formatter: ({ row, value }) => strike(row, `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;background:${INSP[value]?.color ?? '#9ca3af'}"></span>${INSP[value]?.label ?? value ?? ''}${row.stage ? ` · ${row.stage}` : ''}`) },
-    { header: '품번', name: 'item_code', width: 110, sortable: true, lockHide: true, formatter: ({ row, value }) => strike(row, esc(value)) },
+      formatter: ({ row, value }) => strike(row, `<span style="display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;background:${INSP[value]?.color ?? COLORS.gray400}"></span>${INSP[value]?.label ?? value ?? ''}${row.stage ? ` · ${row.stage}` : ''}`) },
+    { header: '품번', name: 'item_code', width: 120, sortable: true, lockHide: true, formatter: ({ row, value }) => strike(row, esc(value)) },
     { header: '품명', name: 'item_name', minWidth: 140, formatter: ({ row, value }) => strike(row, esc(value)) },
-    { header: '규격', name: 'item_spec', width: 100, formatter: ({ row, value }) => strike(row, esc(value)) },
-    { header: '재질', name: 'item_material', width: 85, formatter: ({ row, value }) => strike(row, esc(value)) },
+    { header: '규격', name: 'item_spec', width: 150, formatter: ({ row, value }) => strike(row, esc(value)) },
+    { header: '재질', name: 'item_material', width: 150, formatter: ({ row, value }) => strike(row, esc(value)) },
     { header: 'LOT', name: 'lot_no', width: 130, formatter: ({ row, value }) => strike(row, esc(value)) },
-    { header: '거래처', name: 'partner_name', width: 100, formatter: ({ row, value }) => strike(row, esc(value)) },
+    { header: '거래처', name: 'partner_name', width: 150, formatter: ({ row, value }) => strike(row, esc(value)) },
     { header: '공정', name: 'op_name', width: 110, formatter: ({ row, value }) => strike(row, esc(value)) },
     { header: '불량 수량', name: 'qty', width: 80, align: 'right', sortable: true, formatter: ({ row, value }) => strike(row, fmtNum(value)) },
     { header: '유형', name: 'defect_type', width: 70, align: 'center', formatter: ({ row, value }) => strike(row, esc(value)) },
     { header: '상세', name: 'reason', minWidth: 150, formatter: ({ row, value }) => strike(row, esc(value)) },
-    { header: '검사자', name: 'inspector', width: 75, align: 'center', formatter: ({ row, value }) => strike(row, esc(value)) },
-    { header: '근거', name: 'ref_no', width: 170, formatter: ({ row, value }) => strike(row, esc(value)) },
-    { header: '취소', name: 'is_canceled', width: 55, align: 'center', formatter: ({ value }) => value ? '<span style="color:#9ca3af">취소</span>' : '' },
+    { header: '검사자', name: 'inspector', width: 90, align: 'center', formatter: ({ row, value }) => strike(row, esc(value)) },
+    { header: '참고', name: 'ref_no', width: 170, formatter: ({ row, value }) => strike(row, esc(value)) },
+    { header: '취소', name: 'is_canceled', width: 55, align: 'center', formatter: ({ value }) => value ? `<span style="color:${COLORS.gray400}">취소</span>` : '' },
 ];
 </script>

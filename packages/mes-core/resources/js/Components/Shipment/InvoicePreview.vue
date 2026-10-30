@@ -80,7 +80,7 @@ onBeforeUnmount(() => document.documentElement.classList.remove('invoice-printin
 .invoice-print-area { display: none; }
 @media print {
     @page { size: A4 portrait; margin: 8mm; }
-    html.invoice-printing, html.invoice-printing body { height: auto !important; min-height: 0 !important; overflow: visible !important; background: #fff !important; }
+    html.invoice-printing, html.invoice-printing body { height: auto !important; min-height: 0 !important; overflow: visible !important; background: theme('colors.white') !important; }
     html.invoice-printing body > *:not(.invoice-print-area) { display: none !important; }
     html.invoice-printing .invoice-print-area { display: block; }
     html.invoice-printing .invoice-print-sheet { margin: 0; break-after: page; page-break-after: always; }

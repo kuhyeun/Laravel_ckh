@@ -1,3 +1,4 @@
+import { COLORS } from '@core/Utils/colors';
 export class CheckboxRenderer {
     constructor( props ) {
         const { grid, rowKey } = props;
@@ -109,7 +110,7 @@ export class ToggleRenderer {
         this.el.style.cursor = disabled ? 'not-allowed' : 'pointer';
 
         this.textEl.textContent = on ? this.onText : this.offText;
-        this.textEl.style.color = on ? '#374151' : '#9ca3af';
+        this.textEl.style.color = on ? COLORS.gray700 : COLORS.gray400;
     }
 }
 
@@ -124,7 +125,7 @@ export class RequiredHeaderRenderer {
 
         const mark = document.createElement('span');
         mark.textContent = '*';
-        mark.style.color = '#ef4444';
+        mark.style.color = COLORS.red500;
         mark.style.marginLeft = '2px';
 
         el.appendChild(this.textEl);
