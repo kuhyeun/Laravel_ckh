@@ -15,12 +15,12 @@
         <SearchBar
             v-model="search"
             :date-bases="DATE_BASES"
-            placeholder="출하번호 · 고객사 · 품번 · 품명 · 수주번호"
+            :fields="SEARCH_FIELDS"
             :loading="loading"
-            :blank="() => ({ status: 'OPEN' })"
+            :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.status" :options="SHIP_STATUS_FILTER" size="sm" class="w-28" />
+            <BaseSelect v-model="search.status" :options="SHIP_STATUS_FILTER" class="w-32" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -34,6 +34,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="mainGrid"
+                    :loading="loading"
                     setting-key="main"
                     class="flex-1"
                     :data="rows"
@@ -83,7 +84,16 @@ const modalStore = useModalStore();
 const { flash, showFlash } = useFlash(6000);
 
 const DATE_BASES = [{ value: 'plan', label: '출하 예정' }, { value: 'shipped', label: '출하 일시' }];
-const search = reactive({ date_basis: 'plan', from: '', to: '', keyword: '', status: 'OPEN' });
+// 검색 조건 ( 서버 ShipmentController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
+const SEARCH_FIELDS = [
+    { value: 'shipment_no',  label: '출하번호' },
+    { value: 'partner_name', label: '고객사' },
+    { value: 'item_code',    label: '품번' },
+    { value: 'item_name',    label: '품명' },
+    { value: 'order_no',     label: '수주번호' },
+];
+const blankFilters = () => ({ status: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const search = reactive({ date_basis: 'plan', from: '', to: '', keyword: '', ...blankFilters() });
 
 // 건 행 아래 줄 펼침 ( 줄이 하나인 건은 펼침 없이 건 행에 )
 const gridOptions = {

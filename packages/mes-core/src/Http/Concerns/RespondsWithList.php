@@ -29,7 +29,8 @@ trait RespondsWithList {
         return null;
     }
 
-    protected function listResponse(Request $request, Builder $query, array $sortable, string $legacyKey, ?callable $map = null): JsonResponse {
+    // $prepare : 행을 바꾸기 전에 그 페이지 모델 묶음을 한 번 받는다 ( 행마다 조회하지 않고 한꺼번에 읽어 둘 때 )
+    protected function listResponse(Request $request, Builder $query, array $sortable, string $legacyKey, ?callable $map = null, ?callable $prepare = null): JsonResponse {
         $validated = $request->validate([
             'page'    => 'nullable|integer|min:1',
             'perPage' => 'nullable|integer|in:20,50,100,200',
@@ -46,7 +47,10 @@ trait RespondsWithList {
             }
         }
 
-        $mapRows = fn ($rows) => $map ? $rows->map($map)->values() : $rows->values();
+        $mapRows = function ($rows) use ($map, $prepare) {
+            if ($prepare) $prepare($rows);
+            return $map ? $rows->map($map)->values() : $rows->values();
+        };
 
         if ((string) ($validated['export'] ?? '0') === '1') {
             $total = (clone $query)->toBase()->getCountForPagination();

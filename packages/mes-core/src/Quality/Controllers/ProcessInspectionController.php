@@ -3,6 +3,7 @@
 namespace MesCore\Quality\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\InspectionSpec;
@@ -24,6 +25,7 @@ use Illuminate\Validation\ValidationException;
 //   검사 창은 공정실적( 4002 )에서도 연다 → 권한은 컨트롤러가 : 보기 · 판정 = 공정검사 · 공정실적 어느 쪽이든( can_read · can_write )
 //   검사 취소( 공정 완료 취소 ) = 공정검사 쓰기 또는 공정실적 삭제 권한
 class ProcessInspectionController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const SCREENS  = ['Quality/ProcessInspection', 'Production/OpResult'];
@@ -47,9 +49,9 @@ class ProcessInspectionController extends Controller {
             'from'    => 'nullable|date_format:Y-m-d',
             'to'      => 'nullable|date_format:Y-m-d|after_or_equal:from',
             'keyword' => 'nullable|string|max:100',
-            'status'  => ['nullable', Rule::in(['TODO', 'DONE', 'ALL'])],
+            'status'  => ['nullable', Rule::in(['TODO', 'DONE'])],
         ], [], ['from' => '시작일', 'to' => '종료일']);
-        $status = $v['status'] ?? 'TODO';
+        $status = $v['status'] ?? '';   // 없으면 전체 ( 화면 기본값은 blankFilters 가 늘 보낸다 — 스타일 가이드 §3 )
 
         $query = WorkOrderOp::query()
             ->select('work_order_op.*', 'work_order.wo_no', 'work_order.start_date', 'work_order.status as wo_status')
@@ -63,16 +65,16 @@ class ProcessInspectionController extends Controller {
         match ($status) {
             'TODO' => $query->where('work_order_op.status', '!=', 'DONE')->whereIn('work_order.status', ['WAIT', 'RUN']),
             'DONE' => $query->where('work_order_op.status', 'DONE'),
-            'ALL'  => null,
+            default => null,
         };
         if (!empty($v['from'])) $query->where('work_order.start_date', '>=', $v['from']);
         if (!empty($v['to']))   $query->where('work_order.start_date', '<=', $v['to']);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(fn (Builder $w) => $w->where('work_order.wo_no', 'like', $kw)
-                ->orWhereHas('workOrder.item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw))
-                ->orWhereHas('workOrder.lot', fn ($q) => $q->where('lot_no', 'like', $kw)));
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'wo_no'     => fn ($q, $kw) => $q->where('work_order.wo_no', 'like', $kw),
+            'item_code' => fn ($q, $kw) => $q->whereHas('workOrder.item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name' => fn ($q, $kw) => $q->whereHas('workOrder.item', fn ($r) => $r->where('item_name', 'like', $kw)),
+            'lot_no'    => fn ($q, $kw) => $q->whereHas('workOrder.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+        ]);
 
         $users = User::pluck('user_name', 'account_idx');
         return $this->listResponse($request, $query, self::SORTABLE, 'ops', function (WorkOrderOp $o) use ($users) {

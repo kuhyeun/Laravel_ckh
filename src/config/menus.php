@@ -305,6 +305,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Order',
                         'menu_route_name' => '',
+                        'url_path' => '/order/progress',
+                        'page_component' => 'Order/SalesProgress',
                         'menu_level' => 99,
                     ],
                 ]

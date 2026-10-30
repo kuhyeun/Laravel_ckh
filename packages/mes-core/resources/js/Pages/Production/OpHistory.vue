@@ -15,14 +15,14 @@
         <SearchBar
             v-model="search"
             :date-bases="DATE_BASES"
-            placeholder="줄 번호 · 품번 · 품명 · LOT"
+            :fields="SEARCH_FIELDS"
             :loading="loading"
-            :blank="() => ({ process_idx: '', operator_idx: '', equipment_idx: '', include_canceled: 'N' })"
+            :blank="blankFilters"
             @search="runSearch"
         >
-            <BaseSelect v-model="search.process_idx" :options="processOptions" size="sm" class="w-32" />
-            <BaseSelect v-model="search.operator_idx" :options="operatorOptions" size="sm" class="w-32" />
-            <BaseSelect v-model="search.equipment_idx" :options="equipmentOptions" size="sm" class="w-32" />
+            <BaseSelect v-model="search.process_idx" :options="processOptions" class="w-36" />
+            <BaseSelect v-model="search.operator_idx" :options="operatorOptions" class="w-36" />
+            <BaseSelect v-model="search.equipment_idx" :options="equipmentOptions" class="w-36" />
             <BaseCheckbox v-model="search.include_canceled" variant="checkbox" true-value="Y" false-value="N">취소 포함</BaseCheckbox>
         </SearchBar>
 
@@ -46,6 +46,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="listGrid"
+                    :loading="loading"
                     setting-key="list"
                     class="flex-1"
                     :data="rows"
@@ -72,6 +73,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="summaryGrid"
+                    :loading="loading"
                     :key="group"
                     :setting-key="`summary-${group}`"
                     class="flex-1"
@@ -122,7 +124,15 @@ const GROUPS = [
     { value: 'day',       label: '일자별' },
 ];
 
-const search = reactive({ date_basis: 'worked', from: '', to: '', keyword: '', process_idx: '', operator_idx: '', equipment_idx: '', include_canceled: 'N' });
+// 검색 조건 ( 서버 OpHistoryController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
+const SEARCH_FIELDS = [
+    { value: 'wo_no',     label: '줄 번호' },
+    { value: 'item_code', label: '품번' },
+    { value: 'item_name', label: '품명' },
+    { value: 'lot_no',    label: 'LOT' },
+];
+const blankFilters = () => ({ process_idx: '', operator_idx: '', equipment_idx: '', include_canceled: 'N' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const search = reactive({ date_basis: 'worked', from: '', to: '', keyword: '', ...blankFilters() });
 const tab    = ref('list');
 const group  = ref('item');
 
@@ -251,7 +261,10 @@ async function loadSummary() {
 
 // 집계 행 → 그 값으로 걸러 이력 탭
 function drillDown(row) {
-    if (group.value === 'item')      search.keyword = row.label.split(' ')[0];
+    if (group.value === 'item') {   // 이름 = "품명 [품번]" → 품번으로
+        search.keyword      = row.label.match(/\[([^\]]+)\]$/)?.[1] ?? row.label;
+        search.search_field = 'item_code';
+    }
     if (group.value === 'process')   search.process_idx = Number(row.key);
     if (group.value === 'operator')  search.operator_idx = Number(row.key);
     if (group.value === 'equipment') {

@@ -24,7 +24,7 @@ export const inspectLabel = (v) => INSPECT_STATUSES.find(s => s.value === v)?.la
 export const inspectColor = (v) => INSPECT_STATUSES.find(s => s.value === v)?.color ?? STATUS_COLOR.off;
 
 export const SHIP_STATUS_FILTER = [
-    { value: 'ALL',      label: '상태 전체' },
+    { value: '',         label: '상태 전체' },
     { value: 'OPEN',     label: '진행 중' },
     { value: 'DONE',     label: '출하 완료' },
     { value: 'CANCELED', label: '취소' },

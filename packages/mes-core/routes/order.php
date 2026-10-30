@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use MesCore\Order\Controllers\SalesOrderController;
+use MesCore\Order\Controllers\SalesProgressController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -31,5 +32,12 @@ Route::prefix('order')->name('order.')->middleware([UserAuth::class])->group(fun
         Route::middleware($delete)->group(function() {
             Route::post('/delete', [SalesOrderController::class, 'delete'])->name('del');
         });
+    });
+
+    // 수주진행관리 ( Order/SalesProgress · 2002 ) — 조회만
+    Route::prefix('progress')->name('progress.')->middleware(MenuAuth::class . ':Order/SalesProgress,can_read')->group(function() {
+        Route::get('/list', [SalesProgressController::class, 'list'])->name('list');
+        Route::get('/formData', [SalesProgressController::class, 'formData'])->name('formData');
+        Route::get('/detail/{lineIdx}', [SalesProgressController::class, 'detail'])->whereNumber('lineIdx')->name('detail');
     });
 });

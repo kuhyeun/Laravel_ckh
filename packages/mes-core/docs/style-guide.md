@@ -16,7 +16,7 @@
 ┌────────────────────────────────────────────────────────────────────┐
 │ 품목관리                          ✓ 저장했습니다   [엑셀] [+ 등록] [삭제] │ ← ① 제목 줄
 ├────────────────────────────────────────────────────────────────────┤
-│ [기간 ▾] [from] ~ [to] [오늘][1주][1달] │ [검색어      ] [상태 ▾] [조회][초기화] │ ← ② 검색바
+│ [기간 ▾] [from] ~ [to] [오늘][1주][1달] │ [상태 ▾] [통합검색 ▾] [검색어를 입력하세요] [조회][초기화] │ ← ② 검색바
 ├────────────────────────────────────────────────────────────────────┤
 │ 품목 목록 · 120 건                                          [엑셀 ↓] │ ← ③ 본문 : 목록 박스 머리
 │ ┌──────────────────────────────────────────────────────────────┐ │
@@ -39,8 +39,8 @@
         </div>
 
         <!-- ② 검색바 -->
-        <SearchBar v-model="search" placeholder="품번 · 품명" :loading="loading" @search="loadFirstPage">
-            <BaseSelect v-model="search.status" :options="STATUS_FILTER" size="sm" class="w-28" />
+        <SearchBar v-model="search" :fields="SEARCH_FIELDS" :loading="loading" @search="loadFirstPage">
+            <BaseSelect v-model="search.status" :options="STATUS_FILTER" class="w-32" />
         </SearchBar>
 
         <!-- ③ 본문 : 목록 박스 -->
@@ -72,17 +72,37 @@
 - 제목은 **메뉴 이름과 같게** ( `<h2 class="font-bold text-lg tracking-tight">` )
 - 버튼 순서 : 보조( 엑셀 올리기 등 `secondary` ) → **`+ 등록`( `primary` )** → 위험한 동작( 삭제 · 취소 `danger` ) — 위험한 동작은 맨 오른쪽
 - 권한이 없으면 **숨긴다**( `v-if="canWrite"` ), 지금 할 수 없으면 **끈다**( `:disabled` — 예 : 체크한 행이 없음 )
-- `BaseButton` 은 크기가 하나뿐이다 ( `size` prop 없음 — 기존 화면의 `size="sm"` 은 아무 효과가 없다. 새 화면에는 쓰지 않는다 ). `size="sm"` 은 검색바 안의 `BaseInput` · `BaseSelect` 에만
+- `BaseButton` 은 크기가 하나뿐이다 ( `size` prop 없음 — 기존 화면의 `size="sm"` 은 아무 효과가 없다. 새 화면에는 쓰지 않는다 ). **검색바 · 제목 줄의 높이 기준은 36px** ( 버튼 · `BaseInput` · `BaseSelect` · `BaseDatePicker` 기본 크기 ) — 검색바 안에도 `size` 를 주지 않는다 ( 2026-10-30 ). `size="sm"`( 30px )은 좁은 패널 머리 · 표 안 입력처럼 줄 높이가 낮은 곳에만
 - 권한 : `page.props.permissions[menuCode].can_read / can_write / can_delete` — 등록 · 수정 = write, 삭제 · 취소 = delete
 
 ---
 
 ## 3. ② 검색바
 
-- **`SearchBar` 컴포넌트**를 쓴다 ( 기간 · 빠른 기간 · 검색어 · [조회] · [초기화] 가 들어 있다 ). 화면만의 거르기는 slot 에 `BaseSelect size="sm"`
+- **`SearchBar` 컴포넌트**를 쓴다 ( 기간 · 빠른 기간 · 검색 조건 · 검색어 · [조회] · [초기화] 가 들어 있다 ). 화면만의 거르기는 slot 에 `BaseSelect`( **size 없이 — 36px** · 너비 `w-32` 안팎 )
+- **오른쪽 순서 : [ 화면별 칸( 상태 · 고객사 … ) ] → [ 검색 조건 ▾ ] → [ 검색어 ]** ( 2026-10-30 ) — slot 은 검색 조건 앞에 놓인다
+- **검색어 칸 placeholder 는 "검색어를 입력하세요"** ( SearchBar 기본값 — 화면에서 `placeholder` 를 주지 않는다. 무엇으로 찾는지는 검색 조건이 보여 준다 )
+- **검색 조건 `:fields`** — 화면에 `SEARCH_FIELDS = [{ value, label }]`. 맨 앞 **통합검색**( `''` · 기본 )은 SearchBar 가 붙인다. 값은 `search_field` 로 나간다
+  - 서버는 `SearchesKeyword::applyKeyword($query, $v['keyword'] ?? null, [ 키 => fn ($q, $kw) => … ])` — 통합검색 = 모두 OR, 조건 = 그것만, 모르는 키 = 422. **화면 value = 서버 키**
+  - 품번 · 품명은 따로 둔다 ( `item_code` · `item_name` )
+  ```js
+  // 검색 조건 ( 서버 SalesOrderController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
+  const SEARCH_FIELDS = [
+      { value: 'order_no',  label: '수주번호' },
+      { value: 'item_code', label: '품번' },
+      { value: 'item_name', label: '품명' },
+  ];
+  ```
 - 기간이 없는 화면은 `date-bases` 를 주지 않으면 기간 칸이 빠진다
 - 조회 중 표시 : `:loading` 을 넘긴다 — 0.3 초가 넘을 때만 [조회] 가 꺼진다 ( `useDelayedBusy` — 짧은 조회에 깜빡이지 않게 )
 - 첫 조회는 SearchBar 가 보낸다 ( 화면의 `onMounted` 에서 또 부르지 않는다 )
+- **거르기 기본값은 화면의 `blankFilters` 한 곳에** — `search` 처음 값과 `:blank`( 초기화 )가 같은 함수를 쓴다
+  ```js
+  const blankFilters = () => ({ partner_idx: '', status: 'OPEN' });
+  const search = reactive({ date_basis: 'order_date', from: '', to: '', keyword: '', ...blankFilters() });
+  ```
+- **"○○ 전체" 선택지의 값은 빈 문자열 `''`** ( `'ALL'` 같은 값을 만들지 않는다 ) — 화면은 빈 값을 보내지 않고, **서버는 값이 없으면 거르지 않는다**
+  - 기본 묶음( 진행 중 · 검사할 것 … )은 서버 기본값이 아니라 화면 `blankFilters` 가 보낸다 ( 2026-10-30 통일 — 수주진행 · 공정검사 · 출고검사 · 출하 · 출하이력 )
 
 ---
 
@@ -131,6 +151,7 @@
 - 클릭할 수 있는 열은 `className: 'cursor-pointer'`
 - 숫자 열은 `align: 'right'` + `fmtNum` / `fmtQty` ( `@core/Utils/format` — §8 ), 단위는 값 뒤에 한 칸 띄워
 - 날짜 열 `width: 100, align: 'center'`, 상태 열 `align: 'center'` + 상태 색( §7 )
+- **조회 중 표시 : `:loading="loading"`** — 검색바에 주는 그 `loading` 을 그리드에도 준다. 0.3 초가 넘으면 그리드를 덮고 "불러오는 중…" ( 앞 결과가 남아 있어 끝났는지 모르는 일을 막는다 · 2026-10-30 )
 - 사용자가 쓴 글자가 들어가는 열은 `escapeHTML: true`
 - 체크 : `options.rowHeaders: 'checkbox'` → `@select` ( 선택된 행 배열 )
 - 트리 ( 머리 행 + 하위 행 ) : `options.treeColumnOptions: { name: '첫 열', useIcon: false, useCascadingCheckbox: false }`, 행에 `_children`

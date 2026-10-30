@@ -3,6 +3,7 @@
 namespace MesCore\Quality\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\InspectionSpec;
@@ -23,6 +24,7 @@ use Illuminate\Validation\ValidationException;
 // 출고검사 ( 6003 · QUA-03 ) — docs/screens/70-품질.md §2
 //   검사 창은 출하 창( 7001 · 7002 )에서도 연다 → 권한은 컨트롤러가 : 보기 = 출고검사 · 출하관리 · 출하이력 중 하나, 판정 · 취소 = 출고검사 쓰기
 class ShippingInspectionController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const READ_SCREENS  = ['Quality/ShippingInspection', 'Shipment/ShipmentManage', 'Shipment/ShipmentHistory'];
@@ -48,9 +50,9 @@ class ShippingInspectionController extends Controller {
             'to'          => 'nullable|date_format:Y-m-d|after_or_equal:from',
             'keyword'     => 'nullable|string|max:100',
             'partner_idx' => 'nullable|integer',
-            'status'      => ['nullable', Rule::in(['TODO', 'FAIL', 'PASS', 'ALL'])],
+            'status'      => ['nullable', Rule::in(['TODO', 'FAIL', 'PASS'])],
         ], [], ['from' => '시작일', 'to' => '종료일']);
-        $status = $v['status'] ?? 'TODO';
+        $status = $v['status'] ?? '';   // 없으면 전체 ( 화면 기본값은 blankFilters 가 늘 보낸다 — 스타일 가이드 §3 )
 
         $query = ShipmentLine::query()
             ->select('shipment_line.*', 'shipment.shipment_no', 'shipment.plan_date', 'shipment.status as shipment_status', 'shipment.partner_idx')
@@ -67,18 +69,18 @@ class ShippingInspectionController extends Controller {
                 ->orWhere(fn ($n) => $n->where('shipment_line.inspect_status', 'NONE')->whereIn('shipment_line.item_idx', $this->noneButRequired()))),
             'FAIL' => $waitOnly($query)->where('shipment_line.inspect_status', 'FAIL'),
             'PASS' => $query->where('shipment_line.inspect_status', 'PASS'),
-            'ALL'  => $query->where(fn ($w) => $w->where('shipment_line.inspect_status', '!=', 'NONE')
+            default => $query->where(fn ($w) => $w->where('shipment_line.inspect_status', '!=', 'NONE')
                 ->orWhere(fn ($n) => $n->where('shipment.status', 'WAIT')->whereIn('shipment_line.item_idx', $this->noneButRequired()))),
         };
         if (!empty($v['from']))        $query->where('shipment.plan_date', '>=', $v['from']);
         if (!empty($v['to']))          $query->where('shipment.plan_date', '<=', $v['to']);
         if (!empty($v['partner_idx'])) $query->where('shipment.partner_idx', $v['partner_idx']);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(fn (Builder $w) => $w->where('shipment.shipment_no', 'like', $kw)
-                ->orWhereHas('item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw))
-                ->orWhereHas('picks.lot', fn ($q) => $q->where('lot_no', 'like', $kw)));
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'shipment_no' => fn ($q, $kw) => $q->where('shipment.shipment_no', 'like', $kw),
+            'item_code'   => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name'   => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
+            'lot_no'      => fn ($q, $kw) => $q->whereHas('picks.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+        ]);
 
         $users = User::pluck('user_name', 'account_idx');
         return $this->listResponse($request, $query, self::SORTABLE, 'lines', fn (ShipmentLine $l) => [

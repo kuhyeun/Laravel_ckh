@@ -3,6 +3,7 @@
 namespace MesCore\Quality\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Quality\Services\DefectService;
 use MesCore\Basic\Models\SystemCode;
 use Illuminate\Http\Request;
@@ -14,6 +15,7 @@ use Illuminate\Validation\Rule;
 //   기간 = 발생 일시 · 한 번에 MAX_ROWS 까지 ( 넘으면 truncated — 조건을 좁히게 )
 //   근거 번호 : 입고 = 입고번호 · 공정 = 품목 줄 번호 · 출고 = 출하번호 - 줄
 class DefectHistoryController extends Controller {
+    use SearchesKeyword;
 
     private const MAX_ROWS = 5000;
 
@@ -56,11 +58,12 @@ class DefectHistoryController extends Controller {
         if (!empty($v['insp_type']))   $q->where('d.insp_type', $v['insp_type']);
         if (!empty($v['defect_type'])) $q->where('d.defect_type_code', $v['defect_type']);
         if (($v['with_canceled'] ?? '0') !== '1') $q->where('d.is_canceled', 'N');
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $q->where(fn ($w) => $w->where('it.item_code', 'like', $kw)->orWhere('it.item_name', 'like', $kw)
-                ->orWhere('l.lot_no', 'like', $kw)->orWhere('d.reason', 'like', $kw));
-        }
+        $this->applyKeyword($q, $v['keyword'] ?? null, [
+            'item_code' => fn ($q, $kw) => $q->where('it.item_code', 'like', $kw),
+            'item_name' => fn ($q, $kw) => $q->where('it.item_name', 'like', $kw),
+            'lot_no'    => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
+            'reason'    => fn ($q, $kw) => $q->where('d.reason', 'like', $kw),
+        ]);
 
         $rows = $q->limit(self::MAX_ROWS + 1)->get();
         $truncated = $rows->count() > self::MAX_ROWS;

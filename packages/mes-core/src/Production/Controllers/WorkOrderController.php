@@ -3,6 +3,7 @@
 namespace MesCore\Production\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Bom;
@@ -33,6 +34,7 @@ use Illuminate\Validation\ValidationException;
 //   1단계 : 지시 · 공정 / 자재 사본 · 생산 LOT · 수주 분할 / 병합. 실적은 3단계
 //   1단계 보완 : 작업지시서( 머리 ) 한 장에 품목 줄 여럿 — 목록 · 조회 · 저장 · 취소는 지시서 단위, 줄 취소도 따로
 class WorkOrderController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const ATTRIBUTES = [
@@ -81,16 +83,13 @@ class WorkOrderController extends Controller {
         $status = $v['status'] ?? null;
         if ($status === 'OPEN') $query->whereIn('status', ['WAIT', 'RUN']);
         elseif ($status)        $query->where('status', $status);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(function (Builder $w) use ($kw) {
-                $w->where('sheet_no', 'like', $kw)
-                  ->orWhereHas('lines', fn ($l) => $l->where('wo_no', 'like', $kw)
-                      ->orWhereHas('item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw))
-                      ->orWhereHas('lot', fn ($q) => $q->where('lot_no', 'like', $kw))
-                      ->orWhereHas('sources.salesOrderLine.order', fn ($q) => $q->where('order_no', 'like', $kw)));
-            });
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'wo_no'     => fn ($q, $kw) => $q->where('sheet_no', 'like', $kw)->orWhereHas('lines', fn ($r) => $r->where('wo_no', 'like', $kw)),
+            'item_code' => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name' => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_name', 'like', $kw)),
+            'lot_no'    => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'order_no'  => fn ($q, $kw) => $q->whereHas('lines.sources.salesOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),
+        ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'sheets', function (WorkOrderSheet $s) {
             $lines = $s->lines->map(fn (WorkOrder $w) => $this->lineRow($w))->values();

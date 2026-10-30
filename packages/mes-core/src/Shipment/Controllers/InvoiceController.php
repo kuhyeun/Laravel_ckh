@@ -3,6 +3,7 @@
 namespace MesCore\Shipment\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Config\Models\Partner;
 use MesCore\Shipment\Models\Shipment;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 // 거래명세서 ( 7003 ) — docs/screens/60-출하.md §9
 //   목록 = 출하 완료 건 + 공급가액 · 세액 · 합계 / [미리보기 · 인쇄] → 모달( InvoicePreview — sheets 데이터 )
 class InvoiceController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const SORTABLE = ['shipped_at', 'shipment_no'];
@@ -37,12 +39,12 @@ class InvoiceController extends Controller {
         if (!empty($v['from']))        $query->where('shipped_at', '>=', $v['from']);
         if (!empty($v['to']))          $query->where('shipped_at', '<', date('Y-m-d', strtotime($v['to'] . ' +1 day')));
         if (!empty($v['partner_idx'])) $query->where('partner_idx', $v['partner_idx']);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(fn (Builder $w) => $w->where('shipment_no', 'like', $kw)
-                ->orWhereHas('partner', fn ($q) => $q->where('partner_name', 'like', $kw))
-                ->orWhereHas('lines.salesOrderLine.order', fn ($q) => $q->where('order_no', 'like', $kw)->orWhere('customer_po_no', 'like', $kw)));
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'shipment_no'    => fn ($q, $kw) => $q->where('shipment_no', 'like', $kw),
+            'partner_name'   => fn ($q, $kw) => $q->whereHas('partner', fn ($r) => $r->where('partner_name', 'like', $kw)),
+            'order_no'       => fn ($q, $kw) => $q->whereHas('lines.salesOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),
+            'customer_po_no' => fn ($q, $kw) => $q->whereHas('lines.salesOrderLine.order', fn ($r) => $r->where('customer_po_no', 'like', $kw)),
+        ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'shipments', function (Shipment $s) {
             $first = $s->lines->first();

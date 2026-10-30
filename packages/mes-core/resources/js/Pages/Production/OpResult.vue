@@ -16,12 +16,12 @@
 
         <SearchBar
             v-model="search"
-            placeholder="줄 번호 · 품번 · 품명 · LOT"
+            :fields="SEARCH_FIELDS"
             :loading="loading"
-            :blank="() => ({ status: 'OPEN' })"
+            :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.status" :options="STATUS_FILTER" size="sm" class="w-28" />
+            <BaseSelect v-model="search.status" :options="STATUS_FILTER" class="w-32" />
         </SearchBar>
 
         <div class="flex-1 min-h-0 flex gap-3">
@@ -37,6 +37,7 @@
                 <div class="flex-1 min-h-0 flex flex-col">
                     <DataGrid
                         ref="mainGrid"
+                        :loading="loading"
                         setting-key="main"
                         class="flex-1"
                         :data="rows"
@@ -262,7 +263,15 @@ const STATUS_FILTER = [
     { value: 'RUN',  label: '진행' },
     { value: 'DONE', label: '완료' },
 ];
-const search = reactive({ keyword: '', status: 'OPEN' });
+// 검색 조건 ( 서버 OpResultController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
+const SEARCH_FIELDS = [
+    { value: 'wo_no',     label: '줄 번호' },
+    { value: 'item_code', label: '품번' },
+    { value: 'item_name', label: '품명' },
+    { value: 'lot_no',    label: 'LOT' },
+];
+const blankFilters = () => ({ status: 'OPEN' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const search = reactive({ keyword: '', ...blankFilters() });
 
 const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };

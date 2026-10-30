@@ -44,6 +44,7 @@
             <div class="flex-1 min-h-0">
                 <DataGrid
                     ref="mainGrid"
+                    :loading="loading"
                     setting-key="main"
                     class="h-full"
                     :data="processes"

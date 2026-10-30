@@ -13,12 +13,12 @@
         <SearchBar
             v-model="search"
             :date-bases="[{ value: 'shipped', label: '출하 일시' }]"
-            placeholder="출하번호 · 고객사 · 수주번호 · 고객 발주번호"
+            :fields="SEARCH_FIELDS"
             :loading="loading"
-            :blank="() => ({ partner_idx: '' })"
+            :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.partner_idx" :options="partnerOptions" size="sm" class="w-36" />
+            <BaseSelect v-model="search.partner_idx" :options="partnerOptions" class="w-40" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -32,6 +32,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="mainGrid"
+                    :loading="loading"
                     setting-key="main"
                     class="flex-1"
                     :data="rows"
@@ -70,7 +71,15 @@ const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 )
 const { flash, showFlash } = useFlash();
 const modalStore = useModalStore();
 
-const search   = reactive({ date_basis: 'shipped', from: '', to: '', keyword: '', partner_idx: '' });
+// 검색 조건 ( 서버 InvoiceController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
+const SEARCH_FIELDS = [
+    { value: 'shipment_no',    label: '출하번호' },
+    { value: 'partner_name',   label: '고객사' },
+    { value: 'order_no',       label: '수주번호' },
+    { value: 'customer_po_no', label: '고객 발주번호' },
+];
+const blankFilters = () => ({ partner_idx: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const search   = reactive({ date_basis: 'shipped', from: '', to: '', keyword: '', ...blankFilters() });
 const partners = ref([]);
 const partnerOptions = computed(() => [{ value: '', label: '고객사 전체' }, ...partners.value]);
 

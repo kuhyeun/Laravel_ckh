@@ -15,13 +15,13 @@
         <SearchBar
             v-model="search"
             :date-bases="[{ value: 'occurred_at', label: '입고일' }]"
-            placeholder="통합 검색 ( 품목명, 코드 등 )"
+            :fields="SEARCH_FIELDS"
             :loading="loading"
-            :blank="() => ({ partner_idx: '', status: '' })"
+            :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.partner_idx" :options="partnerFilterOptions" size="sm" class="w-40" />
-            <BaseSelect v-model="search.status" :options="STATUS_OPTIONS" size="sm" class="w-28" />
+            <BaseSelect v-model="search.partner_idx" :options="partnerFilterOptions" class="w-44" />
+            <BaseSelect v-model="search.status" :options="STATUS_OPTIONS" class="w-32" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -35,6 +35,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="mainGrid"
+                    :loading="loading"
                     setting-key="main"
                     class="flex-1"
                     :data="rows"
@@ -79,7 +80,17 @@ const menuCode = page.props.menuCode;
 const canWrite = computed(() => page.props.permissions?.[menuCode]?.can_write === true);
 
 const STATUS_OPTIONS = [{ value: '', label: '상태 전체' }, ...RECEIPT_STATUSES.map(s => ({ value: s.value, label: s.label }))];
-const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', partner_idx: '', status: '' });
+// 검색 조건 ( 서버 ReceiptController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
+const SEARCH_FIELDS = [
+    { value: 'txn_no',          label: '입고번호' },
+    { value: 'po_no',           label: '발주번호' },
+    { value: 'item_code',       label: '품번' },
+    { value: 'item_name',       label: '품명' },
+    { value: 'lot_no',          label: 'LOT' },
+    { value: 'external_lot_no', label: '공급처 LOT' },
+];
+const blankFilters = () => ({ partner_idx: '', status: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', ...blankFilters() });
 
 const partners = ref([]);
 const partnerFilterOptions = computed(() => [{ value: '', label: '구매처 전체' }, ...partners.value.map(p => ({ value: p.partner_idx, label: p.partner_name }))]);

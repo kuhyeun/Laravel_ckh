@@ -3,6 +3,7 @@
 namespace MesCore\Production\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Warehouse;
@@ -18,6 +19,7 @@ use Illuminate\Validation\ValidationException;
 //   왼쪽 작업지시( 대기 · 진행 · [완료 포함] ) → 오른쪽 자재 줄마다 계산 소요 · LOT 채움 → 출고 / 아래 출고 이력 → 줄 취소
 //   반납 ( §15-1 ) : 출고한 LOT 그대로 창고로 — 완료 · 취소된 줄도. 반납 이력 → 반납 취소
 class MaterialIssueController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const SORTABLE = ['wo_no', 'start_date', 'due_date'];
@@ -45,14 +47,12 @@ class MaterialIssueController extends Controller {
         $has = fn ($q) => $q->where('issued_qty', '>', 0);
         if (($v['issue_status'] ?? '') === 'NONE') $query->whereDoesntHave('materials', $has);
         if (($v['issue_status'] ?? '') === 'SOME') $query->whereHas('materials', $has);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(function (Builder $w) use ($kw) {
-                $w->where('wo_no', 'like', $kw)
-                  ->orWhereHas('item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw))
-                  ->orWhereHas('lot', fn ($q) => $q->where('lot_no', 'like', $kw));
-            });
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'wo_no'     => fn ($q, $kw) => $q->where('wo_no', 'like', $kw),
+            'item_code' => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name' => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
+            'lot_no'    => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+        ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'orders', fn (WorkOrder $w) => [
             'work_order_idx'  => $w->work_order_idx,

@@ -4,6 +4,7 @@ namespace MesCore\Stock\Controllers;
 
 use MesCore\Http\Controller;
 use MesCore\Http\Concerns\RespondsWithList;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Warehouse;
 use MesCore\Menu\Services\MenuPermissionService;
@@ -19,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 //   품목별 합계는 잔고를 더하는 것( 원장 집계 아님 )
 class StockController extends Controller {
     use RespondsWithList;
+    use SearchesKeyword;
 
     private const SORTABLE = ['item_code', 'lot_no', 'in_at', 'qty', 'warehouse_name'];
 
@@ -55,15 +57,16 @@ class StockController extends Controller {
 
         if (!empty($v['warehouse_idx'])) $query->whereIn('b.warehouse_idx', $this->withDescendants((int) $v['warehouse_idx']));
         if (!empty($v['item_type']))     $query->where('i.item_type', $v['item_type']);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(function ($w) use ($kw, $byItem) {
-                $w->where('i.item_code', 'like', $kw)->orWhere('i.item_name', 'like', $kw)->orWhere('i.spec', 'like', $kw)->orWhere('i.material', 'like', $kw);
-                if (!$byItem) {
-                    $w->orWhere('l.lot_no', 'like', $kw)->orWhere('l.external_lot_no', 'like', $kw);
-                }
-            });
-        }
+        // 품목별이면 LOT 조건이 없다 ( 화면도 LOT 조건을 뺀다 )
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'item_code' => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
+            'item_name' => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
+            'spec'      => fn ($q, $kw) => $q->where('i.spec', 'like', $kw),
+            'material'  => fn ($q, $kw) => $q->where('i.material', 'like', $kw),
+        ] + ($byItem ? [] : [
+            'lot_no'          => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
+            'external_lot_no' => fn ($q, $kw) => $q->where('l.external_lot_no', 'like', $kw),
+        ]));
 
         // 품목별 합계는 정렬 허용 열이 다르다 ( 그룹 결과의 별칭 )
         $sortable = $byItem ? ['item_code', 'qty', 'warehouse_name'] : self::SORTABLE;

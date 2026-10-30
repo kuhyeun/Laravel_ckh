@@ -15,12 +15,12 @@
         <SearchBar
             v-model="search"
             :date-bases="[{ value: 'occurred_at', label: cfg.dateLabel }]"
-            :placeholder="`${cfg.noLabel} · 품번 · 품명 · LOT`"
+            :fields="searchFields"
             :loading="loading"
-            :blank="() => ({ status: '' })"
+            :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.status" :options="STATUS_OPTIONS" size="sm" class="w-28" />
+            <BaseSelect v-model="search.status" :options="STATUS_OPTIONS" class="w-32" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -35,6 +35,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="mainGrid"
+                    :loading="loading"
                     :setting-key="type"
                     class="flex-1"
                     :data="rows"
@@ -78,7 +79,8 @@ const STATUS_OPTIONS = [
     { value: 'DONE',     label: '완료' },
     { value: 'CANCELED', label: '취소' },
 ];
-const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', status: '' });
+const blankFilters = () => ({ status: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', ...blankFilters() });
 
 const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const statusCell = ({ value }) => value === 'CANCELED' ? `<span style="color:${COLORS.gray400}">취소</span>` : `<span style="color:${COLORS.green600};font-weight:600">완료</span>`;
@@ -140,6 +142,14 @@ CONFIG.misc = {
     ],
 };
 const cfg     = CONFIG[props.type];
+// 검색 조건 ( 서버 StockProcessController applyKeyword 의 키 )
+const searchFields = [
+    { value: 'txn_no',          label: cfg.noLabel },
+    { value: 'item_code',       label: '품번' },
+    { value: 'item_name',       label: '품명' },
+    { value: 'lot_no',          label: 'LOT' },
+    { value: 'external_lot_no', label: '공급처 LOT' },
+];
 const columns = cfg.columns;
 
 const rows    = ref([]);

@@ -18,13 +18,13 @@
 
         <SearchBar
             v-model="search"
-            placeholder="품번 · 품명 · LOT · 공급처 LOT"
+            :fields="searchFields"
             :loading="loading"
-            :blank="() => ({ warehouse_idx: '', item_type: '', with_zero: '0', group: 'lot' })"
+            :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.warehouse_idx" :options="warehouseFilter" size="sm" class="w-40" />
-            <BaseSelect v-model="search.item_type" :options="TYPE_OPTIONS" size="sm" class="w-28" />
+            <BaseSelect v-model="search.warehouse_idx" :options="warehouseFilter" class="w-44" />
+            <BaseSelect v-model="search.item_type" :options="TYPE_OPTIONS" class="w-32" />
             <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.with_zero" /> 0 포함</label>
             <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="item" false-value="lot" v-model="search.group" @change="loadFirstPage" /> 품목별 합계</label>
         </SearchBar>
@@ -40,6 +40,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="grid"
+                    :loading="loading"
                     :key="search.group"
                     :setting-key="search.group"
                     class="flex-1"
@@ -57,7 +58,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, watch } from 'vue';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
@@ -83,8 +84,20 @@ const TYPE_OPTIONS = [
     { value: 'MATERIAL', label: '자재' },
     { value: 'PRODUCT',  label: '제품' },
 ];
-const search = reactive({ keyword: '', warehouse_idx: '', item_type: '', with_zero: '0', group: 'lot' });
+const blankFilters = () => ({ warehouse_idx: '', item_type: '', with_zero: '0', group: 'lot' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const search = reactive({ keyword: '', ...blankFilters() });
 const byItem = computed(() => search.group === 'item');
+// 검색 조건 ( 서버 StockController applyKeyword 의 키 ) — 품목별 합계면 LOT 조건이 없다
+const searchFields = computed(() => [
+    { value: 'item_code', label: '품번' },
+    { value: 'item_name', label: '품명' },
+    { value: 'spec',      label: '규격' },
+    { value: 'material',  label: '재질' },
+    ...(byItem.value ? [] : [{ value: 'lot_no', label: 'LOT' }, { value: 'external_lot_no', label: '공급처 LOT' }]),
+]);
+watch(searchFields, (list) => {   // 품목별로 바꿨는데 LOT 조건이 골라져 있으면 통합검색으로
+    if (search.search_field && !list.some(f => f.value === search.search_field)) search.search_field = '';
+});
 
 const warehouses = ref([]);
 const perms      = reactive({ can_move: false, can_adjust: false, can_issue: false, can_receipt: false });   // 재고현황에서 열 수 있는 처리

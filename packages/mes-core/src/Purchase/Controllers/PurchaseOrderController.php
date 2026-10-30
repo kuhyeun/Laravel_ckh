@@ -3,6 +3,7 @@
 namespace MesCore\Purchase\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Partner;
@@ -19,6 +20,7 @@ use Illuminate\Validation\ValidationException;
 // 발주서관리 ( PUR-01 목록 · PUR-02 등록 / 수정 ) — docs/screens/40-구매자재.md
 //   수주관리( SalesOrderController )와 같은 모양. 목록 한 행 = 발주 한 건 + 줄( _children )
 class PurchaseOrderController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const ATTRIBUTES = [
@@ -207,14 +209,12 @@ class PurchaseOrderController extends Controller {
             }
         }
 
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(function ($w) use ($kw) {
-                $w->where('order_no', 'like', $kw)
-                  ->orWhere('order_name', 'like', $kw)
-                  ->orWhereHas('lines.item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw));
-            });
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'order_no'   => fn ($q, $kw) => $q->where('order_no', 'like', $kw),
+            'order_name' => fn ($q, $kw) => $q->where('order_name', 'like', $kw),
+            'item_code'  => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name'  => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_name', 'like', $kw)),
+        ]);
 
         if (!empty($v['partner_idx'])) {
             $query->where('partner_idx', $v['partner_idx']);

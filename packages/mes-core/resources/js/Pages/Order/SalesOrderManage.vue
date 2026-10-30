@@ -20,13 +20,13 @@
         <SearchBar
             v-model="search"
             :date-bases="DATE_BASES"
-            placeholder="수주번호 · 수주명 · 발주번호 · 품번 · 품명"
+            :fields="SEARCH_FIELDS"
             :loading="loading"
             :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.partner_idx" :options="partnerFilterOptions" size="sm" class="w-40" />
-            <BaseSelect v-model="search.status" :options="STATUS_FILTER_OPTIONS" size="sm" class="w-28" />
+            <BaseSelect v-model="search.partner_idx" :options="partnerFilterOptions" class="w-44" />
+            <BaseSelect v-model="search.status" :options="STATUS_FILTER_OPTIONS" class="w-32" />
         </SearchBar>
 
         <!-- 목록 -->
@@ -43,6 +43,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="mainGrid"
+                    :loading="loading"
                     setting-key="main"
                     class="flex-1"
                     :data="rows"
@@ -96,7 +97,15 @@ const DATE_BASES = [
     { value: 'order_date', label: '수주일' },
     { value: 'due_date',   label: '납품일' },
 ];
-const blankFilters = () => ({ partner_idx: '', status: 'OPEN' });
+// 검색 조건 ( 서버 SalesOrderController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
+const SEARCH_FIELDS = [
+    { value: 'order_no',       label: '수주번호' },
+    { value: 'order_name',     label: '수주명' },
+    { value: 'customer_po_no', label: '고객 발주번호' },
+    { value: 'item_code',      label: '품번' },
+    { value: 'item_name',      label: '품명' },
+];
+const blankFilters = () => ({ partner_idx: '', status: '' });
 const search = reactive({ date_basis: 'order_date', from: '', to: '', keyword: '', ...blankFilters() });
 
 const partners = ref([]);

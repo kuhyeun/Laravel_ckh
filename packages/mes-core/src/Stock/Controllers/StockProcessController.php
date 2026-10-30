@@ -3,6 +3,7 @@
 namespace MesCore\Stock\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Basic\Models\SystemCode;
@@ -20,6 +21,7 @@ use Illuminate\Validation\ValidationException;
 //   처리는 재고현황 팝업 · 각 메뉴 어디서든 같은 API. 목록은 이력( 한 행 = 전표 하나 = 줄 하나 ) + 취소
 //   권한은 라우트( 창고이동 · 재고조정 메뉴 )가 본다
 class StockProcessController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     public function __construct(private StockMoveService $moves, private StockAdjustService $adjusts, private StockMiscOutService $miscs) {}
@@ -165,14 +167,13 @@ class StockProcessController extends Controller {
         if (!empty($v['from']))   $query->where('stock_txn.occurred_at', '>=', $v['from'] . ' 00:00:00');
         if (!empty($v['to']))     $query->where('stock_txn.occurred_at', '<=', $v['to'] . ' 23:59:59');
         if (!empty($v['status'])) $query->where('stock_txn.status', $v['status']);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(function ($w) use ($kw) {
-                $w->where('stock_txn.txn_no', 'like', $kw)
-                  ->orWhereHas('item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw))
-                  ->orWhereHas('lot', fn ($q) => $q->where('lot_no', 'like', $kw)->orWhere('external_lot_no', 'like', $kw));
-            });
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'txn_no'          => fn ($q, $kw) => $q->where('stock_txn.txn_no', 'like', $kw),
+            'item_code'       => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name'       => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
+            'lot_no'          => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'external_lot_no' => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('external_lot_no', 'like', $kw)),
+        ]);
 
         $reasons = SystemCode::where('system_code_group_key', StockAdjustService::REASON_GROUP)->pluck('system_code_name', 'system_code_key');
         $users   = User::pluck('user_name', 'account_idx');

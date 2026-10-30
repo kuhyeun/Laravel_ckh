@@ -31,8 +31,8 @@
                             <BaseButton variant="danger" :disabled="!checked.length" @click="showDemoFlash(`${checked.length}건을 미사용 처리했습니다. ( 예시 )`)">삭제</BaseButton>
                         </div>
 
-                        <SearchBar v-model="search" placeholder="품번 · 품명" :date-bases="[{ value: 'created', label: '등록일' }]" :blank="() => ({ kind: '' })" @search="runSearch">
-                            <BaseSelect v-model="search.kind" :options="KIND_FILTER" size="sm" class="w-28" />
+                        <SearchBar v-model="search" :fields="DEMO_FIELDS" :date-bases="[{ value: 'created', label: '등록일' }]" :blank="() => ({ kind: '' })" @search="runSearch">
+                            <BaseSelect v-model="search.kind" :options="KIND_FILTER" class="w-32" />
                         </SearchBar>
 
                         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -341,6 +341,7 @@ const columns = [
     { header: '상태', name: 'status', width: 70, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => { const t = STATUS_BY_VALUE[value]; return t ? `<span style="color:${t.color};font-weight:600">${t.label}</span>` : ''; } },
 ];
+const DEMO_FIELDS = [{ value: 'code', label: '품번' }, { value: 'name', label: '품명' }];   // 검색 조건 ( 통합검색은 SearchBar 가 붙인다 )
 const search  = reactive({ date_basis: 'created', from: '', to: '', keyword: '', kind: '' });
 const paging  = reactive({ page: 1, perPage: 20, total: 0 });
 const found   = ref([]);
@@ -348,7 +349,8 @@ const checked = ref([]);
 const pageRows = computed(() => found.value.slice((paging.page - 1) * paging.perPage, paging.page * paging.perPage));
 function runSearch() {
     const kw = search.keyword.trim();
-    found.value  = ALL_ROWS.filter(r => (!kw || r.code.includes(kw) || r.name.includes(kw)) && (!search.kind || r.kind === search.kind));
+    const keys   = search.search_field ? [search.search_field] : ['code', 'name'];
+    found.value  = ALL_ROWS.filter(r => (!kw || keys.some(k => r[k].includes(kw))) && (!search.kind || r.kind === search.kind));
     paging.page  = 1;
     paging.total = found.value.length;
 }
@@ -454,8 +456,8 @@ const code = {
         </div>
 
         <!-- ② 검색바 -->
-        <SearchBar v-model="search" placeholder="품번 · 품명" :loading="loading" @search="loadFirstPage">
-            <BaseSelect v-model="search.kind" :options="KIND_FILTER" size="sm" class="w-28" />
+        <SearchBar v-model="search" :fields="SEARCH_FIELDS" :loading="loading" @search="loadFirstPage">
+            <BaseSelect v-model="search.kind" :options="KIND_FILTER" class="w-32" />
         </SearchBar>
 
         <!-- ③ 본문 : 목록 박스 -->

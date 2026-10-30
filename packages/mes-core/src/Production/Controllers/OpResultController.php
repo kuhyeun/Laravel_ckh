@@ -3,6 +3,7 @@
 namespace MesCore\Production\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Basic\Models\SystemCode;
@@ -22,6 +23,7 @@ use Illuminate\Validation\Rule;
 //   왼쪽 : 품목 줄 목록 ( 대기 · 진행 기본 ) / 오른쪽 : 공정별 기준 · 실적 · 상태 · 실적 줄 · 자재
 //   처리 규칙은 OpResultService
 class OpResultController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const SORTABLE = ['wo_no'];
@@ -42,14 +44,12 @@ class OpResultController extends Controller {
 
         $status = $v['status'] ?? 'OPEN';
         $status === 'OPEN' ? $query->whereIn('status', ['WAIT', 'RUN']) : $query->where('status', $status);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(function (Builder $w) use ($kw) {
-                $w->where('wo_no', 'like', $kw)
-                  ->orWhereHas('item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw))
-                  ->orWhereHas('lot', fn ($q) => $q->where('lot_no', 'like', $kw));
-            });
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'wo_no'     => fn ($q, $kw) => $q->where('wo_no', 'like', $kw),
+            'item_code' => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name' => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
+            'lot_no'    => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+        ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'lines', fn (WorkOrder $w) => [
             'work_order_idx' => $w->work_order_idx,

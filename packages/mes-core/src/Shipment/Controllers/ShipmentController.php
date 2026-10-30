@@ -3,6 +3,7 @@
 namespace MesCore\Shipment\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Item;
@@ -19,6 +20,7 @@ use Illuminate\Validation\Rule;
 //   목록 = 출하 건 + 줄 펼침 · 등록 / 수정 = 출하대기 · 결재 요청 · 승인 · 반려 · 출하처리 · 취소
 //   처리 규칙 · 단계 판정은 ShipmentService
 class ShipmentController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const SORTABLE = ['shipment_no', 'plan_date', 'shipped_at'];
@@ -38,7 +40,7 @@ class ShipmentController extends Controller {
             'from'       => 'nullable|date_format:Y-m-d',
             'to'         => 'nullable|date_format:Y-m-d|after_or_equal:from',
             'keyword'    => 'nullable|string|max:100',
-            'status'     => ['nullable', Rule::in(['OPEN', 'ALL', 'DONE', 'CANCELED'])],
+            'status'     => ['nullable', Rule::in(['OPEN', 'DONE', 'CANCELED'])],
         ], [], ['from' => '시작일', 'to' => '종료일']);
 
         $col   = self::DATE_COLUMNS[$v['date_basis'] ?? 'plan'];
@@ -46,20 +48,18 @@ class ShipmentController extends Controller {
             ->with(['partner:partner_idx,partner_name', 'lines.item:item_idx,item_code,item_name,spec,material,spec_unit', 'lines.salesOrderLine.order:sales_order_idx,order_no', 'lines.picks.lot:lot_idx,lot_no'])
             ->orderByDesc('plan_date')->orderByDesc('shipment_idx');
 
-        $status = $v['status'] ?? 'OPEN';
+        $status = $v['status'] ?? '';   // 없으면 전체 ( 화면 기본값은 blankFilters 가 늘 보낸다 — 스타일 가이드 §3 )
         if ($status === 'OPEN') $query->where('status', 'WAIT');
-        elseif ($status !== 'ALL') $query->where('status', $status);
+        elseif ($status !== '') $query->where('status', $status);
         if (!empty($v['from'])) $query->where($col, '>=', $v['from']);
         if (!empty($v['to']))   $col === 'plan_date' ? $query->where($col, '<=', $v['to']) : $query->where($col, '<', date('Y-m-d', strtotime($v['to'] . ' +1 day')));
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(function (Builder $w) use ($kw) {
-                $w->where('shipment_no', 'like', $kw)
-                  ->orWhereHas('partner', fn ($q) => $q->where('partner_name', 'like', $kw))
-                  ->orWhereHas('lines.item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw))
-                  ->orWhereHas('lines.salesOrderLine.order', fn ($q) => $q->where('order_no', 'like', $kw));
-            });
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'shipment_no'  => fn ($q, $kw) => $q->where('shipment_no', 'like', $kw),
+            'partner_name' => fn ($q, $kw) => $q->whereHas('partner', fn ($r) => $r->where('partner_name', 'like', $kw)),
+            'item_code'    => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name'    => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_name', 'like', $kw)),
+            'order_no'     => fn ($q, $kw) => $q->whereHas('lines.salesOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),
+        ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'shipments', function (Shipment $s) {
             $lines = $s->lines->map(fn (ShipmentLine $l) => $this->lineRow($l))->values();

@@ -3,6 +3,7 @@
 namespace MesCore\Purchase\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Partner;
@@ -23,6 +24,7 @@ use Illuminate\Validation\ValidationException;
 //   목록 한 행 = 입고 한 건 + 줄( _children ). 기본 정렬은 등록 시각 최근 먼저 ( 재고-수불-설계 §4.3 )
 //   수정은 없다 — 줄 취소( 역분개 ) 후 다시 입고. 검사완료는 입고검사 API( 같은 창 )
 class ReceiptController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const ATTRIBUTES = [
@@ -66,15 +68,14 @@ class ReceiptController extends Controller {
         if (!empty($v['to']))   $query->where('occurred_at', '<=', $v['to'] . ' 23:59:59');
         if (!empty($v['partner_idx'])) $query->where('partner_idx', $v['partner_idx']);
         if (!empty($v['status']))      $query->where('status', $v['status']);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(function (Builder $w) use ($kw) {
-                $w->where('txn_no', 'like', $kw)
-                  ->orWhereHas('lines.item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw))
-                  ->orWhereHas('lines.lot', fn ($q) => $q->where('lot_no', 'like', $kw)->orWhere('external_lot_no', 'like', $kw))
-                  ->orWhereHas('lines.purchaseOrderLine.order', fn ($q) => $q->where('order_no', 'like', $kw));
-            });
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'txn_no'          => fn ($q, $kw) => $q->where('txn_no', 'like', $kw),
+            'item_code'       => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name'       => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_name', 'like', $kw)),
+            'lot_no'          => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'external_lot_no' => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('external_lot_no', 'like', $kw)),
+            'po_no'           => fn ($q, $kw) => $q->whereHas('lines.purchaseOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),
+        ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'receipts', fn (StockTxn $t) => $this->toRow($t));
     }

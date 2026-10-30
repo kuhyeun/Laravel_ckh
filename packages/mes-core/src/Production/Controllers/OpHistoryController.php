@@ -3,6 +3,7 @@
 namespace MesCore\Production\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Equipment;
@@ -28,6 +29,7 @@ use Illuminate\Validation\Rule;
 //   집계 : 품목 · 공정 · 작업자 · 설비 · 일자 — 취소된 실적은 늘 뺀다. 단위가 다른 품목은 더하지 않고 단위별로
 //   상세 : 이력 행 클릭 → 그 품목 줄의 공정별 실적( 취소 포함 ) · 자재 · 입고 ( 읽기 전용 )
 class OpHistoryController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const SORTABLE = ['worked_at', 'created_at', 'start_date', 'wo_no'];
@@ -285,10 +287,12 @@ class OpHistoryController extends Controller {
         if (!empty($v['process_idx']))   $q->where('op.process_idx', $v['process_idx']);
         if (!empty($v['operator_idx']))  $q->where('r.operator_idx', $v['operator_idx']);
         if (!empty($v['equipment_idx'])) $q->where('r.equipment_idx', $v['equipment_idx']);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $q->where(fn ($w) => $w->where('wo.wo_no', 'like', $kw)->orWhere('i.item_code', 'like', $kw)->orWhere('i.item_name', 'like', $kw)->orWhere('l.lot_no', 'like', $kw));
-        }
+        $this->applyKeyword($q, $v['keyword'] ?? null, [
+            'wo_no'     => fn ($q, $kw) => $q->where('wo.wo_no', 'like', $kw),
+            'item_code' => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
+            'item_name' => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
+            'lot_no'    => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
+        ]);
         return $q;
     }
 }

@@ -4,25 +4,30 @@
      - 기간 기본값은 화면이 정하지 않는다 : 정책 ui.search_range_* ( GET /common/search-defaults )
        처음 열릴 때 from · to 가 비어 있으면 기본값을 채우고 search 를 한 번 쏜다 ( auto-search )
      - 조회하지 않는다 — search · reset 을 쏘기만. 조회는 화면이
-     - 슬롯 : default( 화면별 칸 — 고객사 · 상태 … ) -->
+     - 슬롯 : default( 화면별 칸 — 상태 · 고객사 … ) — 검색 조건 · 검색어 앞에 놓인다
+     - 높이는 모두 36px( md · 버튼과 같다 ) — 화면별 칸도 size 를 주지 않는다 ( 2026-10-30 )
+     - 오른쪽 순서 : [ 화면별 칸 ] [ 검색 조건 ▾ ] [ 검색어 ] [ 조회 ] [ 초기화 ] ( 2026-10-30 · 스타일 가이드 §3 )
+     - fields : 검색 조건 [{ value, label }] — 맨 앞 "통합검색"( '' )은 자동. v-model 의 search_field 로 ( 서버 SearchesKeyword )
+       비우면 조건 칸이 없다 ( 통합검색만 ) -->
 <template>
     <div class="flex flex-wrap items-center gap-2 px-3 py-2 mb-3 border border-gray-200 bg-gray-50/70 shrink-0">
         <template v-if="dateBases.length">
-            <BaseSelect v-if="dateBases.length > 1" v-model="model.date_basis" :options="dateBases" size="sm" class="w-24" />
+            <BaseSelect v-if="dateBases.length > 1" v-model="model.date_basis" :options="dateBases" class="w-24" />
             <span v-else class="text-xs text-gray-500">{{ dateBases[0].label }}</span>
-            <BaseDatePicker v-model="model.from" size="sm" class="w-36" />
+            <BaseDatePicker v-model="model.from" class="w-36" />
             <span class="text-gray-400">~</span>
-            <BaseDatePicker v-model="model.to" size="sm" class="w-36" />
+            <BaseDatePicker v-model="model.to" class="w-36" />
             <div class="flex items-center gap-0.5">
-                <button v-for="q in QUICK" :key="q.key" type="button" class="h-[30px] px-2 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50" @click="quick(q.key)">{{ q.label }}</button>
+                <button v-for="q in QUICK" :key="q.key" type="button" class="h-9 px-2.5 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50" @click="quick(q.key)">{{ q.label }}</button>
             </div>
             <span class="w-px h-5 bg-gray-200 mx-1"></span>
         </template>
 
-        <BaseInput v-model="model.keyword" :placeholder="placeholder" size="sm" class="w-60" @keyup.enter="emitSearch" />
         <slot />
-        <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="emitSearch">조회</BaseButton>
-        <BaseButton size="sm" variant="secondary" @click="reset">초기화</BaseButton>
+        <BaseSelect v-if="fields.length" v-model="model.search_field" :options="fieldOptions" class="w-32" />
+        <BaseInput v-model="model.keyword" :placeholder="placeholder" class="w-60" @keyup.enter="emitSearch" />
+        <BaseButton variant="primary" :disabled="showBusy" @click="emitSearch">조회</BaseButton>
+        <BaseButton variant="secondary" @click="reset">초기화</BaseButton>
         <p v-if="rangeError" class="w-full text-xs text-red-500">{{ rangeError }}</p>
     </div>
 </template>
@@ -49,13 +54,17 @@ const QUICK = [
 
 const props = defineProps({
     dateBases:   { type: Array,   default: () => [] },
-    placeholder: { type: String,  default: '검색어' },
+    placeholder: { type: String,  default: '검색어를 입력하세요' },
+    fields:      { type: Array,   default: () => [] },   // 검색 조건 [{ value, label }] ( 통합검색은 자동 )
     loading:     { type: Boolean, default: false },
     autoSearch:  { type: Boolean, default: true },
     blank:       { type: Function, default: null },   // 초기화 때 화면별 칸의 값 ( 기간 · 검색어 말고 )
 });
 const emit  = defineEmits(['search', 'reset']);
 const model = defineModel({ type: Object, required: true });
+
+const fieldOptions = computed(() => [{ value: '', label: '통합검색' }, ...props.fields]);
+if (model.value.search_field === undefined) model.value.search_field = '';
 
 let today = null;   // 서버 기준 오늘
 
@@ -95,6 +104,7 @@ function emitSearch() {
 async function reset() {
     if (props.blank) Object.assign(model.value, props.blank());
     model.value.keyword = '';
+    model.value.search_field = '';
     if (props.dateBases.length) model.value.date_basis = props.dateBases[0].value;
     await applyDefaults();
     emit('reset');

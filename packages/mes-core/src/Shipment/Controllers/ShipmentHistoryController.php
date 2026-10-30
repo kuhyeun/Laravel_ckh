@@ -3,6 +3,7 @@
 namespace MesCore\Shipment\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Config\Models\Partner;
 use MesCore\Shipment\Models\Shipment;
@@ -15,6 +16,7 @@ use Illuminate\Validation\Rule;
 //   조회만. 1행 = 출하 줄 × LOT ( shipment_pick ) — "품목 전체가 보이는 이력"( RFP ). 7001 은 건 단위
 //   기본 = 출하 완료 · 출하 일시 기준. 행 클릭 → 출하 창( 읽기 — 7002 권한으로 부르는 show · formData · candidates )
 class ShipmentHistoryController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const SORTABLE = ['shipped_at', 'plan_date', 'shipment_no'];
@@ -34,7 +36,7 @@ class ShipmentHistoryController extends Controller {
             'to'          => 'nullable|date_format:Y-m-d|after_or_equal:from',
             'keyword'     => 'nullable|string|max:100',
             'partner_idx' => 'nullable|integer',
-            'status'      => ['nullable', Rule::in(['ALL', 'WAIT', 'DONE', 'CANCELED'])],
+            'status'      => ['nullable', Rule::in(['WAIT', 'DONE', 'CANCELED'])],
         ], [], ['from' => '시작일', 'to' => '종료일']);
 
         $basis = $v['date_basis'] ?? 'shipped';
@@ -55,17 +57,20 @@ class ShipmentHistoryController extends Controller {
             ])
             ->orderByDesc(DB::raw($basis === 'shipped' ? 'COALESCE(s.shipped_at, s.plan_date)' : 's.plan_date'))->orderByDesc('p.shipment_pick_idx');
 
-        $status = $v['status'] ?? 'DONE';
-        if ($status !== 'ALL') $query->where('s.status', $status);
+        $status = $v['status'] ?? '';   // 없으면 전체 ( 화면 기본값은 blankFilters 가 늘 보낸다 — 스타일 가이드 §3 )
+        if ($status !== '') $query->where('s.status', $status);
         if (!empty($v['partner_idx'])) $query->where('s.partner_idx', $v['partner_idx']);
         if (!empty($v['from'])) $query->where($col, '>=', $v['from']);
         if (!empty($v['to']))   $basis === 'plan' ? $query->where($col, '<=', $v['to']) : $query->where($col, '<', date('Y-m-d', strtotime($v['to'] . ' +1 day')));
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(fn ($w) => $w->where('s.shipment_no', 'like', $kw)->orWhere('pt.partner_name', 'like', $kw)
-                ->orWhere('i.item_code', 'like', $kw)->orWhere('i.item_name', 'like', $kw)->orWhere('l.lot_no', 'like', $kw)
-                ->orWhere('so.order_no', 'like', $kw)->orWhere('so.customer_po_no', 'like', $kw));
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'shipment_no'    => fn ($q, $kw) => $q->where('s.shipment_no', 'like', $kw),
+            'partner_name'   => fn ($q, $kw) => $q->where('pt.partner_name', 'like', $kw),
+            'item_code'      => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
+            'item_name'      => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
+            'lot_no'         => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
+            'order_no'       => fn ($q, $kw) => $q->where('so.order_no', 'like', $kw),
+            'customer_po_no' => fn ($q, $kw) => $q->where('so.customer_po_no', 'like', $kw),
+        ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'rows', fn ($r) => [
             'shipment_pick_idx' => $r->shipment_pick_idx,

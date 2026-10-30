@@ -3,6 +3,7 @@
 namespace MesCore\Quality\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\InspectionSpec;
@@ -23,6 +24,7 @@ use Illuminate\Validation\ValidationException;
 //   검사완료 창은 입고관리( PUR-03 )에서도 연다 ( C안 ) → 권한은 라우트가 아니라 여기서,
 //   입고검사 · 입고관리 어느 쪽 권한으로도 ( 보기 can_read · 검사완료 / 취소 can_write )
 class IncomingInspectionController extends Controller {
+    use SearchesKeyword;
     use RespondsWithList;
 
     private const SCREENS  = ['Quality/IncomingInspection', 'Purchase/ReceiptManage'];
@@ -59,14 +61,13 @@ class IncomingInspectionController extends Controller {
         if (!empty($v['from']))        $query->where('stock_txn.occurred_at', '>=', $v['from'] . ' 00:00:00');
         if (!empty($v['to']))          $query->where('stock_txn.occurred_at', '<=', $v['to'] . ' 23:59:59');
         if (!empty($v['partner_idx'])) $query->where('stock_txn.partner_idx', $v['partner_idx']);
-        if (!empty($v['keyword'])) {
-            $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
-            $query->where(function (Builder $w) use ($kw) {
-                $w->where('stock_txn.txn_no', 'like', $kw)
-                  ->orWhereHas('item', fn ($q) => $q->where('item_code', 'like', $kw)->orWhere('item_name', 'like', $kw))
-                  ->orWhereHas('lot', fn ($q) => $q->where('lot_no', 'like', $kw)->orWhere('external_lot_no', 'like', $kw));
-            });
-        }
+        $this->applyKeyword($query, $v['keyword'] ?? null, [
+            'txn_no'          => fn ($q, $kw) => $q->where('stock_txn.txn_no', 'like', $kw),
+            'item_code'       => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
+            'item_name'       => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
+            'lot_no'          => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'external_lot_no' => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('external_lot_no', 'like', $kw)),
+        ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'lines', fn (StockTxnLine $l) => [
             'stock_txn_line_idx' => $l->stock_txn_line_idx,

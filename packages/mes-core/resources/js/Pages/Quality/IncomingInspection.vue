@@ -13,12 +13,12 @@
         <SearchBar
             v-model="search"
             :date-bases="[{ value: 'occurred_at', label: '입고일' }]"
-            placeholder="입고번호 · 품번 · 품명 · LOT · 공급처 LOT"
+            :fields="SEARCH_FIELDS"
             :loading="loading"
-            :blank="() => ({ status: 'WAIT' })"
+            :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.status" :options="STATUS_OPTIONS" size="sm" class="w-28" />
+            <BaseSelect v-model="search.status" :options="STATUS_OPTIONS" class="w-32" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -32,6 +32,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="mainGrid"
+                    :loading="loading"
                     setting-key="main"
                     class="flex-1"
                     :data="rows"
@@ -76,7 +77,16 @@ const STATUS_OPTIONS = [
     { value: 'DONE', label: '검사완료' },
     { value: '',     label: '상태 전체' },
 ];
-const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', status: 'WAIT' });
+// 검색 조건 ( 서버 IncomingInspectionController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
+const SEARCH_FIELDS = [
+    { value: 'txn_no',          label: '입고번호' },
+    { value: 'item_code',       label: '품번' },
+    { value: 'item_name',       label: '품명' },
+    { value: 'lot_no',          label: 'LOT' },
+    { value: 'external_lot_no', label: '공급처 LOT' },
+];
+const blankFilters = () => ({ status: 'WAIT' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', ...blankFilters() });
 
 const num = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 

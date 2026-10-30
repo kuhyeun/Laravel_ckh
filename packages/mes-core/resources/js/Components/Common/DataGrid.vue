@@ -12,12 +12,23 @@
      - setting-key : 사용자별 열 설정( 표시 · 이름 · 순서 · 너비 — 사용자 × 화면 × 키 ) 켜기. 오른쪽 클릭 "열 설정…" · GridSettingButton
        열에 lockHide: true 를 주면 숨길 수 없다 / 끌어서 바꾼 너비는 저장된다 / 엑셀은 ExcelExportButton :grid 로 이 설정을 따른다
      - active-field · active-key : 지금 고른 행 하나만 색칠( row-selected ) — 목록 · 상세가 나란한 화면 ( 데이터가 바뀌어도 다시 찾아 칠한다 )
+     - loading : 조회 중이면 그리드 위를 덮고 "불러오는 중…" ( 0.3 초가 넘을 때만 — 짧은 조회는 깜빡이지 않게 · useDelayedBusy )
      - 기능은 더하기만 한다 — 새 prop 을 안 쓰는 화면은 예전과 같다 ( 공통컴포넌트 §7 ) -->
 <template>
     <div class="flex flex-col min-h-0">
         <!-- 그리드 자리 : TUI 의 fitToParent 는 그리드 요소의 바로 위 부모 높이에 맞춘다 → 페이징 바를 뺀 이 칸만 부모가 되게 감싼다 -->
         <div class="relative flex-1 min-h-0">
             <div ref="gridContainer" class="absolute inset-0 overflow-hidden"></div>
+            <!-- 조회 중 : 앞 결과를 가리고 알림 ( 끝나면 새 목록 ) -->
+            <div v-if="showLoading" class="absolute inset-0 z-10 flex items-center justify-center bg-white/75" aria-live="polite">
+                <div class="flex items-center gap-2 px-4 py-2 rounded-md border border-gray-200 bg-white shadow-sm text-sm text-gray-600">
+                    <svg class="w-4 h-4 animate-spin text-blue-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
+                        <path d="M22 12a10 10 0 0 1-10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                    </svg>
+                    불러오는 중…
+                </div>
+            </div>
         </div>
 
         <!-- 서버 페이징 바 -->
@@ -49,6 +60,7 @@ import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount } from 'vu
 import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import { useGrid } from '@core/Composables/useGrid';
+import { useDelayedBusy } from '@core/Composables/useDelayedBusy';
 import { useModalStore } from '@core/Stores/modalStore';
 import GridColumnSettings from '@core/Components/Common/GridColumnSettings.vue';
 import { applyGridSetting, toSetting } from '@core/Utils/gridSetting';
@@ -64,11 +76,13 @@ const props = defineProps({
     settingKey: { type: String,  default: '' },      // 있으면 사용자별 열 설정 ( 한 화면에 그리드가 여럿이면 다르게 )
     activeField: { type: String, default: '' },      // 지금 고른 행 표시 : row[activeField] === activeKey 인 행 하나만 색칠 ( row-selected )
     activeKey:   { type: [String, Number], default: null },
+    loading:     { type: Boolean, default: false },   // 조회 중 표시
 });
 
 const emit = defineEmits(['row-click', 'grid-mounted', 'select', 'page', 'sort']);
 
 const gridContainer = ref(null);
+const showLoading   = useDelayedBusy(() => props.loading);
 const { gridInstance, setGrid, autoResizeGrid } = useGrid();
 
 // 오른쪽 클릭 메뉴 : 그리드 기본 메뉴에서 내보내기( TXT · CSV · 엑셀 )를 뺀 복사만

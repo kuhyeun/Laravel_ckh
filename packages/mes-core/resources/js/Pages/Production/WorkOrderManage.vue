@@ -16,13 +16,13 @@
         <SearchBar
             v-model="search"
             :date-bases="DATE_BASES"
-            placeholder="지시번호 · 품번 · 품명 · LOT · 수주번호"
+            :fields="SEARCH_FIELDS"
             :loading="loading"
-            :blank="() => ({ source: '', status: 'OPEN' })"
+            :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.source" :options="SOURCE_FILTER" size="sm" class="w-28" />
-            <BaseSelect v-model="search.status" :options="WO_STATUS_FILTER" size="sm" class="w-28" />
+            <BaseSelect v-model="search.source" :options="SOURCE_FILTER" class="w-32" />
+            <BaseSelect v-model="search.status" :options="WO_STATUS_FILTER" class="w-32" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -36,6 +36,7 @@
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
                     ref="mainGrid"
+                    :loading="loading"
                     setting-key="main"
                     class="flex-1"
                     :data="rows"
@@ -86,7 +87,16 @@ const DATE_BASES = [
     { value: 'due_date',   label: '생산 기한' },
 ];
 const SOURCE_FILTER = [{ value: '', label: '출처 전체' }, ...WO_SOURCES];
-const search = reactive({ date_basis: 'start_date', from: '', to: '', keyword: '', source: '', status: 'OPEN' });
+// 검색 조건 ( 서버 WorkOrderController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
+const SEARCH_FIELDS = [
+    { value: 'wo_no',     label: '지시번호' },
+    { value: 'item_code', label: '품번' },
+    { value: 'item_name', label: '품명' },
+    { value: 'lot_no',    label: 'LOT' },
+    { value: 'order_no',  label: '수주번호' },
+];
+const blankFilters = () => ({ source: '', status: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const search = reactive({ date_basis: 'start_date', from: '', to: '', keyword: '', ...blankFilters() });
 
 const num = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
