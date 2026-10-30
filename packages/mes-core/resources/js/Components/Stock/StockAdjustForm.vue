@@ -58,13 +58,15 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
-import { qtyText } from '@core/Components/Stock/stockCodes';
+import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 
 const props = defineProps({
     balanceIdx: { type: Number,   required: true },
     onDone:     { type: Function, default: null },   // ( 조정번호, 경고 )
+    scope:      { type: String,   default: 'material' },   // material | product — API 범위 ( stockCodes STOCK_ROUTES )
 });
 const emit = defineEmits(['close']);
+const R = STOCK_ROUTES[props.scope];
 
 const loading  = ref(true);
 const saving   = ref(false);
@@ -81,7 +83,7 @@ onMounted(async () => {
     try {
         const [bal, rs] = await Promise.all([
             window.axios.get(route('stock.balance', props.balanceIdx)),
-            window.axios.get(route('stock.adjust.reasons')),
+            window.axios.get(route(R.adjustReasons)),
         ]);
         b.value          = bal.data.balance;
         form.occurred_at = bal.data.now;
@@ -96,7 +98,7 @@ onMounted(async () => {
 async function save() {
     saving.value = true; errors.value = {}; errorMsg.value = '';
     try {
-        const { data } = await window.axios.post(route('stock.adjust.save'), {
+        const { data } = await window.axios.post(route(R.adjustSave), {
             stock_balance_idx: props.balanceIdx,
             after_qty:         form.after_qty,
             reason_code:       form.reason_code || null,

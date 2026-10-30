@@ -5,11 +5,13 @@
      - 행 클릭 → 그 LOT 의 입출고 이력 ( 품목별 합계에서는 열리지 않음 ) → [입고] · [출고] · [창고이동] · [재고조정] ( 권한이 있을 때 — 화면목록 §5-2 진입점 )
        [입고] = 입고 등록 창( 그 품목 · 창고를 채워서 · 새 LOT ) / [출고] = 작업지시 출고 · 기타출고
      - 위 [+ 입고] = 빈 입고 등록 창 ( 입고관리 쓰기 권한 )
-     - [열 설정] · 오른쪽 클릭 : 사용자별 열 구성 ( LOT 재고 · 품목별 합계 따로 — 품번은 숨길 수 없음 ) -->
+     - [열 설정] · 오른쪽 클릭 : 사용자별 열 구성 ( LOT 재고 · 품목별 합계 따로 — 품번은 숨길 수 없음 )
+     - scope : material( 자재관리 > 재고관리 — 자재만 ) | product( 제품관리 > 제품재고 — Product/ProductStock 가 감싼다 · 제품만 )
+       품목 구분은 서버 라우트가 정한다. 제품은 [입고] 없음( 생산 입고는 공정실적 ) · [출고] = 기타출고 · 공급처 LOT · 구매처 칸 없음 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">재고관리</h2>
+            <h2 class="font-bold text-lg tracking-tight">{{ isProduct ? '제품재고' : '재고관리' }}</h2>
             <div class="flex-1"></div>
             <span v-if="flash" class="text-sm text-red-500">{{ flash }}</span>
             <span v-if="notice" class="text-sm text-green-600">{{ notice }}</span>
@@ -24,7 +26,6 @@
             @search="loadFirstPage"
         >
             <BaseSelect v-model="search.warehouse_idx" :options="warehouseFilter" class="w-44" />
-            <BaseSelect v-model="search.item_type" :options="TYPE_OPTIONS" class="w-32" />
             <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.with_zero" /> 0 포함</label>
             <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="item" false-value="lot" v-model="search.group" @change="loadFirstPage" /> 품목별 합계</label>
         </SearchBar>
@@ -73,18 +74,19 @@ import StockIssueForm from '@core/Components/Stock/StockIssueForm.vue';
 import ReceiptForm from '@core/Components/Purchase/ReceiptForm.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { useModalStore } from '@core/Stores/modalStore';
-import { qtyText } from '@core/Components/Stock/stockCodes';
+import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 
 defineOptions({ layout: AppLayout });
 
+const props = defineProps({
+    scope: { type: String, default: 'material' },   // material | product
+});
+const R         = STOCK_ROUTES[props.scope];
+const isProduct = props.scope === 'product';
+
 const modalStore = useModalStore();
 
-const TYPE_OPTIONS = [
-    { value: '',         label: '대분류 전체' },
-    { value: 'MATERIAL', label: '자재' },
-    { value: 'PRODUCT',  label: '제품' },
-];
-const blankFilters = () => ({ warehouse_idx: '', item_type: '', with_zero: '0', group: 'lot' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const blankFilters = () => ({ warehouse_idx: '', with_zero: '0', group: 'lot' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ keyword: '', ...blankFilters() });
 const byItem = computed(() => search.group === 'item');
 // 검색 조건 ( 서버 StockController applyKeyword 의 키 ) — 품목별 합계면 LOT 조건이 없다
@@ -93,7 +95,8 @@ const searchFields = computed(() => [
     { value: 'item_name', label: '품명' },
     { value: 'spec',      label: '규격' },
     { value: 'material',  label: '재질' },
-    ...(byItem.value ? [] : [{ value: 'lot_no', label: 'LOT' }, { value: 'external_lot_no', label: '공급처 LOT' }]),
+    ...(byItem.value ? [] : [{ value: 'lot_no', label: 'LOT' }]),
+    ...(byItem.value || isProduct ? [] : [{ value: 'external_lot_no', label: '공급처 LOT' }]),
 ]);
 watch(searchFields, (list) => {   // 품목별로 바꿨는데 LOT 조건이 골라져 있으면 통합검색으로
     if (search.search_field && !list.some(f => f.value === search.search_field)) search.search_field = '';
@@ -103,6 +106,8 @@ const warehouses = ref([]);
 const perms      = reactive({ can_move: false, can_adjust: false, can_issue: false, can_receipt: false });   // 재고현황에서 열 수 있는 처리
 const warehouseFilter = computed(() => [{ value: '', label: '창고 전체' }, ...warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label }))]);
 
+// 제품은 공급처 LOT · 구매처가 없다 ( 생산 입고 )
+const PURCHASE_ONLY = ['external_lot_no', 'partner_name'];
 const lotColumns = [
     { header: '품번', name: 'item_code', width: 180, sortable: true, className: 'cursor-pointer', escapeHTML: true, lockHide: true },
     { header: '품명', name: 'item_name', minWidth: 160, className: 'cursor-pointer', escapeHTML: true },
@@ -115,7 +120,7 @@ const lotColumns = [
       formatter: ({ row }) => qtyText(row.qty, row.spec_unit, row.spec_value) },
     { header: '입고일', name: 'in_at', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '구매처', name: 'partner_name', width: 180, className: 'cursor-pointer', escapeHTML: true },
-];
+].filter(c => !isProduct || !PURCHASE_ONLY.includes(c.name));
 const itemColumns = [
     { header: '품번', name: 'item_code', width: 140, sortable: true, escapeHTML: true, lockHide: true },
     { header: '품명', name: 'item_name', minWidth: 200, escapeHTML: true },
@@ -145,7 +150,7 @@ async function load() {
     loading.value = true;
     flash.value = '';
     try {
-        const { data } = await window.axios.get(route('stock.list'), { params: params({ page: paging.page, perPage: paging.perPage }) });
+        const { data } = await window.axios.get(route(R.list), { params: params({ page: paging.page, perPage: paging.perPage }) });
         rows.value   = data.rows ?? [];
         paging.total = data.total ?? 0;
         paging.page  = data.page ?? 1;
@@ -160,7 +165,7 @@ function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPag
 function onSort({ key, dir }) { sort.key = key; sort.dir = dir; paging.page = 1; load(); }
 
 async function exportRows() {
-    const { data } = await window.axios.get(route('stock.list'), { params: params({ export: 1 }) });
+    const { data } = await window.axios.get(route(R.list), { params: params({ export: 1 }) });
     return data.rows ?? [];
 }
 
@@ -173,6 +178,7 @@ function openHistory(row) {
             title: `${row.item_code} ${row.item_name} · ${row.lot_no || 'LOT 없음'} · ${row.warehouse_name}`,
             balanceIdx: row.key, canMove: perms.can_move, canAdjust: perms.can_adjust, canIssue: perms.can_issue, canReceipt: perms.can_receipt,
             onAction: (type, reloadHistory) => openProcess(type, row, reloadHistory),
+            scope: props.scope,
             modalTitle: 'LOT 입출고 이력',
         },
         { size: 'lg' }
@@ -210,7 +216,7 @@ function openProcess(type, row, reloadHistory = null) {
         modalStore.open(
             StockIssueForm,
             {
-                balanceIdx: row.key, itemIdx: row.item_idx,
+                balanceIdx: row.key, itemIdx: row.item_idx, scope: props.scope,
                 onDone: (text, warnings = []) => { showNotice(`${text}${warnings.length ? ` ⚠ ${warnings.join(' / ')}` : ''}`); load(); reloadHistory?.(); },
                 modalTitle: `출고 [ ${row.lot_no || row.item_code} ]`,
             },
@@ -223,6 +229,7 @@ function openProcess(type, row, reloadHistory = null) {
         isMove ? StockMoveForm : StockAdjustForm,
         {
             balanceIdx: row.key,
+            ...(isMove ? {} : { scope: props.scope }),   // 창고이동은 범위와 상관없이 같은 API
             onDone: (no, warnings = []) => {
                 notice.value = `${no} ${isMove ? '이동' : '조정'}했습니다.${warnings.length ? ` ⚠ ${warnings.join(' / ')}` : ''}`;
                 setTimeout(() => { notice.value = ''; }, 4000);
@@ -237,7 +244,7 @@ function openProcess(type, row, reloadHistory = null) {
 // 창고 거르기 목록 ( 입고 등록과 같은 트리 이름 ) + 이동 · 조정 권한
 (async () => {
     try {
-        const { data } = await window.axios.get(route('stock.warehouses'));
+        const { data } = await window.axios.get(route(R.warehouses));
         warehouses.value = data.warehouses ?? [];
         perms.can_move   = data.can_move === true;
         perms.can_adjust = data.can_adjust === true;

@@ -5,6 +5,7 @@ namespace MesCore\Stock\Controllers;
 use MesCore\Http\Controller;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Http\Concerns\SearchesKeyword;
+use MesCore\Stock\Concerns\ScopesItemType;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Warehouse;
 use MesCore\Menu\Services\MenuPermissionService;
@@ -18,9 +19,11 @@ use Illuminate\Support\Facades\DB;
 // LOT 재고현황 ( INV-01 ) — docs/screens/40-구매자재.md §13
 //   현재고는 잔고( stock_balance )에서만 — 원장을 GROUP BY 하지 않는다 ( 재고-수불-설계 §2 절대 규칙 )
 //   품목별 합계는 잔고를 더하는 것( 원장 집계 아님 )
+//   자재관리 > 재고관리( /stock ) · 제품관리 > 제품재고( /product/stock ) 가 같이 쓴다 — 품목 구분은 라우트 범위( ItemScope )가 정한다
 class StockController extends Controller {
     use RespondsWithList;
     use SearchesKeyword;
+    use ScopesItemType;
 
     private const SORTABLE = ['item_code', 'lot_no', 'in_at', 'qty', 'warehouse_name'];
 
@@ -33,7 +36,8 @@ class StockController extends Controller {
             'with_zero'     => 'nullable|in:0,1',
             'group'         => 'nullable|in:lot,item',
         ]);
-        $byItem = ($v['group'] ?? 'lot') === 'item';
+        $byItem   = ($v['group'] ?? 'lot') === 'item';
+        $itemType = $this->itemScope($request) ?? ($v['item_type'] ?? null);   // 범위가 있으면 화면 값은 무시
 
         $query = StockBalance::query()
             ->from('stock_balance as b')
@@ -56,7 +60,7 @@ class StockController extends Controller {
         }
 
         if (!empty($v['warehouse_idx'])) $query->whereIn('b.warehouse_idx', $this->withDescendants((int) $v['warehouse_idx']));
-        if (!empty($v['item_type']))     $query->where('i.item_type', $v['item_type']);
+        if (!empty($itemType))           $query->where('i.item_type', $itemType);
         // 품목별이면 LOT 조건이 없다 ( 화면도 LOT 조건을 뺀다 )
         $this->applyKeyword($query, $v['keyword'] ?? null, [
             'item_code' => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
@@ -100,6 +104,7 @@ class StockController extends Controller {
             'lot_idx'       => 'required|integer',
             'warehouse_idx' => 'nullable|integer',
         ]);
+        $this->assertItemInScope($request, (int) $v['item_idx']);
 
         $rows = StockLedger::query()
             ->where('item_idx', $v['item_idx'])->where('lot_idx', $v['lot_idx'])
@@ -131,24 +136,26 @@ class StockController extends Controller {
         return response()->json(['rows' => $out, 'truncated' => $rows->count() >= 500]);
     }
 
-    // 창고 선택지 ( 입고 등록과 같은 트리 이름 ) + 재고현황 팝업에서 열 수 있는 처리 ( 창고이동 · 재고조정 메뉴 쓰기 권한 )
-    public function warehouses(MenuPermissionService $permissions) {
+    // 창고 선택지 ( 입고 등록과 같은 트리 이름 ) + 재고현황 팝업에서 열 수 있는 처리 ( 각 처리 메뉴 쓰기 권한 )
+    //   제품 : 출고 = 제품출고( 기타출고만 ) · 조정 = 제품 재고조정 · 입고 없음( 생산 입고는 공정실적 ) / 창고이동은 자재 · 제품 같이
+    public function warehouses(Request $request, MenuPermissionService $permissions) {
         /** @var User $user */
-        $user = Auth::user();
+        $user      = Auth::user();
+        $isProduct = $this->itemScope($request) === 'PRODUCT';
         return response()->json([
             'warehouses' => Warehouse::options(),
             'can_move'   => $permissions->canPage($user, 'Stock/StockMove', 'can_write'),
-            'can_adjust' => $permissions->canPage($user, 'Stock/StockAdjust', 'can_write'),
-            'can_issue'  => $permissions->canPage($user, 'Production/MaterialIssue', 'can_write'),   // [출고] — 작업지시 출고 · 기타출고
-            'can_receipt'=> $permissions->canPage($user, 'Purchase/ReceiptManage', 'can_write'),     // [입고]
+            'can_adjust' => $permissions->canPage($user, $isProduct ? 'Product/ProductAdjust' : 'Stock/StockAdjust', 'can_write'),
+            'can_issue'  => $permissions->canPage($user, $isProduct ? 'Product/ProductIssue' : 'Production/MaterialIssue', 'can_write'),   // [출고] — 자재 : 작업지시 출고 · 기타출고 / 제품 : 기타출고
+            'can_receipt'=> !$isProduct && $permissions->canPage($user, 'Purchase/ReceiptManage', 'can_write'),                          // [입고]
         ]);
     }
 
-    // 잔고 한 행 ( 창고이동 · 재고조정 창이 연다 ) — 재고현황 · 창고이동 · 재고조정 어느 쪽 권한으로도
+    // 잔고 한 행 ( 창고이동 · 재고조정 · 출고 창이 연다 ) — 자재 · 제품 재고 화면과 그 처리 메뉴 어느 쪽 권한으로도
     public function balance(MenuPermissionService $permissions, int $balanceIdx) {
         /** @var User|null $user */
         $user = Auth::user();
-        if (!$user || !$permissions->canPage($user, ['Stock/StockStatus', 'Stock/StockMove', 'Stock/StockAdjust', 'Production/MaterialIssue'], 'can_read')) {
+        if (!$user || !$permissions->canPage($user, ['Stock/StockStatus', 'Stock/StockMove', 'Stock/StockAdjust', 'Production/MaterialIssue', 'Product/ProductStock', 'Product/ProductAdjust', 'Product/ProductIssue'], 'can_read')) {
             abort(403, 'Permission Denied.');
         }
 

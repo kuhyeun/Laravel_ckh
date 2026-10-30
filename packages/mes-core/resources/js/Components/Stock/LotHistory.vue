@@ -51,6 +51,7 @@
 import { ref, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import { STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 
 const props = defineProps({
     itemIdx:      { type: Number, required: true },
@@ -63,6 +64,7 @@ const props = defineProps({
     canIssue:     { type: Boolean, default: false },
     canReceipt:   { type: Boolean, default: false },
     onAction:     { type: Function, default: null },   // ( type, reload ) — 처리 창을 연다. 처리 후 reload() 로 이 이력을 다시 읽는다
+    scope:        { type: String, default: 'material' },   // material | product — API 범위
 });
 const emit = defineEmits(['close']);
 
@@ -87,7 +89,7 @@ async function load() {
     try {
         const params = { item_idx: props.itemIdx, lot_idx: props.lotIdx };
         if (props.warehouseIdx) params.warehouse_idx = props.warehouseIdx;
-        const { data } = await window.axios.get(route('stock.history'), { params });
+        const { data } = await window.axios.get(route(STOCK_ROUTES[props.scope].history), { params });
         rows.value      = data.rows ?? [];
         truncated.value = data.truncated === true;
     } catch (e) {

@@ -1,7 +1,9 @@
 <!-- 창고이동 · 재고조정 이력 ( INV-04 · INV-05 메뉴 본체 ) — docs/screens/40-구매자재.md §18 · §19
      - 처리는 재고관리( 재고현황 )에서 LOT 행을 골라 한다 ( 화면목록 §5-2 — 처리 코드는 한 곳 )
      - 여기서는 이력 + 취소 ( 행 클릭 → 확인 → 역분개 ). 막히는 경우는 서버가 사유를 돌려준다
-     - type : move | adjust | misc ( 기타출고 — 출고관리의 탭 )
+     - type : move | adjust | misc ( 기타출고 — 출고관리의 탭 ) | production ( 생산 입고 — 제품입고 ) | shipment ( 출하 — 제품출고의 탭 )
+       production · shipment 는 조회만 ( 입고 · 취소는 공정실적, 출하 · 취소는 출하관리 ) — 생산 입고 행 클릭 = 그 작업지시의 공정실적
+     - scope : material | product — API 범위 ( stockCodes STOCK_ROUTES · 품목 구분은 서버 라우트 )
      - slot head : 제목 자리 ( 출고관리 탭 버튼 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
@@ -9,7 +11,7 @@
             <slot name="head"><h2 class="font-bold text-lg tracking-tight">{{ cfg.title }}</h2></slot>
             <div class="flex-1"></div>
             <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
-            <Link href="/stock/status" class="text-xs text-blue-700 hover:underline">{{ cfg.hint ?? `${cfg.title}은 재고관리에서 LOT 을 골라 합니다 →` }}</Link>
+            <Link :href="cfg.hintPath ?? R.statusPath" class="text-xs text-blue-700 hover:underline">{{ cfg.hint ?? `${cfg.title}은 ${isProduct ? '제품재고' : '재고관리'}에서 LOT 을 골라 합니다 →` }}</Link>
         </div>
 
         <SearchBar
@@ -30,7 +32,8 @@
                     <GridSettingButton :grid="mainGrid" />
                     <ExcelExportButton :rows="exportRows" :columns="columns" :grid="mainGrid" :filename="`${cfg.title}이력`" />
                 </div>
-                <span v-if="canWrite" class="text-xs text-gray-400">행을 누르면 취소할 수 있습니다</span>
+                <span v-if="cfg.rowHint" class="text-xs text-gray-400">{{ cfg.rowHint }}</span>
+                <span v-else-if="canWrite && cfg.cancel" class="text-xs text-gray-400">행을 누르면 취소할 수 있습니다</span>
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
@@ -42,7 +45,7 @@
                     :columns="columns"
                     :pagination="paging"
                     :empty-text="`${cfg.title} 이력이 없습니다.`"
-                    @row-click="askCancel"
+                    @row-click="onRowClick"
                     @page="onPage"
                     @sort="onSort"
                 />
@@ -53,7 +56,7 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
-import { usePage, Link } from '@inertiajs/vue3';
+import { usePage, Link, router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
 import { itemLabel } from '@core/Utils/format';
@@ -62,12 +65,15 @@ import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import { showAlert } from '@core/Utils/message';
-import { qtyText } from '@core/Components/Stock/stockCodes';
+import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 import { COLORS } from '@core/Utils/colors';
 
 const props = defineProps({
-    type: { type: String, required: true },   // move | adjust | misc
+    type:  { type: String, required: true },          // move | adjust | misc | production | shipment
+    scope: { type: String, default: 'material' },     // material | product
 });
+const R         = STOCK_ROUTES[props.scope];
+const isProduct = props.scope === 'product';
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const page     = usePage();
@@ -97,7 +103,7 @@ const common = [
 const CONFIG = {
     move: {
         title: '창고이동', noLabel: '이동번호', dateLabel: '이동일',
-        list: 'stock.move.list', cancel: 'stock.move.cancel',
+        list: R.moveList, cancel: R.moveCancel,
         columns: [
             { header: '이동번호', name: 'txn_no', width: 115, sortable: true },
             { ...common[0], header: '이동일시' }, common[1], common[2], common[3],
@@ -111,7 +117,7 @@ const CONFIG = {
     },
     adjust: {
         title: '재고조정', noLabel: '조정번호', dateLabel: '조정일',
-        list: 'stock.adjust.list', cancel: 'stock.adjust.cancel',
+        list: R.adjustList, cancel: R.adjustCancel,
         columns: [
             { header: '조정번호', name: 'txn_no', width: 115, sortable: true },
             { ...common[0], header: '조정일시' }, common[1], common[2], common[3],
@@ -128,8 +134,8 @@ const CONFIG = {
 };
 CONFIG.misc = {
     title: '기타출고', noLabel: '출고번호', dateLabel: '출고일',
-    hint: '기타출고는 재고관리에서 LOT 을 골라 [출고] 로 합니다 →',
-    list: 'stock.misc.list', cancel: 'stock.misc.cancel',
+    hint: `기타출고는 ${isProduct ? '제품재고' : '재고관리'}에서 LOT 을 골라 [출고] 로 합니다 →`,
+    list: R.miscList, cancel: R.miscCancel,
     columns: [
         { header: '출고번호', name: 'txn_no', width: 115, sortable: true },
         { ...common[0], header: '출고일시' }, common[1], common[2], common[3],
@@ -141,14 +147,49 @@ CONFIG.misc = {
         { header: '상태', name: 'status', width: 60, align: 'center', formatter: statusCell },
     ],
 };
+// 제품관리 조회 전용 ( 취소 없음 )
+CONFIG.production = {
+    title: '생산 입고', noLabel: '입고번호', dateLabel: '입고일',
+    hint: '생산 입고는 공정실적에서 실적 · 완료로 들어오고, 취소도 공정실적에서 합니다 →', hintPath: '/production/op-result',
+    rowHint: '행을 누르면 그 작업지시의 공정실적을 엽니다',
+    list: R.productionList, cancel: null,
+    columns: [
+        { header: '입고번호', name: 'txn_no', width: 125, sortable: true, className: 'cursor-pointer' },
+        { ...common[0], header: '입고일시', className: 'cursor-pointer' }, { ...common[1], className: 'cursor-pointer' },
+        { header: '작업지시', name: 'wo_no', width: 120, className: 'cursor-pointer', escapeHTML: true },
+        { header: '수주번호', name: 'order_no', width: 125, className: 'cursor-pointer', escapeHTML: true },
+        { ...common[2], className: 'cursor-pointer' }, { ...common[3], className: 'cursor-pointer' }, { ...common[4], className: 'cursor-pointer' }, { ...common[5], className: 'cursor-pointer' },
+        { header: '창고', name: 'warehouse_name', width: 90, className: 'cursor-pointer', escapeHTML: true },
+        { header: '수량', name: 'qty', width: 90, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => qtyText(row.qty, row.spec_unit, row.spec_value) },
+        { header: '처리자', name: 'user_name', width: 70, className: 'cursor-pointer', escapeHTML: true },
+        { header: '상태', name: 'status', width: 60, align: 'center', className: 'cursor-pointer', formatter: statusCell },
+    ],
+};
+CONFIG.shipment = {
+    title: '출하', noLabel: '출하번호', dateLabel: '출하일',
+    hint: '출하 등록 · 취소는 출하관리에서 합니다 →', hintPath: '/shipment/manage',
+    list: R.shipmentList, cancel: null,
+    columns: [
+        { header: '출하번호', name: 'txn_no', width: 125, sortable: true },
+        { ...common[0], header: '출하일시' }, common[1],
+        { header: '고객사', name: 'partner_name', width: 130, escapeHTML: true },
+        { header: '수주번호', name: 'order_no', width: 125, escapeHTML: true },
+        common[2], common[3], common[4], common[5],
+        { header: '창고', name: 'warehouse_name', width: 90, escapeHTML: true },
+        { header: '수량', name: 'qty', width: 90, align: 'right', formatter: ({ row }) => qtyText(row.qty, row.spec_unit, row.spec_value) },
+        { header: '처리자', name: 'user_name', width: 70, escapeHTML: true },
+        { header: '상태', name: 'status', width: 60, align: 'center', formatter: statusCell },
+    ],
+};
 const cfg     = CONFIG[props.type];
 // 검색 조건 ( 서버 StockProcessController applyKeyword 의 키 )
 const searchFields = [
     { value: 'txn_no',          label: cfg.noLabel },
+    ...(props.type === 'production' ? [{ value: 'wo_no', label: '작업지시' }] : []),
     { value: 'item_code',       label: '품번' },
     { value: 'item_name',       label: '품명' },
     { value: 'lot_no',          label: 'LOT' },
-    { value: 'external_lot_no', label: '공급처 LOT' },
+    ...(isProduct ? [] : [{ value: 'external_lot_no', label: '공급처 LOT' }]),   // 제품 LOT 은 공급처 LOT 이 없다
 ];
 const columns = cfg.columns;
 
@@ -193,8 +234,16 @@ function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
 function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage(); }
 
+function onRowClick(row) {
+    if (props.type === 'production') {
+        if (row.work_order_idx) router.visit(`/production/op-result?wo=${row.work_order_idx}`);
+        return;
+    }
+    askCancel(row);
+}
+
 async function askCancel(row) {
-    if (!canWrite.value || row.status !== 'DONE') return;
+    if (!cfg.cancel || !canWrite.value || row.status !== 'DONE') return;
     const r = await showAlert(`${cfg.title} 취소`, `${row.txn_no} ( ${row.item_code} · ${row.lot_no ?? ''} )\n${cfg.title}을 취소하고 재고를 되돌립니다.`, 'warning', 'confirm');
     if (!r.isConfirmed) return;
     try {

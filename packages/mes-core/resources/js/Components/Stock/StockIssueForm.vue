@@ -1,7 +1,8 @@
 <!-- 출고 창 — 재고관리 LOT 행( 이력 창 )의 [출고]. 권한 = 출고관리( Production/MaterialIssue ) 쓰기
      - [작업지시 출고] : 이 품목을 자재로 쓰는 대기 · 진행 지시를 고르면 출고 패널( MaterialIssuePanel )이 열린다 — 이 LOT 을 먼저 채운다
      - [기타출고]     : 지시 소요와 상관없이 이 LOT 에서 몇 개를 빼고 메모를 남긴다 ( 예: 생산은 끝났지만 현장에서 더 씀 )
-                        관련 작업지시는 참고로만 — 지시의 출고 · 보유 수량에는 넣지 않는다 / 취소는 출고관리 > 기타출고 탭 -->
+                        관련 작업지시는 참고로만 — 지시의 출고 · 보유 수량에는 넣지 않는다 / 취소는 출고관리 > 기타출고 탭
+     - scope=product ( 제품재고 ) : 기타출고만 — 권한 = 제품출고 쓰기 · 관련 작업지시 = 이 제품을 만든 지시 · 취소는 제품출고 > 기타출고 탭 -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <p v-if="loading" class="py-8 text-center text-gray-400">불러오는 중…</p>
@@ -54,7 +55,7 @@
                     </div>
                     <div class="col-span-3">
                         <label class="block text-gray-500 font-medium mb-1">메모 <span class="text-red-500">*</span></label>
-                        <BaseInput v-model="misc.remark" class="w-full" maxlength="200" placeholder="예: 생산 완료 후 현장 보충 3개 추가 사용" />
+                        <BaseInput v-model="misc.remark" class="w-full" maxlength="200" :placeholder="isProduct ? '예: 고객 샘플 2개 · 파손 폐기' : '예: 생산 완료 후 현장 보충 3개 추가 사용'" />
                         <p v-if="errors.remark" class="text-xs text-red-500 mt-0.5">{{ errors.remark[0] }}</p>
                     </div>
                 </div>
@@ -77,20 +78,24 @@ import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
-import { qtyText } from '@core/Components/Stock/stockCodes';
+import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 import { useFlash } from '@core/Composables/useFlash';
 
 const props = defineProps({
     balanceIdx: { type: Number,   required: true },
     itemIdx:    { type: Number,   required: true },
     onDone:     { type: Function, default: null },   // ( 알림 문구, 경고 ) — 처리했으면 닫을 때 부른다
+    scope:      { type: String,   default: 'material' },   // material | product — API 범위 ( stockCodes STOCK_ROUTES )
 });
 const emit = defineEmits(['close']);
+const R = STOCK_ROUTES[props.scope];
+const isProduct = props.scope === 'product';
 
+// 제품은 기타출고만 ( 출하는 출하관리 · 관련 작업지시 = 이 제품을 만든 지시 )
 const MODES = [
     { key: 'wo',   label: '작업지시 출고', desc: '지시 자재 줄로 출고 — 이 LOT 을 먼저 채웁니다' },
-    { key: 'misc', label: '기타출고',     desc: '지시 소요와 상관없이 빼고 메모를 남깁니다' },
-];
+    { key: 'misc', label: '기타출고',     desc: isProduct ? '출하가 아닌 출고( 샘플 · 폐기 등 ) — 메모를 남깁니다' : '지시 소요와 상관없이 빼고 메모를 남깁니다' },
+].filter(t => !isProduct || t.key === 'misc');
 
 const { flash, showFlash } = useFlash();
 
@@ -112,13 +117,13 @@ onMounted(async () => {
     try {
         const [bal, all] = await Promise.all([
             window.axios.get(route('stock.balance', props.balanceIdx)),
-            window.axios.get(route('stock.misc.workOrders'), { params: { item_idx: props.itemIdx } }),
+            window.axios.get(route(R.miscWorkOrders), { params: { item_idx: props.itemIdx } }),
         ]);
         b.value          = bal.data.balance;
         misc.occurred_at = bal.data.now;
         allOrders.value  = all.data.work_orders ?? [];
         openOrders.value = allOrders.value.filter(w => ['WAIT', 'RUN'].includes(w.status));
-        if (!openOrders.value.length) mode.value = 'misc';
+        if (isProduct || !openOrders.value.length) mode.value = 'misc';
     } catch (e) {
         errorMsg.value = e.response?.status === 403 ? '출고 권한이 없습니다.' : '재고를 불러오지 못했습니다.';
     } finally {
@@ -143,7 +148,7 @@ function close() {
 async function saveMisc() {
     saving.value = true; errors.value = {}; errorMsg.value = '';
     try {
-        const { data } = await window.axios.post(route('stock.misc.save'), {
+        const { data } = await window.axios.post(route(R.miscSave), {
             stock_balance_idx: props.balanceIdx,
             qty:               misc.qty,
             occurred_at:       misc.occurred_at,

@@ -187,6 +187,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
+import { showAlert } from '@core/Utils/message';
 import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor } from '@core/Components/Order/orderCodes';
 
 const props = defineProps({
@@ -397,6 +398,15 @@ async function save() {
 
 // 완료 · 취소 → 확정으로 되돌림
 async function reopen() {
+    const from   = orderStatusLabel(form.status);
+    const result = await showAlert('수주 다시 열기',
+        `${from} 상태의 수주를 확정 상태로 되돌립니다.\n\n`
+        + '· 수주 내용을 다시 수정할 수 있습니다.\n'
+        + '· 작업지시 등록 · 출하 등록의 수주 선택 목록에 다시 나타납니다.\n'
+        + '· 이미 등록된 작업지시 · 출하는 그대로 유지됩니다.\n\n'
+        + '다시 여시겠습니까?', 'question', 'confirm');
+    if (!result.isConfirmed) return;
+
     saving.value   = true;
     errorMsg.value = '';
     try {

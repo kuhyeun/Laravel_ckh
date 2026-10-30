@@ -181,6 +181,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
+import { showAlert } from '@core/Utils/message';
 import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor, itemGroupLabel } from '@core/Components/Purchase/purchaseCodes';
 
 const props = defineProps({
@@ -374,6 +375,15 @@ async function save() {
 
 // 완료 · 취소 → 확정으로 되돌림
 async function reopen() {
+    const from   = orderStatusLabel(form.status);
+    const result = await showAlert('발주 다시 열기',
+        `${from} 상태의 발주를 확정 상태로 되돌립니다.\n\n`
+        + '· 발주 내용을 다시 수정할 수 있습니다.\n'
+        + '· 입고 등록의 발주 선택 목록에 다시 나타나 남은 수량을 입고할 수 있습니다.\n'
+        + '· 이미 등록된 입고는 그대로 유지됩니다.\n\n'
+        + '다시 여시겠습니까?', 'question', 'confirm');
+    if (!result.isConfirmed) return;
+
     saving.value   = true;
     errorMsg.value = '';
     try {
