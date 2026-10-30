@@ -62,7 +62,7 @@ class SalesOrderController extends Controller {
                     ->whereColumn('sales_order_line.sales_order_idx', 'sales_order.sales_order_idx')
                     ->where('line_status', 'OPEN'),
             ])
-            ->with(['lines.item:item_idx,item_code,item_name,item_kind,spec_unit'])
+            ->with(['lines.item:item_idx,item_code,item_name,spec,material,item_kind,spec_unit'])
             ->orderByDesc('order_date')
             ->orderByDesc('order_no');
 
@@ -248,7 +248,7 @@ class SalesOrderController extends Controller {
             'partner_name'    => $o->partner_name,
             'order_name'      => $o->order_name,
             'customer_po_no'  => $o->customer_po_no,
-            'item_summary'    => $first ? $first->item?->item_code . ($lines->count() > 1 ? ' 외 ' . ($lines->count() - 1) : '') : '',
+            'item_summary'    => $first ? \MesCore\Config\Models\Item::labelOf($first->item, $lines->count() > 1) . ($lines->count() > 1 ? ' 외 ' . ($lines->count() - 1) . '건' : '') : '',
             'total_qty'       => $units->count() === 1 ? (float) $lines->sum('qty') : null,   // 단위가 섞이면 비움
             'total_amount'    => (float) $o->total_amount,
             'next_due_date'   => $o->next_due_date,
@@ -265,6 +265,8 @@ class SalesOrderController extends Controller {
                 'line_no'              => $l->line_no,
                 'item_code'            => $l->item?->item_code,
                 'item_name'            => $l->item?->item_name,
+                'item_spec'            => $l->item?->spec,
+                'item_material'        => $l->item?->material,
                 'spec_unit'            => $l->item?->spec_unit,
                 'qty'                  => (float) $l->qty,
                 'unit_price'           => (float) $l->unit_price,
@@ -296,6 +298,8 @@ class SalesOrderController extends Controller {
                 'item_idx'             => $l->item_idx,
                 'item_code'            => $l->item?->item_code,
                 'item_name'            => $l->item?->item_name,
+                'item_spec'            => $l->item?->spec,
+                'item_material'        => $l->item?->material,
                 'spec_unit'            => $l->item?->spec_unit,
                 'qty'                  => (float) $l->qty,
                 'unit_price'           => (float) $l->unit_price,

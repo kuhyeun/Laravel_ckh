@@ -9,3 +9,10 @@ export const fmtQty = (v, unit = '') => unit ? `${fmtNum(v)} ${unit}` : fmtNum(v
 
 // 값이 없으면 '—' ( null · undefined · '' ), 있으면 fmt 로
 export const dash = (v, fmt = fmtNum) => (v === null || v === undefined || v === '') ? '—' : fmt(v);
+
+// 품목 표시 — "품명 [품번]" ( 서버 Item::labelOf 와 같은 형식 · 규격 · 재질은 따로 칸 — 스타일 가이드 §5-0-1 )
+//   row 의 item_name · item_code 를 읽는다 ( 글자만 — 그리드 escapeHTML 과 같이 쓴다 )
+export const itemLabel = (row) => {
+    if (!row) return '';
+    return [row.item_name, row.item_code ? `[${row.item_code}]` : ''].filter(Boolean).join(' ');
+};

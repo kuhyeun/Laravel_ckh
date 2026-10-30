@@ -57,7 +57,7 @@ class ProcessInspectionController extends Controller {
             ->join('process', 'process.process_idx', '=', 'work_order_op.process_idx')
             ->where('process.process_type', 'INSPECTION')
             ->where('work_order.status', '!=', 'CANCELED')
-            ->with(['process', 'workOrder.item:item_idx,item_code,item_name,spec_unit', 'workOrder.lot:lot_idx,lot_no'])
+            ->with(['process', 'workOrder.item:item_idx,item_code,item_name,spec,material,spec_unit', 'workOrder.lot:lot_idx,lot_no'])
             ->orderBy('work_order.start_date')->orderBy('work_order.work_order_idx')->orderBy('work_order_op.seq');
 
         match ($status) {
@@ -87,6 +87,8 @@ class ProcessInspectionController extends Controller {
                 'start_date'        => substr((string) $o->start_date, 0, 10),
                 'item_code'         => $wo->item?->item_code,
                 'item_name'         => $wo->item?->item_name,
+                'item_spec'         => $wo->item?->spec,
+                'item_material'     => $wo->item?->material,
                 'spec_unit'         => $wo->item?->spec_unit,
                 'lot_no'            => $wo->lot?->lot_no,
                 'base_qty'          => $this->results->baseQty($wo, $ops, $o),
@@ -124,6 +126,8 @@ class ProcessInspectionController extends Controller {
                 'is_ifl'            => $op->isIflOp(),
                 'item_code'         => $wo->item?->item_code,
                 'item_name'         => $wo->item?->item_name,
+                'item_spec'         => $wo->item?->spec,
+                'item_material'     => $wo->item?->material,
                 'spec_unit'         => $wo->item?->spec_unit,
                 'lot_no'            => $wo->lot?->lot_no,
                 'base_qty'          => (float) $this->results->baseQty($wo, $ops, $op),

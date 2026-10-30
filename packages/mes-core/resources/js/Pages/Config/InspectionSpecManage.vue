@@ -1,7 +1,7 @@
 <!-- 검사기준서관리 ( BAS-08 ) / 기준정보관리 > 검사기준서관리
      - 좌 : 기준서 목록  /  우 : 선택 기준서의 항목 줄
      - 항목은 [ 마스터에서 선택 ] 또는 [ + 직접 입력 ] — 고르는 순간 복사 ( 마스터를 고쳐도 기준서는 그대로 )
-     - 정량 : 규격 · 하한 · 상한 · 단위 ( 상하한은 하나만 있어도 됨 ) / 정성 : 판정 기준
+     - 정량 : 규격( 글자 — 예: 100x300 ) · 하한 · 상한 · 단위 ( 상하한은 하나만 있어도 됨 ) / 정성 : 판정 기준
      - 품목 × 검사 종류당 사용 중은 하나 → 새로 켜서 저장하면 기존 것이 미사용으로 내려감
      - 줄은 ⋮⋮ 를 잡아 드래그로 순서 변경
      - 삭제 없음 : 사용 여부로 내림 ( ADR 0019 ) -->
@@ -158,7 +158,7 @@
                                         <!-- 정량 : 규격 · 하한 · 상한 · 단위 -->
                                         <template v-if="l.is_quantitative === 'Y'">
                                             <td class="px-1.5 py-1">
-                                                <BaseInput v-model="l.standard_value" type="number" size="sm" class="w-full text-right" :disabled="!canWrite" />
+                                                <BaseInput v-model="l.standard_value" size="sm" class="w-full" maxlength="100" placeholder="예: 100x300" :disabled="!canWrite" />
                                                 <p v-if="rowError(i, 'standard_value')" class="text-[11px] text-red-500">{{ rowError(i, 'standard_value') }}</p>
                                             </td>
                                             <td class="px-1.5 py-1">
@@ -455,7 +455,7 @@ async function save() {
                     inspection_item_name: l.inspection_item_name,
                     is_quantitative: l.is_quantitative,
                     method: l.method || null,
-                    standard_value: quant ? numOrNull(l.standard_value) : null,
+                    standard_value: quant ? (String(l.standard_value ?? '').trim() || null) : null,
                     lower_limit: quant ? numOrNull(l.lower_limit) : null,
                     upper_limit: quant ? numOrNull(l.upper_limit) : null,
                     unit_code: quant ? (l.unit_code || null) : null,

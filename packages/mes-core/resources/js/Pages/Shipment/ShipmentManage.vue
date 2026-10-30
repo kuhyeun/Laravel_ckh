@@ -100,6 +100,8 @@ const columns = [
     { header: '출하 일시', name: 'shipped_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.shipped_at ?? '') },
     { header: '고객사', name: 'partner_name', width: 140, className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.partner_name)) },
     { header: '품목', name: 'item_label', minWidth: 180, className: 'cursor-pointer', escapeHTML: true },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 110, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.qty === undefined || row.qty === null ? '' : fmtQty(row.qty, row.spec_unit) },
     { header: 'LOT', name: 'lot_summary', width: 170, className: 'cursor-pointer', escapeHTML: true },
     { header: '수주', name: 'order_summary', width: 160, className: 'cursor-pointer', escapeHTML: true },

@@ -55,6 +55,7 @@ import { ref, reactive, computed } from 'vue';
 import { usePage, Link } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import { itemLabel } from '@core/Utils/format';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -84,7 +85,9 @@ const statusCell = ({ value }) => value === 'CANCELED' ? '<span style="color:#9c
 const common = [
     { name: 'occurred_at', width: 115, align: 'center', sortable: true },
     { header: '등록', name: 'recorded_at', width: 110, align: 'center', sortable: true, formatter: ({ value }) => `<span style="color:#9ca3af">${value}</span>` },
-    { header: '품목', name: 'item_code', minWidth: 140, escapeHTML: true, formatter: ({ row }) => `${row.item_code} ${row.item_name}` },
+    { header: '품목', name: 'item_code', minWidth: 140, escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 110, escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, escapeHTML: true },
     { header: 'LOT', name: 'lot_no', width: 115, escapeHTML: true },
 ];
 

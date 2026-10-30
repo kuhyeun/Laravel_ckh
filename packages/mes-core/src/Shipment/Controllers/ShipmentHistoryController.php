@@ -50,7 +50,7 @@ class ShipmentHistoryController extends Controller {
             ->leftJoin('sales_order as so', 'so.sales_order_idx', '=', 'sol.sales_order_idx')
             ->select([
                 'p.shipment_pick_idx', 'p.qty', 's.shipment_idx', 's.shipment_no', 's.plan_date', 's.shipped_at', 's.status',
-                'pt.partner_name', 'sl.line_no', 'sl.unit_price', 'i.item_code', 'i.item_name', 'i.spec_unit',
+                'pt.partner_name', 'sl.line_no', 'sl.unit_price', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit',
                 'l.lot_no', 'w.warehouse_name', 'so.order_no', 'sol.line_no as so_line_no', 'so.customer_po_no',
             ])
             ->orderByDesc(DB::raw($basis === 'shipped' ? 'COALESCE(s.shipped_at, s.plan_date)' : 's.plan_date'))->orderByDesc('p.shipment_pick_idx');
@@ -81,6 +81,8 @@ class ShipmentHistoryController extends Controller {
             'customer_po_no'    => $r->customer_po_no,
             'item_code'         => $r->item_code,
             'item_name'         => $r->item_name,
+            'item_spec'         => $r->item_spec,
+            'item_material'     => $r->item_material,
             'spec_unit'         => $r->spec_unit,
             'lot_no'            => $r->lot_no,
             'warehouse_name'    => $r->warehouse_name,

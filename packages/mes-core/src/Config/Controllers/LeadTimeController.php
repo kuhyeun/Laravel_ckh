@@ -38,7 +38,7 @@ class LeadTimeController extends Controller {
         $default = LeadTime::whereNull('item_idx')->first();
 
         $rows = LeadTime::query()
-            ->with('item:item_idx,item_code,item_name,item_type,is_use')
+            ->with('item:item_idx,item_code,item_name,spec,material,item_type,is_use')
             ->whereNotNull('item_idx')
             ->when($validated['keyword'] ?? null, function ($q, $keyword) {
                 $q->whereHas('item', fn ($i) => $i->where('item_code', 'like', "%{$keyword}%")
@@ -128,7 +128,7 @@ class LeadTimeController extends Controller {
 
         try {
             $leadTime->fill($validated)->save();
-            $leadTime->load('item:item_idx,item_code,item_name,item_type,is_use');
+            $leadTime->load('item:item_idx,item_code,item_name,spec,material,item_type,is_use');
 
             return response()->json(['message' => 'Success', 'lead_time' => $this->toPayload($leadTime)], 200);
         } catch (\Throwable $e) {
@@ -175,6 +175,8 @@ class LeadTimeController extends Controller {
             'is_default'  => $l->isDefault() ? 'Y' : 'N',
             'item_code'   => $l->item?->item_code,
             'item_name'   => $l->item?->item_name,
+            'item_spec'   => $l->item?->spec,
+            'item_material' => $l->item?->material,
             'item_type'   => $l->item?->item_type,
             'item_is_use' => $l->item?->is_use,
             'total_days'  => $l->totalDays(),

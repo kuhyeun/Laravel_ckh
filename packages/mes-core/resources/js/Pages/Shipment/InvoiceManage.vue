@@ -80,6 +80,8 @@ const columns = [
     { header: '출하 일시', name: 'shipped_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '고객사', name: 'partner_name', width: 140, className: 'cursor-pointer', escapeHTML: true },
     { header: '품목', name: 'item_label', minWidth: 180, className: 'cursor-pointer', escapeHTML: true },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: '수주', name: 'order_summary', width: 150, className: 'cursor-pointer', escapeHTML: true },
     money('supply', '공급가액'),
     money('tax', '세액'),

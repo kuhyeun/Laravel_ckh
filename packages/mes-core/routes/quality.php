@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\Route;
 use MesCore\Quality\Controllers\IncomingInspectionController;
 use MesCore\Quality\Controllers\ShippingInspectionController;
 use MesCore\Quality\Controllers\ProcessInspectionController;
+use MesCore\Quality\Controllers\DefectHistoryController;
+use MesCore\Auth\Middleware\MenuAuth;
 use MesCore\Auth\Middleware\UserAuth;
 
 // 품질 ( config('mes.modules') 의 Quality ) 엔드포인트
@@ -35,5 +37,11 @@ Route::prefix('quality')->name('quality.')->middleware([UserAuth::class])->group
         Route::post('/stage/{opIdx}', [ProcessInspectionController::class, 'stage'])->whereNumber('opIdx')->name('stage');
         Route::post('/cancelStage/{inspectionIdx}', [ProcessInspectionController::class, 'cancelStage'])->whereNumber('inspectionIdx')->name('cancelStage');
         Route::post('/cancel/{opIdx}', [ProcessInspectionController::class, 'cancel'])->whereNumber('opIdx')->name('cancel');
+    });
+
+    // 품목별 불량이력 ( Quality/DefectHistory — 조회만 )
+    Route::prefix('defect')->name('defect.')->middleware(MenuAuth::class . ':Quality/DefectHistory,can_read')->group(function() {
+        Route::get('/list', [DefectHistoryController::class, 'list'])->name('list');
+        Route::get('/formData', [DefectHistoryController::class, 'formData'])->name('formData');
     });
 });

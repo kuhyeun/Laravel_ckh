@@ -76,6 +76,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import { itemLabel } from '@core/Utils/format';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -107,7 +108,9 @@ const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDig
 
 const columns = [
     { header: '지시번호', name: 'wo_no', width: 120, sortable: true, className: 'cursor-pointer' },
-    { header: '품목', name: 'item_code', minWidth: 120, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => `${row.item_code} ${row.item_name}` },
+    { header: '품목', name: 'item_code', minWidth: 120, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmt(row.target_qty) },
     { header: '착수', name: 'start_date', width: 90, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '출고', name: 'issued_count', width: 60, align: 'center', className: 'cursor-pointer',

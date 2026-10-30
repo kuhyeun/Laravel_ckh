@@ -11,6 +11,7 @@
         { "field": "item_kind",      "header": "소분류",   "width": 10, "display": true },
         { "field": "spec_unit",      "header": "단위",     "width": 8 },
         { "field": "spec",           "header": "규격",     "width": 18 },
+        { "field": "material",       "header": "재질",     "width": 14 },
         { "field": "safety_stock",   "header": "안전재고", "width": 12, "numFmt": "#,##0" },
         { "field": "std_sale_price", "header": "판매단가", "width": 12, "numFmt": "#,##0" },
         { "field": "is_use",         "header": "사용",     "width": 8,  "map": { "Y": "사용", "N": "미사용" } }

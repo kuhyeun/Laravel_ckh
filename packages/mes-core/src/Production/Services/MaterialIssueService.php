@@ -150,6 +150,8 @@ class MaterialIssueService {
                 'item_idx'      => $m->child_item_idx,
                 'item_code'     => $item->item_code,
                 'item_name'     => $item->item_name,
+                'item_spec'     => $item->spec,
+                'item_material' => $item->material,
                 'spec_unit'     => $item->spec_unit,
                 'calc_code'     => $def['code'],
                 'calc_name'     => $def['name'],
@@ -344,7 +346,7 @@ class MaterialIssueService {
             ->leftJoin('lot as l', 'l.lot_idx', '=', 's.lot_idx')
             ->where('s.work_order_idx', $wo->work_order_idx)->where('s.issued_qty', '>', 0)
             ->orderBy('i.item_code')->orderBy('l.lot_no')
-            ->get(['s.item_idx', 's.lot_idx', 's.issued_qty', 's.consumed_qty', 's.returned_qty', 's.qty', 'i.item_code', 'i.item_name', 'i.spec_unit', 'l.lot_no', 'l.spec_value']);
+            ->get(['s.item_idx', 's.lot_idx', 's.issued_qty', 's.consumed_qty', 's.returned_qty', 's.qty', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'l.lot_no', 'l.spec_value']);
 
         return $rows->map(fn ($r) => [
             'key'          => "{$r->item_idx}:{$r->lot_idx}",
@@ -352,6 +354,8 @@ class MaterialIssueService {
             'lot_idx'      => (int) $r->lot_idx,
             'item_code'    => $r->item_code,
             'item_name'    => $r->item_name,
+            'item_spec'    => $r->item_spec,
+            'item_material'=> $r->item_material,
             'spec_unit'    => $r->spec_unit,
             'lot_no'       => $r->lot_no,
             'spec_value'   => $r->spec_value !== null ? (float) $r->spec_value : null,
@@ -509,7 +513,7 @@ class MaterialIssueService {
         $first    = $this->firstQtyOp($ops);
         $warnings = [];
 
-        $materials = WorkOrderMaterial::with('childItem:item_idx,item_code,item_name')->where('work_order_idx', $wo->work_order_idx)->get()
+        $materials = WorkOrderMaterial::with('childItem:item_idx,item_code,item_name,spec,material')->where('work_order_idx', $wo->work_order_idx)->get()
             ->filter(fn (WorkOrderMaterial $m) => (int) ($m->work_order_op_idx ?: $first?->work_order_op_idx) === (int) $op->work_order_op_idx);
 
         foreach ($materials->groupBy('child_item_idx') as $itemIdx => $rows) {

@@ -561,6 +561,8 @@ return [
                         'menu_icon' => null,
                         'module_code' => 'Quality',
                         'menu_route_name' => '',
+                        'url_path' => '/quality/defect',
+                        'page_component' => 'Quality/DefectHistory',
                         'menu_level' => 99,
                     ],
                 ]

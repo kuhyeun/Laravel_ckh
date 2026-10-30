@@ -394,6 +394,8 @@ class BomController extends Controller {
             'item_idx'    => $bom->item_idx,
             'item_code'   => $bom->item?->item_code,
             'item_name'   => $bom->item?->item_name,
+            'item_spec'   => $bom->item?->spec,
+            'item_material' => $bom->item?->material,
             'has_routing' => $bom->item?->routing_idx ? 'Y' : 'N',
             'version'     => $bom->version,
             'is_active'   => $bom->is_active,

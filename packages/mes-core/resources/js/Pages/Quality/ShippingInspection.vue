@@ -59,7 +59,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ShippingInspectionForm from '@core/Components/Quality/ShippingInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useFlash, failMsg } from '@core/Composables/useFlash';
-import { fmtQty } from '@core/Utils/format';
+import { fmtQty, itemLabel } from '@core/Utils/format';
 import { inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
 
 defineOptions({ layout: AppLayout });
@@ -83,7 +83,9 @@ const columns = [
     { header: '출하 예정', name: 'plan_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '고객사', name: 'partner_name', width: 140, className: 'cursor-pointer', escapeHTML: true },
     { header: '품목', name: 'item_code', minWidth: 200, className: 'cursor-pointer', escapeHTML: true,
-      formatter: ({ row }) => `${row.item_code} ${row.item_name}` },
+      formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_summary', width: 170, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 110, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmtQty(row.qty, row.spec_unit) },
     { header: '검사', name: 'inspect_status', width: 80, align: 'center', className: 'cursor-pointer',

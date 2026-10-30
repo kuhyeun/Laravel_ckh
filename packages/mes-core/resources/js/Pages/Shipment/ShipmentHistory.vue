@@ -60,7 +60,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ShipmentForm from '@core/Components/Shipment/ShipmentForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useFlash, failMsg } from '@core/Composables/useFlash';
-import { fmtNum, fmtQty } from '@core/Utils/format';
+import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 import { woStatusColor } from '@core/Components/Production/productionCodes';
 
 defineOptions({ layout: AppLayout });
@@ -88,7 +88,9 @@ const columns = [
     { header: '출하번호', name: 'shipment_no', width: 140, sortable: true, className: 'cursor-pointer' },
     { header: '고객사', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
     { header: '수주', name: 'order_label', width: 150, className: 'cursor-pointer', escapeHTML: true },
-    { header: '품목', name: 'item_code', minWidth: 180, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => `${row.item_code} ${row.item_name}` },
+    { header: '품목', name: 'item_code', minWidth: 180, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', width: 150, className: 'cursor-pointer', escapeHTML: true },
     { header: '창고', name: 'warehouse_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmtQty(row.qty, row.spec_unit) },
@@ -128,7 +130,7 @@ function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage();
 // 엑셀 : 지금 조건 전체
 const exportColumns = [
     { header: '출하 일시', name: 'shipped_at' }, { header: '출하번호', name: 'shipment_no' }, { header: '고객사', name: 'partner_name' },
-    { header: '수주', name: 'order_label' }, { header: '고객 발주번호', name: 'customer_po_no' }, { header: '품번', name: 'item_code' }, { header: '품명', name: 'item_name' },
+    { header: '수주', name: 'order_label' }, { header: '고객 발주번호', name: 'customer_po_no' }, { header: '품번', name: 'item_code' }, { header: '품명', name: 'item_name' }, { header: '규격', name: 'item_spec' }, { header: '재질', name: 'item_material' },
     { header: 'LOT', name: 'lot_no' }, { header: '창고', name: 'warehouse_name' }, { header: '수량', name: 'qty' }, { header: '단위', name: 'spec_unit' },
     { header: '단가', name: 'unit_price' }, { header: '금액', name: 'amount' }, { header: '출하 예정', name: 'plan_date' }, { header: '상태', name: 'status_label' },
 ];

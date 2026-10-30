@@ -93,6 +93,8 @@ const warehouseFilter = computed(() => [{ value: '', label: '창고 전체' }, .
 const lotColumns = [
     { header: '품번', name: 'item_code', width: 180, sortable: true, className: 'cursor-pointer', escapeHTML: true, lockHide: true },
     { header: '품명', name: 'item_name', minWidth: 160, className: 'cursor-pointer', escapeHTML: true },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', minWidth: 150, sortable: true, className: 'cursor-pointer', escapeHTML: true },
     { header: '공급처 LOT', name: 'external_lot_no', minWidth: 150, className: 'cursor-pointer', escapeHTML: true },
     { header: '창고', name: 'warehouse_name', width: 120, sortable: true, className: 'cursor-pointer', escapeHTML: true },
@@ -104,6 +106,8 @@ const lotColumns = [
 const itemColumns = [
     { header: '품번', name: 'item_code', width: 140, sortable: true, escapeHTML: true, lockHide: true },
     { header: '품명', name: 'item_name', minWidth: 200, escapeHTML: true },
+    { header: '규격', name: 'item_spec', width: 110, escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, escapeHTML: true },
     { header: '창고', name: 'warehouse_name', width: 140, sortable: true, escapeHTML: true },
     { header: '수량', name: 'qty', width: 130, align: 'right', sortable: true, formatter: ({ row }) => qtyText(row.qty, row.spec_unit) },
     { header: 'LOT 수', name: 'lot_count', width: 80, align: 'right' },

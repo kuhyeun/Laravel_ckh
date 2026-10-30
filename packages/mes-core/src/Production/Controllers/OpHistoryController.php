@@ -52,7 +52,7 @@ class OpHistoryController extends Controller {
                 'r.run_idx', 'r.worked_at', 'r.create_datetime as created_at', 'r.qty', 'r.remark', 'r.is_canceled', 'r.canceled_at',
                 'r.operator_idx', 'r.create_account_idx', 'r.stock_txn_line_idx',
                 'wo.work_order_idx', 'wo.wo_no', 'wo.start_date',
-                'i.item_code', 'i.item_name', 'i.spec_unit', 'l.lot_no',
+                'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'l.lot_no',
                 'op.seq', 'p.process_name', 'e.equipment_name',
                 DB::raw("COALESCE(NULLIF(u.user_name, ''), u.user_id) as operator_name"),
                 DB::raw("COALESCE(NULLIF(cu.user_name, ''), cu.user_id) as creator_name"),
@@ -69,6 +69,8 @@ class OpHistoryController extends Controller {
             'wo_no'          => $r->wo_no,
             'item_code'      => $r->item_code,
             'item_name'      => $r->item_name,
+            'item_spec'      => $r->item_spec,
+            'item_material'  => $r->item_material,
             'spec_unit'      => $r->spec_unit,
             'lot_no'         => $r->lot_no,
             'op_label'       => str_pad((string) $r->seq, 3, '0', STR_PAD_LEFT) . ' ' . $r->process_name,
@@ -92,7 +94,7 @@ class OpHistoryController extends Controller {
         // [ 키 식 , 이름 식 , 덧붙일 칸 ] — 식은 SQL 문자열 ( 사용자 값이 들어가지 않는다 )
         $day = 'DATE(' . self::DATE_COLUMNS[$v['date_basis']] . ')';
         [$key, $label, $extra] = match ($group) {
-            'item'      => ['i.item_idx', "CONCAT(i.item_code, ' ', i.item_name)", ['COUNT(DISTINCT wo.work_order_idx) as line_count', "COUNT(DISTINCT CASE WHEN wo.status = 'DONE' THEN wo.work_order_idx END) as done_count"]],
+            'item'      => ['i.item_idx', "CONCAT(i.item_name, ' [', i.item_code, ']')", ['COUNT(DISTINCT wo.work_order_idx) as line_count', "COUNT(DISTINCT CASE WHEN wo.status = 'DONE' THEN wo.work_order_idx END) as done_count"]],
             'process'   => ['p.process_idx', 'p.process_name', ['COUNT(DISTINCT op.work_order_op_idx) as op_count']],
             'operator'  => ['r.operator_idx', "COALESCE(NULLIF(u.user_name, ''), u.user_id)", ['COUNT(DISTINCT op.process_idx) as process_count']],
             'equipment' => ['COALESCE(r.equipment_idx, 0)', "COALESCE(e.equipment_name, '( 미지정 )')", []],
@@ -181,7 +183,7 @@ class OpHistoryController extends Controller {
             'work_order_idx' => $wo->work_order_idx,
             'wo_no'          => $wo->wo_no,
             'sheet_no'       => $wo->sheet?->sheet_no,
-            'item_label'     => trim(($wo->item?->item_code ?? '') . ' ' . ($wo->item?->item_name ?? '')),
+            'item_label'     => \MesCore\Config\Models\Item::labelOf($wo->item),
             'spec_unit'      => $wo->item?->spec_unit,
             'target_qty'     => (float) $wo->target_qty,
             'lot_no'         => $wo->lot?->lot_no,
@@ -207,7 +209,7 @@ class OpHistoryController extends Controller {
             ])->values(),
             'runs'           => $runs->map($runRow)->values(),
             'materials'      => $wo->materials->map(fn ($m) => [
-                'item_label' => trim(($m->childItem?->item_code ?? '') . ' ' . ($m->childItem?->item_name ?? '')),
+                'item_label' => \MesCore\Config\Models\Item::labelOf($m->childItem),
                 'spec_unit'  => $m->childItem?->spec_unit,
                 'input_op'   => ($o = $m->work_order_op_idx ? $ops->firstWhere('work_order_op_idx', $m->work_order_op_idx) : $ops->first(fn ($x) => $x->isQtyOp())) ? $opName($o) : '',
                 'issued'     => (float) $m->issued_qty,

@@ -16,7 +16,7 @@ class ItemImport implements ImportHandler {
 
     // 엑셀로 다루는 칸 ( 이 밖의 칸은 수정할 때 건드리지 않는다 )
     private const FIELDS = [
-        'item_code', 'item_name', 'item_type', 'item_kind', 'spec_unit', 'spec', 'routing_idx', 'serial_use',
+        'item_code', 'item_name', 'item_type', 'item_kind', 'spec_unit', 'spec', 'material', 'routing_idx', 'serial_use',
         'pack_qty', 'safety_stock', 'order_cycle_days', 'moq', 'unit_round', 'spec_dim', 'min_usable_spec', 'calc_code',
         'std_sale_price', 'std_buy_price', 'std_subcon_price', 'is_use', 'remark',
     ];

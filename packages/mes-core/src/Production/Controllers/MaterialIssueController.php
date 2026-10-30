@@ -35,7 +35,7 @@ class MaterialIssueController extends Controller {
         ], [], ['from' => '시작일', 'to' => '종료일']);
 
         $query = WorkOrder::query()
-            ->with(['item:item_idx,item_code,item_name,spec_unit', 'lot:lot_idx,lot_no'])
+            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no'])
             ->withCount(['materials', 'materials as issued_count' => fn ($q) => $q->where('issued_qty', '>', 0)])
             ->whereIn('status', filter_var($v['include_done'] ?? false, FILTER_VALIDATE_BOOLEAN) ? ['WAIT', 'RUN', 'DONE'] : ['WAIT', 'RUN'])   // 완료 포함 = 남은 자재 반납
             ->orderBy('start_date')->orderBy('work_order_idx');
@@ -59,6 +59,8 @@ class MaterialIssueController extends Controller {
             'wo_no'           => $w->wo_no,
             'item_code'       => $w->item?->item_code,
             'item_name'       => $w->item?->item_name,
+            'item_spec'       => $w->item?->spec,
+            'item_material'   => $w->item?->material,
             'spec_unit'       => $w->item?->spec_unit,
             'target_qty'      => (float) $w->target_qty,
             'lot_no'          => $w->lot?->lot_no,
@@ -80,6 +82,8 @@ class MaterialIssueController extends Controller {
                 'status'         => $wo->status,
                 'item_code'      => $wo->item?->item_code,
                 'item_name'      => $wo->item?->item_name,
+                'item_spec'      => $wo->item?->spec,
+                'item_material'  => $wo->item?->material,
                 'spec_unit'      => $wo->item?->spec_unit,
                 'target_qty'     => (float) $wo->target_qty,
                 'lot_no'         => $wo->lot?->lot_no,
@@ -94,7 +98,7 @@ class MaterialIssueController extends Controller {
     public function history(int $woIdx) {
         $wo    = $this->find($woIdx);
         $users = User::pluck('user_name', 'account_idx');
-        $rows  = StockTxnLine::with(['txn', 'item:item_idx,item_code,item_name,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
+        $rows  = StockTxnLine::with(['txn', 'item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
             ->where('work_order_idx', $wo->work_order_idx)
             ->whereHas('txn', fn ($q) => $q->where('txn_type', MaterialIssueService::TXN_TYPE))
             ->orderByDesc('stock_txn_line_idx')->get()
@@ -104,6 +108,8 @@ class MaterialIssueController extends Controller {
                 'occurred_at'        => substr((string) $l->txn?->occurred_at, 0, 16),
                 'item_code'          => $l->item?->item_code,
                 'item_name'          => $l->item?->item_name,
+                'item_spec'          => $l->item?->spec,
+                'item_material'      => $l->item?->material,
                 'spec_unit'          => $l->item?->spec_unit,
                 'lot_no'             => $l->lot?->lot_no,
                 'spec_value'         => $l->lot?->spec_value !== null ? (float) $l->lot->spec_value : null,
@@ -156,7 +162,7 @@ class MaterialIssueController extends Controller {
     public function returnPlan(int $woIdx) {
         $wo    = $this->find($woIdx);
         $users = User::pluck('user_name', 'account_idx');
-        $history = StockTxnLine::with(['txn', 'item:item_idx,item_code,item_name,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
+        $history = StockTxnLine::with(['txn', 'item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
             ->where('work_order_idx', $wo->work_order_idx)
             ->whereHas('txn', fn ($q) => $q->where('txn_type', MaterialIssueService::RETURN_TYPE))
             ->orderByDesc('stock_txn_line_idx')->get()
@@ -166,6 +172,8 @@ class MaterialIssueController extends Controller {
                 'occurred_at'        => substr((string) $l->txn?->occurred_at, 0, 16),
                 'item_code'          => $l->item?->item_code,
                 'item_name'          => $l->item?->item_name,
+                'item_spec'          => $l->item?->spec,
+                'item_material'      => $l->item?->material,
                 'spec_unit'          => $l->item?->spec_unit,
                 'lot_no'             => $l->lot?->lot_no,
                 'warehouse_name'     => $l->warehouse?->warehouse_name,

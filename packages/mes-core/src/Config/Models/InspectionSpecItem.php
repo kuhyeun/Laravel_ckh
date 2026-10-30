@@ -34,7 +34,6 @@ class InspectionSpecItem extends Model {
 
     protected function casts(): array {
         return [
-            'standard_value' => 'float',
             'lower_limit'    => 'float',
             'upper_limit'    => 'float',
         ];

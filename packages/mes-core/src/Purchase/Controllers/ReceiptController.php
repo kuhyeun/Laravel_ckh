@@ -57,7 +57,7 @@ class ReceiptController extends Controller {
             ->select('stock_txn.*')
             ->addSelect(['partner_name' => Partner::select('partner_name')->whereColumn('partner.partner_idx', 'stock_txn.partner_idx')])
             ->where('txn_type', ReceiptService::TXN_TYPE)
-            ->with(['lines.item:item_idx,item_code,item_name,item_kind,spec_unit', 'lines.lot', 'lines.warehouse:warehouse_idx,warehouse_name',
+            ->with(['lines.item:item_idx,item_code,item_name,spec,material,item_kind,spec_unit', 'lines.lot', 'lines.warehouse:warehouse_idx,warehouse_name',
                     'lines.purchaseOrderLine.order:purchase_order_idx,order_no'])
             ->orderByDesc('recorded_at')
             ->orderByDesc('stock_txn_idx');
@@ -122,7 +122,7 @@ class ReceiptController extends Controller {
     public function poLines(Request $request) {
         $v = $request->validate(['partner_idx' => 'required|integer']);
 
-        $lines = PurchaseOrderLine::with(['order:purchase_order_idx,order_no,order_date,status,partner_idx', 'item:item_idx,item_code,item_name,item_kind,spec_unit'])
+        $lines = PurchaseOrderLine::with(['order:purchase_order_idx,order_no,order_date,status,partner_idx', 'item:item_idx,item_code,item_name,spec,material,item_kind,spec_unit'])
             ->where('line_status', 'OPEN')
             ->whereHas('order', fn ($q) => $q->where('partner_idx', $v['partner_idx'])->where('status', 'CONFIRMED'))
             ->orderBy('due_date')->orderBy('purchase_order_line_idx')
@@ -136,6 +136,8 @@ class ReceiptController extends Controller {
                 'item_idx'                => $l->item_idx,
                 'item_code'               => $l->item?->item_code,
                 'item_name'               => $l->item?->item_name,
+                'item_spec'               => $l->item?->spec,
+                'item_material'           => $l->item?->material,
                 'item_kind'               => $l->item?->item_kind,
                 'spec_unit'               => $l->item?->spec_unit,
                 'qty'                     => (float) $l->qty,
@@ -229,6 +231,7 @@ class ReceiptController extends Controller {
         $poNos = $lines->map(fn ($l) => $l->purchaseOrderLine?->order?->order_no)->filter()->unique()->values();
         $wait  = $lines->where('line_status', 'WAIT')->count();
         $units = $lines->map(fn ($l) => $l->item?->spec_unit)->unique();
+        $live  = $lines->where('line_status', '!=', 'CANCELED');
 
         return [
             'stock_txn_idx' => $t->stock_txn_idx,
@@ -238,8 +241,13 @@ class ReceiptController extends Controller {
             'partner_idx'   => $t->partner_idx,
             'partner_name'  => $t->partner_name ?? $t->partner?->partner_name,
             'po_summary'    => $poNos->isEmpty() ? '( 직접 )' : $poNos->first() . ($poNos->count() > 1 ? ' 외 ' . ($poNos->count() - 1) : ''),
-            'item_summary'  => $first ? $first->item?->item_code . ($lines->count() > 1 ? ' 외 ' . ($lines->count() - 1) : '') : '',
+            'item_summary'  => $first ? \MesCore\Config\Models\Item::labelOf($first->item, $lines->count() > 1) . ($lines->count() > 1 ? ' 외 ' . ($lines->count() - 1) . '건' : '') : '',
             'total_qty'     => $units->count() === 1 ? (float) $lines->where('line_status', '!=', 'CANCELED')->sum('qty') : null,
+            // 발주 · 불량 · 입고( 재고에 잡힌 = 합격 ) 합 — 단위가 하나일 때만 ( 취소 줄 빼고 ) / 검사대기는 따로
+            'po_qty_total'  => $units->count() === 1 && $live->contains(fn ($l) => $l->purchaseOrderLine) ? (float) $live->sum(fn ($l) => (float) ($l->purchaseOrderLine?->qty ?? 0)) : null,
+            'fail_total'    => $units->count() === 1 ? (float) $live->sum('fail_qty') : null,
+            'pass_total'    => $units->count() === 1 ? (float) $live->where('line_status', 'DONE')->sum('pass_qty') : null,
+            'wait_total'    => $units->count() === 1 ? (float) $live->where('line_status', 'WAIT')->sum('qty') : null,
             'status'        => $t->status,
             'wait_count'    => $wait,
             'line_count'    => $lines->count(),
@@ -252,6 +260,8 @@ class ReceiptController extends Controller {
                 'item_idx'                => $l->item_idx,
                 'item_code'               => $l->item?->item_code,
                 'item_name'               => $l->item?->item_name,
+                'item_spec'               => $l->item?->spec,
+                'item_material'           => $l->item?->material,
                 'spec_unit'               => $l->item?->spec_unit,
                 'lot_no'                  => $l->lot?->lot_no,
                 'external_lot_no'         => $l->lot?->external_lot_no,
@@ -259,6 +269,7 @@ class ReceiptController extends Controller {
                 'warehouse_name'          => $l->warehouse?->warehouse_name,
                 'order_no'                => $l->purchaseOrderLine?->order?->order_no,
                 'qty'                     => (float) $l->qty,
+                'po_qty'                  => $l->purchaseOrderLine ? (float) $l->purchaseOrderLine->qty : null,   // 발주 수량 ( 직접 입고면 null )
                 'pass_qty'                => (float) $l->pass_qty,
                 'fail_qty'                => (float) $l->fail_qty,
                 'insp_mode'               => $l->insp_mode,

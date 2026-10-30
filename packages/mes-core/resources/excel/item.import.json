@@ -17,6 +17,7 @@
               { "value": "FINISHED", "label": "완제품" }, { "value": "SEMI", "label": "반제품" }, { "value": "SET", "label": "세트" } ] },
         { "field": "spec_unit",        "header": "단위",        "type": "code", "codeGroup": "UNIT", "required": true, "width": 8, "example": "EA", "note": "코드관리 UNIT 의 코드 또는 이름" },
         { "field": "spec",             "header": "규격",        "type": "text", "width": 16, "maxLength": 100, "example": "Ø20 x 100" },
+        { "field": "material",         "header": "재질",        "type": "text", "width": 14, "maxLength": 100, "example": "SUS304" },
         { "field": "routing_idx",      "header": "기본 라우팅", "type": "ref",  "ref": "routing", "width": 14, "example": "RT-01", "note": "라우팅코드 또는 라우팅명. 신규에서 비우면 기본 라우팅이 들어갑니다" },
         { "field": "serial_use",       "header": "시리얼 사용", "type": "yn",   "width": 10, "example": "N", "note": "시리얼 기능이 켜져 있을 때만 Y" },
         { "field": "pack_qty",         "header": "포장 수량",   "type": "number",  "width": 10 },

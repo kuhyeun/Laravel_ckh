@@ -98,7 +98,7 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import OpHistoryDetail from '@core/Components/Production/OpHistoryDetail.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useFlash, failMsg } from '@core/Composables/useFlash';
-import { fmtNum, fmtQty } from '@core/Utils/format';
+import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
 const listGrid    = ref(null);   // 실적 이력 그리드 — 열 설정 ( 엑셀은 따로 정한 exportColumns )
@@ -144,7 +144,9 @@ const params = (extra = {}) => {
 const columns = [
     { header: '작업 일시', name: 'worked_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '줄 번호', name: 'wo_no', width: 150, sortable: true, className: 'cursor-pointer' },
-    { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => `${row.item_code} ${row.item_name}` },
+    { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', width: 140, className: 'cursor-pointer', escapeHTML: true },
     { header: '공정', name: 'op_label', width: 110, className: 'cursor-pointer', escapeHTML: true },
     { header: '설비', name: 'equipment_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
@@ -186,7 +188,7 @@ function onSort({ key, dir }) { sort.key = key; sort.dir = dir; paging.page = 1;
 
 // 엑셀 : 지금 조건 전체
 const exportColumns = [
-    { header: '작업 일시', name: 'worked_at' }, { header: '줄 번호', name: 'wo_no' }, { header: '품번', name: 'item_code' }, { header: '품명', name: 'item_name' },
+    { header: '작업 일시', name: 'worked_at' }, { header: '줄 번호', name: 'wo_no' }, { header: '품번', name: 'item_code' }, { header: '품명', name: 'item_name' }, { header: '규격', name: 'item_spec' }, { header: '재질', name: 'item_material' },
     { header: 'LOT', name: 'lot_no' }, { header: '공정', name: 'op_label' }, { header: '설비', name: 'equipment_name' }, { header: '작업자', name: 'operator_name' },
     { header: '수량', name: 'qty' }, { header: '단위', name: 'spec_unit' }, { header: '입고', name: 'received_text' }, { header: '비고', name: 'remark' },
     { header: '입력자', name: 'creator_name' }, { header: '등록 일시', name: 'created_at' }, { header: '착수 예정', name: 'start_date' }, { header: '취소', name: 'canceled_text' },

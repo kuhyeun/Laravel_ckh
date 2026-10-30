@@ -43,7 +43,7 @@ class ShipmentController extends Controller {
 
         $col   = self::DATE_COLUMNS[$v['date_basis'] ?? 'plan'];
         $query = Shipment::query()
-            ->with(['partner:partner_idx,partner_name', 'lines.item:item_idx,item_code,item_name,spec_unit', 'lines.salesOrderLine.order:sales_order_idx,order_no', 'lines.picks.lot:lot_idx,lot_no'])
+            ->with(['partner:partner_idx,partner_name', 'lines.item:item_idx,item_code,item_name,spec,material,spec_unit', 'lines.salesOrderLine.order:sales_order_idx,order_no', 'lines.picks.lot:lot_idx,lot_no'])
             ->orderByDesc('plan_date')->orderByDesc('shipment_idx');
 
         $status = $v['status'] ?? 'OPEN';
@@ -81,7 +81,7 @@ class ShipmentController extends Controller {
             }
             $first = $lines->first();
             return $head + [
-                'item_label'    => $first ? "{$first['item_code']} 외 " . ($lines->count() - 1) . '건' : '',
+                'item_label'    => $first ? "{$first['item_short']} 외 " . ($lines->count() - 1) . '건' : '',
                 'order_summary' => $lines->pluck('order_label')->filter()->unique()->implode(', '),
                 '_children'     => $lines->map(fn ($l) => $l + ['shipment_idx' => $s->shipment_idx, 'shipment_no' => $s->shipment_no . ' - ' . $l['line_no']])->all(),   // 줄 : 출하번호 - 줄 번호 ( 스타일 가이드 §5 트리 )
             ];
@@ -145,7 +145,7 @@ class ShipmentController extends Controller {
     // 수주 줄 고르기 : 그 고객사 · 확정 · 진행 줄 · 남은 출하 > 0 ( 납품일 이른 순 )
     public function soLines(Request $request) {
         $v = $request->validate(['partner_idx' => 'required|integer', 'shipment_idx' => 'nullable|integer']);
-        $lines = SalesOrderLine::with(['order:sales_order_idx,order_no,partner_idx,status', 'item:item_idx,item_code,item_name,spec_unit'])
+        $lines = SalesOrderLine::with(['order:sales_order_idx,order_no,partner_idx,status', 'item:item_idx,item_code,item_name,spec,material,spec_unit'])
             ->where('line_status', 'OPEN')
             ->whereHas('order', fn ($q) => $q->where('partner_idx', $v['partner_idx'])->where('status', 'CONFIRMED'))
             ->orderBy('due_date')->orderBy('sales_order_line_idx')->get()
@@ -156,6 +156,8 @@ class ShipmentController extends Controller {
                 'item_idx'     => $l->item_idx,
                 'item_code'    => $l->item?->item_code,
                 'item_name'    => $l->item?->item_name,
+                'item_spec'    => $l->item?->spec,
+                'item_material' => $l->item?->material,
                 'spec_unit'    => $l->item?->spec_unit,
                 'due_date'     => $l->due_date?->toDateString(),
                 'qty'          => (float) $l->qty,
@@ -250,7 +252,10 @@ class ShipmentController extends Controller {
             'line_no'        => $l->line_no,
             'item_code'      => $l->item?->item_code,
             'item_name'      => $l->item?->item_name,
-            'item_label'     => trim(($l->item?->item_code ?? '') . ' ' . ($l->item?->item_name ?? '')),
+            'item_spec'      => $l->item?->spec,
+            'item_material'  => $l->item?->material,
+            'item_label'     => \MesCore\Config\Models\Item::labelOf($l->item),
+            'item_short'     => \MesCore\Config\Models\Item::labelOf($l->item, true),   // 머리 행 요약용
             'spec_unit'      => $l->item?->spec_unit,
             'qty'            => (float) $l->qty,
             'unit_price'     => $l->unit_price !== null ? (float) $l->unit_price : null,

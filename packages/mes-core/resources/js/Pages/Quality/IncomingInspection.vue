@@ -53,6 +53,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import { itemLabel } from '@core/Utils/format';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -83,7 +84,9 @@ const columns = [
     { header: '입고일시', name: 'occurred_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '구매처', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
     { header: '품목', name: 'item_code', minWidth: 200, className: 'cursor-pointer', escapeHTML: true,
-      formatter: ({ row }) => `${row.item_code} ${row.item_name}` },
+      formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', width: 150, className: 'cursor-pointer', escapeHTML: true },
     { header: '공급처 LOT', name: 'external_lot_no', width: 120, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 110, align: 'right', className: 'cursor-pointer',

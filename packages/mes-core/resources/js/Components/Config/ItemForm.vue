@@ -61,6 +61,11 @@
                 <BaseInput v-model="form.spec" class="w-full" :disabled="!canWrite" />
                 <p v-if="errors.spec" class="text-xs text-red-500 mt-0.5">{{ errors.spec[0] }}</p>
             </div>
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">재질</label>
+                <BaseInput v-model="form.material" class="w-full" maxlength="100" :disabled="!canWrite" />
+                <p v-if="errors.material" class="text-xs text-red-500 mt-0.5">{{ errors.material[0] }}</p>
+            </div>
             <!-- 라우팅 · 주 자재( BOM ) 는 만드는 품목( 제품 )만 -->
             <div v-if="isProduct">
                 <label class="block text-gray-500 font-medium mb-1">
@@ -366,6 +371,7 @@ const form = reactive({
     item_kind:        src.item_kind ?? 'FINISHED',
     spec_unit:        src.spec_unit ?? 'EA',
     spec:             src.spec ?? '',
+    material:         src.material ?? '',
     serial_use:       src.serial_use ?? 'N',
     pack_qty:         src.pack_qty ?? '',
     safety_stock:     src.safety_stock ?? 0,

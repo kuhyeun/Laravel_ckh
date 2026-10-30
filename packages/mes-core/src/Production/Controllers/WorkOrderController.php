@@ -69,7 +69,7 @@ class WorkOrderController extends Controller {
         $query = WorkOrderSheet::query()
             ->with([
                 'manager:account_idx,user_id,user_name',
-                'lines' => fn ($q) => $q->with(['item:item_idx,item_code,item_name,spec_unit', 'lot:lot_idx,lot_no', 'sources.salesOrderLine.order:sales_order_idx,order_no'])
+                'lines' => fn ($q) => $q->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no', 'sources.salesOrderLine.order:sales_order_idx,order_no'])
                     ->withCount(['ops', 'ops as done_ops_count' => fn ($o) => $o->where('status', 'DONE')]),
             ])
             ->orderByDesc('sheet_idx');
@@ -110,7 +110,7 @@ class WorkOrderController extends Controller {
             $first = $lines->first();
             return $head + [
                 'item_code'   => $first ? $first['item_code'] : null,
-                'item_label'  => $first ? $first['item_code'] . ' 외 ' . ($lines->count() - 1) . '건' : '',
+                'item_label'  => $first ? $first['item_short'] . ' 외 ' . ($lines->count() - 1) . '건' : '',
                 '_children'   => $lines->map(fn ($l) => $l + ['sheet_idx' => $s->sheet_idx])->all(),
             ];
         });
@@ -175,7 +175,7 @@ class WorkOrderController extends Controller {
     //   없으면 모든 품목( 지시서의 [+ 수주 줄] — 같은 품목 줄에 병합하거나 새 줄로 )
     public function soLines(Request $request) {
         $v = $request->validate(['item_idx' => 'nullable|integer', 'work_order_idx' => 'nullable|integer']);
-        $lines = SalesOrderLine::with(['order:sales_order_idx,order_no,order_date,status,partner_idx', 'order.partner:partner_idx,partner_name', 'item:item_idx,item_code,item_name,item_type,is_use'])
+        $lines = SalesOrderLine::with(['order:sales_order_idx,order_no,order_date,status,partner_idx', 'order.partner:partner_idx,partner_name', 'item:item_idx,item_code,item_name,spec,material,item_type,is_use'])
             ->when($v['item_idx'] ?? null, fn ($q, $item) => $q->where('item_idx', $item))
             ->where('line_status', 'OPEN')
             ->whereHas('order', fn ($q) => $q->where('status', 'CONFIRMED'))
@@ -276,7 +276,10 @@ class WorkOrderController extends Controller {
             'sheet_no'       => $w->wo_no,
             'source'         => $w->source,
             'item_code'      => $w->item?->item_code,
-            'item_label'     => trim(($w->item?->item_code ?? '') . ' ' . ($w->item?->item_name ?? '')),
+            'item_label'     => \MesCore\Config\Models\Item::labelOf($w->item),
+            'item_spec'      => $w->item?->spec,
+            'item_material'  => $w->item?->material,
+            'item_short'     => \MesCore\Config\Models\Item::labelOf($w->item, true),   // 머리 행 요약용
             'spec_unit'      => $w->item?->spec_unit,
             'target_qty'     => (float) $w->target_qty,
             'lot_no'         => $w->lot?->lot_no,
@@ -338,7 +341,7 @@ class WorkOrderController extends Controller {
 
     // 사용 중 BOM 자재 + 현재고( 잔고 합 — 참고 )
     private function bomPreview(int $itemIdx): ?array {
-        $bom = Bom::with(['lines.childItem:item_idx,item_code,item_name,spec_unit'])->where('item_idx', $itemIdx)->where('is_active', 'Y')->first();
+        $bom = Bom::with(['lines.childItem:item_idx,item_code,item_name,spec,material,spec_unit'])->where('item_idx', $itemIdx)->where('is_active', 'Y')->first();
         if (!$bom) {
             return null;
         }
@@ -351,6 +354,8 @@ class WorkOrderController extends Controller {
                 'child_item_idx'   => $l->child_item_idx,
                 'item_code'        => $l->childItem?->item_code,
                 'item_name'        => $l->childItem?->item_name,
+                'item_spec'        => $l->childItem?->spec,
+                'item_material'    => $l->childItem?->material,
                 'spec_unit'        => $l->childItem?->spec_unit,
                 'qty_per'          => (float) $l->qty,
                 'routing_line_idx' => $l->routing_line_idx,
@@ -363,7 +368,7 @@ class WorkOrderController extends Controller {
         return [
             'sales_order_line_idx' => $l->sales_order_line_idx,
             'item_idx'             => $l->item_idx,
-            'item_label'           => $l->item ? "{$l->item->item_code} {$l->item->item_name}" : null,
+            'item_label'           => $l->item ? \MesCore\Config\Models\Item::labelOf($l->item) : null,
             'order_no'             => $l->order?->order_no,
             'line_no'              => $l->line_no,
             'partner_name'         => $l->order?->partner?->partner_name,
@@ -384,6 +389,8 @@ class WorkOrderController extends Controller {
             'item_idx'       => $w->item_idx,
             'item_code'      => $w->item?->item_code,
             'item_name'      => $w->item?->item_name,
+            'item_spec'      => $w->item?->spec,
+            'item_material'  => $w->item?->material,
             'spec_unit'      => $w->item?->spec_unit,
             'routing_idx'    => $w->routing_idx,
             'bom_idx'        => $w->bom_idx,
@@ -415,6 +422,8 @@ class WorkOrderController extends Controller {
                 'child_item_idx'    => $m->child_item_idx,
                 'item_code'         => $m->childItem?->item_code,
                 'item_name'         => $m->childItem?->item_name,
+                'item_spec'         => $m->childItem?->spec,
+                'item_material'     => $m->childItem?->material,
                 'spec_unit'         => $m->childItem?->spec_unit,
                 'qty_per'           => (float) $m->qty_per,
                 'required_qty'      => (float) $m->required_qty,

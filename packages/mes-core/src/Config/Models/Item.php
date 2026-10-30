@@ -38,6 +38,15 @@ class Item extends Model {
     // 단위 코드 그룹 ( system_code )
     const UNIT_CODE_GROUP = 'UNIT';
 
+    /**
+     * 업무 목록의 품목 표시 — "품명 [품번]" ( 규격 · 재질은 목록에 따로 칸 — 스타일 가이드 §5-0-1 )
+     *   화면 쪽 같은 형식 : Utils/format.js itemLabel() / short 는 예전 호출과 맞추려고 남김 ( 같은 결과 )
+     */
+    public static function labelOf(?self $item, bool $short = false): string {
+        if (!$item) return '';
+        return trim(($item->item_name ?? '') . ($item->item_code ? " [{$item->item_code}]" : ''));
+    }
+
     protected $fillable = [
         'item_code',
         'item_name',
@@ -45,6 +54,7 @@ class Item extends Model {
         'item_kind',
         'spec_unit',
         'spec',
+        'material',
         'routing_idx',
         'serial_use',
         'pack_qty',

@@ -66,6 +66,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
+import { itemLabel } from '@core/Utils/format';
 import { ditto, escapeHtml } from '@core/Utils/gridTree';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -110,7 +111,9 @@ const gridOptions = {
 };
 
 const num    = (v) => (v === null || v === undefined || v === '') ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
-const pick   = (head, line) => ({ row }) => row.is_line ? line(row) : head(row);
+// 줄이 하나인 주문은 한 행으로 합친다 ( _single — 스타일 가이드 §5 트리 ) : 품목 · 수량 · 금액 같은 줄 값 칸은 줄 값, 머리 값 칸 · 상태는 그대로
+const lineLike = (row) => row.is_line || row._single;
+const pick   = (head, line) => ({ row }) => lineLike(row) ? line(row) : head(row);
 const todayStr = () => {   // 현지 날짜 ( toISOString 은 UTC 라 오전에 하루 밀린다 )
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -119,7 +122,7 @@ const todayStr = () => {   // 현지 날짜 ( toISOString 은 UTC 라 오전에 
 // 사용자가 입력한 글자가 들어가는 열은 escapeHTML ( formatter 결과도 글자 그대로 )
 const columns = [
     { header: '수주번호', name: 'order_no', width: 190, sortable: true, className: 'cursor-pointer',
-      formatter: pick(r => r.order_no, r => `${r.order_no} - ${r.line_no}`) },
+      formatter: ({ row }) => row.is_line ? `${row.order_no} - ${row.line_no}` : row.order_no },
     { header: '수주일', name: 'order_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer',
       formatter: ditto(r => r.order_date ?? '') },
     { header: '고객사', name: 'partner_name', width: 140, sortable: true, className: 'cursor-pointer',
@@ -127,7 +130,9 @@ const columns = [
     { header: '수주명', name: 'order_name', minWidth: 150, className: 'cursor-pointer',
       formatter: ditto(r => escapeHtml(r.order_name)) },
     { header: '품목', name: 'item_summary', minWidth: 200, className: 'cursor-pointer', escapeHTML: true,
-      formatter: pick(r => r.item_summary, r => `${r.item_code} ${r.item_name}`) },
+      formatter: pick(r => r.item_summary, r => itemLabel(r)) },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'total_qty', width: 100, align: 'right', className: 'cursor-pointer',
       formatter: pick(r => r.total_qty === null ? '-' : num(r.total_qty), r => `${num(r.qty)} ${r.spec_unit ?? ''}`) },
     { header: '금액', name: 'total_amount', width: 120, align: 'right', sortable: true, className: 'cursor-pointer',
@@ -171,10 +176,13 @@ function params(extra = {}) {
 }
 
 // 줄은 체크 대상이 아니다 ( 머리 단위로 마감 · 삭제 )
-const toGridRows = (list) => list.map(r => ({
-    ...r,
-    _children: (r._children ?? []).map(c => ({ ...c, _attributes: { checkDisabled: true } })),
-}));
+const toGridRows = (list) => list.map(r => {
+    if ((r._children ?? []).length === 1) {
+        const { _children, ...head } = r;
+        return { ..._children[0], ...head, item_code: _children[0].item_code, item_name: _children[0].item_name, is_line: false, _single: true };
+    }
+    return { ...r, _children: (r._children ?? []).map(c => ({ ...c, _attributes: { checkDisabled: true } })) };
+});
 
 async function load() {
     loading.value = true;
@@ -215,6 +223,8 @@ const exportColumns = [
     { header: '수주명', name: 'order_name' },
     { header: '품번', name: 'item_code' },
     { header: '품명', name: 'item_name' },
+    { header: '규격', name: 'item_spec' },
+    { header: '재질', name: 'item_material' },
     { header: '수량', name: 'qty' },
     { header: '단위', name: 'spec_unit' },
     { header: '단가', name: 'unit_price' },

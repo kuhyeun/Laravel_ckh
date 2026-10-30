@@ -35,7 +35,8 @@ class DefectService {
         if ((float) $d['qty'] <= 0) return null;
         return Defect::create([
             'inspection_idx'    => $inspection->inspection_idx,
-            'insp_type'         => $inspection->insp_type,
+            // 초 · 중 · 종 단계( IFL_* )의 불량도 검사 종류는 공정 ( 불량이력의 입고 · 공정 · 출고 구분 )
+            'insp_type'         => str_starts_with((string) $inspection->insp_type, 'IFL_') ? 'PROCESS' : $inspection->insp_type,
             'item_idx'          => $d['item_idx'],
             'lot_idx'           => $d['lot_idx'] ?? 0,
             'partner_idx'       => $d['partner_idx'] ?? null,

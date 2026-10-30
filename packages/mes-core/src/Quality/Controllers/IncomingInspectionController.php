@@ -51,7 +51,7 @@ class IncomingInspectionController extends Controller {
             ->addSelect(['partner_name' => Partner::select('partner_name')->whereColumn('partner.partner_idx', 'stock_txn.partner_idx')])
             ->where('stock_txn.txn_type', ReceiptService::TXN_TYPE)
             ->where('stock_txn_line.insp_mode', '!=', 'NONE')
-            ->with(['item:item_idx,item_code,item_name,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
+            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
             ->orderBy('stock_txn.occurred_at')
             ->orderBy('stock_txn_line.stock_txn_line_idx');
 
@@ -76,6 +76,8 @@ class IncomingInspectionController extends Controller {
             'partner_name'       => $l->partner_name,
             'item_code'          => $l->item?->item_code,
             'item_name'          => $l->item?->item_name,
+            'item_spec'          => $l->item?->spec,
+            'item_material'      => $l->item?->material,
             'spec_unit'          => $l->item?->spec_unit,
             'lot_no'             => $l->lot?->lot_no,
             'external_lot_no'    => $l->lot?->external_lot_no,
@@ -105,6 +107,8 @@ class IncomingInspectionController extends Controller {
                 'partner_name'       => $line->txn->partner?->partner_name,
                 'item_code'          => $line->item?->item_code,
                 'item_name'          => $line->item?->item_name,
+                'item_spec'          => $line->item?->spec,
+                'item_material'      => $line->item?->material,
                 'spec_unit'          => $line->item?->spec_unit,
                 'lot_no'             => $line->lot?->lot_no,
                 'external_lot_no'    => $line->lot?->external_lot_no,

@@ -268,6 +268,8 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const columns = [
     { header: '줄 번호', name: 'wo_no', width: 150, sortable: true, className: 'cursor-pointer' },
     { header: '품목', name: 'item_label', minWidth: 120, className: 'cursor-pointer', escapeHTML: true },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmt(row.target_qty) },
     { header: '공정', name: 'ops_count', width: 50, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => `${row.done_ops_count}/${row.ops_count}` },
     { header: '상태', name: 'status', width: 50, align: 'center', className: 'cursor-pointer',

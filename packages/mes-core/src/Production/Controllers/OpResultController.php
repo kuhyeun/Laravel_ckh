@@ -36,7 +36,7 @@ class OpResultController extends Controller {
         ]);
 
         $query = WorkOrder::query()
-            ->with(['item:item_idx,item_code,item_name,spec_unit', 'lot:lot_idx,lot_no', 'sheet:sheet_idx,sheet_no,due_date'])
+            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no', 'sheet:sheet_idx,sheet_no,due_date'])
             ->withCount(['ops', 'ops as done_ops_count' => fn ($q) => $q->where('status', 'DONE')])
             ->orderByDesc('work_order_idx');
 
@@ -54,7 +54,9 @@ class OpResultController extends Controller {
         return $this->listResponse($request, $query, self::SORTABLE, 'lines', fn (WorkOrder $w) => [
             'work_order_idx' => $w->work_order_idx,
             'wo_no'          => $w->wo_no,
-            'item_label'     => trim(($w->item?->item_code ?? '') . ' ' . ($w->item?->item_name ?? '')),
+            'item_label'     => \MesCore\Config\Models\Item::labelOf($w->item),
+            'item_spec'      => $w->item?->spec,
+            'item_material'  => $w->item?->material,
             'target_qty'     => (float) $w->target_qty,
             'spec_unit'      => $w->item?->spec_unit,
             'lot_no'         => $w->lot?->lot_no,
@@ -130,7 +132,7 @@ class OpResultController extends Controller {
             'quality_on'     => in_array('Quality', config('mes.modules', []), true),   // 검사 공정 = [검사] 창
             'wo_no'          => $wo->wo_no,
             'sheet_no'       => $wo->sheet?->sheet_no,
-            'item_label'     => trim(($wo->item?->item_code ?? '') . ' ' . ($wo->item?->item_name ?? '')),
+            'item_label'     => \MesCore\Config\Models\Item::labelOf($wo->item),
             'spec_unit'      => $wo->item?->spec_unit,
             'target_qty'     => (float) $wo->target_qty,
             'lot_no'         => $wo->lot?->lot_no,
@@ -139,7 +141,7 @@ class OpResultController extends Controller {
             'received_qty'   => $this->results->receivedQty($wo),
             'ops'            => $rows,
             'materials'      => $wo->materials->map(fn ($m) => [
-                'item_label' => trim(($m->childItem?->item_code ?? '') . ' ' . ($m->childItem?->item_name ?? '')),
+                'item_label' => \MesCore\Config\Models\Item::labelOf($m->childItem),
                 'spec_unit'  => $m->childItem?->spec_unit,
                 'input_op'   => $opLabel($m->work_order_op_idx),
                 'issued'     => (float) $m->issued_qty,

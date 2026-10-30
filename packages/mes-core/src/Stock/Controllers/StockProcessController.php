@@ -111,7 +111,7 @@ class StockProcessController extends Controller {
         $v = $request->validate(['item_idx' => 'required|integer', 'open' => 'nullable|boolean']);
         $statuses = !empty($v['open']) ? ['WAIT', 'RUN'] : ['WAIT', 'RUN', 'DONE'];
 
-        $rows = WorkOrder::with('item:item_idx,item_code,item_name')
+        $rows = WorkOrder::with('item:item_idx,item_code,item_name,spec,material')
             ->whereIn('status', $statuses)
             ->whereHas('materials', fn ($q) => $q->where('child_item_idx', $v['item_idx']))
             ->orderByDesc('work_order_idx')->limit(100)
@@ -159,7 +159,7 @@ class StockProcessController extends Controller {
             ->select('stock_txn_line.*', 'stock_txn.txn_no', 'stock_txn.occurred_at', 'stock_txn.recorded_at', 'stock_txn.status as txn_status', 'stock_txn.create_account_idx as txn_creator')
             ->join('stock_txn', 'stock_txn.stock_txn_idx', '=', 'stock_txn_line.stock_txn_idx')
             ->where('stock_txn.txn_type', $type)
-            ->with(['item:item_idx,item_code,item_name,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name', 'toWarehouse:warehouse_idx,warehouse_name', 'workOrder:work_order_idx,wo_no'])
+            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name', 'toWarehouse:warehouse_idx,warehouse_name', 'workOrder:work_order_idx,wo_no'])
             ->orderByDesc('stock_txn.recorded_at')->orderByDesc('stock_txn.stock_txn_idx');
 
         if (!empty($v['from']))   $query->where('stock_txn.occurred_at', '>=', $v['from'] . ' 00:00:00');
@@ -185,6 +185,8 @@ class StockProcessController extends Controller {
             'status'          => $l->txn_status,
             'item_code'       => $l->item?->item_code,
             'item_name'       => $l->item?->item_name,
+            'item_spec'       => $l->item?->spec,
+            'item_material'   => $l->item?->material,
             'spec_unit'       => $l->item?->spec_unit,
             'lot_no'          => $l->lot?->lot_no,
             'spec_value'      => $l->lot?->spec_value !== null ? (float) $l->lot->spec_value : null,

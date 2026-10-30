@@ -57,7 +57,7 @@ class ShippingInspectionController extends Controller {
             ->join('shipment', 'shipment.shipment_idx', '=', 'shipment_line.shipment_idx')
             ->addSelect(['partner_name' => Partner::select('partner_name')->whereColumn('partner.partner_idx', 'shipment.partner_idx')])
             ->where('shipment.status', '!=', 'CANCELED')
-            ->with(['item:item_idx,item_code,item_name,spec_unit', 'picks.lot:lot_idx,lot_no'])
+            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'picks.lot:lot_idx,lot_no'])
             ->orderBy('shipment.plan_date')->orderBy('shipment.shipment_idx')->orderBy('shipment_line.line_no');
 
         $waitOnly = fn (Builder $q) => $q->where('shipment.status', 'WAIT')
@@ -90,6 +90,8 @@ class ShippingInspectionController extends Controller {
             'partner_name'      => $l->partner_name,
             'item_code'         => $l->item?->item_code,
             'item_name'         => $l->item?->item_name,
+            'item_spec'         => $l->item?->spec,
+            'item_material'     => $l->item?->material,
             'spec_unit'         => $l->item?->spec_unit,
             'qty'               => (float) $l->qty,
             'lot_summary'       => $l->picks->map(fn ($p) => $p->lot?->lot_no)->filter()->unique()->implode(', '),
@@ -128,6 +130,8 @@ class ShippingInspectionController extends Controller {
                 'partner_name'      => $line->shipment->partner?->partner_name,
                 'item_code'         => $line->item?->item_code,
                 'item_name'         => $line->item?->item_name,
+                'item_spec'         => $line->item?->spec,
+                'item_material'     => $line->item?->material,
                 'spec_unit'         => $line->item?->spec_unit,
                 'qty'               => (float) $line->qty,
                 'order_label'       => $line->salesOrderLine?->order ? "{$line->salesOrderLine->order->order_no} #{$line->salesOrderLine->line_no}" : null,

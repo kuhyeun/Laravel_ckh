@@ -58,7 +58,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ProcessInspectionForm from '@core/Components/Quality/ProcessInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useFlash, failMsg } from '@core/Composables/useFlash';
-import { fmtNum, fmtQty } from '@core/Utils/format';
+import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 
 defineOptions({ layout: AppLayout });
@@ -80,7 +80,9 @@ const columns = [
     { header: '구분', name: 'kind', width: 100, align: 'center', className: 'cursor-pointer' },
     { header: '착수 예정', name: 'start_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '품목', name: 'item_code', minWidth: 200, className: 'cursor-pointer', escapeHTML: true,
-      formatter: ({ row }) => `${row.item_code ?? ''} ${row.item_name ?? ''}` },
+      formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', width: 150, className: 'cursor-pointer', escapeHTML: true },
     { header: '검사 수량', name: 'base_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.base_qty === null ? '' : fmtQty(row.base_qty, row.spec_unit) },
     { header: '합격', name: 'pass_qty', width: 80, align: 'right', className: 'cursor-pointer', formatter: ({ value }) => value === null ? '' : fmtNum(value) },

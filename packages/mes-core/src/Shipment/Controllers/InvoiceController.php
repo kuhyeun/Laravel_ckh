@@ -32,7 +32,7 @@ class InvoiceController extends Controller {
             'partner_idx' => 'nullable|integer',
         ], [], ['from' => '시작일', 'to' => '종료일']);
 
-        $query = Shipment::query()->with(['partner:partner_idx,partner_name', 'lines.item:item_idx,item_code,item_name', 'lines.salesOrderLine.order:sales_order_idx,order_no'])
+        $query = Shipment::query()->with(['partner:partner_idx,partner_name', 'lines.item:item_idx,item_code,item_name,spec,material', 'lines.salesOrderLine.order:sales_order_idx,order_no'])
             ->where('status', 'DONE')->orderByDesc('shipped_at')->orderByDesc('shipment_idx');
         if (!empty($v['from']))        $query->where('shipped_at', '>=', $v['from']);
         if (!empty($v['to']))          $query->where('shipped_at', '<', date('Y-m-d', strtotime($v['to'] . ' +1 day')));
@@ -52,7 +52,9 @@ class InvoiceController extends Controller {
                 'shipment_no'   => $s->shipment_no,
                 'shipped_at'    => $s->shipped_at?->format('Y-m-d H:i'),
                 'partner_name'  => $s->partner?->partner_name,
-                'item_label'    => $first ? trim(($first->item?->item_code ?? '') . ' ' . ($first->item?->item_name ?? '')) . $more : '',
+                'item_label'    => $first ? (\MesCore\Config\Models\Item::labelOf($first->item) . $more) : '',
+                'item_spec'     => $more === '' ? $first?->item?->spec : null,       // 줄이 하나일 때만
+                'item_material' => $more === '' ? $first?->item?->material : null,
                 'order_summary' => $s->lines->map(fn ($l) => $l->salesOrderLine?->order?->order_no)->filter()->unique()->implode(', '),
             ] + $this->invoices->totals($s);
         });

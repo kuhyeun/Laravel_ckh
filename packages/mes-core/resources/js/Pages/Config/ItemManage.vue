@@ -122,6 +122,7 @@ const itemColumns = [
     { header: '소분류',   name: 'item_kind',    width: 90,  align: 'center', className: 'cursor-pointer', formatter: ({ value }) => itemKindLabel(value) },
     { header: '단위',     name: 'spec_unit',    width: 70,  align: 'center', className: 'cursor-pointer' },
     { header: '규격',     name: 'spec',         minWidth: 120, className: 'cursor-pointer' },
+    { header: '재질',     name: 'material',     width: 110, className: 'cursor-pointer', escapeHTML: true },
     { header: '안전재고', name: 'safety_stock', width: 100, align: 'right',  className: 'cursor-pointer', formatter: fmtNum },
     { header: '판매단가', name: 'std_sale_price', width: 110, align: 'right', className: 'cursor-pointer', formatter: fmtNum },
     {

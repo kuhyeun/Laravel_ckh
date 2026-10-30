@@ -39,15 +39,15 @@ class StockController extends Controller {
             ->join('warehouse as w', 'w.warehouse_idx', '=', 'b.warehouse_idx');
 
         if ($byItem) {
-            $query->selectRaw('b.item_idx, b.warehouse_idx, i.item_code, i.item_name, i.item_type, i.spec_unit, w.warehouse_name, SUM(b.qty) AS qty, COUNT(*) AS lot_count')
-                ->groupBy('b.item_idx', 'b.warehouse_idx', 'i.item_code', 'i.item_name', 'i.item_type', 'i.spec_unit', 'w.warehouse_name')
+            $query->selectRaw('b.item_idx, b.warehouse_idx, i.item_code, i.item_name, i.spec AS item_spec, i.material AS item_material, i.item_type, i.spec_unit, w.warehouse_name, SUM(b.qty) AS qty, COUNT(*) AS lot_count')
+                ->groupBy('b.item_idx', 'b.warehouse_idx', 'i.item_code', 'i.item_name', 'i.spec', 'i.material', 'i.item_type', 'i.spec_unit', 'w.warehouse_name')
                 ->orderBy('i.item_code');
             if (($v['with_zero'] ?? '0') !== '1') $query->havingRaw('SUM(b.qty) <> 0');
         } else {
             $query->leftJoin('lot as l', 'l.lot_idx', '=', 'b.lot_idx')
                 ->leftJoin('partner as p', 'p.partner_idx', '=', 'l.partner_idx')
                 ->select('b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty',
-                    'i.item_code', 'i.item_name', 'i.item_type', 'i.spec_unit', 'w.warehouse_name',
+                    'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.item_type', 'i.spec_unit', 'w.warehouse_name',
                     'l.lot_no', 'l.external_lot_no', 'l.spec_value', 'l.in_at', 'p.partner_name')
                 ->orderBy('i.item_code')->orderBy('l.in_at')->orderBy('b.lot_idx');
             if (($v['with_zero'] ?? '0') !== '1') $query->where('b.qty', '<>', 0);
@@ -58,7 +58,7 @@ class StockController extends Controller {
         if (!empty($v['keyword'])) {
             $kw = '%' . addcslashes($v['keyword'], '%_\\') . '%';
             $query->where(function ($w) use ($kw, $byItem) {
-                $w->where('i.item_code', 'like', $kw)->orWhere('i.item_name', 'like', $kw);
+                $w->where('i.item_code', 'like', $kw)->orWhere('i.item_name', 'like', $kw)->orWhere('i.spec', 'like', $kw)->orWhere('i.material', 'like', $kw);
                 if (!$byItem) {
                     $w->orWhere('l.lot_no', 'like', $kw)->orWhere('l.external_lot_no', 'like', $kw);
                 }
@@ -75,6 +75,8 @@ class StockController extends Controller {
             'warehouse_idx'  => $r->warehouse_idx,
             'item_code'      => $r->item_code,
             'item_name'      => $r->item_name,
+            'item_spec'      => $r->item_spec,
+            'item_material'  => $r->item_material,
             'item_type'      => $r->item_type,
             'spec_unit'      => $r->spec_unit,
             'warehouse_name' => $r->warehouse_name,
@@ -153,7 +155,7 @@ class StockController extends Controller {
             ->leftJoin('lot as l', 'l.lot_idx', '=', 'b.lot_idx')
             ->where('b.stock_balance_idx', $balanceIdx)
             ->first(['b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty',
-                     'i.item_code', 'i.item_name', 'i.spec_unit', 'w.warehouse_name', 'l.lot_no', 'l.external_lot_no', 'l.spec_value']);
+                     'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'w.warehouse_name', 'l.lot_no', 'l.external_lot_no', 'l.spec_value']);
         if (!$b) {
             abort(404, '재고를 찾을 수 없습니다.');
         }
@@ -166,6 +168,8 @@ class StockController extends Controller {
                 'warehouse_idx'     => $b->warehouse_idx,
                 'item_code'         => $b->item_code,
                 'item_name'         => $b->item_name,
+                'item_spec'         => $b->item_spec,
+                'item_material'     => $b->item_material,
                 'spec_unit'         => $b->spec_unit,
                 'warehouse_name'    => $b->warehouse_name,
                 'lot_no'            => $b->lot_no,

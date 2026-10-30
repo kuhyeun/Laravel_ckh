@@ -46,7 +46,9 @@ class ItemController extends Controller {
         $items = Item::query()
             ->when($validated['keyword'] ?? null, function ($q, $keyword) {
                 $q->where(fn ($w) => $w->where('item_code', 'like', "%{$keyword}%")
-                                       ->orWhere('item_name', 'like', "%{$keyword}%"));
+                                       ->orWhere('item_name', 'like', "%{$keyword}%")
+                                       ->orWhere('spec', 'like', "%{$keyword}%")
+                                       ->orWhere('material', 'like', "%{$keyword}%"));
             })
             ->when($validated['item_type'] ?? null, fn ($q, $type) => $q->where('item_type', $type))
             ->when($validated['is_use'] ?? null, fn ($q, $isUse) => $q->where('is_use', $isUse))

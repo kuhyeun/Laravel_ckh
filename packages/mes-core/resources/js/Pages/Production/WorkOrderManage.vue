@@ -100,6 +100,8 @@ const columns = [
     { header: '지시번호', name: 'sheet_no', width: 200, sortable: true, className: 'cursor-pointer' },
     { header: '출처', name: 'source', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? woSourceLabel(value) : '' },
     { header: '품목', name: 'item_label', minWidth: 200, className: 'cursor-pointer', escapeHTML: true },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'target_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.target_qty === undefined || row.target_qty === null ? '' : `${num(row.target_qty)} ${row.spec_unit ?? ''}` },
     { header: 'LOT', name: 'lot_no', width: 160, className: 'cursor-pointer', escapeHTML: true },
     { header: '착수 예정', name: 'start_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.start_date ?? '') },

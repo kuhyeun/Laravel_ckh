@@ -48,7 +48,7 @@ class InspectionSpecController extends Controller {
         ]);
 
         $specs = InspectionSpec::query()
-            ->with('item:item_idx,item_code,item_name')
+            ->with('item:item_idx,item_code,item_name,spec,material')
             ->withCount('lines')
             ->when($validated['keyword'] ?? null, function ($q, $keyword) {
                 $q->where(fn ($w) => $w->where('inspection_spec_name', 'like', "%{$keyword}%")
@@ -64,6 +64,8 @@ class InspectionSpecController extends Controller {
                 [
                     'item_code'   => $s->item?->item_code,
                     'item_name'   => $s->item?->item_name,
+                    'item_spec'   => $s->item?->spec,
+                    'item_material' => $s->item?->material,
                     'lines_count' => $s->lines_count,
                 ]
             ));
@@ -73,7 +75,7 @@ class InspectionSpecController extends Controller {
 
     // 단건 : 항목 줄 포함
     public function show(int $specIdx) {
-        $spec = InspectionSpec::with(['item:item_idx,item_code,item_name,is_use', 'lines'])->find($specIdx);
+        $spec = InspectionSpec::with(['item:item_idx,item_code,item_name,spec,material,is_use', 'lines'])->find($specIdx);
         if (!$spec) {
             return response()->json(['message' => 'NotFound'], 404);
         }
@@ -119,7 +121,7 @@ class InspectionSpecController extends Controller {
             'lines.*.inspection_item_name'     => 'required|string|max:60',
             'lines.*.is_quantitative'          => 'required|in:Y,N',
             'lines.*.method'                   => 'nullable|string|max:60',
-            'lines.*.standard_value'           => 'nullable|numeric|min:-99999999999|max:99999999999',
+            'lines.*.standard_value'           => 'nullable|string|max:100',   // 글자 ( 예: 100x300 )
             'lines.*.lower_limit'              => 'nullable|numeric|min:-99999999999|max:99999999999',
             'lines.*.upper_limit'              => 'nullable|numeric|min:-99999999999|max:99999999999',
             'lines.*.unit_code'                => 'nullable|string|max:100',
@@ -158,7 +160,7 @@ class InspectionSpecController extends Controller {
             }
 
             if ($line['is_quantitative'] === 'Y') {
-                $std   = $line['standard_value'] ?? null;
+                $std   = filled($line['standard_value'] ?? null) ? trim($line['standard_value']) : null;
                 $lower = $line['lower_limit'] ?? null;
                 $upper = $line['upper_limit'] ?? null;
 
@@ -172,8 +174,8 @@ class InspectionSpecController extends Controller {
                 } elseif ($lower !== null && $upper !== null && (float) $lower >= (float) $upper) {
                     // E_INSP_SPEC_RANGE : 하한 ≥ 상한
                     $errors["lines.{$i}.limit"] = ['하한은 상한보다 작아야 합니다.'];
-                } elseif ($std !== null && (($lower !== null && (float) $std < (float) $lower) || ($upper !== null && (float) $std > (float) $upper))) {
-                    // E_INSP_SPEC_STD_RANGE : 규격이 상하한 밖
+                } elseif ($std !== null && is_numeric($std) && (($lower !== null && (float) $std < (float) $lower) || ($upper !== null && (float) $std > (float) $upper))) {
+                    // E_INSP_SPEC_STD_RANGE : 규격이 상하한 밖 ( 규격이 숫자일 때만 — 100x300 같은 글자 규격은 보지 않는다 )
                     $errors["lines.{$i}.limit"] = ['규격이 하한 ~ 상한 범위 밖입니다.'];
                 }
                 // E_INSP_ITEM_UNIT : 정량인데 단위 없음 ( 마스터와 같은 규칙 )
@@ -218,7 +220,7 @@ class InspectionSpecController extends Controller {
                 $this->syncLines($spec, $lines);
             });
 
-            $spec = InspectionSpec::with(['item:item_idx,item_code,item_name,is_use', 'lines'])->find($spec->inspection_spec_idx);
+            $spec = InspectionSpec::with(['item:item_idx,item_code,item_name,spec,material,is_use', 'lines'])->find($spec->inspection_spec_idx);
 
             return response()->json([
                 'message'  => 'Success',
