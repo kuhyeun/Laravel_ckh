@@ -11,10 +11,6 @@
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">{{ isProduct ? '제품재고' : '재고관리' }}</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash" class="text-sm text-red-500">{{ flash }}</span>
-            <span v-if="notice" class="text-sm text-green-600">{{ notice }}</span>
             <BaseButton v-if="perms.can_receipt" variant="primary" @click="openReceipt(null)">+ 입고</BaseButton>
         </div>
 
@@ -75,6 +71,7 @@ import ReceiptForm from '@core/Components/Purchase/ReceiptForm.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 
@@ -135,8 +132,7 @@ const grid    = ref(null);   // DataGrid — 열 설정( 사용자별 · lot / i
 
 const rows    = ref([]);
 const loading = ref(false);
-const flash   = ref('');
-const notice  = ref('');
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 const paging  = reactive({ page: 1, perPage: 50, total: 0 });
 const sort    = reactive({ key: '', dir: '' });
 
@@ -148,14 +144,13 @@ function params(extra = {}) {
 
 async function load() {
     loading.value = true;
-    flash.value = '';
     try {
         const { data } = await window.axios.get(route(R.list), { params: params({ page: paging.page, perPage: paging.perPage }) });
         rows.value   = data.rows ?? [];
         paging.total = data.total ?? 0;
         paging.page  = data.page ?? 1;
     } catch (e) {
-        flash.value = '재고를 불러오지 못했습니다.';
+        showFlash('재고를 불러오지 못했습니다.', true);
     } finally {
         loading.value = false;
     }
@@ -186,8 +181,7 @@ function openHistory(row) {
 }
 
 function showNotice(text) {
-    notice.value = text;
-    setTimeout(() => { notice.value = ''; }, 4000);
+    showFlash(text);
 }
 
 // 입고 등록 창 ( 입고관리와 같은 창 ) — row 가 있으면 그 품목 · 창고를 채워서 ( LOT 이력 창은 열어 둔다 )
@@ -231,8 +225,7 @@ function openProcess(type, row, reloadHistory = null) {
             balanceIdx: row.key,
             ...(isMove ? {} : { scope: props.scope }),   // 창고이동은 범위와 상관없이 같은 API
             onDone: (no, warnings = []) => {
-                notice.value = `${no} ${isMove ? '이동' : '조정'}했습니다.${warnings.length ? ` ⚠ ${warnings.join(' / ')}` : ''}`;
-                setTimeout(() => { notice.value = ''; }, 4000);
+                showFlash(`${no} ${isMove ? '이동' : '조정'}했습니다.`, false, warnings);
                 load();
             },
             modalTitle: `${isMove ? '창고이동' : '재고조정'} [ ${row.lot_no || row.item_code} ]`,

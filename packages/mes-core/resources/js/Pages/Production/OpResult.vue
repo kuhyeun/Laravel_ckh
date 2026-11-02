@@ -8,11 +8,6 @@
      - 검사 공정 ( 품질 모듈이 켜져 있으면 ) : [검사] = 공정검사 창( ProcessInspectionForm — 6002 와 같은 창 ) · 공정 수량 = 합격 → 뒤 공정 기준 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">공정실적</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm whitespace-pre-line text-right" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
-        </div>
 
         <SearchBar
             v-model="search"
@@ -247,6 +242,7 @@ import { woStatusLabel, woStatusColor } from '@core/Components/Production/produc
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
 import ProcessInspectionForm from '@core/Components/Quality/ProcessInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -332,13 +328,7 @@ const lastWarehouse = () => { try { return localStorage.getItem(WH_KEY) ?? ''; }
 const defaultWarehouse = () => lastWarehouse() ? Number(lastWarehouse()) : (warehouses.value[0]?.warehouse_idx ?? '');
 const rememberWarehouse = (v) => { try { localStorage.setItem(WH_KEY, String(v)); } catch (e) { /* 저장 못 해도 동작 */ } };
 
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text; flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 6000);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 const failMsg = (e) => {
     const s = e.response?.status;
     return s === 422 ? Object.values(e.response.data.errors ?? {}).flat().join('\n') : s === 403 ? '권한이 없습니다.' : '처리하지 못했습니다.';

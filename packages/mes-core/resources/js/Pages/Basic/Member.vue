@@ -6,9 +6,6 @@
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 헤더 -->
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">사용자 관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openCreate">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0 || deleting" @click="deleteChecked">
                 삭제
@@ -43,7 +40,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
@@ -54,6 +51,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import MemberDetail from '@core/Components/Modals/MemberDetail.vue';
 import { showAlert } from '@core/Utils/message.js';
 import { useModalStore } from '@core/Stores/modalStore';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 
@@ -114,14 +112,7 @@ function refreshChecked() {
 }
 
 // ---- 플래시 ----
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text;
-    flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 2500);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 async function loadMembers() {
     try {

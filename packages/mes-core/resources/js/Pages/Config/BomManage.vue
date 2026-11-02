@@ -5,12 +5,6 @@
      - 투입 지점은 라우팅의 "줄" ( 그 줄이 작업지시에 없으면 그 자재도 소요 없음 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <!-- 헤더 -->
-        <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">BOM관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
-        </div>
 
         <div class="flex flex-1 min-h-0 gap-4">
             <!-- 좌 : 품목 -->
@@ -196,6 +190,7 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import { showAlert } from '@core/Utils/message';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 
@@ -224,14 +219,7 @@ const form = reactive(blankForm());
 const hasRouting = computed(() => !!routingLines.value.length);
 
 // ---- 플래시 ----
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text;
-    flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 4000);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 // ---- 선택지 ----
 const versionOptions = computed(() => [

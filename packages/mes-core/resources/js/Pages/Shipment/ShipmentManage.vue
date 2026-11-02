@@ -5,9 +5,6 @@
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">출하관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm whitespace-pre-line text-right" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <BaseButton v-if="canWrite" variant="primary" @click="openForm(null)">+ 출하 등록</BaseButton>
             <BaseButton v-if="canDelete" variant="danger" :disabled="!checkedRows.length || busy" @click="cancelChecked">취소</BaseButton>
         </div>
@@ -67,7 +64,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ShipmentForm from '@core/Components/Shipment/ShipmentForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
-import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtQty } from '@core/Utils/format';
 import { SHIP_STATUS_FILTER, stageColor, inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
 
@@ -81,7 +78,7 @@ const canWrite  = computed(() => myPerm.value.can_write  === true);
 const canDelete = computed(() => myPerm.value.can_delete === true);
 
 const modalStore = useModalStore();
-const { flash, showFlash } = useFlash(6000);
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 const DATE_BASES = [{ value: 'plan', label: '출하 예정' }, { value: 'shipped', label: '출하 일시' }];
 // 검색 조건 ( 서버 ShipmentController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )

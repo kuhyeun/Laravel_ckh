@@ -8,9 +8,6 @@
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 헤더 -->
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">제조리드타임관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0 || deleting" @click="deleteChecked">
                 삭제
@@ -78,6 +75,7 @@ import LeadTimeForm from '@core/Components/Config/LeadTimeForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { COLORS } from '@core/Utils/colors';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -159,14 +157,7 @@ const checkedCount = computed(() => checkedRows.value.length);
 const deleting     = ref(false);
 
 // ---- 플래시 ----
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text;
-    flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 2500);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 // 기본값이 없을 때 첫 행에 보이는 자리 ( 클릭하면 기본값 등록 )
 const missingDefault = () => ({

@@ -6,12 +6,6 @@
      - 기본값과 동일하면 override 미저장( 기본값 따라감 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <!-- 헤더 -->
-        <div class="flex items-center gap-3 pb-3 border-b shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">사용자 권한 관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
-        </div>
 
         <div class="flex flex-1 min-h-0 gap-4 pt-4">
             <!-- 좌: 사용자 목록 -->
@@ -127,7 +121,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import { showAlert } from '@core/Utils/message.js';
@@ -135,6 +129,7 @@ import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 
@@ -169,14 +164,7 @@ const noPermission = computed(() =>
 );
 
 // ---- 플래시 ----
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text;
-    flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 2500);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 async function loadUsers() {
     try {

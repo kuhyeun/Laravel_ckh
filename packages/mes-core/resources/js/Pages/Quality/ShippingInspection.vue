@@ -3,11 +3,6 @@
      - 목록 : 서버 페이징 · 출하 줄 단위 / 행 클릭 → 검사 창( ShippingInspectionForm ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">출고검사</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
-        </div>
 
         <SearchBar
             v-model="search"
@@ -59,7 +54,7 @@ import SearchBar from '@core/Components/Common/SearchBar.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ShippingInspectionForm from '@core/Components/Quality/ShippingInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
-import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtQty, itemLabel } from '@core/Utils/format';
 import { inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
 import { COLORS } from '@core/Utils/colors';
@@ -68,7 +63,7 @@ defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const modalStore = useModalStore();
-const { flash, showFlash } = useFlash();
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 const STATUS_OPTIONS = [
     { value: 'TODO', label: '검사할 것' },

@@ -10,11 +10,11 @@
 
 ## 1. 화면 틀 — 3단
 
-모든 업무 화면은 위에서 아래로 **제목 줄 → 검색바 → 본문** 세 단이다. 본문만 늘어나고, 넘치면 **본문 안에서** 스크롤한다 ( 페이지 전체가 스크롤되지 않는다 ).
+모든 업무 화면은 위에서 아래로 **버튼 줄 → 검색바 → 본문** 세 단이다. **화면 제목은 화면에 두지 않는다** — 상단 `TopFrame` 이 지금 메뉴 이름을 본문 왼쪽 끝과 같은 x 에 띄운다 ( 2026-11-02 ). 본문만 늘어나고, 넘치면 **본문 안에서** 스크롤한다 ( 페이지 전체가 스크롤되지 않는다 ).
 
 ```
 ┌────────────────────────────────────────────────────────────────────┐
-│ 품목관리                          ✓ 저장했습니다   [엑셀] [+ 등록] [삭제] │ ← ① 제목 줄
+│                                   ✓ 저장했습니다   [엑셀] [+ 등록] [삭제] │ ← ① 버튼 줄 ( 제목은 상단 TopFrame )
 ├────────────────────────────────────────────────────────────────────┤
 │ [기간 ▾] [from] ~ [to] [오늘][1주][1달] │ [상태 ▾] [통합검색 ▾] [검색어를 입력하세요] [조회][초기화] │ ← ② 검색바
 ├────────────────────────────────────────────────────────────────────┤
@@ -29,11 +29,8 @@
 ```vue
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <!-- ① 제목 줄 -->
+        <!-- ① 버튼 줄 -->
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">품목관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm whitespace-pre-line" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <BaseButton v-if="canWrite" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" variant="danger" :disabled="!checkedRows.length" @click="deleteChecked">삭제</BaseButton>
         </div>
@@ -66,10 +63,11 @@
 
 ---
 
-## 2. ① 제목 줄
+## 2. ① 버튼 줄 ( 예전 제목 줄 )
 
-- 순서 : **제목 → ( 빈칸 ) → 알림 문구 → 버튼들**. 버튼은 오른쪽 끝에 모은다
-- 제목은 **메뉴 이름과 같게** ( `<h2 class="font-bold text-lg tracking-tight">` )
+- 버튼은 **왼쪽부터** 붙인다 ( `flex-1` 빈칸을 두지 않는다 — 2026-11-02 ). 탭이 있는 화면( 출고관리 · 제품출고 )은 탭 → 버튼
+- 알림 문구를 두지 않는다 ( Toast — §7 ). 둘 것이 없는 화면은 **이 줄 자체를 두지 않는다** ( 빈 줄이 남지 않게 · 가끔만 보이는 안내는 줄에 `v-if` )
+- **제목( `<h2>` )을 두지 않는다** — `TopFrame` 이 `menuCode` 로 사이드바 메뉴 트리에서 메뉴 이름을 찾아 띄운다( 메뉴 이름을 바꾸면 따라 바뀜 ). 위치는 본문 왼쪽 끝( 사이드바 250px + 본문 `p-6` = 274px ) · 사이드바를 접으면 로고 뒤 ( 2026-11-02 )
 - 버튼 순서 : 보조( 엑셀 올리기 등 `secondary` ) → **`+ 등록`( `primary` )** → 위험한 동작( 삭제 · 취소 `danger` ) — 위험한 동작은 맨 오른쪽
 - 권한이 없으면 **숨긴다**( `v-if="canWrite"` ), 지금 할 수 없으면 **끈다**( `:disabled` — 예 : 체크한 행이 없음 )
 - `BaseButton` 은 크기가 하나뿐이다 ( `size` prop 없음 — 기존 화면의 `size="sm"` 은 아무 효과가 없다. 새 화면에는 쓰지 않는다 ). **검색바 · 제목 줄의 높이 기준은 36px** ( 버튼 · `BaseInput` · `BaseSelect` · `BaseDatePicker` 기본 크기 ) — 검색바 안에도 `size` 를 주지 않는다 ( 2026-10-30 ). `size="sm"`( 30px )은 좁은 패널 머리 · 표 안 입력처럼 줄 높이가 낮은 곳에만
@@ -309,13 +307,16 @@ modalStore.open(ItemForm, { modalTitle: isEdit ? '품목 수정' : '품목 등�
 
 ### 알림 ( 처리 결과 )
 
-- **제목 줄의 알림 문구** ( `flash` ) — 성공 `text-green-600` / 오류 `text-red-500`, 5 ~ 6 초 뒤 사라짐
-- 경고가 함께 오면 성공 문구 뒤에 `⚠ 경고` ( 여러 줄이면 `whitespace-pre-line` )
+- **화면 알림 = Toast** ( 2026-11-02 ) — `AppLayout` 의 `ToastHost` 가 오른쪽 위( 상단 바 아래 · 모달보다 위 )에 쌓아 띄운다. 성공 초록 3 초 · 경고 노랑 6 초 · 오류 빨강 6 초 / 마우스를 올리면 멈춤 · 누르면 닫힘
+- 경고가 함께 오면 성공 문구 뒤에 `⚠ 경고` 줄 → 노랑 ( 문구 안에 ⚠ 가 있어도 노랑 )
+- SweetAlert toast( `showAlert(…, 'toast')` )는 쓰지 않는다 — SweetAlert 는 창이 하나라 확인창이 떠 있을 때 부르면 확인창이 닫힌다
+- **모달 · 패널 안**의 문구( 출고 창 · 반납 패널 · 출하 창 … )는 그 자리에 ( `useFlash` — `flash.text` 를 템플릿에 ) · 입력 오류는 칸 밑
 - 422 는 서버 문구를 그대로, 403 은 "권한이 없습니다.", 그 밖은 "처리하지 못했습니다."
 
 ```js
-import { useFlash, failMsg } from '@core/Composables/useFlash';
-const { flash, showFlash } = useFlash();          // 5 초 뒤 사라짐
+import { useToast, failMsg } from '@core/Composables/useToast';
+const { showFlash } = useToast();                 // 화면 — 템플릿에는 아무것도 두지 않는다
+// 모달 안 : const { flash, showFlash } = useFlash();  ( 같은 showFlash · flash.text 를 그 자리에 )
 
 showFlash('저장했습니다.');
 showFlash('출고했습니다.', false, data.warnings);   // 경고는 ⚠ 줄로
@@ -474,7 +475,7 @@ import { COLORS, STATUS_COLOR, CHART } from '@core/Utils/colors';
 | 6 | 모달 크기 | 기준 없음 | **md 칸 몇 개 · lg 보통 · xl 탭 · 줄 목록** |
 | 7 | 좌우 분할 왼쪽 폭 | 460 · 520 · 160 | **목록 그리드 460 ( 열이 많으면 520 ) · 짧은 목록 · 트리 240** |
 | 8 | 숫자 표시 | 화면마다 `fmt` / `num` ( 17 파일 ) | **`@core/Utils/format`** ( `fmtNum` · `fmtQty` · `dash` ) |
-| 9 | 알림 | 대부분 제목 줄 `flash` · 재고관리는 오류 문자열만 | **제목 줄 + `@core/Composables/useFlash`** ( `showFlash` · `failMsg` ) |
+| 9 | 알림 | 대부분 제목 줄 `flash` · 재고관리는 오류 문자열만 | **제목 줄 + `@core/Composables/useFlash`** ( `showFlash` · `failMsg` ) → 11-02 **Toast( `useToast` )** 로 바꿈 · 모달 안만 `useFlash` |
 
 ### 기존 화면
 

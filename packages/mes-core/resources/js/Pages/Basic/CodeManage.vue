@@ -5,12 +5,6 @@
 
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <!-- 헤더 -->
-        <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">코드관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
-        </div>
 
         <!-- ===== 본문 : 좌( 그룹 폼 + 그룹 리스트 ) / 우( 코드 목록 전체 ) ===== -->
         <div class="flex flex-1 min-h-0 gap-4 pt-3">
@@ -118,6 +112,7 @@ import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import { clearCommonCodeCache } from '@core/Composables/useCommonCode';
 import { ToggleRenderer } from '@core/Composables/gridClass';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 
@@ -251,14 +246,7 @@ function newCode() {
 };
 
 // ---- 플래시 ----
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text;
-    flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 2500);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 // ---- 그룹 액션 ----
 async function saveGroup() {

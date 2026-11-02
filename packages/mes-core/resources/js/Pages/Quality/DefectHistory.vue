@@ -5,11 +5,8 @@
      - 기간 기본값 : 추이를 보려고 최근 6개월 ( 다른 목록의 정책 기본값 ±10일과 다르다 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">품목별 불량이력</h2>
-            <div class="flex-1"></div>
-            <span v-if="truncated" class="text-xs text-amber-700">⚠ {{ maxRows.toLocaleString() }}건까지만 불러왔습니다 — 기간 · 조건을 좁혀 주세요</span>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
+        <div v-if="truncated" class="flex items-center gap-3 pb-2 shrink-0">
+            <span class="text-xs text-amber-700">⚠ {{ maxRows.toLocaleString() }}건까지만 불러왔습니다 — 기간 · 조건을 좁혀 주세요</span>
         </div>
 
         <SearchBar
@@ -84,7 +81,7 @@ import SearchBar from '@core/Components/Common/SearchBar.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BasicChart from '@core/Components/Basic/BasicChart.vue';
 import { fmtNum } from '@core/Utils/format';
-import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { useToast, failMsg } from '@core/Composables/useToast';
 import { COLORS, CHART } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
@@ -102,7 +99,7 @@ const INK = { primary: CHART.ink, muted: COLORS.gray500, grid: COLORS.gray200 };
 const INSP_FILTER = [{ value: '', label: '검사 전체' }, ...Object.entries(INSP).map(([value, v]) => ({ value, label: `${v.label}검사` }))];
 const defectTypes = ref([]);   // 코드관리 DEFECT_TYPE
 const TYPE_FILTER = computed(() => [{ value: '', label: '유형 전체' }, ...defectTypes.value]);
-const { flash, showFlash } = useFlash();
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 // 기간 기본 : 최근 6개월 ( 그 달 1일부터 오늘까지 — 월별 추이를 보려고 )

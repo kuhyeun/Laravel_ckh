@@ -19,6 +19,7 @@
         </footer> -->
 
         <BaseModal></BaseModal>
+        <ToastHost></ToastHost>
         <SessionWatcher></SessionWatcher>
     </div>
 </template>
@@ -30,6 +31,7 @@ import TopFrame from '../Components/Layout/TopFrame.vue';
 import LeftMenu from '../Components/Layout/LeftMenu.vue';
 import BottomFrame from '../Components/Layout/BottomFrame.vue';
 import BaseModal from '../Components/Modals/BaseModal.vue';
+import ToastHost from '../Components/Common/ToastHost.vue';
 import SessionWatcher from '../Components/Layout/SessionWatcher.vue';
 
 const page = usePage();

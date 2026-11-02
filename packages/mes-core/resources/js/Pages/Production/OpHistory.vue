@@ -4,12 +4,6 @@
      - 탭 : 실적 이력( 서버 페이징 · 엑셀 ) / 집계( 품목 · 공정 · 작업자 · 설비 · 일자 — 행 클릭 → 그 값으로 이력 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <!-- 제목 줄 -->
-        <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">생산실적현황</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm whitespace-pre-line" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
-        </div>
 
         <!-- 검색바 -->
         <SearchBar
@@ -99,7 +93,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import OpHistoryDetail from '@core/Components/Production/OpHistoryDetail.vue';
 import { useModalStore } from '@core/Stores/modalStore';
-import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 import { COLORS } from '@core/Utils/colors';
 
@@ -107,7 +101,7 @@ defineOptions({ layout: AppLayout });
 const listGrid    = ref(null);   // 실적 이력 그리드 — 열 설정 ( 엑셀은 따로 정한 exportColumns )
 const summaryGrid = ref(null);   // 집계 그리드 — 묶음마다 열이 달라 설정도 묶음마다
 
-const { flash, showFlash } = useFlash();
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 const modalStore = useModalStore();
 
 const DATE_BASES = [

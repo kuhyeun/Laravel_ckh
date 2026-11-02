@@ -4,11 +4,6 @@
      - 줄 클릭 → 공정 상세 모달( SalesProgressDetail ) / 머리 클릭 → 펼침 · 접기 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">수주진행관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
-        </div>
 
         <SearchBar
             v-model="search"
@@ -20,9 +15,9 @@
         >
             <BaseSelect v-model="search.partner_idx" :options="partnerOptions" class="w-44" />
             <BaseSelect v-model="search.status" :options="PROGRESS_STATUS_FILTER" class="w-32" />
-            <label class="flex items-center gap-1.5 text-sm text-gray-600 whitespace-nowrap">
+            <!-- <label class="flex items-center gap-1.5 text-sm text-gray-600 whitespace-nowrap">
                 <input v-model="search.late" type="checkbox" true-value="1" false-value="" class="accent-red-600" /> 납기 지연만
-            </label>
+            </label> -->
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -64,7 +59,7 @@ import SearchBar from '@core/Components/Common/SearchBar.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import SalesProgressDetail from '@core/Components/Order/SalesProgressDetail.vue';
 import { useModalStore } from '@core/Stores/modalStore';
-import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtNum, itemLabel } from '@core/Utils/format';
 import { ditto, escapeHtml } from '@core/Utils/gridTree';
 import { COLORS, STATUS_COLOR } from '@core/Utils/colors';
@@ -75,7 +70,7 @@ defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const modalStore = useModalStore();
-const { flash, showFlash } = useFlash();
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 // ---- 검색 ----
 const DATE_BASES = [

@@ -4,11 +4,6 @@
      - 행 클릭 → 출하 창( 읽기 전용 — ShipmentForm 을 7002 권한 주소로 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">출하이력관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm whitespace-pre-line" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
-        </div>
 
         <SearchBar
             v-model="search"
@@ -60,7 +55,7 @@ import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ShipmentForm from '@core/Components/Shipment/ShipmentForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
-import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 import { woStatusColor } from '@core/Components/Production/productionCodes';
 import { COLORS } from '@core/Utils/colors';
@@ -69,7 +64,7 @@ defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const modalStore = useModalStore();
-const { flash, showFlash } = useFlash();
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 const DATE_BASES = [{ value: 'shipped', label: '출하 일시' }, { value: 'plan', label: '출하 예정' }];
 const STATUS_FILTER = [

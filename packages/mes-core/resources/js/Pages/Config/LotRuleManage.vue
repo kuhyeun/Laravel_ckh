@@ -10,9 +10,6 @@
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 헤더 -->
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">LOT규칙관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="newRule">+ 등록</BaseButton>
         </div>
 
@@ -200,6 +197,7 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { showAlert } from '@core/Utils/message';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 
@@ -287,14 +285,7 @@ const blankForm = () => ({
 const form = reactive(blankForm());
 
 // ---- 플래시 ----
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text;
-    flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 4000);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 // ---- 미리보기 ( 서버 LotRule::render / sampleContext 와 같은 규칙 ) ----
 const now = new Date();

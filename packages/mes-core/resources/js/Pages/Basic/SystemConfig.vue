@@ -12,11 +12,6 @@
     <div class="config-setting-wrap flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 검색 바 ( 상단 고정 헤더 ) -->
         <div class="flex items-center gap-3 pb-3 border-b shrink-0">
-            <h2 class="font-bold text-lg">시스템 환경설정</h2>
-
-            <div class="flex-1"></div>
-
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <span class="text-sm text-gray-500 whitespace-nowrap">{{ counterText }}</span>
             <div class="relative">
                 <input
@@ -124,6 +119,7 @@ import ConfigRadio from '@core/Components/Config/Fields/ConfigRadio.vue';
 import ConfigSwitch from '@core/Components/Config/Fields/ConfigSwitch.vue';
 import ConfigCheckboxes from '@core/Components/Config/Fields/ConfigCheckboxes.vue';
 import ConfigMulti from '@core/Components/Config/Fields/ConfigMulti.vue';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({
     layout: AppLayout
@@ -332,14 +328,7 @@ function onSlashKey(ev) {
     }
 }
 
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text  = text;
-    flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 4000);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 // 바뀐 항목만 [{ group, key, value }] 로 ( 되돌리기는 value = null )
 function collectItems() {

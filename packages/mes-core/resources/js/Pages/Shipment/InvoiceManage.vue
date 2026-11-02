@@ -4,9 +4,6 @@
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">거래명세서</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm whitespace-pre-line" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <BaseButton variant="primary" :disabled="!checkedRows.length" @click="openPrint(checkedRows.map(r => r.shipment_idx))">미리보기 · 인쇄</BaseButton>
         </div>
 
@@ -62,13 +59,13 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import InvoicePreview from '@core/Components/Shipment/InvoicePreview.vue';
 import { useModalStore } from '@core/Stores/modalStore';
-import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtNum } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
-const { flash, showFlash } = useFlash();
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 const modalStore = useModalStore();
 
 // 검색 조건 ( 서버 InvoiceController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )

@@ -4,13 +4,11 @@
      - type : move | adjust | misc ( 기타출고 — 출고관리의 탭 ) | production ( 생산 입고 — 제품입고 ) | shipment ( 출하 — 제품출고의 탭 )
        production · shipment 는 조회만 ( 입고 · 취소는 공정실적, 출하 · 취소는 출하관리 ) — 생산 입고 행 클릭 = 그 작업지시의 공정실적
      - scope : material | product — API 범위 ( stockCodes STOCK_ROUTES · 품목 구분은 서버 라우트 )
-     - slot head : 제목 자리 ( 출고관리 탭 버튼 ) -->
+     - slot head : 버튼 줄 왼쪽 ( 출고관리 · 제품출고 탭 버튼 ) — 화면 제목은 상단 TopFrame 이 메뉴 이름으로 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <slot name="head"><h2 class="font-bold text-lg tracking-tight">{{ cfg.title }}</h2></slot>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
+            <slot name="head" />
             <Link :href="cfg.hintPath ?? R.statusPath" class="text-xs text-blue-700 hover:underline">{{ cfg.hint ?? `${cfg.title}은 ${isProduct ? '제품재고' : '재고관리'}에서 LOT 을 골라 합니다 →` }}</Link>
         </div>
 
@@ -67,6 +65,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import { showAlert } from '@core/Utils/message';
 import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 import { COLORS } from '@core/Utils/colors';
+import { useToast } from '@core/Composables/useToast';
 
 const props = defineProps({
     type:  { type: String, required: true },          // move | adjust | misc | production | shipment
@@ -198,13 +197,7 @@ const loading = ref(false);
 const paging  = reactive({ page: 1, perPage: 50, total: 0 });
 const sort    = reactive({ key: '', dir: '' });
 
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text; flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 4000);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 async function load() {
     loading.value = true;

@@ -1,4 +1,5 @@
-// 제목 줄 알림 문구 — packages/mes-core/docs/style-guide.md §7
+// 모달 · 패널 안 알림 문구 ( 그 자리에 ) — packages/mes-core/docs/style-guide.md §7
+//   화면( 페이지 ) 알림은 Toast — useToast ( 같은 showFlash )
 //   const { flash, showFlash, failMsg } = useFlash();
 //   <span v-if="flash.text" class="text-sm whitespace-pre-line" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
 //   showFlash('저장했습니다.') / showFlash(failMsg(e), true) / showFlash('출고했습니다.', false, ['재고가 모자랍니다.'])

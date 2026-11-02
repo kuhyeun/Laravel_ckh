@@ -6,9 +6,6 @@
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">사이트설정</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm whitespace-pre-line" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <span v-if="dirtyCount" class="text-xs text-amber-600">바뀐 칸 {{ dirtyCount }}개</span>
             <BaseButton v-if="canWrite" variant="primary" :disabled="saving || !dirtyCount" @click="save">저장</BaseButton>
         </div>
@@ -61,7 +58,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import { showAlert } from '@core/Utils/message';
-import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { useToast, failMsg } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 
@@ -71,7 +68,7 @@ const menuCode = page.props.menuCode;
 const myPerm   = computed(() => page.props.permissions?.[menuCode] ?? {});
 const canWrite = computed(() => myPerm.value.can_write === true);
 
-const { flash, showFlash } = useFlash();
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 // 묶음 → 섹션 제목 ( 순서는 서버 )
 const SECTION_META = {

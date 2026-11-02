@@ -19,8 +19,6 @@
                 <button v-for="t in TABS" :key="t.key" type="button" class="px-2 py-0.5 rounded font-bold text-lg tracking-tight"
                     :class="tab === t.key ? 'text-gray-800' : 'text-gray-300 hover:text-gray-500'" @click="tab = t.key">{{ t.label }}</button>
             </div>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
         </div>
 
         <SearchBar
@@ -87,6 +85,7 @@ import { woStatusLabel, woStatusColor } from '@core/Components/Production/produc
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
 import StockTxnHistory from '@core/Components/Stock/StockTxnHistory.vue';
 import { COLORS } from '@core/Utils/colors';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 
@@ -136,13 +135,7 @@ const sort    = reactive({ key: '', dir: '' });
 
 const woIdx = ref(null);
 
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text; flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 5000);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 async function load() {
     loading.value = true;

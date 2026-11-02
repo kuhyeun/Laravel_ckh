@@ -3,12 +3,9 @@
      - 구역 : 화면 틀 · 좌우 분할 · 모달 · 알림 · 상태 색 · 색 팔레트 · 숫자 · 부품( 예전 UI Kit ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <!-- 제목 줄 -->
+        <!-- 버튼 줄 -->
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">스타일 가이드</h2>
             <code class="text-xs text-gray-400 hidden md:inline">규칙 : packages/mes-core/docs/style-guide.md</code>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm whitespace-pre-line text-right" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
         </div>
 
         <nav class="flex flex-wrap gap-1 text-sm pb-2 mb-1 border-b shrink-0">
@@ -20,15 +17,12 @@
 
             <!-- 1. 화면 틀 -->
             <section id="layout" class="scroll-mt-4">
-                <SectionHead title="화면 틀 — 3단" note="제목 줄 → 검색바 → 본문. 본문만 늘어나고 넘치면 본문 안에서 스크롤 ( md §1 ~ §3 )" />
+                <SectionHead title="화면 틀 — 3단" note="버튼 줄 → 검색바 → 본문 ( 제목은 상단 ). 본문만 늘어나고 넘치면 본문 안에서 스크롤 ( md §1 ~ §3 )" />
                 <ShowcaseCard title="목록 + 모달 ( 가장 흔한 화면 )" :code="code.layout">
                     <div class="w-full h-[440px] flex flex-col border border-dashed border-gray-300 p-3 bg-white">
                         <div class="flex items-center gap-3 pb-2 shrink-0">
-                            <h2 class="font-bold text-lg tracking-tight">품목관리</h2>
-                            <div class="flex-1"></div>
-                            <span v-if="demoFlash.text" class="text-sm" :class="demoFlash.error ? 'text-red-500' : 'text-green-600'">{{ demoFlash.text }}</span>
                             <BaseButton variant="primary" @click="openDemoModal('lg')">+ 등록</BaseButton>
-                            <BaseButton variant="danger" :disabled="!checked.length" @click="showDemoFlash(`${checked.length}건을 미사용 처리했습니다. ( 예시 )`)">삭제</BaseButton>
+                            <BaseButton variant="danger" :disabled="!checked.length" @click="showFlash(`${checked.length}건을 미사용 처리했습니다. ( 예시 )`)">삭제</BaseButton>
                         </div>
 
                         <SearchBar v-model="search" :fields="DEMO_FIELDS" :date-bases="[{ value: 'created', label: '등록일' }]" :blank="() => ({ kind: '' })" @search="runSearch">
@@ -153,9 +147,9 @@
 
             <!-- 4. 알림 · 확인 -->
             <section id="feedback" class="scroll-mt-4">
-                <SectionHead title="알림 · 확인" note="처리 결과는 제목 줄 문구 ( useFlash ), 되돌리기 어려운 동작 전에는 확인창 ( md §7 )" />
+                <SectionHead title="알림 · 확인" note="처리 결과는 Toast ( useToast — 모달 안은 그 자리 문구 useFlash ), 되돌리기 어려운 동작 전에는 확인창 ( md §7 )" />
                 <div class="grid gap-4 md:grid-cols-2">
-                    <ShowcaseCard title="제목 줄 알림 — 이 화면 맨 위에 뜬다" :code="code.flash">
+                    <ShowcaseCard title="Toast 알림 — 오른쪽 위에 뜬다 ( 마우스를 올리면 멈춤 · 누르면 닫힘 )" :code="code.flash">
                         <BaseButton variant="secondary" @click="showFlash('저장했습니다.')">성공</BaseButton>
                         <BaseButton variant="secondary" @click="showFlash('출고했습니다.', false, ['재고가 계산 소요보다 적습니다.'])">성공 + 경고</BaseButton>
                         <BaseButton variant="secondary" @click="showFlash('권한이 없습니다.', true)">오류</BaseButton>
@@ -290,7 +284,7 @@ import SearchBar from '@core/Components/Common/SearchBar.vue';
 import StyleGuideDemoForm from '@core/Components/Dev/StyleGuideDemoForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
-import { useFlash } from '@core/Composables/useFlash';
+import { useToast } from '@core/Composables/useToast';
 import { fmtNum, fmtQty, dash } from '@core/Utils/format';
 import { STATUS_COLOR, COLORS, CHART } from '@core/Utils/colors';
 
@@ -319,8 +313,7 @@ const SectionHead = (p) => h('div', { class: 'flex items-baseline gap-3 mb-3' },
 SectionHead.props = ['title', 'note'];
 
 const modalStore = useModalStore();
-const { flash, showFlash } = useFlash();
-const { flash: demoFlash, showFlash: showDemoFlash } = useFlash();
+const { showFlash } = useToast();
 
 // ---- 1. 화면 틀 ( 예시 데이터 · 서버 대신 여기서 거르고 자른다 ) ----
 const KINDS = { RAW: '원자재', FINISHED: '완제품' };
@@ -446,11 +439,8 @@ const num      = ref(0);
 const code = {
     layout: `<template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <!-- ① 제목 줄 -->
+        <!-- ① 버튼 줄 ( 화면 제목은 상단 TopFrame 이 메뉴 이름으로 띄운다 — 여기에 두지 않는다 ) -->
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">품목관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm whitespace-pre-line" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <BaseButton v-if="canWrite" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" variant="danger" :disabled="!checkedRows.length" @click="deleteChecked">삭제</BaseButton>
         </div>
@@ -480,9 +470,9 @@ const code = {
 </template>
 
 <script setup>
-import { useFlash, failMsg } from '@core/Composables/useFlash';
+import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtQty } from '@core/Utils/format';
-const { flash, showFlash } = useFlash();
+const { showFlash } = useToast();   // 화면 알림 = Toast
 const page      = usePage();
 const menuCode  = page.props.menuCode;
 const canWrite  = computed(() => page.props.permissions?.[menuCode]?.can_write === true);
@@ -553,15 +543,16 @@ modalStore.open(ItemForm, { modalTitle: isEdit ? '품목 수정' : '품목 등�
     <p v-if="errors.item_code" class="text-xs text-red-500 mt-0.5">{{ errors.item_code[0] }}</p>
 </div>`,
 
-    flash: `import { useFlash, failMsg } from '@core/Composables/useFlash';
-const { flash, showFlash } = useFlash();
+    flash: `import { useToast, failMsg } from '@core/Composables/useToast';
+const { showFlash } = useToast();   // 화면 알림 = Toast ( AppLayout 의 ToastHost 가 띄운다 )
 
 showFlash('저장했습니다.');
 showFlash('출고했습니다.', false, data.warnings);   // 경고는 ⚠ 줄로
 showFlash(failMsg(e), true);                        // 422 서버 문구 · 403 권한 · 그 밖
 
-<!-- 제목 줄 -->
-<span v-if="flash.text" class="text-sm whitespace-pre-line" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>`,
+// 템플릿에는 아무것도 두지 않는다. 모달 안 문구만 useFlash ( 그 자리 ) :
+// const { flash, showFlash } = useFlash();
+// <span v-if="flash.text" class="text-xs whitespace-pre-line" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>`,
 
     confirm: `import { showAlert } from '@core/Utils/message';
 

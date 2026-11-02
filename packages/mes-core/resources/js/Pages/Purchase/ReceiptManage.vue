@@ -6,9 +6,6 @@
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
-            <h2 class="font-bold text-lg tracking-tight">입고관리</h2>
-            <div class="flex-1"></div>
-            <span v-if="flash.text" class="text-sm" :class="flash.error ? 'text-red-500' : 'text-green-600'">{{ flash.text }}</span>
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openForm">+ 입고 등록</BaseButton>
         </div>
 
@@ -70,6 +67,7 @@ import ReceiptDetail from '@core/Components/Purchase/ReceiptDetail.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { RECEIPT_STATUSES, receiptStatusLabel, receiptStatusColor, inspModeLabel } from '@core/Components/Stock/stockCodes';
 import { COLORS } from '@core/Utils/colors';
+import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -148,13 +146,7 @@ const loading = ref(false);
 const paging  = reactive({ page: 1, perPage: 50, total: 0 });
 const sort    = reactive({ key: '', dir: '' });
 
-const flash = reactive({ text: '', error: false });
-let flashTimer = null;
-function showFlash(text, error = false) {
-    flash.text = text; flash.error = error;
-    clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => { flash.text = ''; }, 4000);
-}
+const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 async function load() {
     loading.value = true;
