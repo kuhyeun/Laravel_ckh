@@ -1,10 +1,11 @@
 <!-- 그리드 열 설정 창 ( DataGrid setting-key — 오른쪽 클릭 "열 설정…" · GridSettingButton )
-     - 열마다 표시 · 이름 · 순서 ( ↑↓ 또는 끌어 옮기기 ) — 사용자 자신의 설정 ( 사용자 × 화면 × 그리드 )
+     - 열마다 표시 · 이름 · 너비( px · 화면 기본 너비가 처음 값 · 자동 너비 열은 빈칸 · 비우면 화면 기본 ) · 순서 ( ↑↓ 또는 끌어 옮기기 ) — 사용자 자신의 설정 ( 사용자 × 화면 × 그리드 )
+       너비는 그리드에서 열 경계를 끌어도 저장된다 ( 같은 값 )
      - 숨긴 열도 엑셀에는 나간다 ( 엑셀에서 숨김 처리 — 필요하면 펼쳐 본다 )
      - 꼭 있어야 하는 열( lockHide )은 숨길 수 없다 / [기본값으로] = 내 설정을 지우고 화면 기본 구성으로 -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
-        <p class="text-xs text-gray-500 mb-2 shrink-0">체크를 끄면 화면에서 숨깁니다 ( 엑셀에는 숨긴 열로 나갑니다 ). 이름을 비우면 원래 이름으로 돌아갑니다.</p>
+        <p class="text-xs text-gray-500 mb-2 shrink-0">체크를 끄면 화면에서 숨깁니다 ( 엑셀에는 숨긴 열로 나갑니다 ). 이름 · 너비를 비우면 원래 값으로 돌아갑니다.</p>
         <div class="flex-1 min-h-0 overflow-y-auto border border-gray-200 rounded">
             <table class="w-full text-sm">
                 <thead class="bg-gray-50 text-xs text-gray-500 sticky top-0">
@@ -12,6 +13,7 @@
                         <th class="w-10 px-2 py-1.5">표시</th>
                         <th class="px-2 py-1.5 text-left">이름</th>
                         <th class="px-2 py-1.5 text-left w-32">원래 이름</th>
+                        <th class="w-24 px-2 py-1.5">너비( px )</th>
                         <th class="w-20 px-2 py-1.5">순서</th>
                     </tr>
                 </thead>
@@ -23,6 +25,9 @@
                         </td>
                         <td class="px-2 py-1"><BaseInput v-model="c.header" size="sm" class="w-full" :placeholder="c.origHeader" maxlength="50" /></td>
                         <td class="px-2 py-1 text-xs text-gray-400 truncate">{{ c.origHeader }}</td>
+                        <td class="px-2 py-1">
+                            <BaseInput v-model="c.width" type="number" min="20" size="sm" class="w-full text-right" :placeholder="c.origWidth ? String(c.origWidth) : '자동'" :class="widthBad(c) ? 'border-red-400' : ''" />
+                        </td>
                         <td class="px-2 py-1 text-center whitespace-nowrap">
                             <span class="cursor-grab text-gray-300 mr-1" title="끌어서 옮기기">⠿</span>
                             <button type="button" class="px-1 text-gray-500 hover:text-blue-700 disabled:opacity-30" :disabled="i === 0" @click="move(i, -1)">↑</button>
@@ -50,8 +55,8 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 
 const props = defineProps({
-    columns: { type: Array,    required: true },   // 설정 대상 열 ( 현재 순서 ) — { name, header, _origHeader, _userHidden, lockHide, _savedWidth }
-    onApply: { type: Function, required: true },   // ( [{ name, header, hidden }] ) → Promise
+    columns: { type: Array,    required: true },   // 설정 대상 열 ( 현재 순서 ) — { name, header, _origHeader, _origWidth, _userHidden, lockHide, _savedWidth }
+    onApply: { type: Function, required: true },   // ( [{ name, header, hidden, width }] ) → Promise
     onReset: { type: Function, required: true },   // () → Promise
 });
 const emit = defineEmits(['close']);
@@ -62,7 +67,13 @@ const list = reactive(props.columns.map(c => ({
     header:     c.header !== (c._origHeader ?? c.header) ? c.header : '',
     hidden:     !!c._userHidden,
     lockHide:   !!c.lockHide,
+    origWidth:  c._origWidth ?? null,
+    width:      c._savedWidth ?? c._origWidth ?? '',   // 화면 기본 너비도 값으로 ( ↑↓ 로 1px 씩 ) · 자동 너비만 비움
 })));
+// 너비 : 비우면 화면 기본 · 넣으면 20 ~ 2000 정수 ( 서버 검증과 같다 )
+const WIDTH_MIN = 20, WIDTH_MAX = 2000;
+const widthOf  = (c) => String(c.width ?? '').trim() === '' ? null : Number(c.width);
+const widthBad = (c) => { const w = widthOf(c); return w !== null && !(Number.isInteger(w) && w >= WIDTH_MIN && w <= WIDTH_MAX); };
 const busy     = ref(false);
 const errorMsg = ref('');
 const dragIdx  = ref(null);
@@ -91,6 +102,14 @@ async function run(fn) {
         busy.value = false;
     }
 }
-const apply = () => run(() => props.onApply(list.map(c => ({ name: c.name, header: c.header.trim() || null, hidden: c.hidden && !c.lockHide }))));
+function apply() {
+    if (list.some(widthBad)) {
+        errorMsg.value = `너비는 ${WIDTH_MIN} ~ ${WIDTH_MAX} 사이 정수로 넣거나 비워 두세요.`;
+        return;
+    }
+    // 화면 기본 너비와 같으면 저장하지 않는다 ( 나중에 화면 코드 너비가 바뀌면 따라가게 )
+    const savedWidth = (c) => { const w = widthOf(c); return w === c.origWidth ? null : w; };
+    run(() => props.onApply(list.map(c => ({ name: c.name, header: c.header.trim() || null, hidden: c.hidden && !c.lockHide, width: savedWidth(c) }))));
+}
 const reset = () => run(() => props.onReset());
 </script>

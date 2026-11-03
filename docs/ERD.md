@@ -106,12 +106,6 @@ erDiagram
     int tenant_id FK
     string login_id
     string password_hash
-    bool qr_login_enabled
-    string login_qr_hash
-    datetime login_qr_issued_at
-    bigint login_qr_issued_by
-    string login_qr_reason
-    string login_pin_hash
     bool is_system_admin
     bool is_active
   }
@@ -247,8 +241,6 @@ erDiagram
 ```
 
 - `user_account`(공용)는 **로그인**, `user_profile`(테넌트)은 **이름 · 부서 · 직급**입니다
-- `qr_login_enabled` — **본인이 켠 사람만** QR을 발급받고 QR로 로그인합니다(기본 꺼짐). **끄면 기존 QR이 즉시 무효**입니다 — 전원 발급해 두면 안 쓰는 카드가 서랍에 방치되고 그게 유출 경로가 됩니다
-- `login_qr_hash` — **현장 QR 로그인.** 장갑 낀 손으로 비밀번호를 치게 할 수 없습니다. **해시만 저장**하고 평문은 발급 시 한 번 인쇄하고 버립니다. 분실하면 **재인증(비밀번호 재입력) 후 재발급**하고 **이전 QR은 그 순간 무효**입니다. **관리자 계정은 QR 로그인 불가**이고, 공용 단말이라 **유휴 10분에 자동 로그아웃**합니다 ([프로그램-스펙 §7.1](./프로그램-스펙.md))
 - `menu_role.can_read = false` 면 **그 역할 사용자 메뉴에서 사라집니다**
   ([정책-설정-설계.md](./정책-설정-설계.md) §7)
 - `attachment.ref_type` + `ref_id`로 어떤 테이블에도 붙습니다. `category_cd`는 성적서 · 밀시트 · 도면
@@ -387,7 +379,6 @@ erDiagram
     string name
     smallint width_mm
     smallint height_mm
-    string symbology
     text layout_spec
   }
 ```
@@ -770,7 +761,7 @@ bom (
 | `partner_contact.site_id` | **소속 출고지.** `NULL`이면 본사 소속. 구분과 **다른 축**입니다 |
 | `inspection_item` | **검사 항목 마스터.** 기준서에서 **골라 쓰거나 직접 입력**합니다. 치수는 규격 · 상하한이 품목마다 달라 **이름만** 빌려 옵니다 |
 | `inspection_spec_item.master_id` | 어디서 왔는지 **표시일 뿐** — 마스터를 고쳐도 **기존 기준서는 그대로**입니다 |
-| `label_template` | 기본 **100 × 70mm**, `symbology`는 QR / 1D |
+| `label_template` | 기본 **100 × 70mm** · **1D 바코드( Code128 )만** — QR 은 쓰지 않음( 11-02 ) |
 | `routesheet_notice` | General Information. **업체 사용자가 작성** |
 
 ### LOT 번호는 조합으로 만든다
@@ -1506,14 +1497,17 @@ erDiagram
   serial }o--o| shipment_line : "나간 곳"
 
   barcode_label {
-    bigint id PK
-    string barcode_no
-    bigint template_id FK
-    bigint lot_id FK
-    bigint item_id FK
-    decimal qty
-    string status
+    bigint label_idx PK
+    string target "LOT | SHIPMENT_LINE"
+    bigint lot_idx FK
+    bigint shipment_line_idx FK
+    string barcode_no "LOT 번호 / 출하번호-줄 · 고객 지정"
+    bigint label_template_idx FK
+    smallint label_count "장수 ( 같은 번호 )"
+    decimal label_qty "라벨당 수량"
+    string status "ISSUED | SCRAPPED"
     string scrap_reason
+    int print_total "0 = 미인쇄"
   }
   label_print_log {
     bigint id PK

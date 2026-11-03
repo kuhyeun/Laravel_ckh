@@ -12,6 +12,7 @@ use MesCore\Config\Models\Partner;
 use MesCore\Config\Models\Warehouse;
 use MesCore\Purchase\Models\PurchaseOrder;
 use MesCore\Purchase\Models\PurchaseOrderLine;
+use MesCore\Label\Services\LabelService;
 use MesCore\Quality\Models\Inspection;
 use MesCore\Stock\Models\Lot;
 use MesCore\Stock\Models\StockLedger;
@@ -28,6 +29,7 @@ use MesCore\Stock\Services\StockService;
  *   입고완료( confirm ) : 재고에 잡을 수량( 무검사 = 수량, 검사 = 합격 )만 원장 + · 발주 줄 입고 수량 +
  *   되돌리기( unconfirm ) : 역분개 · 발주 입고 수량 − . 그 LOT 이 이미 출고 · 이동됐으면 막음 ( §16-4 )
  *   수정은 없다 — 취소 후 다시 입고 ( 원장이 추가만이므로 )
+ *   줄 취소 : 그 LOT 에 발행된 라벨도 폐기( 사유 '입고 취소' ) — 붙어 있는 라벨을 찍으면 폐기 알림
  */
 class ReceiptService {
 
@@ -38,6 +40,7 @@ class ReceiptService {
         private StockService $stock,
         private LotService $lots,
         private PolicyService $policy,
+        private LabelService $labels,
     ) {}
 
     // 입고검사 방식 — 품목 · 구매처로 정책을 읽는다 ( 품목 무검사면 거래처 무시 )
@@ -228,7 +231,8 @@ class ReceiptService {
     }
 
     // 줄 취소 — 검사대기는 그냥, 입고완료는 되돌린 뒤. LOT 은 남는다( 번호 재사용 없음 )
-    public function cancelLine(StockTxnLine $line): void {
+    //   그 LOT 의 라벨은 폐기 ( 검사대기 줄도 라벨을 뽑았을 수 있다 ) → 폐기한 라벨 장수
+    public function cancelLine(StockTxnLine $line): int {
         if ($line->line_status === 'CANCELED') {
             throw ValidationException::withMessages(['line' => ['이미 취소된 줄입니다.']]);
         }
@@ -241,6 +245,8 @@ class ReceiptService {
 
         $line->fill(['line_status' => 'CANCELED'])->save();
         $line->txn->refreshStatus();
+
+        return $line->lot_idx ? $this->labels->scrapLot($line->lot_idx, '입고 취소') : 0;
     }
 
     // 발주 줄의 남은 수량 = 발주 수량 − 입고된 수량 − 다른 입고에서 검사대기 중인 수량

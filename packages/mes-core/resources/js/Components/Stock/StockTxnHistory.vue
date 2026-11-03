@@ -7,9 +7,9 @@
      - slot head : 버튼 줄 왼쪽 ( 출고관리 · 제품출고 탭 버튼 ) — 화면 제목은 상단 TopFrame 이 메뉴 이름으로 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <!-- 탭 줄 : 넘겨준 화면만 ( 출고관리 · 제품출고 ) — 나머지는 줄 없이 검색바부터 -->
+        <div v-if="$slots.head" class="flex items-center gap-3 pb-2 shrink-0">
             <slot name="head" />
-            <Link :href="cfg.hintPath ?? R.statusPath" class="text-xs text-blue-700 hover:underline">{{ cfg.hint ?? `${cfg.title}은 ${isProduct ? '제품재고' : '재고관리'}에서 LOT 을 골라 합니다 →` }}</Link>
         </div>
 
         <SearchBar
@@ -26,12 +26,13 @@
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                 <span class="text-sm font-semibold text-gray-600">{{ cfg.title }} 이력 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건</span></span>
+                <!-- 오른쪽 : 행 안내 → 열 설정 · 엑셀 ( 안내가 가운데로 밀리지 않게 한 묶음 ) -->
                 <div class="flex items-center gap-1.5">
+                    <span v-if="cfg.rowHint" class="mr-1.5 text-xs text-gray-400">{{ cfg.rowHint }}</span>
+                    <span v-else-if="canWrite && cfg.cancel" class="mr-1.5 text-xs text-gray-400">행을 누르면 취소할 수 있습니다</span>
                     <GridSettingButton :grid="mainGrid" />
                     <ExcelExportButton :rows="exportRows" :columns="columns" :grid="mainGrid" :filename="`${cfg.title}이력`" />
                 </div>
-                <span v-if="cfg.rowHint" class="text-xs text-gray-400">{{ cfg.rowHint }}</span>
-                <span v-else-if="canWrite && cfg.cancel" class="text-xs text-gray-400">행을 누르면 취소할 수 있습니다</span>
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid
@@ -54,7 +55,7 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
-import { usePage, Link, router } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
 import { itemLabel } from '@core/Utils/format';
@@ -133,7 +134,6 @@ const CONFIG = {
 };
 CONFIG.misc = {
     title: '기타출고', noLabel: '출고번호', dateLabel: '출고일',
-    hint: `기타출고는 ${isProduct ? '제품재고' : '재고관리'}에서 LOT 을 골라 [출고] 로 합니다 →`,
     list: R.miscList, cancel: R.miscCancel,
     columns: [
         { header: '출고번호', name: 'txn_no', width: 115, sortable: true },
@@ -149,7 +149,6 @@ CONFIG.misc = {
 // 제품관리 조회 전용 ( 취소 없음 )
 CONFIG.production = {
     title: '생산 입고', noLabel: '입고번호', dateLabel: '입고일',
-    hint: '생산 입고는 공정실적에서 실적 · 완료로 들어오고, 취소도 공정실적에서 합니다 →', hintPath: '/production/op-result',
     rowHint: '행을 누르면 그 작업지시의 공정실적을 엽니다',
     list: R.productionList, cancel: null,
     columns: [
@@ -166,7 +165,6 @@ CONFIG.production = {
 };
 CONFIG.shipment = {
     title: '출하', noLabel: '출하번호', dateLabel: '출하일',
-    hint: '출하 등록 · 취소는 출하관리에서 합니다 →', hintPath: '/shipment/manage',
     list: R.shipmentList, cancel: null,
     columns: [
         { header: '출하번호', name: 'txn_no', width: 125, sortable: true },

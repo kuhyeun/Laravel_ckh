@@ -22,6 +22,7 @@
         "axios": "^1.7.4",
         "chart.js": "^4.5.1",
         "exceljs": "^4.4.0",
+        "jsbarcode": "^3.11.6",
         "pinia": "^3.0.4",
         "sweetalert2": "^11.26.20",
         "tui-grid": "^4.21.22",

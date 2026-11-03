@@ -35,6 +35,7 @@ class StockController extends Controller {
             'item_type'     => 'nullable|in:MATERIAL,PRODUCT',
             'with_zero'     => 'nullable|in:0,1',
             'group'         => 'nullable|in:lot,item',
+            'no_label'      => 'nullable|in:0,1',
         ]);
         $byItem   = ($v['group'] ?? 'lot') === 'item';
         $itemType = $this->itemScope($request) ?? ($v['item_type'] ?? null);   // 범위가 있으면 화면 값은 무시
@@ -55,8 +56,15 @@ class StockController extends Controller {
                 ->select('b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty',
                     'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.item_type', 'i.spec_unit', 'w.warehouse_name',
                     'l.lot_no', 'l.external_lot_no', 'l.spec_value', 'l.in_at', 'p.partner_name')
+                // 이 LOT 에 발행된 라벨 장수 ( 폐기 제외 ) — 원문 "해당 LOT 에 발행된 바코드가 있는지 표시"
+                ->selectSub(fn ($q) => $q->from('barcode_label as bl')->selectRaw('COALESCE(SUM(bl.label_count), 0)')
+                    ->whereColumn('bl.lot_idx', 'b.lot_idx')->where('bl.status', 'ISSUED'), 'label_count')
                 ->orderBy('i.item_code')->orderBy('l.in_at')->orderBy('b.lot_idx');
             if (($v['with_zero'] ?? '0') !== '1') $query->where('b.qty', '<>', 0);
+            if ((string) ($v['no_label'] ?? '0') === '1') {
+                $query->whereNotNull('b.lot_idx')->whereNotExists(fn ($q) => $q->from('barcode_label as bl')
+                    ->whereColumn('bl.lot_idx', 'b.lot_idx')->where('bl.status', 'ISSUED'));
+            }
         }
 
         if (!empty($v['warehouse_idx'])) $query->whereIn('b.warehouse_idx', $this->withDescendants((int) $v['warehouse_idx']));
@@ -94,6 +102,7 @@ class StockController extends Controller {
             'partner_name'   => $r->partner_name ?? null,
             'qty'            => (float) $r->qty,
             'lot_count'      => isset($r->lot_count) ? (int) $r->lot_count : null,
+            'label_count'    => isset($r->label_count) ? (int) $r->label_count : null,
         ]);
     }
 

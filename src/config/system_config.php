@@ -39,7 +39,7 @@ return [
         'lot'             => [ 'name' => 'LOT관리 사용',             'value' => 'Y', 'category' => 'FEATURE', 'type' => 'BOOL' ],
         'bom'             => [ 'name' => 'BOM 메뉴 사용',            'value' => 'Y', 'category' => 'FEATURE', 'type' => 'BOOL',
                                'remark' => '실 가공만 하는 업체는 끕니다 — 품목의 주 자재로만 관리' ],
-        'barcode'         => [ 'name' => '바코드관리 사용',          'value' => 'Y', 'category' => 'FEATURE', 'type' => 'BOOL', 'visible' => false ],
+        'barcode'         => [ 'name' => '바코드관리 사용',          'value' => 'Y', 'category' => 'FEATURE', 'type' => 'BOOL' ],
         // 문서별로 다시 켠다 ( 지금은 출하 — shipment.approval ). 결재선 · 결재함은 Phase 2, 그 전까지는 간이 승인
         'approval'        => [ 'name' => '전자결재 사용',            'value' => 'N', 'category' => 'FEATURE', 'type' => 'BOOL',
                                'remark' => '켜면 문서별 결재 사용이 보입니다 ( 지금은 출하 ). 결재선 · 결재함 전까지는 승인 권한자 한 명의 간이 승인' ],
@@ -148,19 +148,15 @@ return [
     'barcode' => [
         'allow_duplicate_no'  => [ 'name' => '같은 바코드 번호 발행 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false,
                                    'depends_on' => [ 'feature.barcode', 'Y' ] ],
-        'allow_pre_issue'     => [ 'name' => '선발행 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL', 'visible' => false,
+        'allow_pre_issue'     => [ 'name' => '선발행 허용', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'editable_by' => 'SYSTEM_ADMIN',
+                                   'remark' => '켜면 입고 · 공정 전에 라벨을 미리 뽑아 두고 나중에 연결 ( 준비 중 — 아직 동작하지 않음 )',
                                    'depends_on' => [ 'feature.barcode', 'Y' ] ],
-        'print_count_default' => [ 'name' => '기본 인쇄 매수', 'value' => '1', 'category' => 'RULE', 'type' => 'INT', 'visible' => false,
+        'print_count_default' => [ 'name' => '기본 인쇄 매수', 'value' => '1', 'category' => 'RULE', 'type' => 'INT',
+                                   'remark' => '라벨 발행 창의 장수 기본값 ( 품목에 입수가 있으면 수량 ÷ 입수 )',
                                    'depends_on' => [ 'feature.barcode', 'Y' ] ],
     ],
 
-    // ---- B-6. 인증 · 화면 기본값 ----
-    'auth' => [
-        'qr_login'        => [ 'name' => '현장 QR 로그인', 'value' => 'QR_ONLY', 'category' => 'RULE', 'type' => 'ENUM', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false,
-                               'options' => [ 'OFF' => '사용 안 함', 'QR_ONLY' => 'QR 만', 'QR_PIN' => 'QR + PIN' ] ],
-        'qr_idle_minutes' => [ 'name' => '공용 단말 유휴 자동 로그아웃 ( 분 )', 'value' => '10', 'category' => 'RULE', 'type' => 'INT', 'visible' => false ],
-    ],
-
+    // ---- B-6. 화면 기본값 ---- ( QR 로그인 auth.* 는 두지 않음 · 11-02 )
     'ui' => [
         'search_range_from_days' => [ 'name' => '기본 검색 시작일 ( 오늘 + N일 )', 'value' => '-10', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
         'search_range_to_days'   => [ 'name' => '기본 검색 종료일 ( 오늘 + N일 )', 'value' => '10', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],

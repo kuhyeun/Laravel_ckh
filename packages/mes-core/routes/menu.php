@@ -27,6 +27,7 @@ Route::prefix('menu')->name('menu.')->middleware([AdminAuth::class, LevelAuth::c
         Route::post('/insertUserMenu',  [MenuController::class, 'insertUserMenu'])->name('ins.user');
         Route::post('/updateUserMenu',  [MenuController::class, 'updateUserMenu'])->name('upt.user');
         Route::post('/saveMenuOptions', [MenuController::class, 'saveMenuOptions'])->name('opt.save');
+        Route::post('/saveMenuSort',    [MenuController::class, 'saveMenuSort'])->name('sort.save');
     });
 
     // 삭제 = can_delete

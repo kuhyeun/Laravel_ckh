@@ -42,6 +42,7 @@
             <BaseButton v-if="canIssue && balanceIdx" size="sm" variant="secondary" @click="act('issue')">출고</BaseButton>
             <BaseButton v-if="canMove && balanceIdx" size="sm" variant="secondary" @click="act('move')">창고이동</BaseButton>
             <BaseButton v-if="canAdjust && balanceIdx" size="sm" variant="secondary" @click="act('adjust')">재고조정</BaseButton>
+            <BaseButton v-if="canLabel" size="sm" variant="secondary" @click="act('label')">라벨 발행</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
         </div>
     </div>
@@ -63,13 +64,14 @@ const props = defineProps({
     canAdjust:    { type: Boolean, default: false },
     canIssue:     { type: Boolean, default: false },
     canReceipt:   { type: Boolean, default: false },
+    canLabel:     { type: Boolean, default: false },   // 라벨 발행 ( feature.barcode · 발행 권한 )
     onAction:     { type: Function, default: null },   // ( type, reload ) — 처리 창을 연다. 처리 후 reload() 로 이 이력을 다시 읽는다
     scope:        { type: String, default: 'material' },   // material | product — API 범위
 });
 const emit = defineEmits(['close']);
 
 // 입고 · 출고는 이 창을 열어 둔 채 위에 처리 창을 띄운다 / 창고이동 · 재고조정은 이 창을 닫고 연다
-const KEEP_OPEN = ['receipt', 'issue'];
+const KEEP_OPEN = ['receipt', 'issue', 'label'];
 function act(type) {
     if (!KEEP_OPEN.includes(type)) emit('close');
     props.onAction?.(type, load);

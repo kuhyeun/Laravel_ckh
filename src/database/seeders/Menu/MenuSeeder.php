@@ -4,7 +4,7 @@ namespace Database\Seeders\Menu;
 
 use MesCore\Menu\Models\Menu;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 // 메뉴는 없을 때만 만든다 ( 처음 설치 · Core 업데이트로 늘어난 메뉴 )
 //   이미 있는 메뉴( menu_code 기준 )는 이름 · 경로 · 정렬 · 레벨 옵션 모두 건드리지 않는다 → 메뉴관리에서 바꾼 값이 기준
@@ -25,7 +25,17 @@ class MenuSeeder extends Seeder {
     }
 
     private function seedMenu( Array $menuData, String $topMenuCode, String $parentMenuCode = "", int $depth = 1 ): void {
-        if( !Menu::where( 'menu_code', $menuData['menu_code'] )->exists() ) {
+        $existing = Menu::where( 'menu_code', $menuData['menu_code'] )->first( [ 'menu_idx', 'menu_name', 'page_component' ] );
+
+        // 같은 코드가 다른 화면이면 = 업체에서 만든 메뉴와 코드가 겹침 → 이 메뉴는 만들어지지 않으므로 알린다
+        if( $existing && !empty( $menuData['page_component'] ) && $existing->page_component !== $menuData['page_component'] ) {
+            $msg = "메뉴 코드 겹침 : {$menuData['menu_code']} = 이미 있는 '{$existing->menu_name}'( " . ( $existing->page_component ?? '페이지 없음' )
+                 . " ) → '{$menuData['menu_name']}'( {$menuData['page_component']} ) 를 만들지 못함. 기존 메뉴의 코드를 메뉴관리에서 바꾼 뒤 다시 실행";
+            Log::warning( $msg );
+            $this->command?->warn( $msg );
+        }
+
+        if( !$existing ) {
             $menu = Menu::create( [
                 'menu_code' => $menuData['menu_code'],
                 'top_menu_code' => $depth == 1 ? '****': $topMenuCode,
@@ -43,11 +53,13 @@ class MenuSeeder extends Seeder {
                 'is_use' => $menuData['is_use'] ?? 'Y',
                 'is_display' => $menuData['is_display'] ?? 'Y',
                 // 레벨 1 이하( 0 시스템 · 1 관리자 )까지만 노출되는 메뉴 = 관리자 메뉴
-                'is_admin' => $menuData['menu_level'] <= 1 ? 'Y' : 'N',
+                //   관리자 전용이어도 사용자 메뉴 쪽에 두려면 menus.php 에 'is_admin' => 'N' ( 예: 사용자관리 )
+                'is_admin' => $menuData['is_admin'] ?? ( $menuData['menu_level'] <= 1 ? 'Y' : 'N' ),
                 'create_account_idx' => 1
             ] );
 
-            $this->seedMenuOptions( $menu, $menuData['menu_level'], $menu->is_admin === 'N', $menuData['level_perms'] ?? [] );
+            // 레벨 옵션을 상한(cap)으로 쓰는 메뉴 = 일반 사용자( 레벨 10 · 99 )에게 열린 메뉴
+            $this->seedMenuOptions( $menu, $menuData['menu_level'], $menuData['menu_level'] > 1, $menuData['level_perms'] ?? [] );
         }
 
         // 기존 메뉴 아래에 새로 생긴 하위 메뉴도 만든다
@@ -73,23 +85,9 @@ class MenuSeeder extends Seeder {
 
             $menu->menuOptions()->create( array_merge( $perms, [
                 'menu_level'         => $level,
-                'menu_sort'          => $this->nextSort( $menu, $level ),
+                'menu_sort'          => Menu::nextSort( $menu->parent_menu_code, $level, $menu->menu_idx ),
                 'create_account_idx' => 1,
             ] ) );
         }
-    }
-
-    // 같은 부모 · 같은 레벨의 형제 메뉴 맨 뒤 ( 메뉴관리에서 바꾼 기존 정렬은 그대로 )
-    private function nextSort( Menu $menu, int $level ): int {
-        $max = DB::table( 'system_menu_option as smo' )
-            ->join( 'system_menu as sm', 'sm.menu_idx', '=', 'smo.menu_idx' )
-            ->where( 'smo.menu_level', $level )
-            ->where( 'sm.menu_idx', '<>', $menu->menu_idx )
-            ->when( $menu->parent_menu_code === null,
-                fn ( $q ) => $q->whereNull( 'sm.parent_menu_code' ),
-                fn ( $q ) => $q->where( 'sm.parent_menu_code', $menu->parent_menu_code ) )
-            ->max( 'smo.menu_sort' );
-
-        return (int) $max + 1;
     }
 }

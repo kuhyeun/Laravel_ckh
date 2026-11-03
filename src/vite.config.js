@@ -42,6 +42,8 @@ export default defineConfig(({ mode }) => {
                 // 날짜 · 일시 선택 ( Components/Base/BaseDatePicker.vue 만 쓴다 )
                 '@vuepic/vue-datepicker/dist/main.css': path.resolve(nodeModulesPath, '@vuepic/vue-datepicker/dist/main.css'),
                 '@vuepic/vue-datepicker': path.resolve(nodeModulesPath, '@vuepic/vue-datepicker'),
+                // 1D 바코드( Code128 ) 그리기 ( Components/Label/Barcode.vue 만 쓴다 )
+                'jsbarcode': path.resolve(nodeModulesPath, 'jsbarcode'),
             },
         },
         server: {

@@ -59,7 +59,8 @@ class Menu extends Model {
         }
 
         return [
-            'menu_code'        => 'required|string|max:30|' . $codeUnique,
+            // 최상위 메뉴는 직접 입력( 1000 · 2000 … ) · 하위 메뉴는 비우면 자동 생성 ( 등록 : nextCode · 수정 : 기존 코드 유지 )
+            'menu_code'        => 'required_without:parent_menu_code|nullable|string|max:30|' . $codeUnique,
             'top_menu_code'    => 'required|string|max:30',
             'parent_menu_code' => 'nullable|string|max:30|exists:system_menu,menu_code',
             'menu_name'        => 'required|string|max:50',
@@ -77,11 +78,42 @@ class Menu extends Model {
         ];
     }
 
+    // 하위 메뉴 코드 자동 생성 — 숫자만, 단계마다 두 자리 ( 최상위 메뉴는 직접 입력 )
+    //   2단계 = 최상위의 끝 '00' 자리에 01 ~ 99 ( 1000 → 1001 ) · 3단계 이하 = 부모 코드 + 01 ~ 99 ( 4005 → 400501 )
+    //   형제 중 가장 큰 번호 + 1
+    public static function nextCode(string $parentCode): string {
+        $parent = static::where('menu_code', $parentCode)->first(['menu_code', 'parent_menu_code']);
+        $prefix = ($parent && $parent->parent_menu_code === null && str_ends_with($parentCode, '00'))
+            ? substr($parentCode, 0, -2)
+            : $parentCode;
+
+        $used = static::where('menu_code', 'like', $prefix . '__')->pluck('menu_code')
+            ->filter(fn ($c) => strlen($c) === strlen($prefix) + 2 && ctype_digit(substr($c, -2)))
+            ->map(fn ($c) => (int) substr($c, -2))
+            ->all();
+
+        for ($n = ($used ? max($used) : 0) + 1; $n <= 99; $n++) {
+            $code = $prefix . sprintf('%02d', $n);
+            if (!static::where('menu_code', $code)->exists()) {
+                return $code;
+            }
+        }
+        throw new \RuntimeException('NoFreeMenuCode');
+    }
+
+    // 등록 : 하위 메뉴의 코드를 비웠으면 자동 생성 ( 최상위는 검증에서 필수 )
+    private static function withMenuCode(array $data): array {
+        if (empty($data['menu_code'])) {
+            $data['menu_code'] = static::nextCode($data['parent_menu_code']);
+        }
+        return $data;
+    }
+
     public static function createUserMenu(Request $request): self {
         $validatedData = $request->validate(self::validateMenuData());
 
         return DB::transaction(function () use ($validatedData) {
-            $menu = static::create(array_merge($validatedData, [
+            $menu = static::create(array_merge(static::withMenuCode($validatedData), [
                 'is_admin' => 'N',
                 'create_account_idx' => Auth::id()
             ]));
@@ -89,11 +121,12 @@ class Menu extends Model {
             // 사용자 메뉴의 레벨 옵션 = 상한(cap)이므로 전부 Y. 실제 권한은 템플릿/개인 지정으로 부여
             // ( 새 메뉴는 템플릿에 행이 없으므로 누구에게도 자동 노출되지 않음 )
             $menu->menuOptions()->createMany([
-                ['menu_level' => 0,  'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
-                ['menu_level' => 1,  'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
-                ['menu_level' => 10, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
-                ['menu_level' => 99, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 0,  'menu_sort' => 0, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 1,  'menu_sort' => 0, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 10, 'menu_sort' => 0, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 99, 'menu_sort' => 0, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
             ]);
+            $menu->moveToEnd();
 
             return $menu;
         });
@@ -103,18 +136,40 @@ class Menu extends Model {
         $validatedData = $request->validate(self::validateMenuData());
 
         return DB::transaction(function () use ($validatedData) {
-            $menu = static::create(array_merge($validatedData, [
+            $menu = static::create(array_merge(static::withMenuCode($validatedData), [
                 'is_admin' => 'Y',
                 'create_account_idx' => Auth::id()
             ]));
 
             $menu->menuOptions()->createMany([
-                ['menu_level' => 0, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
-                ['menu_level' => 1, 'menu_sort' => 99, 'can_read' => 'Y', 'can_write' => 'N', 'can_delete' => 'N', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 0, 'menu_sort' => 0, 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y', 'create_account_idx' => Auth::id()],
+                ['menu_level' => 1, 'menu_sort' => 0, 'can_read' => 'Y', 'can_write' => 'N', 'can_delete' => 'N', 'create_account_idx' => Auth::id()],
             ]);
+            $menu->moveToEnd();
 
             return $menu;
         });
+    }
+
+    // 같은 부모 · 같은 레벨 형제의 맨 뒤 정렬 번호 ( 레벨 옵션 행을 새로 만들 때 )
+    public static function nextSort(?string $parentCode, int $level, ?int $exceptIdx = null): int {
+        $max = DB::table('system_menu_option as smo')
+            ->join('system_menu as sm', 'sm.menu_idx', '=', 'smo.menu_idx')
+            ->where('smo.menu_level', $level)
+            ->when($exceptIdx, fn ($q) => $q->where('sm.menu_idx', '<>', $exceptIdx))
+            ->when($parentCode === null,
+                fn ($q) => $q->whereNull('sm.parent_menu_code'),
+                fn ($q) => $q->where('sm.parent_menu_code', $parentCode))
+            ->max('smo.menu_sort');
+
+        return (int) $max + 1;
+    }
+
+    // 새 메뉴 · 상위 메뉴를 바꾼 메뉴 → 모든 레벨에서 형제 맨 뒤로
+    public function moveToEnd(): void {
+        foreach ($this->menuOptions()->get() as $opt) {
+            $opt->update(['menu_sort' => static::nextSort($this->parent_menu_code, (int) $opt->menu_level, $this->menu_idx)]);
+        }
     }
 
     // 연결된 기능 스위치가 꺼진 메뉴 제외 ( 정책-설정-설계 §7 메뉴 노출 ① )

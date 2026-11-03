@@ -10,6 +10,7 @@ use Illuminate\Validation\ValidationException;
 use MesCore\Basic\Services\PolicyService;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Warehouse;
+use MesCore\Label\Services\LabelService;
 use MesCore\Order\Models\SalesOrder;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Shipment\Models\Shipment;
@@ -51,7 +52,7 @@ class ShipmentService {
         'CANCELED'         => '취소',
     ];
 
-    public function __construct(private StockService $stock, private PolicyService $policy) {}
+    public function __construct(private StockService $stock, private PolicyService $policy, private LabelService $labels) {}
 
     // ---- 판정 ----
 
@@ -267,8 +268,14 @@ class ShipmentService {
             if (!$keep) {
                 throw ValidationException::withMessages(['lines' => ['출하할 줄을 넣으세요.']]);
             }
-            // 뺀 줄
-            ShipmentLine::where('shipment_idx', $s->shipment_idx)->whereNotIn('shipment_line_idx', $keep)->get()->each->delete();
+            // 뺀 줄 — 라벨을 발행한 줄은 뺄 수 없다 ( 발행이력이 그 줄을 가리킨다 · 폐기된 라벨 포함 )
+            $removed = ShipmentLine::where('shipment_idx', $s->shipment_idx)->whereNotIn('shipment_line_idx', $keep)->get();
+            $labeled = $this->labels->labeledShipmentLines($removed->pluck('shipment_line_idx')->all());
+            if ($labeled) {
+                $nos = $removed->whereIn('shipment_line_idx', $labeled)->pluck('line_no')->implode(', ');
+                throw ValidationException::withMessages(['lines' => ["라벨을 발행한 줄( {$nos} )은 뺄 수 없습니다. 출하를 취소하고 다시 등록하세요."]]);
+            }
+            $removed->each->delete();
             return $s;
         });
 
@@ -389,8 +396,9 @@ class ShipmentService {
 
     // ---- 취소 ----
 
-    public function cancel(Shipment $s): void {
-        DB::transaction(function () use ($s) {
+    // 취소 → 그 출하 줄의 라벨도 폐기( 사유 '출하 취소' ) · 폐기한 라벨 장수
+    public function cancel(Shipment $s): int {
+        return DB::transaction(function () use ($s) {
             $s = Shipment::with('lines')->whereKey($s->shipment_idx)->lockForUpdate()->first();
             if ($s->status === 'CANCELED') {
                 throw ValidationException::withMessages(['status' => ["{$s->shipment_no} 는 이미 취소되었습니다."]]);
@@ -412,6 +420,8 @@ class ShipmentService {
             }
             $s->fill(['status' => 'CANCELED', 'canceled_by' => Auth::id(), 'canceled_at' => now()])->save();
             $this->refreshOrders($s);
+
+            return $this->labels->scrapShipmentLines($s->lines->pluck('shipment_line_idx')->all(), '출하 취소');
         });
     }
 

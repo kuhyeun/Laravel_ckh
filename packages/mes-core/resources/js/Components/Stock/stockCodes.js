@@ -34,14 +34,12 @@ const MOVE = { moveList: 'stock.move.list', moveCancel: 'stock.move.cancel' };
 export const STOCK_ROUTES = {
     material: {
         ...MOVE,
-        statusPath: '/stock/status',
         list: 'stock.list', history: 'stock.history', warehouses: 'stock.warehouses',
         adjustList: 'stock.adjust.list', adjustReasons: 'stock.adjust.reasons', adjustSave: 'stock.adjust.save', adjustCancel: 'stock.adjust.cancel',
         miscList: 'stock.misc.list', miscWorkOrders: 'stock.misc.workOrders', miscSave: 'stock.misc.save', miscCancel: 'stock.misc.cancel',
     },
     product: {
         ...MOVE,
-        statusPath: '/product/stock',
         list: 'product.stock.list', history: 'product.stock.history', warehouses: 'product.stock.warehouses',
         adjustList: 'product.adjust.list', adjustReasons: 'product.adjust.reasons', adjustSave: 'product.adjust.save', adjustCancel: 'product.adjust.cancel',
         miscList: 'product.issue.misc.list', miscWorkOrders: 'product.issue.misc.workOrders', miscSave: 'product.issue.misc.save', miscCancel: 'product.issue.misc.cancel',

@@ -38,6 +38,7 @@ class CoreServiceProvider extends ServiceProvider {
         'Production' => ['production.php'],
         'Shipment'   => ['shipment.php'],   // Order · Material 필요 ( 수주 줄 · 재고 엔진 )
         'Product'    => ['product.php'],    // Material 필요 ( 재고 엔진 · 창고이동 )
+        'Label'      => ['label.php'],      // 바코드 라벨 — Material 필요 ( LOT ) · 출하 라벨은 Shipment
     ];
 
     public function register(): void {

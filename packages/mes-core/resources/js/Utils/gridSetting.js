@@ -9,7 +9,7 @@ export const isSettable = (c) => !!c.name && !c.name.startsWith('_') && c.name !
 /**
  * 화면 열 + 저장 설정 → 그리드에 줄 열
  *   사용자가 숨긴 열은 hidden: true + _userHidden ( 엑셀에는 나가고 숨김 처리 )
- *   _origHeader = 화면 코드의 원래 이름 ( 설정 창 · 기본값으로 )
+ *   _origHeader = 화면 코드의 원래 이름 ( 설정 창 · 기본값으로 ) / _origWidth = 화면 코드의 너비 ( 없으면 자동 )
  */
 export function applyGridSetting(base, saved) {
     const settable = base.filter(isSettable);
@@ -25,6 +25,7 @@ export function applyGridSetting(base, saved) {
         ordered.push({
             ...c,
             _origHeader: c.header,
+            _origWidth: c.width ?? null,
             header: s.header || c.header,
             hidden,
             _userHidden: hidden,
@@ -32,7 +33,7 @@ export function applyGridSetting(base, saved) {
             ...(s.width ? { width: s.width } : {}),
         });
     }
-    for (const c of byName.values()) ordered.push({ ...c, _origHeader: c.header, _userHidden: false, _savedWidth: null });
+    for (const c of byName.values()) ordered.push({ ...c, _origHeader: c.header, _origWidth: c.width ?? null, _userHidden: false, _savedWidth: null });
 
     return [...ordered, ...fixed];
 }
@@ -43,6 +44,6 @@ export function toSetting(columns) {
         name:   c.name,
         header: c.header !== c._origHeader ? c.header : null,
         hidden: !!c._userHidden,
-        width:  c._savedWidth ?? null,   // 사용자가 끌어서 바꾼 너비만
+        width:  c._savedWidth ?? null,   // 사용자가 끌거나 설정 창에 넣은 너비만
     }));
 }

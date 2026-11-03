@@ -48,7 +48,7 @@
                 <button type="button" class="pg-btn" :disabled="current >= lastPage" @click="go(current + 1)">›</button>
                 <button type="button" class="pg-btn" :disabled="current >= lastPage" @click="go(lastPage)">»</button>
             </div>
-            <select class="h-8 border border-gray-300 rounded px-2 text-sm" :value="perPage" @change="e => changePerPage(Number(e.target.value))">
+            <select class="h-8 border border-gray-300 rounded px-2 text-sm cursor-pointer" :value="perPage" @change="e => changePerPage(Number(e.target.value))">
                 <option v-for="n in PER_PAGE_OPTIONS" :key="n" :value="n">{{ n }}개씩</option>
             </select>
         </div>
@@ -128,16 +128,14 @@ function openSettings() {
         modalTitle: '열 설정',
         columns: settable(),
         onApply: async (list) => {
-            const widths = Object.fromEntries(settable().map(c => [c.name, c._savedWidth]));
-            const saved  = list.map(l => ({ ...l, width: widths[l.name] ?? null }));
-            await saveSetting(saved);
-            applyColumns(applyGridSetting(baseColumns(), saved));
+            await saveSetting(list);
+            applyColumns(applyGridSetting(baseColumns(), list));
         },
         onReset: async () => {
             await window.axios.post(route('common.gridSetting.reset'), settingParams());
             applyColumns(applyGridSetting(baseColumns(), null));
         },
-    }, { size: 'md' });
+    }, { size: 'lg' });
 }
 
 // 끌어서 바꾼 너비 : 잠깐 모았다가 저장

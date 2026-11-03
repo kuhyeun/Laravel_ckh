@@ -63,7 +63,7 @@
                     >
                         <template #default="{ effective }">
                             <p class="text-xs text-gray-400 mt-1">
-                                품목이 무검사면 거래처 설정은 무시됩니다. 그 외에는 거래처에 값이 있으면 거래처가 이깁니다.
+                                품목이 무검사면 거래처 설정은 무시됩니다. 그 외에는 거래처에 값이 있으면 거래처 설정을 따릅니다.
                             </p>
                             <p v-if="policies['quality.incoming_inspection'] === 'NONE'" class="text-xs text-amber-600 mt-0.5">
                                 이 거래처에서 들어오는 자재는 품목이 샘플링 · 전수여도 검사하지 않습니다.

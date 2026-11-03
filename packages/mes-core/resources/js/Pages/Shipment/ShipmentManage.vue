@@ -176,6 +176,9 @@ async function cancelChecked() {
     try {
         const { data } = await window.axios.post(route('shipment.manage.cancel'), { shipment_idxs: target.map(x => x.shipment_idx) });
         showFlash(`${data.canceled}건을 취소했습니다.`);
+        if (data.labels_scrapped > 0) {
+            showAlert('라벨 폐기', `출하 라벨 ${data.labels_scrapped}장을 폐기했습니다.\n제품에 붙어 있는 라벨을 떼어 주세요. ( 찍으면 폐기 알림이 뜹니다 )`, 'warning');
+        }
         load();
     } catch (e) {
         showFlash(failMsg(e), true);

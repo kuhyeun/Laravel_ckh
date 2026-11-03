@@ -14,6 +14,7 @@ return [
         'Product',
         'Quality',
         'Shipment',
+        'Label',
     ],
 
     /*

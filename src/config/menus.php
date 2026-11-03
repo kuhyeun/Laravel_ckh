@@ -18,7 +18,7 @@ return [
                         'menu_level' => 0,
                         'children' => [
                             [
-                                'menu_code' => '91001',
+                                'menu_code' => '9000101',
                                 'menu_name' => 'Bar Chart',
                                 'menu_icon' => null,
                                 'module_code' => 'Debug',
@@ -28,7 +28,7 @@ return [
                                 'menu_level' => 0
                             ],
                             [
-                                'menu_code' => '91002',
+                                'menu_code' => '9000102',
                                 'menu_name' => 'Line Chart',
                                 'menu_icon' => null,
                                 'module_code' => 'Debug',
@@ -38,7 +38,7 @@ return [
                                 'menu_level' => 0
                             ],
                             [
-                                'menu_code' => '91003',
+                                'menu_code' => '9000103',
                                 'menu_name' => 'Circle Chart',
                                 'menu_icon' => null,
                                 'module_code' => 'Debug',
@@ -48,7 +48,7 @@ return [
                                 'menu_level' => 0
                             ],
                             [
-                                'menu_code' => '91004',
+                                'menu_code' => '9000104',
                                 'menu_name' => 'Combo Chart',
                                 'menu_icon' => null,
                                 'module_code' => 'Debug',
@@ -111,41 +111,6 @@ return [
                         'page_component' => 'Basic/MenuManage',
                         'menu_level' => 0
                     ],
-                    [
-                        'menu_code' => '0003',
-                        'menu_name' => '사용자관리',
-                        'menu_icon' => null,
-                        'module_code' => 'Basic',
-                        'menu_route_name' => 'basic.mem',
-                        'url_path' => '/basic/mem',
-                        'page_component' => 'Basic/Member',
-                        'menu_level' => 1,
-                        'level_perms' => [ 1 => [ 'can_write' => 'Y', 'can_delete' => 'Y' ] ],
-                    ],
-                    [
-                        'menu_code' => '0004',
-                        'menu_name' => '사용자권한관리',
-                        'menu_icon' => null,
-                        'module_code' => 'Basic',
-                        'menu_route_name' => 'basic.auth',
-                        'url_path' => '/basic/auth',
-                        'page_component' => 'Basic/MemberAuth',
-                        'menu_level' => 1,
-                        // 관리자는 여기서 일반 사용자의 메뉴 권한을 조정 ( 메뉴관리는 시스템 전용 )
-                        'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
-                    ],
-                    [
-                        'menu_code' => '0005',
-                        'menu_name' => '코드관리',
-                        'menu_icon' => null,
-                        'module_code' => 'Basic',
-                        'menu_route_name' => 'basic.code',
-                        'url_path' => '/basic/code',
-                        'page_component' => 'Basic/CodeManage',
-                        'menu_level' => 1,
-                        // 프로그램이 쓰는 코드 그룹이 있어 관리자 삭제는 막음
-                        'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
-                    ]
                 ],
             ],
             [
@@ -278,6 +243,47 @@ return [
                         'url_path' => '/config/site',
                         'page_component' => 'Config/SiteConfig',
                         'menu_level' => 99,
+                    ],
+                    [
+                        'menu_code' => '1013',
+                        'menu_name' => '사용자관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Basic',
+                        'menu_route_name' => 'basic.mem',
+                        'url_path' => '/basic/mem',
+                        'page_component' => 'Basic/Member',
+                        'menu_level' => 1,
+                        // 관리자 전용( 레벨 0 · 1 )이지만 위치는 기준정보관리 → 사용자 메뉴로 표시
+                        'is_admin' => 'N',
+                        'level_perms' => [ 1 => [ 'can_write' => 'Y', 'can_delete' => 'Y' ] ],
+                    ],
+                    [
+                        'menu_code' => '1014',
+                        'menu_name' => '사용자권한관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Basic',
+                        'menu_route_name' => 'basic.auth',
+                        'url_path' => '/basic/auth',
+                        'page_component' => 'Basic/MemberAuth',
+                        'menu_level' => 1,
+                        // 관리자 전용( 레벨 0 · 1 )이지만 위치는 기준정보관리 → 사용자 메뉴로 표시
+                        'is_admin' => 'N',
+                        // 관리자는 여기서 일반 사용자의 메뉴 권한을 조정 ( 메뉴관리는 시스템 전용 )
+                        'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
+                    ],
+                    [
+                        'menu_code' => '1015',
+                        'menu_name' => '코드관리',
+                        'menu_icon' => null,
+                        'module_code' => 'Basic',
+                        'menu_route_name' => 'basic.code',
+                        'url_path' => '/basic/code',
+                        'page_component' => 'Basic/CodeManage',
+                        'menu_level' => 1,
+                        // 관리자 전용( 레벨 0 · 1 )이지만 위치는 기준정보관리 → 사용자 메뉴로 표시
+                        'is_admin' => 'N',
+                        // 프로그램이 쓰는 코드 그룹이 있어 관리자 삭제는 막음
+                        'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
                     ],
                 ]
             ],
@@ -458,7 +464,7 @@ return [
                         'menu_level' => 99,
                         'children' => [
                             [
-                                'menu_code' => '4101',
+                                'menu_code' => '400501',
                                 'menu_name' => '외주 출고',
                                 'menu_icon' => null,
                                 'module_code' => 'Production',
@@ -466,7 +472,7 @@ return [
                                 'menu_level' => 99,
                             ],
                             [
-                                'menu_code' => '4102',
+                                'menu_code' => '400502',
                                 'menu_name' => '외주 입고',
                                 'menu_icon' => null,
                                 'module_code' => 'Production',
@@ -613,6 +619,28 @@ return [
                         'menu_route_name' => '',
                         'url_path' => '/shipment/invoice',
                         'page_component' => 'Shipment/InvoiceManage',
+                        'menu_level' => 99,
+                    ],
+                ]
+            ],
+            [
+                'menu_code' => '8000',
+                'menu_name' => '바코드관리',
+                'menu_icon' => 'TagIcon',
+                'module_code' => 'Label',
+                'menu_route_name' => '',
+                'feature_key' => 'feature.barcode',
+                'menu_level' => 99,
+                'children' => [
+                    [
+                        'menu_code' => '8001',
+                        'menu_name' => '라벨 발행이력',
+                        'menu_icon' => null,
+                        'module_code' => 'Label',
+                        'menu_route_name' => '',
+                        'url_path' => '/label/history',
+                        'page_component' => 'Label/LabelHistory',
+                        'feature_key' => 'feature.barcode',
                         'menu_level' => 99,
                     ],
                 ]

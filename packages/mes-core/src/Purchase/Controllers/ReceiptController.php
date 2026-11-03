@@ -215,13 +215,10 @@ class ReceiptController extends Controller {
             return response()->json(['message' => 'NotFound'], 404);
         }
 
-        DB::transaction(function () use ($lines) {
-            foreach ($lines as $line) {
-                $this->receipts->cancelLine($line);
-            }
-        });
+        // 폐기한 라벨 장수 — 화면이 "붙어 있는 라벨을 떼세요" 를 알린다
+        $scrapped = DB::transaction(fn () => $lines->sum(fn ($line) => $this->receipts->cancelLine($line)));
 
-        return response()->json(['message' => 'Success', 'canceled' => $lines->count()]);
+        return response()->json(['message' => 'Success', 'canceled' => $lines->count(), 'labels_scrapped' => $scrapped]);
     }
 
     // ---- 내부 ----
@@ -264,6 +261,7 @@ class ReceiptController extends Controller {
                 'item_spec'               => $l->item?->spec,
                 'item_material'           => $l->item?->material,
                 'spec_unit'               => $l->item?->spec_unit,
+                'lot_idx'                 => $l->lot_idx,
                 'lot_no'                  => $l->lot?->lot_no,
                 'external_lot_no'         => $l->lot?->external_lot_no,
                 'spec_value'              => $l->lot?->spec_value !== null ? (float) $l->lot->spec_value : null,

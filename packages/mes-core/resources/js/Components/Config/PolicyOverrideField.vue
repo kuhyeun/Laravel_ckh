@@ -32,7 +32,7 @@ const props = defineProps({
     field:        { type: Object,  required: true },
     modelValue:   { type: [String, null], default: '' },
     label:        { type: String,  default: null },          // 칸 제목 ( 없으면 정책 이름 )
-    inheritLabel: { type: String,  default: '업체 설정' },   // "설정에 맞춤" 괄호 안 설명
+    inheritLabel: { type: String,  default: '기본 설정' },   // "설정에 맞춤" 괄호 안 설명
     disabled:     { type: Boolean, default: false },
     error:        { type: String,  default: '' },
 });

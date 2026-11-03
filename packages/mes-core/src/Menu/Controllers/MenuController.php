@@ -81,13 +81,24 @@ class MenuController extends Controller {
         // validate() 는 try 밖에서 → ValidationException 이 422 로 정상 응답되도록
         $validated = $request->validate( Menu::validateMenuData( $menu->menu_idx ) );
 
+        // 메뉴 코드를 비우고 저장하면 기존 코드 유지
+        if( empty( $validated['menu_code'] ) ) {
+            unset( $validated['menu_code'] );
+        }
+
         try {
             DB::transaction( function () use ( $menu, $validated ) {
-                $oldCode = $menu->menu_code;
+                $oldCode   = $menu->menu_code;
+                $oldParent = $menu->parent_menu_code;
 
                 $menu->update( array_merge( $validated, [
                     'update_account_idx' => Auth::id(),
                 ] ) );
+
+                // 상위 메뉴가 바뀌면 새 형제들 맨 뒤로 ( 모든 레벨 )
+                if( $oldParent !== $menu->parent_menu_code ) {
+                    $menu->moveToEnd();
+                }
 
                 // 하위 메뉴는 코드 문자열로 부모 · 최상위를 가리킴 → 코드가 바뀌면 함께 변경
                 if( $oldCode !== $menu->menu_code ) {
@@ -132,6 +143,7 @@ class MenuController extends Controller {
     }
 
     // 메뉴의 레벨별 권한( menu_option ) 저장: 레벨 행을 upsert
+    //   정렬은 여기서 바꾸지 않음 ( 순서 변경 = saveMenuSort ) · 새로 생기는 레벨 행만 형제 맨 뒤
     public function saveMenuOptions( Request $request ) {
         $validated = $request->validate([
             'menu_idx'             => 'required|integer|exists:system_menu,menu_idx',
@@ -140,14 +152,15 @@ class MenuController extends Controller {
             'options.*.can_read'   => 'required|in:Y,N',
             'options.*.can_write'  => 'required|in:Y,N',
             'options.*.can_delete' => 'required|in:Y,N',
-            'options.*.menu_sort'  => 'nullable|integer',
         ]);
 
+        $menu = Menu::find( $validated['menu_idx'] );
+
         // 메뉴관리 메뉴 자신은 시스템( 레벨 0 ) 전용 → 다른 레벨 행은 저장하지 않음
-        $systemOnly = Menu::where( 'menu_idx', $validated['menu_idx'] )->value( 'page_component' ) === self::SYSTEM_ONLY_PAGE;
+        $systemOnly = $menu->page_component === self::SYSTEM_ONLY_PAGE;
 
         try {
-            DB::transaction(function () use ( $validated, $systemOnly ) {
+            DB::transaction(function () use ( $validated, $systemOnly, $menu ) {
                 foreach( $validated['options'] as $opt ) {
                     if( $systemOnly && (int) $opt['menu_level'] !== 0 ) {
                         continue;
@@ -160,16 +173,16 @@ class MenuController extends Controller {
 
                     if( !$row->exists ) {
                         $row->create_account_idx = Auth::id();
+                        $row->menu_sort = Menu::nextSort( $menu->parent_menu_code, (int) $opt['menu_level'], $menu->menu_idx );
                     }
 
-                    // 레벨 0( 시스템 )은 항상 전부 허용 → 정렬만 반영
+                    // 레벨 0( 시스템 )은 항상 전부 허용
                     $isSystem = (int) $opt['menu_level'] === 0;
 
                     $row->fill([
                         'can_read'           => $isSystem ? 'Y' : $opt['can_read'],
                         'can_write'          => $isSystem ? 'Y' : $opt['can_write'],
                         'can_delete'         => $isSystem ? 'Y' : $opt['can_delete'],
-                        'menu_sort'          => $opt['menu_sort'] ?? 99,
                         'update_account_idx' => Auth::id(),
                     ]);
                     $row->save();
@@ -180,6 +193,47 @@ class MenuController extends Controller {
             return response()->json([ 'message' => 'Success' ], 200 );
         } catch( \Throwable $e ) {
             Log::error( '메뉴 권한 저장 실패 : '. $e->getMessage() );
+
+            return response()->json([ 'message' => 'Failed' ], 500 );
+        }
+    }
+
+    // 순서 저장 : 형제 묶음( 같은 부모 · 같은 메뉴 구분 )마다 보낸 순서대로 1, 2, 3 …
+    //   level 없음 = 모든 레벨 같은 순서 / level 지정 = 그 레벨만 ( 레벨별로 순서를 따로 둘 때 )
+    public function saveMenuSort( Request $request ) {
+        $validated = $request->validate([
+            'level'                => 'nullable|integer|in:1,10,99',
+            'groups'               => 'required|array|min:1',
+            'groups.*.menu_idxs'   => 'required|array|min:1',
+            'groups.*.menu_idxs.*' => 'required|integer|distinct',
+        ]);
+
+        $level = $validated['level'] ?? null;
+
+        // 한 묶음 = 같은 부모 · 같은 메뉴 구분( 사용자 / 관리자 ) 의 메뉴만
+        foreach( $validated['groups'] as $group ) {
+            $rows = Menu::whereIn( 'menu_idx', $group['menu_idxs'] )->get( [ 'menu_idx', 'parent_menu_code', 'is_admin' ] );
+            if( $rows->count() !== count( $group['menu_idxs'] )
+                || $rows->pluck( 'parent_menu_code' )->unique()->count() > 1
+                || $rows->pluck( 'is_admin' )->unique()->count() > 1 ) {
+                return response()->json([ 'message' => 'InvalidGroup' ], 422 );
+            }
+        }
+
+        try {
+            DB::transaction( function () use ( $validated, $level ) {
+                foreach( $validated['groups'] as $group ) {
+                    foreach( array_values( $group['menu_idxs'] ) as $i => $menuIdx ) {
+                        MenuOption::where( 'menu_idx', $menuIdx )
+                            ->when( $level !== null, fn ( $q ) => $q->where( 'menu_level', $level ) )
+                            ->update( [ 'menu_sort' => $i + 1, 'update_account_idx' => Auth::id() ] );
+                    }
+                }
+            } );
+
+            return response()->json([ 'message' => 'Success' ], 200 );
+        } catch( \Throwable $e ) {
+            Log::error( '메뉴 순서 저장 실패 : '. $e->getMessage() );
 
             return response()->json([ 'message' => 'Failed' ], 500 );
         }

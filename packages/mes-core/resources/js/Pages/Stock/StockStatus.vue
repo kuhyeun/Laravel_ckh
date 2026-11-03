@@ -7,7 +7,8 @@
      - 위 [+ 입고] = 빈 입고 등록 창 ( 입고관리 쓰기 권한 )
      - [열 설정] · 오른쪽 클릭 : 사용자별 열 구성 ( LOT 재고 · 품목별 합계 따로 — 품번은 숨길 수 없음 )
      - scope : material( 자재관리 > 재고관리 — 자재만 ) | product( 제품관리 > 제품재고 — Product/ProductStock 가 감싼다 · 제품만 )
-       품목 구분은 서버 라우트가 정한다. 제품은 [입고] 없음( 생산 입고는 공정실적 ) · [출고] = 기타출고 · 공급처 LOT · 구매처 칸 없음 -->
+       품목 구분은 서버 라우트가 정한다. 제품은 [입고] 없음( 생산 입고는 공정실적 ) · [출고] = 기타출고 · 공급처 LOT · 구매처 칸 없음
+     - 라벨 ( feature.barcode ) : [라벨] 칸 = 그 LOT 에 발행된 장수 · [라벨 미발행] 거르기 · LOT 이력 창의 [라벨 발행] ( 자재식별표 · 현품표 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-3 pb-2 shrink-0">
@@ -24,6 +25,7 @@
             <BaseSelect v-model="search.warehouse_idx" :options="warehouseFilter" class="w-44" />
             <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.with_zero" /> 0 포함</label>
             <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="item" false-value="lot" v-model="search.group" @change="loadFirstPage" /> 품목별 합계</label>
+            <label v-if="label.enabled && !byItem" class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.no_label" /> 라벨 미발행</label>
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -72,6 +74,9 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 import { useToast } from '@core/Composables/useToast';
+import { useLabelAccess } from '@core/Composables/useLabelAccess';
+import LabelIssueForm from '@core/Components/Label/LabelIssueForm.vue';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 
@@ -83,7 +88,7 @@ const isProduct = props.scope === 'product';
 
 const modalStore = useModalStore();
 
-const blankFilters = () => ({ warehouse_idx: '', with_zero: '0', group: 'lot' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const blankFilters = () => ({ warehouse_idx: '', with_zero: '0', group: 'lot', no_label: '0' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ keyword: '', ...blankFilters() });
 const byItem = computed(() => search.group === 'item');
 // 검색 조건 ( 서버 StockController applyKeyword 의 키 ) — 품목별 합계면 LOT 조건이 없다
@@ -100,6 +105,7 @@ watch(searchFields, (list) => {   // 품목별로 바꿨는데 LOT 조건이 골
 });
 
 const warehouses = ref([]);
+const label      = useLabelAccess();   // 라벨 칸 · 거르기 · 발행 버튼
 const perms      = reactive({ can_move: false, can_adjust: false, can_issue: false, can_receipt: false });   // 재고현황에서 열 수 있는 처리
 const warehouseFilter = computed(() => [{ value: '', label: '창고 전체' }, ...warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label }))]);
 
@@ -117,6 +123,8 @@ const lotColumns = [
       formatter: ({ row }) => qtyText(row.qty, row.spec_unit, row.spec_value) },
     { header: '입고일', name: 'in_at', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '구매처', name: 'partner_name', width: 180, className: 'cursor-pointer', escapeHTML: true },
+    { header: '라벨', name: 'label_count', width: 80, align: 'center', className: 'cursor-pointer',
+      formatter: ({ row }) => row.lot_idx === null ? '' : row.label_count > 0 ? `${row.label_count} 장` : `<span style="color:${COLORS.gray400}">미발행</span>` },
 ].filter(c => !isProduct || !PURCHASE_ONLY.includes(c.name));
 const itemColumns = [
     { header: '품번', name: 'item_code', width: 140, sortable: true, escapeHTML: true, lockHide: true },
@@ -127,7 +135,7 @@ const itemColumns = [
     { header: '수량', name: 'qty', width: 130, align: 'right', sortable: true, formatter: ({ row }) => qtyText(row.qty, row.spec_unit) },
     { header: 'LOT 수', name: 'lot_count', width: 80, align: 'right' },
 ];
-const columns = computed(() => byItem.value ? itemColumns : lotColumns);
+const columns = computed(() => byItem.value ? itemColumns : lotColumns.filter(c => c.name !== 'label_count' || label.enabled));
 const grid    = ref(null);   // DataGrid — 열 설정( 사용자별 · lot / item 따로 ) · 엑셀이 그 설정을 따른다
 
 const rows    = ref([]);
@@ -172,6 +180,7 @@ function openHistory(row) {
             itemIdx: row.item_idx, lotIdx: row.lot_idx, warehouseIdx: row.warehouse_idx,
             title: `${row.item_code} ${row.item_name} · ${row.lot_no || 'LOT 없음'} · ${row.warehouse_name}`,
             balanceIdx: row.key, canMove: perms.can_move, canAdjust: perms.can_adjust, canIssue: perms.can_issue, canReceipt: perms.can_receipt,
+            canLabel: label.can_lot,
             onAction: (type, reloadHistory) => openProcess(type, row, reloadHistory),
             scope: props.scope,
             modalTitle: 'LOT 입출고 이력',
@@ -206,6 +215,14 @@ function openReceipt(row, reloadHistory = null) {
 //   입고 · 출고는 LOT 이력 창 위에 뜬다 → 처리 후 그 이력도 다시 읽는다
 function openProcess(type, row, reloadHistory = null) {
     if (type === 'receipt') return openReceipt(row, reloadHistory);
+    if (type === 'label') {
+        modalStore.open(
+            LabelIssueForm,
+            { target: 'LOT', items: [{ id: row.lot_idx, qty: row.qty }], onIssued: load, modalTitle: `라벨 발행 [ ${row.lot_no} ]` },
+            { size: 'xl', closeOnClickOutside: false }
+        );
+        return;
+    }
     if (type === 'issue') {
         modalStore.open(
             StockIssueForm,

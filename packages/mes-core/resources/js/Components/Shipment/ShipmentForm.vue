@@ -2,7 +2,9 @@
      - 단계 : 출하대기 → ( 결재 — 설정 ) → ( 출하검사 — 설정 · 품목 ) → 출하처리. 위 단계 표시 · 아래 단계 버튼
      - 출하대기 : 고객사 · 예정일 · 줄( [+ 수주 줄] / [+ 품목] ) · 줄마다 LOT 지정( 선입선출 채움 — 가용 = 잔고 − 다른 출하대기 )
      - 고친 뒤에는 저장해야 결재 요청 · 출하처리를 누를 수 있다 ( 저장된 그대로 나간다 )
-     - 결재 대기 · 완료 · 취소 건은 읽기 전용 -->
+     - 결재 대기 · 완료 · 취소 건은 읽기 전용
+     - [출하 라벨] : 저장된 출하( 대기 · 완료 )의 품목 줄마다 라벨 — 기본 번호 = 출하번호-줄번호 · 고객 지정 번호 ( feature.barcode · 출하관리 쓰기 )
+       취소하면 그 라벨도 폐기( 사유 '출하 취소' ) · 라벨을 발행한 줄은 뺄 수 없다 ( 서버가 막는다 ) -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <div v-if="errorMsg" class="mb-3 text-xs text-red-500 whitespace-pre-line shrink-0">{{ errorMsg }}</div>
@@ -162,6 +164,7 @@
                     <BaseButton variant="primary" :disabled="busy" @click="process">출하처리</BaseButton>
                 </template>
             </template>
+            <BaseButton v-if="label.can_shipment && form.shipment_idx && form.status !== 'CANCELED' && !dirty" variant="secondary" @click="openLabel">출하 라벨</BaseButton>
             <BaseButton v-if="form.status === 'DONE'" variant="secondary" @click="openInvoice">거래명세서</BaseButton>
             <BaseButton variant="secondary" @click="$emit('close')">{{ editable ? '취소' : '닫기' }}</BaseButton>
             <BaseButton v-if="editable" variant="primary" :disabled="busy || loading" @click="save">{{ busy ? '저장 중…' : (form.shipment_idx ? '저장' : '등록') }}</BaseButton>
@@ -183,6 +186,8 @@ import { stageLabel, stageColor, inspectLabel, inspectColor } from '@core/Compon
 import InvoicePreview from '@core/Components/Shipment/InvoicePreview.vue';
 import ShippingInspectionForm from '@core/Components/Quality/ShippingInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
+import LabelIssueForm from '@core/Components/Label/LabelIssueForm.vue';
+import { useLabelAccess } from '@core/Composables/useLabelAccess';
 
 const props = defineProps({
     shipmentIdx: { type: Number, default: null },
@@ -209,6 +214,7 @@ const addItemIdx   = ref('');
 const rejectReason = ref('');
 const shippedAt    = ref('');
 let keySeq = 0;
+const label = useLabelAccess();
 
 const editable = computed(() => props.canWrite && (!form.shipment_idx || (form.status === 'WAIT' && form.approval_status !== 'PENDING')));
 // 아직 나가지 않은 건 ( 신규 · 출하대기 ) — 가용 · 수주 남은 수량 경고는 여기서만 ( 완료 건은 이미 재고 · 출하 수량에 반영돼 0 과 비교하게 된다 )
@@ -407,9 +413,13 @@ async function cancel() {
     const text = form.status === 'DONE'
         ? `${form.shipment_no} 의 출하를 취소합니다.\n재고가 돌아오고 수주 출하 수량도 되돌립니다. ( 취소한 건은 다시 쓸 수 없습니다 )`
         : `${form.shipment_no} 출하대기를 취소합니다. ( 지정한 LOT 선점이 풀립니다 )`;
-    const r = await showAlert(form.status === 'DONE' ? '출하 취소' : '대기 취소', text, 'warning', 'confirm');
+    const r = await showAlert(form.status === 'DONE' ? '출하 취소' : '대기 취소', text + (label.enabled ? '\n발행된 출하 라벨은 함께 폐기됩니다.' : ''), 'warning', 'confirm');
     if (!r.isConfirmed) return;
-    run(() => window.axios.post(route('shipment.manage.cancel'), { shipment_idxs: [form.shipment_idx] }), () => `${form.shipment_no} 취소했습니다.`);
+    run(() => window.axios.post(route('shipment.manage.cancel'), { shipment_idxs: [form.shipment_idx] }), (res) => {
+        const n = res?.data?.labels_scrapped ?? 0;
+        if (n > 0) showAlert('라벨 폐기', `출하 라벨 ${n}장을 폐기했습니다.\n제품에 붙어 있는 라벨을 떼어 주세요. ( 찍으면 폐기 알림이 뜹니다 )`, 'warning');
+        return `${form.shipment_no} 취소했습니다.`;
+    });
 }
 
 // 출고검사 창 ( 6003 — 같은 창 ) : 판정 · 취소 뒤 이 창과 목록을 다시 읽는다
@@ -426,6 +436,11 @@ function openInspection(l) {
 
 // 거래명세서 ( 미리보기 · 인쇄 모달 — 7003 권한 )
 const modalStore = useModalStore();
+function openLabel() {
+    const items = lines.value.filter(l => l.shipment_line_idx).map(l => ({ id: l.shipment_line_idx }));
+    modalStore.open(LabelIssueForm, { target: 'SHIPMENT_LINE', items, modalTitle: `출하 라벨 [ ${form.shipment_no} ]` }, { size: 'xl', closeOnClickOutside: false });
+}
+
 function openInvoice() {
     modalStore.open(InvoicePreview, { modalTitle: `거래명세서 [ ${form.shipment_no} ]`, ids: [form.shipment_idx] }, { size: 'xl' });
 }

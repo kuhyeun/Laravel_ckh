@@ -229,11 +229,12 @@ class ShipmentController extends Controller {
     public function cancel(Request $request) {
         $v = $request->validate(['shipment_idxs' => 'required|array|min:1|max:100', 'shipment_idxs.*' => 'integer']);
         $n = 0;
+        $scrapped = 0;   // 폐기한 라벨 장수 — 화면이 "붙어 있는 라벨을 떼세요" 를 알린다
         foreach (Shipment::whereIn('shipment_idx', $v['shipment_idxs'])->get() as $s) {
-            $this->shipments->cancel($s);
+            $scrapped += $this->shipments->cancel($s);
             $n++;
         }
-        return response()->json(['message' => 'Success', 'canceled' => $n]);
+        return response()->json(['message' => 'Success', 'canceled' => $n, 'labels_scrapped' => $scrapped]);
     }
 
     // ---- 내부 ----
