@@ -2,7 +2,8 @@
      - 사용자/관리자 메뉴 탭
      - 좌: 메뉴 트리 / 우: 상세(신규·수정) + 레벨별 권한 그리드
      - 신규등록 / 수정 / 삭제 / 권한 수정
-     - 순서 변경 : 트리에서 끌어다 놓기 · ▲▼ ( 같은 상위 메뉴 안 ) → 전체 레벨 같은 순서 또는 레벨 하나만 -->
+     - 순서 변경 : 트리에서 끌어다 놓기 ( 같은 상위 메뉴 안 ) → 전체 레벨 같은 순서 또는 레벨 하나만
+     - 트리 접기 : 하위가 있는 메뉴 앞 ▾ / ▸ · 머리 아래 [전체 펼치기 / 전체 접기] ( 평소 · 순서 변경 같이 쓴다 · 접힌 메뉴를 옮기면 하위도 같이 ) -->
 
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
@@ -26,22 +27,28 @@
         <div class="flex flex-1 min-h-0 gap-4 pt-4">
             <!-- 좌: 트리 -->
             <div class="w-72 shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+                <!-- 머리 : 제목 · 전체 펼치기 / 접기 ( 하나라도 접혀 있으면 펼치기 ) -->
                 <div class="flex items-center justify-between gap-2 px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">{{ sortMode ? '순서 변경' : '메뉴 트리' }}</span>
-                    <div v-if="!sortMode" class="flex gap-1.5">
+                    <BaseButton v-if="foldable" size="sm" variant="secondary" @click="anyCollapsed ? expandAll() : collapseAll()">{{ anyCollapsed ? '전체 펼치기' : '전체 접기' }}</BaseButton>
+                </div>
+
+                <!-- 버튼 줄 : 순서 변경 · 신규 ( 순서 변경 중 = 취소 · 저장 ) -->
+                <div class="flex items-center justify-end gap-1.5 px-3 py-1.5 border-b shrink-0">
+                    <template v-if="!sortMode">
                         <BaseButton size="sm" variant="secondary" :disabled="!canWrite || !flatTree.length" @click="startSort">순서 변경</BaseButton>
                         <BaseButton size="sm" variant="secondary" @click="newMenu">+ 신규</BaseButton>
-                    </div>
-                    <div v-else class="flex gap-1.5">
+                    </template>
+                    <template v-else>
                         <BaseButton size="sm" variant="secondary" @click="cancelSort">{{ sortDirty ? '취소' : '닫기' }}</BaseButton>
                         <BaseButton size="sm" variant="primary" :disabled="sortSaving || !sortDirty" @click="saveSort">순서 저장</BaseButton>
-                    </div>
+                    </template>
                 </div>
 
                 <div v-if="sortMode" class="px-3 py-2 border-b shrink-0 space-y-1">
                     <BaseSelect v-model="sortLevel" :options="sortLevelOptions" size="sm" class="w-full" :disabled="sortDirty" />
                     <p class="text-xs text-gray-400 break-keep">
-                        {{ sortDirty ? '레벨을 바꾸려면 먼저 저장하거나 취소하세요.' : '같은 상위 메뉴 안에서 끌어다 놓거나 ▲▼ 로 옮깁니다.' }}
+                        {{ sortDirty ? '레벨을 바꾸려면 먼저 저장하거나 취소하세요.' : '같은 상위 메뉴 안에서 끌어다 놓아 옮깁니다.' }}
                     </p>
                 </div>
 
@@ -58,8 +65,10 @@
                             :style="{ paddingLeft: (12 + node.depth * 16) + 'px' }"
                             @click="selectMenu(node.menu)"
                         >
+                            <span v-if="node.hasChildren" class="w-3 shrink-0 text-xs text-gray-400 hover:text-blue-600 cursor-pointer" :title="node.collapsed ? '펼치기' : '접기'" @click.stop="toggleFold(node.menu.menu_code)">{{ node.collapsed ? '▸' : '▾' }}</span>
+                            <span v-else class="w-3 shrink-0"></span>
                             <span class="text-gray-300" v-if="node.depth > 0">└</span>
-                            <span class="truncate">{{ node.menu.menu_name }}</span>
+                            <span class="truncate" :title="node.menu.menu_name">{{ node.menu.menu_name }}</span>
                             <span v-if="node.menu.is_use === 'N'" class="text-xs text-gray-400">(미사용)</span>
                         </button>
                     </template>
@@ -78,12 +87,10 @@
                             @drop="onDrop(node)"
                             @dragend="onDragEnd"
                         >
+                            <span v-if="node.hasChildren" class="w-3 shrink-0 text-xs text-gray-400 hover:text-blue-600 cursor-pointer" :title="node.collapsed ? '펼치기' : '접기'" @mousedown.stop @click.stop="toggleFold(node.menu.menu_code)">{{ node.collapsed ? '▸' : '▾' }}</span>
+                            <span v-else class="w-3 shrink-0"></span>
                             <span class="text-gray-300" v-if="node.depth > 0">└</span>
-                            <span class="flex-1 truncate">{{ node.menu.menu_name }}</span>
-                            <button type="button" class="px-1 text-xs text-gray-400 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-gray-400"
-                                    :disabled="node.first" title="위로" @click="moveBy(node, -1)">▲</button>
-                            <button type="button" class="px-1 text-xs text-gray-400 hover:text-blue-600 disabled:opacity-30 disabled:hover:text-gray-400"
-                                    :disabled="node.last" title="아래로" @click="moveBy(node, 1)">▼</button>
+                            <span class="flex-1 truncate" :title="node.menu.menu_name">{{ node.menu.menu_name }}</span>
                         </div>
                     </template>
                 </div>
@@ -287,18 +294,34 @@ function baseOrder() {
     return Object.fromEntries(Object.entries(groupsAt(viewLevel.value)).map(([k, list]) => [k, list.map(m => m.menu_idx)]));
 }
 
-// 트리 → DFS 로 평탄화 ( key = 상위 메뉴 · first / last = 형제 중 처음 / 끝 )
+// 접은 메뉴 ( menu_code ) — 하위를 그리지 않는다
+const collapsed = ref(new Set());
+function toggleFold(code) {
+    const next = new Set(collapsed.value);
+    next.has(code) ? next.delete(code) : next.add(code);
+    collapsed.value = next;
+}
+// 하위가 있는 메뉴 ( 현재 탭 )
+const parentCodes  = computed(() => new Set(tabMenus.value.map(m => m.parent_menu_code).filter(c => c && tabMenus.value.some(p => p.menu_code === c))));
+const foldable     = computed(() => parentCodes.value.size > 0);
+const anyCollapsed = computed(() => [...parentCodes.value].some(c => collapsed.value.has(c)));
+const expandAll    = () => { collapsed.value = new Set(); };
+const collapseAll  = () => { collapsed.value = new Set(parentCodes.value); };
+
+// 트리 → DFS 로 평탄화 ( key = 상위 메뉴 · 접힌 메뉴의 하위는 뺀다 )
 const flatTree = computed(() => {
     const byIdx = Object.fromEntries(tabMenus.value.map(m => [m.menu_idx, m]));
     const order = sortMode.value ? draft.value : baseOrder();
     const out = [];
     const walk = (key, depth) => {
         const ids = order[key] || [];
-        ids.forEach((id, i) => {
+        ids.forEach((id) => {
             const m = byIdx[id];
             if (!m) return;
-            out.push({ menu: m, depth, key, first: i === 0, last: i === ids.length - 1 });
-            walk(m.menu_code, depth + 1);
+            const hasChildren = (order[m.menu_code] || []).some(c => byIdx[c]);
+            const isCollapsed = hasChildren && collapsed.value.has(m.menu_code);
+            out.push({ menu: m, depth, key, hasChildren, collapsed: isCollapsed });
+            if (!isCollapsed) walk(m.menu_code, depth + 1);
         });
     };
     walk('__root__', 0);
@@ -343,15 +366,6 @@ function cancelSort() {
     sortMode.value = false;
     draft.value    = {};
     onDragEnd();
-}
-
-function moveBy(node, dir) {
-    const ids = [...draft.value[node.key]];
-    const i = ids.indexOf(node.menu.menu_idx);
-    const j = i + dir;
-    if (j < 0 || j >= ids.length) return;
-    [ids[i], ids[j]] = [ids[j], ids[i]];
-    draft.value = { ...draft.value, [node.key]: ids };
 }
 
 // 끌어다 놓기 : 같은 상위 메뉴 안에서만 · 놓을 줄의 위 / 아래 절반 = 앞 / 뒤
@@ -427,13 +441,29 @@ async function saveSort() {
     }
 }
 
-// 상위 메뉴 선택지 ( 자기 자신 제외, 최상위 옵션 포함 )
+// 상위 메뉴 선택지 ( 최상위 옵션 포함 ) — 트리 순서 : 부모 바로 아래 자식 · 형제는 코드 숫자 순
+//   ( 코드는 문자열이라 그냥 정렬하면 1000 → 10000 → 1001 이 된다 )
+//   자기 자신과 그 아래 메뉴는 뺀다 ( 고르면 순환 )
+//   깊이만큼 앞을 들여 쓴다 — <option> 은 padding 이 먹지 않는 브라우저가 있어 줄바꿈 없는 공백 + └
 const parentOptions = computed(() => {
-    const opts = [{ value: '', label: '(최상위 메뉴)' }];
+    const codes = new Set(tabMenus.value.map(m => m.menu_code));
+    const kids  = {};
     for (const m of tabMenus.value) {
-        if (m.menu_idx === form.menu_idx) continue;
-        opts.push({ value: m.menu_code, label: m.menu_name + "["+ m.menu_code + "]" });
+        const k = m.parent_menu_code && codes.has(m.parent_menu_code) ? m.parent_menu_code : '';   // 부모가 탭 밖이면 최상위로
+        (kids[k] ??= []).push(m);
     }
+    const byCode = (a, b) => Number(a.menu_code) - Number(b.menu_code) || a.menu_code.localeCompare(b.menu_code);
+
+    const opts = [{ value: '', label: '(최상위 메뉴)' }];
+    const walk = (parent, d) => {
+        for (const m of [...(kids[parent] ?? [])].sort(byCode)) {
+            if (m.menu_idx === form.menu_idx || d > 10) continue;
+            const indent = d ? '\u00A0\u00A0\u00A0\u00A0'.repeat(d) + '└ ' : '';
+            opts.push({ value: m.menu_code, label: indent + m.menu_name + "["+ m.menu_code + "]" });
+            walk(m.menu_code, d + 1);
+        }
+    };
+    walk('', 0);
     return opts;
 });
 

@@ -152,6 +152,7 @@ class MenuPermissionService {
 
     private function buildPayload(User $user): array {
         $userLevel = $user->user_level;
+        $this->menuFlags = null;   // 새로 계산할 때마다 메뉴 표시 · 사용 값을 다시 읽는다
 
         // 기준정보관리 메뉴, 관리자 설정 메뉴, 개발 메뉴는 module 설정에 없어도 표시
         $defaultModules = ['Config', 'Basic'];
@@ -237,6 +238,9 @@ class MenuPermissionService {
             return sprintf('%03d-%05d', $menu->menu_depth, $menu->menuOptions->first()->menu_sort ?? 0);
         });
 
+        // 조상 중 하나라도 표시 N · 사용 N 이면 사이드바에서 뺀다 ( 고아로 위로 올라오지 않게 · 권한 맵은 그대로 )
+        $sorted = $sorted->reject(fn ($m) => $this->hiddenByAncestor($m->parent_menu_code))->values();
+
         // 관리자(시스템) 메뉴는 사이드바에서 별도 그룹으로 분리
         $businessMenus = $sorted->reject(fn ($m) => ($m->is_admin ?? 'N') === 'Y')->values();
         $systemMenus   = $sorted->filter(fn ($m) => ($m->is_admin ?? 'N') === 'Y')->values();
@@ -247,6 +251,20 @@ class MenuPermissionService {
             'adminMenus'  => $this->buildMenuTree($systemMenus),
             'permissions' => $permissions,
         ];
+    }
+
+    // 부모를 따라 올라가며 표시 N · 사용 N 인 메뉴가 있는지 ( 없는 부모 코드는 거기서 멈춤 )
+    private ?array $menuFlags = null;
+    private function hiddenByAncestor(?string $parentCode): bool {
+        $this->menuFlags ??= Menu::get(['menu_code', 'parent_menu_code', 'is_use', 'is_display'])->keyBy('menu_code')->all();
+
+        for ($depth = 0; $parentCode !== null && $depth < 10; $depth++) {
+            $p = $this->menuFlags[$parentCode] ?? null;
+            if (!$p) return false;
+            if ($p->is_use !== 'Y' || $p->is_display !== 'Y') return true;
+            $parentCode = $p->parent_menu_code;
+        }
+        return false;
     }
 
     // 주어진 컬렉션으로 트리 구성. 부모가 컬렉션 밖( 다른 그룹 )이면 최상위로 취급해 고아 메뉴를 살린다.

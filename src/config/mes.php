@@ -18,6 +18,10 @@ return [
         'Quality',      // 품질관리 ( Material 필요 — 입고검사 )
         'Shipment',     // 출하관리 ( Order · Material 필요 )
         'Label',        // 바코드 라벨 ( Material 필요 · 기능 스위치 feature.barcode )
+        'KPI',          // KPI ( KPI 업체별 메뉴 )
+        'Document',     // DATA 관리 ( 도면, CAD, NC, 각종 문서 관리 )
+        'Monitoring',   // 모니터링 ( 업체별 필요 메뉴 )
+        'Remote'        // 원격제어 ( 일부 원격제어 필요 업체들 )
     ],
 
     /*
