@@ -191,7 +191,7 @@ function openModal(item) {
             },
             modalTitle: item ? `품목 ${canWrite.value ? '수정' : '상세'} [ ${item.item_code} ]` : '품목 등록',
         },
-        { size: 'lg' }
+        { size: 'xl' }
     );
 }
 

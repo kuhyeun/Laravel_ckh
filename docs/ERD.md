@@ -259,7 +259,7 @@ erDiagram
   partner ||--o{ partner_site : "출고지"
   item ||--o{ bom : "상위"
   item ||--o{ bom_line : "하위"
-  item }o--o| routing : "기본 라우팅"
+  item }o--o| routing : "품목 라우팅( ② )"
   routing ||--o{ routing_line : ""
   routing_line }o--|| process : ""
   process ||--o{ process_equipment : "사용가능 설비"
@@ -339,6 +339,10 @@ erDiagram
   }
   routing {
     bigint id PK
+    string owner_type
+    bigint item_id FK
+    bigint sales_order_line_id FK
+    bigint base_routing_id FK
     string routing_cd
     string name
     bool is_default
@@ -346,6 +350,7 @@ erDiagram
   routing_line {
     bigint id PK
     bigint routing_id FK
+    bigint source_routing_line_id
     smallint seq
     bigint process_id FK
     decimal cycle_time_sec
@@ -745,13 +750,16 @@ bom (
 | `wo_op_pre_approval` | **건별 선행 진행 승인.** 한 사람이 두 번 눌러도 한 번입니다(PK) |
 | `routing_line.cycle_time_sec` | **공정별 1개 표준시간.** 수량 기반 일정 계산의 원본 |
 | `lead_time` | 5구간 **일수**. `item_id = 0`이 default. 개당 시간과는 **다른 축** |
-| `item.routing_id` | 기본 라우팅 자동 적용 ([라우트시트-설계.md](./라우트시트-설계.md) §2) |
+| `item.routing_id` | **품목 전용 라우팅( ② )**. 품목 저장 때 고른 틀( ① )을 복사해 만든다 ([라우팅-3단계-설계.md](./라우팅-3단계-설계.md)) |
+| `routing.owner_type` | `TEMPLATE` ① 공용 틀 · `ITEM` ② 품목 전용( `item_id` ) · `ORDER_LINE` ③ 수주 줄 전용( `sales_order_line_id` ). 라우팅 관리 목록은 ① 만. `base_routing_id` = 복사해 온 원본 |
+| `routing_line.source_routing_line_id` | 복사해 온 원본 줄( ② ← ① · ③ ← ② ). 화면에서 더한 공정이면 `NULL`. BOM 투입 지점( ② 줄 )을 ③ · 작업지시까지 잇는다 |
+| `routing_change_log` | 공정 변경 이력 — 품목( ② ) · 수주( ③ ) · 작업지시. `CREATE` · `RELOAD` 는 공정 목록 통째, `ADD` · `REMOVE` · `MOVE` · `UPDATE` 는 줄 하나 |
 | `item.pack_qty` · `min_usable_spec` · `spec_dim` | 포장 · 소재 잔재 ([재고-수불-설계.md](./재고-수불-설계.md) §2-1) |
 | `item.spec_unit` | **코드 마스터 참조** — `code_item` 의 `UNIT` 그룹. 자유 입력이 아닙니다(§6.1) |
 | `item.ext_c01` … | 커스텀 컬럼 슬롯 ([커스텀-컬럼-설계.md](./커스텀-컬럼-설계.md) §4) |
 | `process.class_code` | 라우트시트 `구분` 컬럼. **알파벳 자유 입력** |
 | `process.inspection_kind` | `NORMAL` / `IFL`(초중종) |
-| `routing.is_default` | 테넌트에 하나. **품목 등록 시점에만** 적용 |
+| `routing.is_default` | 틀( ① ) 중 하나. **품목 등록 화면이 처음 불러오는 틀** |
 | `dept` | **1단계 평면.** 자기참조 계층을 두지 않습니다 — 상위 부서 상속이 없으므로 전결 규정은 부서마다 직접 지정 |
 | `warehouse.parent_id` | `A동` → `1구역` 자기참조 계층. **부서와 달리 창고는 계층입니다** |
 | `lot_rule.format_spec` | 요소의 **순서 있는 목록.** 날짜는 `YY` · `YYMM` · `YYMMDD` 중 **고르고**, 그 단위가 **순번 리셋 주기**가 됩니다. `PARTNER`는 선택이고 **생산=납품처 / 입고=구매처 / 외주=외주처** |

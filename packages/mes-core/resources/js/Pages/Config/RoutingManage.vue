@@ -1,7 +1,7 @@
 <!-- 공정라우팅관리 ( BAS-05 ) / 기준정보관리 > 공정라우팅관리
      - 좌 : 라우팅 목록  /  우 : 선택 라우팅의 공정 줄
-     - 줄은 ⋮⋮ 를 잡아 드래그로 순서 변경 ( 순서를 바꿔도 줄 IDX 는 유지 → BOM 투입 지점 참조 안전 )
-     - 검사 공정 : 초 · 중 · 종 개별 on/off, 종물 전 선행 진행( 승인 N명 / 설계 승인 )
+     - 공정 줄 편집은 공통 RoutingLinesEditor ( 품목 · 수주와 같은 편집기 )
+     - 여기는 ① 공용 틀만 — 품목 저장 때 품목 전용 라우팅으로 복사된다 ( 틀을 고쳐도 이미 복사한 품목은 그대로 · docs/라우팅-3단계-설계.md )
      - 삭제 없음 : 사용 여부로 내림 ( ADR 0019 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
@@ -78,97 +78,7 @@
                         </p>
 
                         <!-- 공정 줄 -->
-                        <div class="flex items-center justify-between mb-2">
-                            <div>
-                                <span class="text-sm font-semibold text-gray-600">공정 순서</span>
-                                <span class="ml-1 text-xs text-gray-400">⋮⋮ 를 잡아 끌면 순서가 바뀝니다. 같은 공정을 여러 번 넣을 수 있습니다.</span>
-                            </div>
-                            <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!processOptions.length" @click="addLine">+ 공정 추가</BaseButton>
-                        </div>
-                        <p v-if="errors.lines" class="mb-2 text-xs text-red-500">{{ errors.lines[0] }}</p>
-
-                        <div class="border rounded overflow-hidden">
-                            <table class="w-full text-sm">
-                                <thead class="bg-gray-50 text-gray-500">
-                                    <tr>
-                                        <th class="px-2 py-1.5 w-8"></th>
-                                        <th class="px-2 py-1.5 w-14 font-medium">순서</th>
-                                        <th class="px-2 py-1.5 font-medium">공정 <span class="text-red-400">*</span></th>
-                                        <th class="px-2 py-1.5 w-28 font-medium">개당(초)</th>
-                                        <th class="px-2 py-1.5 w-80 font-medium">초 · 중 · 종 / 선행 진행</th>
-                                        <th v-if="canWrite" class="px-2 py-1.5 w-10"></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr v-if="!form.lines.length">
-                                        <td :colspan="canWrite ? 6 : 5" class="px-2 py-6 text-center text-gray-400">공정을 추가하세요.</td>
-                                    </tr>
-                                    <tr
-                                        v-for="(l, i) in form.lines"
-                                        :key="l._rowKey"
-                                        class="border-t align-top"
-                                        :class="dragIndex === i ? 'opacity-40' : ''"
-                                        :draggable="canWrite"
-                                        @dragstart="dragIndex = i"
-                                        @dragover.prevent
-                                        @drop="dropLine(i)"
-                                        @dragend="dragIndex = null"
-                                    >
-                                        <!-- 행은 align-top( 오류 문구가 아래로 늘어나므로 )이라, 핸들·순서 칸만 세로 중앙 -->
-                                        <td class="px-2 py-2 text-center text-gray-300 align-middle select-none" :class="canWrite ? 'cursor-grab' : ''">⋮⋮</td>
-                                        <td class="px-2 py-2 text-center text-gray-500 align-middle">{{ i + 1 }}</td>
-                                        <td class="px-1.5 py-1">
-                                            <BaseSelect v-model="l.process_idx" :options="lineProcessOptions(l)" size="sm" class="w-full" placeholder="공정 선택" :disabled="!canWrite" @update:model-value="v => onProcessChange(l, v)" />
-                                            <span v-if="l.bom_ref_count" class="inline-block mt-0.5 text-[11px] px-1 rounded bg-amber-50 text-amber-700" :title="'이 줄을 투입 지점으로 쓰는 BOM 라인이 ' + l.bom_ref_count + '건 있습니다. 줄을 지우면 그 투입 지점이 비워집니다.'">
-                                                BOM {{ l.bom_ref_count }}건 참조
-                                            </span>
-                                            <p v-if="rowError(i, 'process_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'process_idx') }}</p>
-                                        </td>
-                                        <td class="px-1.5 py-1">
-                                            <BaseInput v-model="l.cycle_time_sec" type="number" min="0" :empty-value="0" size="md" class="w-full text-right" :disabled="!canWrite || isSystemProcess(l)" />
-                                            <p v-if="rowError(i, 'cycle_time_sec')" class="text-[11px] text-red-500">{{ rowError(i, 'cycle_time_sec') }}</p>
-                                        </td>
-                                        <td class="px-1.5 py-1">
-                                            <template v-if="isInspection(l)">
-                                                <div class="flex items-center gap-2 text-xs">
-                                                    <label v-for="k in INSP_KEYS" :key="k.key" class="inline-flex items-center gap-1 cursor-pointer">
-                                                        <input type="checkbox" class="base-checkbox w-3.5 h-3.5" :checked="l[k.key] === 'Y'" :disabled="!canWrite" @change="e => setInsp(l, k.key, e.target.checked)" />
-                                                        {{ k.label }}
-                                                    </label>
-                                                </div>
-                                                <p v-if="rowError(i, 'insp')" class="text-[11px] text-red-500">{{ rowError(i, 'insp') }}</p>
-
-                                                <!-- 선행 진행 : 종물이 켜진 줄만 -->
-                                                <div v-if="l.insp_last === 'Y'" class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
-                                                    <span class="text-gray-400">선행 진행</span>
-                                                    <label class="inline-flex items-center gap-1 cursor-pointer">
-                                                        <input type="radio" class="accent-blue-600" :checked="preMode(l) === 'none'" :disabled="!canWrite" @change="setPreMode(l, 'none')" /> 불가
-                                                    </label>
-                                                    <label class="inline-flex items-center gap-1 cursor-pointer">
-                                                        <input type="radio" class="accent-blue-600" :checked="preMode(l) === 'count'" :disabled="!canWrite" @change="setPreMode(l, 'count')" /> 승인
-                                                    </label>
-                                                    <BaseInput
-                                                        v-if="preMode(l) === 'count'"
-                                                        v-model="l.pre_approve_min" type="number" min="1" :empty-value="1"
-                                                        size="sm" class="w-14 text-right" :disabled="!canWrite"
-                                                    />
-                                                    <span v-if="preMode(l) === 'count'">명</span>
-                                                    <label class="inline-flex items-center gap-1 cursor-pointer">
-                                                        <input type="radio" class="accent-blue-600" :checked="preMode(l) === 'design'" :disabled="!canWrite" @change="setPreMode(l, 'design')" /> 설계 승인
-                                                    </label>
-                                                    <span v-if="l.pre_approved_at" class="text-gray-400">({{ l.pre_approved_at }})</span>
-                                                </div>
-                                                <p v-if="rowError(i, 'pre_approve')" class="text-[11px] text-red-500">{{ rowError(i, 'pre_approve') }}</p>
-                                            </template>
-                                            <span v-else class="text-xs text-gray-300">—</span>
-                                        </td>
-                                        <td v-if="canWrite" class="px-1.5 py-1 text-center">
-                                            <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="줄 삭제" @click="removeLine(i)">✕</button>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
+                        <RoutingLinesEditor :lines="form.lines" :processes="processes" :readonly="!canWrite" :errors="errors" />
 
                         <div class="mt-4 max-w-2xl">
                             <label class="block text-gray-500 font-medium mb-1 text-sm">비고</label>
@@ -188,8 +98,9 @@ import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
+import { toLinePayload, totalCycleOf } from '@core/Components/Config/routingLines';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
 
@@ -202,12 +113,6 @@ const myPerm    = computed(() => page.props.permissions?.[menuCode] ?? {});
 const canWrite  = computed(() => myPerm.value.can_write  === true);
 const canDelete = computed(() => myPerm.value.can_delete === true);
 
-const INSP_KEYS = [
-    { key: 'insp_first',  label: '초' },
-    { key: 'insp_middle', label: '중' },
-    { key: 'insp_last',   label: '종' },
-];
-
 const routings     = ref([]);
 const processes    = ref([]);   // 사용 중 공정 원본
 const search       = reactive({ keyword: '' });
@@ -215,9 +120,7 @@ const showInactive = ref(false);
 const loading      = ref(false);
 const saving       = ref(false);
 const errors       = ref({});
-const dragIndex    = ref(null);
 
-let rowSeq = 0;
 const blankForm = () => ({
     routing_idx: null, routing_code: '', routing_name: '',
     is_default: 'N', is_use: 'Y', remark: '', lines: [],
@@ -227,97 +130,10 @@ const form = reactive(blankForm());
 // ---- 플래시 ----
 const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
-// ---- 공정 선택지 ----
-const processOptions = computed(() =>
-    processes.value.map(p => ({ value: p.process_idx, label: `${p.process_name} [${p.process_code}]` }))
-);
-// 현재 값이 미사용 공정이면 표시용으로 추가 ( 같은 공정 중복은 허용이라 제외하지 않음 )
-function lineProcessOptions(line) {
-    const opts = processOptions.value;
-    if (line.process_idx && !opts.some(o => Number(o.value) === Number(line.process_idx))) {
-        return [...opts, { value: line.process_idx, label: `${line.process_name ?? line.process_idx} ( 미사용 )` }];
-    }
-    return opts;
-}
-
-const processOf     = (line) => processes.value.find(p => Number(p.process_idx) === Number(line.process_idx));
-const isInspection  = (line) => (processOf(line)?.process_type ?? line.process_type) === 'INSPECTION';
-const isSystemProcess = (line) => (processOf(line)?.is_system ?? line.process_is_system) === 'Y';
-
-const totalCycle = computed(() => form.lines.reduce((s, l) => s + (Number(l.cycle_time_sec) || 0), 0));
+const totalCycle = computed(() => totalCycleOf(form.lines));
 const otherDefaultName = computed(() =>
     routings.value.find(r => r.is_default === 'Y' && r.routing_idx !== form.routing_idx)?.routing_name ?? ''
 );
-
-// ---- 줄 조작 ----
-function addLine() {
-    form.lines.push({
-        _rowKey: `l${++rowSeq}`, routing_line_idx: null,
-        process_idx: processOptions.value[0]?.value ?? '',
-        cycle_time_sec: 0,
-        insp_first: 'N', insp_middle: 'N', insp_last: 'N',
-        pre_approve_min: 0, pre_approved_by_design: 'N', pre_approved_at: null,
-        remark: '',
-    });
-    // 검사 공정을 고르면 기본으로 초·종을 켠다
-    onProcessChange(form.lines[form.lines.length - 1], form.lines[form.lines.length - 1].process_idx);
-}
-
-// 공정이 바뀌면 검사 옵션을 정리 ( 검사 공정이 아니면 전부 끔 )
-function onProcessChange(line, value) {
-    line.process_idx = value;
-    if (!isInspection(line)) {
-        Object.assign(line, { insp_first: 'N', insp_middle: 'N', insp_last: 'N', pre_approve_min: 0, pre_approved_by_design: 'N' });
-    } else if (line.insp_first === 'N' && line.insp_middle === 'N' && line.insp_last === 'N') {
-        // 초물과 종물만 하는 현장이 가장 흔하다
-        line.insp_first = 'Y';
-        line.insp_last  = 'Y';
-    }
-}
-
-function setInsp(line, key, checked) {
-    line[key] = checked ? 'Y' : 'N';
-    // 종물을 끄면 선행 진행도 끈다 ( 건너뛸 것이 없음 )
-    if (key === 'insp_last' && !checked) {
-        line.pre_approve_min = 0;
-        line.pre_approved_by_design = 'N';
-    }
-}
-
-const preMode = (line) =>
-    line.pre_approved_by_design === 'Y' ? 'design' : (Number(line.pre_approve_min) > 0 ? 'count' : 'none');
-
-function setPreMode(line, mode) {
-    line.pre_approve_min        = mode === 'count' ? Math.max(1, Number(line.pre_approve_min) || 1) : 0;
-    line.pre_approved_by_design = mode === 'design' ? 'Y' : 'N';
-}
-
-// 드래그로 순서 변경 ( 줄 IDX 는 유지 → BOM 투입 지점 참조 안전 )
-function dropLine(targetIndex) {
-    const from = dragIndex.value;
-    if (from === null || from === targetIndex) return;
-    const [moved] = form.lines.splice(from, 1);
-    form.lines.splice(targetIndex, 0, moved);
-    dragIndex.value = null;
-}
-
-const rowError = (i, field) => errors.value[`lines.${i}.${field}`]?.[0] ?? '';
-
-// 줄 삭제 : BOM 이 투입 지점으로 쓰고 있으면 먼저 알린다 ( 막지는 않음 )
-async function removeLine(i) {
-    const line = form.lines[i];
-    if (line.bom_ref_count) {
-        const result = await showAlert(
-            '공정 줄 삭제',
-            `이 줄을 투입 지점으로 쓰는 BOM 라인이 ${line.bom_ref_count}건 있습니다.
-삭제하고 저장하면 그 투입 지점이 비워집니다. 계속할까요?`,
-            'warning',
-            'confirm'
-        );
-        if (!result.isConfirmed) return;
-    }
-    form.lines.splice(i, 1);
-}
 
 // ---- 데이터 ----
 async function loadProcesses() {
@@ -352,7 +168,7 @@ async function selectRouting(r) {
             is_default: p.is_default,
             is_use: p.is_use,
             remark: p.remark ?? '',
-            lines: (p.lines ?? []).map(l => ({ ...l, _rowKey: `l${++rowSeq}` })),
+            lines: p.lines ?? [],
         });
     } catch (e) {
         showFlash('라우팅을 불러오지 못했습니다', true);
@@ -372,15 +188,7 @@ async function save() {
     try {
         const payload = {
             ...form,
-            lines: form.lines.map(l => ({
-                routing_line_idx: l.routing_line_idx,
-                process_idx: l.process_idx === '' ? null : Number(l.process_idx),
-                cycle_time_sec: l.cycle_time_sec,
-                insp_first: l.insp_first, insp_middle: l.insp_middle, insp_last: l.insp_last,
-                pre_approve_min: Number(l.pre_approve_min) || 0,
-                pre_approved_by_design: l.pre_approved_by_design,
-                remark: l.remark ?? null,
-            })),
+            lines: form.lines.map(toLinePayload),
         };
         const { data } = await window.axios.post(route('config.routing.save'), payload);
         await loadRoutings();

@@ -11,9 +11,9 @@
         <div class="flex-1"></div>
         <div class="flex items-center">
             <button id="user-info" class="mr-3" @click="openUserInfo">
-                <InformationCircleIcon class="h-6 w-6 fill-gray-700"/>
+                <InformationCircleIcon class="h-6 w-6 fill-gray-700 hover:fill-blue-500"/>
             </button>
-            <button id="alarm" class="relative mr-3" @click="openGridModal">
+            <button id="alarm" class="relative mr-3 hover:text-blue-500" @click="openGridModal">
                 <BellIcon class="h-6 w-6" />
                 <span v-if="alarmCount > 0"
                     class="absolute -top-1 -right-[5px] bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-start justify-center px-0.5">
@@ -21,7 +21,7 @@
                 </span>
             </button>
             <!-- <Link :href="route('user.dashboard')" class="mr-3 text-gray-700  hover:text-blue-500">DashBoard</Link> -->
-            <a :href="route('user.logout')" class="text-gray-700 hover:text-blue-500">Logout</a>
+            <a :href="route('user.logout')" class="text-gray-700 hover:text-blue-500">로그아웃</a>
         </div>
     </div>
 </template>

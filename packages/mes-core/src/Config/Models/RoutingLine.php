@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 
 // 라우팅 공정 줄 ( 라우팅 1 : N )
 //   BOM 의 투입 지점이 이 IDX 를 가리킨다 → 순서를 바꿔도 참조 유지
+//   source_routing_line_idx : 복사해 온 원본 줄 ( ② ← 틀 · ③ ← ② ) — 화면에서 더한 공정이면 NULL
 class RoutingLine extends Model {
 
     protected $table      = 'routing_line';
@@ -19,6 +20,7 @@ class RoutingLine extends Model {
 
     protected $fillable = [
         'routing_idx',
+        'source_routing_line_idx',
         'seq',
         'process_idx',
         'cycle_time_sec',

@@ -1,7 +1,9 @@
 <!-- 품목 등록/수정 폼 ( BAS-02 ) — 모달 본체
      - item prop 있으면 수정, 없으면 등록
      - 라우터를 모른다 : 저장 후 onSaved( 저장된 품목 ) 호출 + close ( 닫기·이동은 여는 쪽이 정함 )
-     - 탭 : 기본 / 재고·발주 / 단가 / 추가정보 / 첨부( 저장한 뒤 첨부 — AttachFiles )
+     - 탭 : 기본 / 공정( 제품만 ) / 재고·발주 / 단가 / 추가정보 / 첨부( 저장한 뒤 첨부 — AttachFiles )
+       공정 : 라우팅 틀( ① )을 고르면 틀의 공정을 불러와 고친다 → 저장하면 이 품목 전용 라우팅( ② ) ( docs/라우팅-3단계-설계.md )
+              틀을 고쳐도 이 품목은 그대로 · [틀에서 다시 불러오기] 로 다시 가져온다 · 신규는 기본 틀을 불러온다
        추가정보 : 정책 덮어쓰기( 입고검사 · 출하검사 · 차감 위치 — 대분류별 ) + 리드타임( 기본값 따름 / 품목별 ) + 표준시간( 읽기 전용 )
        커스텀 컬럼은 커스텀 컬럼 기능 개발 시 추가
      - 시리얼 사용 스위치는 기능 스위치 feature.serial 이 켜져 있을 때만 ( 이미 켜진 품목은 끌 수 있게 보인다 )
@@ -13,7 +15,7 @@
         <!-- 탭 -->
         <div class="flex gap-1 border-b shrink-0">
             <button
-                v-for="t in TABS"
+                v-for="t in visibleTabs"
                 :key="t.key"
                 type="button"
                 class="px-3 py-1.5 -mb-px border-b-2 text-sm transition-colors"
@@ -66,17 +68,7 @@
                 <BaseInput v-model="form.material" class="w-full" maxlength="100" :disabled="!canWrite" />
                 <p v-if="errors.material" class="text-xs text-red-500 mt-0.5">{{ errors.material[0] }}</p>
             </div>
-            <!-- 라우팅 · 주 자재( BOM ) 는 만드는 품목( 제품 )만 -->
-            <div v-if="isProduct">
-                <label class="block text-gray-500 font-medium mb-1">
-                    기본 라우팅
-                    <span v-if="!isEdit" class="text-xs text-gray-400">( 등록 시점에만 자동 적용 )</span>
-                </label>
-                <BaseSelect v-model="form.routing_idx" :options="routingOptions" class="w-full" :disabled="!canWrite" />
-                <p v-if="errors.routing_idx" class="text-xs text-red-500 mt-0.5">{{ errors.routing_idx[0] }}</p>
-            </div>
-            <div v-if="isProduct"></div>
-
+            <!-- 주 자재( BOM ) 는 만드는 품목( 제품 )만 · 공정은 공정 탭 -->
             <!-- 주 자재 : 가공품은 제품 1 : 원자재 1 이 대부분 → 저장하면 BOM V1 이 만들어진다 -->
             <div v-if="isProduct" class="col-span-2 border-t pt-3">
                 <div class="flex items-baseline gap-2 mb-1">
@@ -109,6 +101,30 @@
                 <label class="block text-gray-500 font-medium mb-1">비고</label>
                 <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="!canWrite"></textarea>
             </div>
+        </div>
+
+        <!-- 탭 · 공정 ( 제품만 ) -->
+        <div v-if="isProduct" v-show="tab === 'routing'" class="pt-4">
+            <div class="flex items-end gap-4 mb-3">
+                <div class="w-80 shrink-0">
+                    <label class="block text-gray-500 font-medium mb-1">라우팅 틀</label>
+                    <BaseSelect :model-value="form.routing_idx" :options="routingOptions" class="w-full" :disabled="!canWrite" @update:model-value="onTemplateChange" />
+                    <p v-if="errors.routing_idx" class="text-xs text-red-500 mt-0.5">{{ errors.routing_idx[0] }}</p>
+                </div>
+                <p class="pb-1.5 text-xs text-gray-400 leading-relaxed">
+                    틀의 공정을 불러와 이 품목에 맞게 고칩니다. 저장하면 <b class="font-semibold text-gray-500">이 품목 전용 공정</b>으로 저장되고,<br />
+                    공정 라우팅 관리에서 틀을 고쳐도 이 품목은 바뀌지 않습니다.
+                </p>
+            </div>
+            <RoutingLinesEditor
+                :lines="routingLines" :processes="processes" :readonly="!canWrite" :errors="errors"
+                error-prefix="routing_lines" empty-text="공정이 없습니다. 틀을 고르거나 공정을 추가하세요."
+            >
+                <template #actions>
+                    <BaseButton v-if="canWrite && form.routing_idx" size="sm" variant="secondary" :disabled="templateLoading" @click="reloadTemplate">틀에서 다시 불러오기</BaseButton>
+                </template>
+            </RoutingLinesEditor>
+            <p class="mt-2 text-xs text-gray-400">1개 생산 표준시간 = 개당 시간 합계 <b class="text-gray-600">{{ fmt(cycleTime) }}</b> 초</p>
         </div>
 
         <!-- 탭 2 · 재고 · 발주 -->
@@ -274,7 +290,7 @@
                 <p class="text-gray-700">
                     <b>{{ fmt(cycleTime) }}</b> 초
                     <span class="ml-1 text-xs text-gray-400">
-                        {{ selectedRouting ? `기본 라우팅 [ ${selectedRouting.routing_name} ] 의 공정 개당 시간 합계` : '기본 라우팅이 없습니다' }} · 읽기 전용
+                        {{ routingLines.length ? '공정 탭의 공정 개당 시간 합계' : '공정이 없습니다' }} · 읽기 전용
                     </span>
                 </p>
             </section>
@@ -307,6 +323,9 @@ import { useCommonCode } from '@core/Composables/useCommonCode';
 import { ITEM_TYPES, ITEM_KINDS } from '@core/Components/Config/itemCodes';
 import PolicyOverrideField from '@core/Components/Config/PolicyOverrideField.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
+import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
+import { toLinePayload, totalCycleOf } from '@core/Components/Config/routingLines';
+import { showAlert } from '@core/Utils/message';
 
 const props = defineProps({
     item:     { type: Object,   default: null },   // 있으면 수정, 없으면 등록
@@ -319,6 +338,7 @@ const isEdit = computed(() => !!props.item?.item_idx);
 
 const TABS = [
     { key: 'basic', label: '기본' },
+    { key: 'routing', label: '공정' },
     { key: 'stock', label: '재고·발주' },
     { key: 'price', label: '단가' },
     { key: 'extra', label: '추가정보' },
@@ -356,8 +376,9 @@ const FIELD_TAB = {
     min_usable_spec: 'stock', calc_code: 'stock', spec_dim: 'stock',
     ...Object.fromEntries(PRICE_FIELDS.map(f => [f.key, 'price'])),
 };
-// routing_idx · main_material.* 는 기본 탭, 정책 · 리드타임은 추가정보 탭
-const tabOf = (field) => (field.startsWith('policies.') || field.startsWith('lead_time')) ? 'extra' : (FIELD_TAB[field] ?? 'basic');
+// main_material.* 는 기본 탭, 라우팅은 공정 탭, 정책 · 리드타임은 추가정보 탭
+const tabOf = (field) => field.startsWith('routing_') ? 'routing'
+    : (field.startsWith('policies.') || field.startsWith('lead_time')) ? 'extra' : (FIELD_TAB[field] ?? 'basic');
 
 const tab = ref('basic');
 
@@ -385,12 +406,16 @@ const form = reactive({
     std_subcon_price: src.std_subcon_price ?? 0,
     is_use:           src.is_use ?? 'Y',
     remark:           src.remark ?? '',
-    routing_idx:      src.routing_idx ?? '',
+    routing_idx:      '',   // 라우팅 틀( ① ) — 품목 라우팅( ② )의 틀은 formData 에서
 });
 
-// ---- 기본 라우팅 · 주 자재 ( BOM ) ----
+// ---- 라우팅 틀 · 공정 · 주 자재 ( BOM ) ----
 const routings     = ref([]);
-const defaultRoutingIdx = ref(null);   // 신규 등록 기본 라우팅 ( 대분류를 제품으로 되돌릴 때 다시 채움 )
+const defaultRoutingIdx = ref(null);   // 신규 등록 기본 틀 ( 대분류를 제품으로 되돌릴 때 다시 불러옴 )
+const processes    = ref([]);
+const routingLines = reactive([]);      // 품목 라우팅( ② ) 공정 줄 — 편집기가 그 자리에서 고친다
+const baseInfo     = ref(null);         // 지금 틀 { name, is_use } ( 미사용으로 내려간 틀 표시용 )
+const templateLoading = ref(false);
 const materials    = ref([]);
 const bomLineCount = ref(0);
 const mainMaterial = reactive({ bom_line_idx: null, child_item_idx: '', qty: '', calc_code: null, ext_n01: null });
@@ -398,10 +423,45 @@ const mainMaterial = reactive({ bom_line_idx: null, child_item_idx: '', qty: '',
 // BOM 자재가 2건 이상이면 주 자재 칸은 읽기 전용 ( BOM관리에서 다룬다 )
 const bomLocked = computed(() => bomLineCount.value >= 2);
 
-const routingOptions = computed(() => [
-    { value: '', label: '( 없음 )' },
-    ...routings.value.map(r => ({ value: r.routing_idx, label: `${r.routing_name} [${r.routing_code}]${r.is_default === 'Y' ? ' · 기본' : ''}` })),
-]);
+const routingOptions = computed(() => {
+    const opts = [
+        { value: '', label: '( 없음 )' },
+        ...routings.value.map(r => ({ value: r.routing_idx, label: `${r.routing_name} [${r.routing_code}]${r.is_default === 'Y' ? ' · 기본' : ''}` })),
+    ];
+    // 지금 틀이 미사용으로 내려가 목록에 없으면 표시용으로 추가
+    if (form.routing_idx && !opts.some(o => Number(o.value) === Number(form.routing_idx))) {
+        opts.push({ value: form.routing_idx, label: `${baseInfo.value?.name ?? form.routing_idx} ( 미사용 )` });
+    }
+    return opts;
+});
+
+// 틀의 공정을 불러와 편집기에 갈아 끼운다
+async function loadTemplate(idx) {
+    templateLoading.value = true;
+    try {
+        const { data } = await window.axios.get(route('config.item.routingTemplate', idx));
+        routingLines.splice(0, routingLines.length, ...(data.lines ?? []));
+    } catch (e) {
+        errorMsg.value = '라우팅 틀의 공정을 불러오지 못했습니다.';
+    } finally {
+        templateLoading.value = false;
+    }
+}
+
+// 틀 바꾸기 : 공정을 새 틀로 갈아 끼운다 ( 있던 공정이 있으면 묻는다 ) · ( 없음 ) 은 공정을 그대로 두고 틀만 뺀다
+async function onTemplateChange(v) {
+    if (v !== '' && routingLines.length) {
+        const r = await showAlert('라우팅 틀 변경', '지금 공정을 지우고 고른 틀의 공정으로 바꿉니다. 계속할까요?', 'warning', 'confirm');
+        if (!r.isConfirmed) return;
+    }
+    form.routing_idx = v;
+    if (v !== '') await loadTemplate(v);
+}
+
+async function reloadTemplate() {
+    const r = await showAlert('틀에서 다시 불러오기', '지금 공정을 지우고 틀의 공정을 다시 불러옵니다. 계속할까요?', 'warning', 'confirm');
+    if (r.isConfirmed) await loadTemplate(form.routing_idx);
+}
 const materialOptions = computed(() => [
     { value: '', label: '( 없음 )' },
     ...materials.value.map(m => ({ value: m.item_idx, label: `${m.item_name} [${m.item_code}]` })),
@@ -413,6 +473,7 @@ async function loadFormData() {
             params: form.item_idx ? { item_idx: form.item_idx } : {},
         });
         routings.value     = data.routings ?? [];
+        processes.value    = data.processes ?? [];
         materials.value    = data.materials ?? [];
         bomLineCount.value = data.bom_line_count ?? 0;
 
@@ -429,10 +490,16 @@ async function loadFormData() {
         const own = data.lead_time?.item;
         leadTime.mode = own && own.is_use === 'Y' ? 'ITEM' : 'DEFAULT';
         LEAD_STAGES.forEach(st => { leadTime[st.key] = own?.[st.key] ?? ''; });
-        // 신규 등록은 기본 라우팅을 자동 선택 ( 등록 시점에만 · 제품만. 수정 화면에서는 건드리지 않는다 )
+        // 품목 라우팅( ② ) : 틀 · 공정 / 신규 등록( 제품 )은 기본 틀의 공정을 불러온다
         defaultRoutingIdx.value = data.default_routing_idx ?? null;
-        if (!isEdit.value && isProduct.value && !form.routing_idx && data.default_routing_idx) {
+        const ir = data.item_routing;
+        if (ir) {
+            form.routing_idx = ir.base_routing_idx ?? '';
+            baseInfo.value   = { name: ir.base_name, is_use: ir.base_is_use };
+            routingLines.splice(0, routingLines.length, ...(ir.lines ?? []));
+        } else if (!isEdit.value && isProduct.value && data.default_routing_idx) {
             form.routing_idx = data.default_routing_idx;
+            await loadTemplate(data.default_routing_idx);
         }
     } catch (e) {
         errorMsg.value = '라우팅 · 자재 목록을 불러오지 못했습니다.';
@@ -457,9 +524,8 @@ const policyError = (key) => errors.value[`policies.${key}`]?.[0] ?? '';
 // 차감 위치 : 대분류의 키 중 consume_* ( 자재 → 자재 차감 3개 / 제품 → 제품 차감 1개 )
 const consumeKeys = computed(() => (policyKeysByType.value[form.item_type] ?? []).filter(k => k.includes('.consume_') && fieldOf(k)));
 
-// 1개 생산 표준시간 : 지금 고른 기본 라우팅의 공정 합계 ( 저장하면 품목에도 같은 값이 들어간다 )
-const selectedRouting = computed(() => routings.value.find(r => Number(r.routing_idx) === Number(form.routing_idx)) ?? null);
-const cycleTime       = computed(() => num(selectedRouting.value?.lines_sum_cycle_time_sec));
+// 1개 생산 표준시간 : 공정 탭 공정의 개당 시간 합계 ( 저장하면 품목에도 같은 값이 들어간다 )
+const cycleTime = computed(() => totalCycleOf(routingLines));
 
 const leadTotal = computed(() => LEAD_STAGES.reduce((s, st) => s + num(leadTime[st.key]), 0));
 const defaultLeadText = computed(() => {
@@ -471,6 +537,7 @@ const defaultLeadText = computed(() => {
 
 // 대분류 변경 → 소분류가 맞지 않으면 첫 항목으로
 const isProduct = computed(() => form.item_type === 'PRODUCT');
+const visibleTabs = computed(() => TABS.filter(t => t.key !== 'routing' || isProduct.value));
 
 function onTypeChange(type) {
     const kinds = ITEM_KINDS[type] ?? [];
@@ -478,11 +545,12 @@ function onTypeChange(type) {
         form.item_kind = kinds[0]?.value ?? '';
     }
 
-    // 자재 : 라우팅 비움 ( 서버도 비운다 ) / 다시 제품 : 신규면 기본 라우팅 다시 채움
+    // 자재 : 공정 탭이 사라진다 ( 서버가 품목 라우팅을 미사용으로 ) / 다시 제품 : 신규면 기본 틀을 다시 불러옴
     if (type !== 'PRODUCT') {
-        form.routing_idx = '';
-    } else if (!isEdit.value && !form.routing_idx && defaultRoutingIdx.value) {
+        if (tab.value === 'routing') tab.value = 'basic';
+    } else if (!isEdit.value && !form.routing_idx && !routingLines.length && defaultRoutingIdx.value) {
         form.routing_idx = defaultRoutingIdx.value;
+        loadTemplate(defaultRoutingIdx.value);
     }
 }
 
@@ -521,7 +589,9 @@ async function save() {
     try {
         const payload = {
             ...form,
-            routing_idx: form.routing_idx === '' ? null : Number(form.routing_idx),
+            routing_idx: !isProduct.value || form.routing_idx === '' ? null : Number(form.routing_idx),
+            // 공정 탭 : 품목 라우팅( ② ) 공정 줄 ( 자재는 보내지 않음 )
+            routing_lines: isProduct.value ? routingLines.map(toLinePayload) : null,
             // 주 자재를 비우면 null → 서버가 BOM 줄을 삭제한다
             main_material: (isProduct.value && !bomLocked.value && mainMaterial.child_item_idx !== '')
                 ? {

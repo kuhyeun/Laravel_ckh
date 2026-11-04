@@ -8,6 +8,7 @@ use MesCore\Basic\Models\Attachment;
 use MesCore\Basic\Services\AttachmentService;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Partner;
+use MesCore\Config\Services\RoutingService;
 use MesCore\Order\Models\SalesOrder;
 use MesCore\Order\Models\SalesOrderLine;
 
@@ -18,12 +19,14 @@ use MesCore\Order\Models\SalesOrderLine;
  *   금액 : 줄 금액 = 수량 × 단가( 원 단위 반올림 ), 머리 합계 = 줄 금액 합 — 서버가 계산한다
  *   잠금 : 아래 단계( 생산 · 출하 )가 붙은 줄은 품목 변경 · 삭제 불가, 수량은 생산 · 출하량 아래로 못 줄임 ( §6 )
  *   삭제 : 아래 단계가 없으면 지운다( 줄 · 첨부까지 ), 있으면 취소 상태로
+ *   공정 : 줄마다 수주 라우팅( ③ )을 항상 만든다 — 품목 라우팅( ② ) 복사 + 이 수주에서 고친 공정 · 변경 이력 ( docs/라우팅-3단계-설계.md )
+ *          그 줄로 작업지시( 취소 제외 )가 생기면 공정은 잠긴다
  */
 class SalesOrderService {
 
     public const NO_PREFIX = 'SO-';
 
-    public function __construct(private AttachmentService $attachments) {}
+    public function __construct(private AttachmentService $attachments, private RoutingService $routings) {}
 
     /**
      * @param array $data 검증된 요청 ( 머리 + lines[] )
@@ -90,6 +93,22 @@ class SalesOrderService {
             if ((float) ($row['unit_price'] ?? 0) == 0) {
                 $warnings[] = "{$label} : 단가가 0 입니다.";   // W_PRICE_ZERO
             }
+
+            // 공정 : 작업지시가 생긴 줄은 잠김 · 검사 · 선행 승인 규칙은 라우팅과 같다 ( 공정 없음은 허용 — 작업지시에서 넣는다 )
+            if (isset($row['routing_lines'])) {
+                if ($old && $old->directedQty() > 0) {
+                    $errors["lines.{$i}.routing_lines"] = ['작업지시가 생성된 줄의 공정은 바꿀 수 없습니다.'];
+                } else {
+                    try {
+                        $own = $old ? $this->routings->orderLineRouting($old->sales_order_line_idx) : null;
+                        foreach ($this->routings->assertLines(array_values($row['routing_lines']), $own, "lines.{$i}.routing_lines", true) as $w) {
+                            $warnings[] = "{$label} : {$w}";
+                        }
+                    } catch (ValidationException $e) {
+                        $errors += $e->errors();
+                    }
+                }
+            }
         }
 
         // 지워지는 기존 줄 중 아래 단계가 붙은 것
@@ -139,6 +158,10 @@ class SalesOrderService {
                     'due_date'   => $row['due_date'],
                     'remark'     => $row['remark'] ?? null,
                 ])->save();
+
+                // 수주 라우팅( ③ ) — 보낸 공정이 없으면 그대로( 없거나 품목을 바꿨으면 품목 라우팅 복사 )
+                $routingLines = isset($row['routing_lines']) ? array_values($row['routing_lines']) : null;
+                $this->routings->syncOrderLineRouting($line, $order->order_no, $routingLines);
 
                 $total += $amount;
                 $keep[] = $line->sales_order_line_idx;

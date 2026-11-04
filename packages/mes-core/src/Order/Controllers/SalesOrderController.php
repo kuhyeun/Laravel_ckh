@@ -10,6 +10,9 @@ use MesCore\Config\Models\Partner;
 use MesCore\Order\Models\SalesOrder;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Order\Services\SalesOrderService;
+use MesCore\Config\Services\RoutingService;
+use MesCore\Menu\Services\MenuPermissionService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +23,8 @@ use Illuminate\Validation\ValidationException;
 // 수주관리 ( SAL-01 목록 · SAL-02 등록 / 수정 ) — docs/screens/30-수주.md
 //   목록은 서버 페이징 ( RespondsWithList ). 한 행 = 수주 한 건 + 줄( _children — 화면의 트리 )
 //   저장 · 채번 · 삭제 규칙은 SalesOrderService
+//   줄마다 공정( 수주 라우팅 ③ ) — 품목 라우팅을 복사해 이 수주에 맞게 고친다 · 작업지시가 생기면 잠김 ( docs/라우팅-3단계-설계.md )
+//   [+ 새 품목] : 품목관리 등록 창을 그대로 연다 ( 품목관리 쓰기 권한 )
 class SalesOrderController extends Controller {
     use SearchesKeyword;
     use RespondsWithList;
@@ -42,7 +47,7 @@ class SalesOrderController extends Controller {
     // 목록 정렬 허용 ( 화면 열 이름 → 쿼리 별칭과 같다 )
     private const SORTABLE = ['order_no', 'order_date', 'partner_name', 'next_due_date', 'total_amount'];
 
-    public function __construct(private SalesOrderService $orders) {}
+    public function __construct(private SalesOrderService $orders, private RoutingService $routings) {}
 
     // 목록 : 기간( 수주일 / 납품일 ) + 검색어( 수주번호 · 수주명 · 고객 발주번호 · 품번 · 품명 ) + 고객사 + 상태
     public function list(Request $request) {
@@ -83,7 +88,7 @@ class SalesOrderController extends Controller {
 
     // 등록 · 수정 모달용 선택지 : 고객사( 고객사 구분 · 사용 중 ) + 품목( 제품 대분류 · 사용 중 )
     //   수정 화면의 기존 값이 목록에서 빠졌으면( 미사용으로 내림 ) 화면이 그 값만 덧붙여 보여 준다
-    public function formData() {
+    public function formData(MenuPermissionService $permissions) {
         $partners = Partner::where('is_customer', 'Y')->where('is_use', 'Y')
             ->orderBy('partner_name')
             ->get(['partner_idx', 'partner_code', 'partner_name']);
@@ -93,10 +98,18 @@ class SalesOrderController extends Controller {
             ->get(['item_idx', 'item_code', 'item_name', 'item_kind', 'spec_unit', 'std_sale_price']);
 
         return response()->json([
-            'partners' => $partners,
-            'items'    => $items,
-            'today'    => now()->toDateString(),
+            'partners'        => $partners,
+            'items'           => $items,
+            'today'           => now()->toDateString(),
+            'processes'       => $this->routings->processOptions(),   // 줄 공정 편집기
+            'can_create_item' => $permissions->canPage(Auth::user(), 'Config/ItemManage', 'can_write'),
         ]);
+    }
+
+    // 줄의 품목을 고르면 : 그 품목의 품목 라우팅( ② )을 "복사할 새 줄"로 ( 수주 공정의 처음 값 )
+    public function itemRouting(int $itemIdx) {
+        $base = $this->routings->itemRoutingOf($itemIdx);
+        return response()->json(['lines' => $base ? $this->routings->copyRows($base) : []]);
     }
 
     public function save(Request $request) {
@@ -125,11 +138,13 @@ class SalesOrderController extends Controller {
             'lines.*.unit_price'           => 'nullable|numeric|min:0|max:9999999999999',
             'lines.*.due_date'             => 'required|date_format:Y-m-d',
             'lines.*.remark'               => 'nullable|string|max:200',
-        ], [
+            // 줄 공정( ③ ) — 보내지 않으면( null ) 그대로
+            'lines.*.routing_lines'        => 'nullable|array|max:100',
+        ] + RoutingService::lineRules('lines.*.routing_lines'), [
             'lines.required' => '품목을 하나 이상 넣으세요.',
             'lines.min'      => '품목을 하나 이상 넣으세요.',
             'lines.*.qty.gt' => '수량은 0보다 커야 합니다.',
-        ], self::ATTRIBUTES);
+        ], self::ATTRIBUTES + RoutingService::lineAttributes('lines.*.routing_lines'));
 
         try {
             [$saved, $warnings] = $this->orders->save($data, $order);
@@ -278,6 +293,16 @@ class SalesOrderController extends Controller {
         ];
     }
 
+    // 줄 공정( ③ ) : 공정 줄 · 품목 라우팅과 다른가 · 잠김( 작업지시 생성 )
+    private function routingPayload(SalesOrderLine $l): array {
+        $own = $this->routings->orderLineRouting($l->sales_order_line_idx);
+        return [
+            'lines'    => $own ? $this->routings->linesPayload($own) : [],
+            'modified' => $own ? $this->routings->differsFromBase($own) : false,
+            'locked'   => $l->directedQty() > 0,
+        ];
+    }
+
     // 수정 모달용
     private function toForm(SalesOrder $o): array {
         return [
@@ -312,6 +337,7 @@ class SalesOrderController extends Controller {
                 'min_qty'              => $l->minQty(),
                 'directed_qty'         => $l->directedQty(),   // 작업지시에 담긴 수량 ( 수주 창의 [작업지시] )
                 'remark'               => $l->remark,
+                'routing'              => $this->routingPayload($l),
             ])->values()->all(),
         ];
     }

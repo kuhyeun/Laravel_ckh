@@ -129,7 +129,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import WorkOrderLinePanel from '@core/Components/Production/WorkOrderLinePanel.vue';
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
-import { blankLine, lineFromServer, applyItemDefaults, linePayload } from '@core/Components/Production/workOrderLine';
+import { blankLine, lineFromServer, applyItemDefaults, linePayload, sameRouting } from '@core/Components/Production/workOrderLine';
 
 const props = defineProps({
     order:     { type: Object,   default: null },   // { sheet_idx, work_order_idx? } — 있으면 수정 ( work_order_idx 는 처음 고를 줄 )
@@ -178,8 +178,8 @@ function removeLine(i) {
 // ---- 수주 줄 ( 모든 품목 ) ----
 const picker = reactive({ open: false, loading: false, lines: [] });
 const pickable = computed(() => picker.lines.filter(l => !lines.value.some(x => x.sources.some(s => s.sales_order_line_idx === l.sales_order_line_idx))));
-// 병합 대상 : 같은 품목의 대기 줄
-const mergeTarget = (l) => lines.value.find(x => Number(x.item_idx) === Number(l.item_idx) && x.status === 'WAIT');
+// 병합 대상 : 같은 품목 · 대기 · 수주를 담은 줄 중 공정 순서가 같은 줄 ( 공정이 다른 수주 줄 · 재고 지시 줄은 새 줄로 )
+const mergeTarget = (l) => lines.value.find(x => Number(x.item_idx) === Number(l.item_idx) && x.status === 'WAIT' && x.sources.length && sameRouting(x, l));
 // 채울 빈 줄 : 저장 전 · 품목 미선택 · 수주 연결 없음 ( 기본으로 만든 줄 ) — 고른 줄이 비었으면 그 줄, 아니면 첫 빈 줄
 const isEmptyLine = (x) => !x.work_order_idx && !x.item_idx && !x.sources.length;
 const emptyLine = () => (lines.value[selected.value] && isEmptyLine(lines.value[selected.value])) ? lines.value[selected.value] : lines.value.find(isEmptyLine);
@@ -203,7 +203,7 @@ async function pickSource(l) {
         const empty = emptyLine();
         const line  = empty ?? newLine();
         try {
-            await applyItemDefaults(line, l.item_idx);
+            await applyItemDefaults(line, l.item_idx, { salesOrderLineIdx: l.sales_order_line_idx });
         } catch (e) {
             errorMsg.value = '품목 정보를 불러오지 못했습니다.';
             return;
@@ -274,7 +274,7 @@ onMounted(async () => {
             if (props.prefill) {
                 line.item_idx   = props.prefill.item_idx;
                 line.target_qty = String(props.prefill.target_qty ?? '');
-                await applyItemDefaults(line, line.item_idx);
+                await applyItemDefaults(line, line.item_idx, { salesOrderLineIdx: props.prefill.sources?.[0]?.sales_order_line_idx });
                 line.sources   = (props.prefill.sources ?? []).map(s => ({ ...s, qty: String(s.qty) }));
                 sheet.due_date = props.prefill.sources?.[0]?.due_date ?? sheet.due_date;
             }

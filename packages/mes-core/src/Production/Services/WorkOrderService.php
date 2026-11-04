@@ -8,7 +8,9 @@ use MesCore\Config\Models\Bom;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Process;
 use MesCore\Config\Models\ProcessEquipment;
+use MesCore\Config\Models\RoutingChangeLog;
 use MesCore\Config\Models\RoutingLine;
+use MesCore\Config\Services\RoutingService;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderMaterial;
@@ -28,13 +30,16 @@ use MesCore\Stock\Services\LotService;
  *   LOT  : 새 지시 · 품목이나 LOT 규칙이 바뀐 대기 지시에 새로 발급 ( 앞 번호는 미사용으로 남긴다 — 결정 §9-7 )
  *   수주 : 연결 표로 분할 · 병합. 남은 지시 수량 초과는 경고만 ( 초과 생산 ). 연결은 바뀐 것만 고친다 ( 병합 이력 유지 )
  *   진행 중 : 날짜 · 공정 기한 · 작업자 · 비고만 ( 수량 · 공정 구성은 잠금 )
+ *   라우팅 3단계 ( docs/라우팅-3단계-설계.md ) : 수주에서 온 지시는 수주 라우팅( ③ ) 공정 — 공정 순서가 다른 수주 줄은 한 지시에 못 담는다
+ *     공정 변경 이력( scope WORK_ORDER ) : 처음 = CREATE + 불러온 라우팅과 다른 점 / 수정 = 바뀐 줄 · 공정 구성 + 표준시간 · 검사만
+ *     투입 지점 : BOM 줄은 품목 라우팅( ② ) 줄을 가리킨다 → 지시 공정의 라우팅 줄 또는 그 원본 줄로 맞춘다
  */
 class WorkOrderService {
 
     // 화면( toForm )이 쓰는 관계
     public const FORM_RELATIONS = ['item', 'lot', 'ops.process', 'materials.childItem', 'sources.salesOrderLine.order', 'sources.creator'];
 
-    public function __construct(private LotService $lots) {}
+    public function __construct(private LotService $lots, private RoutingService $routings) {}
 
     /**
      * 품목 줄 하나 저장. 새 줄은 $sheet( 저장된 지시서 )에 순번을 매겨 붙인다
@@ -119,6 +124,16 @@ class WorkOrderService {
             }
             $sumSrc += (float) $s['qty'];
         }
+        // 공정 순서가 다른 수주 줄은 한 지시에 담지 않는다 ( 수주마다 공정이 다를 수 있다 — 첫 줄 기준 )
+        if (count($sources) > 1) {
+            $keys  = $this->routings->orderLineProcessKeys(array_column($sources, 'sales_order_line_idx'));
+            $first = $keys[$sources[0]['sales_order_line_idx']] ?? '';
+            foreach ($sources as $i => $s) {
+                if ($i > 0 && ($keys[$s['sales_order_line_idx']] ?? '') !== $first && $line = $soLines->get($s['sales_order_line_idx'])) {
+                    $errors["sources.{$i}.qty"] = ["{$line->order->order_no} #{$line->line_no} 는 첫 수주 줄과 공정이 달라 같이 담을 수 없습니다. 따로 지시하세요."];   // E_WO_SOURCE_ROUTING
+                }
+            }
+        }
         if ($sources && abs($sumSrc - (float) $data['target_qty']) > 0.000001) {
             $warnings[] = '수주 연결 수량 합( ' . $this->num($sumSrc) . ' )이 지시 수량과 다릅니다.';   // W_WO_SOURCE_SUM
         }
@@ -148,7 +163,10 @@ class WorkOrderService {
             throw new \LogicException('새 품목 줄은 지시서가 있어야 합니다.');
         }
 
-        $saved = DB::transaction(function () use ($wo, $sheet, $data, $item, $rule, $ops, $routingLines, $sources, $source, $bom, $issued) {
+        // 이력 비교 기준 : 고치기 전 공정 ( 처음이면 불러온 라우팅 )
+        $beforeOps = $wo->exists ? WorkOrderOp::where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get() : null;
+
+        $saved = DB::transaction(function () use ($wo, $sheet, $data, $item, $rule, $ops, $routingLines, $sources, $source, $bom, $issued, $beforeOps) {
             $isNew    = !$wo->exists;
             $newLot   = $isNew || (int) $wo->item_idx !== (int) $item->item_idx || ($rule && (int) $wo->lot_rule_idx !== (int) $rule->lot_rule_idx);
 
@@ -180,6 +198,7 @@ class WorkOrderService {
             $opMap = $this->syncOps($wo, $ops, $routingLines);
             $issued ? $this->remapMaterials($wo, $opMap) : $this->copyMaterials($wo, $bom, $opMap);
             $this->syncSources($wo, $sources);
+            $this->logOps($wo, $beforeOps, $data['routing_idx'] ?? null);
 
             return $wo;
         });
@@ -260,12 +279,37 @@ class WorkOrderService {
 
             $keep[] = $op->work_order_op_idx;
             if ($rl) {
+                // BOM 투입 지점은 품목 라우팅( ② ) 줄 — 수주 라우팅( ③ ) 줄이면 그 원본 줄로도 찾게
                 $map[$rl->routing_line_idx] = $op->work_order_op_idx;
+                if ($rl->source_routing_line_idx) {
+                    $map[$rl->source_routing_line_idx] ??= $op->work_order_op_idx;
+                }
             }
         }
 
         WorkOrderOp::where('work_order_idx', $wo->work_order_idx)->whereNotIn('work_order_op_idx', $keep ?: [0])->delete();
         return $map;
+    }
+
+    // 공정 변경 이력 ( 대기 지시 저장 ) — 처음 : CREATE + 불러온 라우팅과 다른 점 / 수정 : 바뀐 줄
+    private function logOps(WorkOrder $wo, $beforeOps, ?int $routingIdx): void {
+        $tracked = RoutingService::WO_TRACKED;
+        $after   = WorkOrderOp::where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get()->values();
+        $scope   = RoutingChangeLog::SCOPE_WORK_ORDER;
+
+        if ($beforeOps === null) {
+            $base = $routingIdx ? RoutingLine::where('routing_idx', $routingIdx)->orderBy('seq')->get() : collect();
+            $this->routings->logWhole('CREATE', $scope, $wo->work_order_idx, null, null, null, $after->toArray(), $routingIdx);
+            $this->routings->logDiff($scope, $wo->work_order_idx, null,
+                $base->map(fn ($l) => $this->routings->snapshot($l, $l->routing_line_idx, $tracked))->all(),
+                $after->map(fn ($o, $i) => $this->routings->snapshot($o, $o->routing_line_idx, $tracked, $i + 1))->all(),
+                $tracked);
+            return;
+        }
+        $this->routings->logDiff($scope, $wo->work_order_idx, null,
+            $beforeOps->values()->map(fn ($o, $i) => $this->routings->snapshot($o, $o->work_order_op_idx, $tracked, $i + 1))->all(),
+            $after->map(fn ($o, $i) => $this->routings->snapshot($o, $o->work_order_op_idx, $tracked, $i + 1))->all(),
+            $tracked);
     }
 
     // 자재 사본 — 사용 중 BOM 을 지시 수량으로 다시 펼친다. 투입 지점은 같은 라우팅 줄을 가진 지시 공정 ( 없으면 첫 수량 공정 = NULL )

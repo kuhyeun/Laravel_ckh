@@ -38,7 +38,7 @@ class ItemRules {
         'std_subcon_price' => '외주단가',
         'is_use'           => '사용 여부',
         'remark'           => '비고',
-        'routing_idx'      => '기본 라우팅',
+        'routing_idx'      => '라우팅 틀',
     ];
 
     public const MESSAGES = [
@@ -92,8 +92,8 @@ class ItemRules {
             'std_subcon_price' => 'nullable|numeric|min:0|max:9999999999999',
             'is_use'           => 'required|in:Y,N',
             'remark'           => 'nullable|string|max:2000',
-            // 기본 라우팅 : 등록 시점에만 자동 적용되고 이후에는 수동 ( 소급 없음 )
-            'routing_idx'      => 'nullable|integer|exists:routing,routing_idx',
+            // 라우팅 틀( ① ) : 저장하면 품목 전용 라우팅( ② )으로 복사된다 — item.routing_idx 는 ② ( RoutingService::syncItemRouting )
+            'routing_idx'      => ['nullable', 'integer', Rule::exists('routing', 'routing_idx')->where('owner_type', Routing::OWNER_TEMPLATE)],
         ];
     }
 
@@ -124,11 +124,14 @@ class ItemRules {
             throw ValidationException::withMessages(['serial_use' => ['시리얼 번호 기능이 꺼져 있어 켤 수 없습니다.']]);
         }
 
-        // 새로 고르는 라우팅은 사용 중이어야 함 ( 기존 값이 미사용으로 내려간 경우는 유지 허용 )
-        $routingIdx = $v['routing_idx'] ?? null;
-        if ($routingIdx && (int) $routingIdx !== (int) $item->routing_idx
+        // 새로 고르는 틀은 사용 중이어야 함 ( 지금 품목 라우팅의 틀이 미사용으로 내려간 경우는 유지 허용 )
+        $routingIdx  = $v['routing_idx'] ?? null;
+        $currentBase = $item->exists
+            ? Routing::where('owner_type', Routing::OWNER_ITEM)->where('item_idx', $item->item_idx)->value('base_routing_idx')
+            : null;
+        if ($routingIdx && (int) $routingIdx !== (int) $currentBase
             && Routing::where('routing_idx', $routingIdx)->where('is_use', 'N')->exists()) {
-            throw ValidationException::withMessages(['routing_idx' => ['사용 중인 라우팅을 선택하세요.']]);
+            throw ValidationException::withMessages(['routing_idx' => ['사용 중인 라우팅 틀을 선택하세요.']]);
         }
     }
 }

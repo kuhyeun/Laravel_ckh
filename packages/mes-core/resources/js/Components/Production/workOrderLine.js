@@ -6,7 +6,7 @@ let keySeq = 0;
 export const nextKey = () => ++keySeq;
 
 export const blankOp = (extra = {}) => ({
-    _key: nextKey(), work_order_op_idx: null, process_idx: '', routing_line_idx: null, equipment_idx: '', worker_idx: '', due_date: '',
+    _key: nextKey(), work_order_op_idx: null, process_idx: '', routing_line_idx: null, source_routing_line_idx: null, equipment_idx: '', worker_idx: '', due_date: '',
     insp_first: 'N', insp_middle: 'N', insp_last: 'N', ...extra,
 });
 
@@ -30,15 +30,30 @@ export const lineFromServer = (o) => blankLine({
     savedMaterials: o.materials ?? [], savedItem: `${o.item_code} ${o.item_name}`,
 });
 
-// 품목을 고르면 : 기본 라우팅의 공정 · 사용 중 BOM · 회당 상승 기본값 ( 다른 품목의 수주 줄은 뺀다 )
-export async function applyItemDefaults(line, itemIdx, { isNew = true } = {}) {
-    const { data } = await window.axios.get(route('production.workOrder.itemDefaults'), { params: { item_idx: itemIdx } });
+// 품목을 고르면 : 품목 공정( ② ) · 사용 중 BOM · 회당 상승 기본값 ( 다른 품목의 수주 줄은 뺀다 )
+//   수주 줄을 주면 그 줄의 수주 공정( ③ ) — docs/라우팅-3단계-설계.md
+export async function applyItemDefaults(line, itemIdx, { isNew = true, salesOrderLineIdx = null } = {}) {
+    const { data } = await window.axios.get(route('production.workOrder.itemDefaults'), {
+        params: { item_idx: itemIdx, ...(salesOrderLineIdx ? { sales_order_line_idx: salesOrderLineIdx } : {}) },
+    });
     line.routing_idx = data.routing_idx ?? '';
     line.ops         = toOps(data.ops ?? []);
     line.bom         = data.bom;
     if (isNew) line.scan_qty = data.scan_qty ?? 1;
     line.sources = [];
 }
+
+// 수주 줄을 처음 담을 때 : 공정을 그 줄의 수주 공정( ③ )으로 ( BOM · 수량은 그대로 )
+export async function applyOrderRouting(line, salesOrderLineIdx) {
+    const { data } = await window.axios.get(route('production.workOrder.itemDefaults'), {
+        params: { item_idx: line.item_idx, sales_order_line_idx: salesOrderLineIdx },
+    });
+    line.routing_idx = data.routing_idx ?? '';
+    line.ops         = toOps(data.ops ?? []);
+}
+
+// 같은 지시에 담을 수 있는 수주 줄 : 공정 순서( routing_key )가 첫 수주 줄과 같아야 한다
+export const sameRouting = (line, soLine) => !line.sources.length || (line.sources[0].routing_key ?? '') === (soLine.routing_key ?? '');
 
 // 저장 payload 의 줄
 export const linePayload = (l) => ({

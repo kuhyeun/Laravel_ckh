@@ -10,12 +10,18 @@ use MesCore\Config\Models\Partner;
 use MesCore\Order\Models\SalesOrder;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Order\Services\SalesProgressService;
+use MesCore\Auth\Models\User;
+use MesCore\Config\Models\Process;
+use MesCore\Config\Models\Routing;
+use MesCore\Config\Models\RoutingChangeLog;
+use MesCore\Config\Services\RoutingService;
+use MesCore\Production\Models\WorkOrder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 // 수주진행관리 ( SAL-03 · 2002 ) — docs/screens/30-수주.md §10 · 조회만
 //   목록 : 서버 페이징 · 한 행 = 수주 + 줄( _children ). 줄마다 지시 · 자재 · 공정 요약 · 출고검사 · 출하 · 단계
-//   줄 클릭 → 공정 상세 ( detail )
+//   줄 클릭 → 공정 상세 ( detail ) · [공정 비교] ( routingCompare — 품목 공정 → 수주 공정 → 작업지시 공정 + 변경 이력 · docs/라우팅-3단계-설계.md §4.4 )
 class SalesProgressController extends Controller {
     use SearchesKeyword;
     use RespondsWithList;
@@ -24,7 +30,7 @@ class SalesProgressController extends Controller {
 
     private array $progress = [];   // 지금 페이지 줄의 진행 값 ( listResponse 의 prepare 에서 한꺼번에 )
 
-    public function __construct(private SalesProgressService $service) {}
+    public function __construct(private SalesProgressService $service, private RoutingService $routings) {}
 
     public function list(Request $request) {
         $v = $request->validate([
@@ -63,6 +69,71 @@ class SalesProgressController extends Controller {
     public function formData() {
         return response()->json([
             'partners' => Partner::where('is_customer', 'Y')->orderBy('partner_name')->get(['partner_idx', 'partner_name']),
+        ]);
+    }
+
+    // 공정 비교 ( 수주 줄 하나 ) — 맞추기( 같은 공정 · 더함 · 뺌 · 값 다름 )는 화면이 공정 순서로 한다
+    //   item  : 지금 품목 공정( ② — 수주 공정의 원본 ) / order : 수주 공정( ③ ) / work_orders : 이 줄을 담은 지시( 취소 제외 )의 공정
+    //   logs  : 수주 공정 · 그 지시들의 변경 이력 ( 시간순 )
+    public function routingCompare(int $lineIdx) {
+        $line = SalesOrderLine::find($lineIdx);
+        if (!$line) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+
+        $own  = $this->routings->orderLineRouting($lineIdx);
+        $base = $own?->base_routing_idx ? Routing::find($own->base_routing_idx) : null;
+        $row  = fn ($l) => [
+            'process_idx'    => (int) $l->process_idx,
+            'cycle_time_sec' => (float) $l->cycle_time_sec,
+            'insp_first'     => $l->insp_first,
+            'insp_middle'    => $l->insp_middle,
+            'insp_last'      => $l->insp_last,
+        ];
+
+        $wos = WorkOrder::with(['ops' => fn ($q) => $q->orderBy('seq')])
+            ->whereHas('sources', fn ($q) => $q->where('sales_order_line_idx', $lineIdx))
+            ->where('status', '!=', 'CANCELED')
+            ->orderBy('work_order_idx')->get();
+
+        $logs = RoutingChangeLog::where(fn ($q) => $q
+                ->where(fn ($w) => $w->where('scope', RoutingChangeLog::SCOPE_ORDER_LINE)->where('ref_idx', $lineIdx))
+                ->orWhere(fn ($w) => $w->where('scope', RoutingChangeLog::SCOPE_WORK_ORDER)->whereIn('ref_idx', $wos->pluck('work_order_idx'))))
+            ->orderBy('log_idx')->get();
+
+        // 이름표 : 공정 · 사람 · 지시번호
+        $procIdxs = collect([$own?->lines()->pluck('process_idx'), $base?->lines()->pluck('process_idx'), $wos->flatMap->ops->pluck('process_idx'), $logs->pluck('process_idx')])
+            ->flatten()->merge($logs->flatMap(fn ($l) => array_merge(
+                array_column($l->before_json['lines'] ?? [], 'process_idx'), array_column($l->after_json['lines'] ?? [], 'process_idx'))))
+            ->filter()->unique()->values();
+        $people = User::whereIn('account_idx', $logs->pluck('create_account_idx')->unique())->get(['account_idx', 'user_id', 'user_name'])->keyBy('account_idx');
+        $woNos  = $wos->pluck('wo_no', 'work_order_idx');
+
+        return response()->json([
+            'processes'   => Process::whereIn('process_idx', $procIdxs)->pluck('process_name', 'process_idx'),
+            'item'        => $base ? $base->lines()->get()->map($row)->values() : [],
+            'order'       => $own ? $own->lines()->get()->map($row)->values() : [],
+            'modified'    => $own ? $this->routings->differsFromBase($own) : false,
+            'locked'      => $line->directedQty() > 0,
+            'work_orders' => $wos->map(fn (WorkOrder $w) => [
+                'work_order_idx' => $w->work_order_idx,
+                'wo_no'          => $w->wo_no,
+                'status'         => $w->status,
+                'ops'            => $w->ops->map($row)->values(),
+            ])->values(),
+            'logs'        => $logs->map(fn (RoutingChangeLog $l) => [
+                'log_idx'     => $l->log_idx,
+                'at'          => $l->create_datetime?->format('Y-m-d H:i'),
+                'by'          => $l->create_account_idx ? ($people[$l->create_account_idx]?->user_name ?: $people[$l->create_account_idx]?->user_id ?? '') : '( 이관 )',
+                'target'      => $l->scope === RoutingChangeLog::SCOPE_ORDER_LINE ? '수주 공정' : ($woNos[$l->ref_idx] ?? '작업지시'),
+                'scope'       => $l->scope,
+                'action'      => $l->action,
+                'process_idx' => $l->process_idx,
+                'seq_before'  => $l->seq_before,
+                'seq_after'   => $l->seq_after,
+                'before'      => $l->before_json,
+                'after'       => $l->after_json,
+            ])->values(),
         ]);
     }
 

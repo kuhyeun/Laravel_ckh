@@ -5,6 +5,7 @@ namespace MesCore\Config\Imports;
 use MesCore\Basic\Services\Import\ImportHandler;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Routing;
+use MesCore\Config\Services\RoutingService;
 use MesCore\Config\Validation\ItemRules;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Validator;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Validator;
 // 품목 엑셀 일괄 등록 ( 양식 item.import )
 //   기본 정보만 — 주 자재( BOM ) · 정책 덮어쓰기 · 리드타임은 화면에서
 //   검증 · 정리 · 업무 조건은 화면 단건 저장과 같은 ItemRules
+//   라우팅 칸 = 틀( ① ) — 저장하면 품목 전용 라우팅( ② )으로 복사 · 틀이 그대로면 ② 는 손대지 않는다 ( 화면에서 고친 공정 보존 )
 class ItemImport implements ImportHandler {
 
     // 엑셀로 다루는 칸 ( 이 밖의 칸은 수정할 때 건드리지 않는다 )
@@ -37,25 +39,27 @@ class ItemImport implements ImportHandler {
         return Item::where('item_code', $key)->first();
     }
 
-    // 수정 : 기존 값 / 신규 : 화면 등록과 같은 기본값 ( 기본 라우팅 자동 적용 포함 )
+    // 수정 : 기존 값( 라우팅은 품목 라우팅의 틀 ) / 신규 : 화면 등록과 같은 기본값 ( 기본 틀 자동 적용 포함 )
     public function baseData(?Model $existing): array {
         if ($existing) {
-            return $existing->only(self::FIELDS);
+            return array_merge($existing->only(self::FIELDS), [
+                'routing_idx' => app(RoutingService::class)->itemRouting($existing->item_idx)?->base_routing_idx,
+            ]);
         }
         return [
             'serial_use'  => 'N',
             'is_use'      => 'Y',
-            'routing_idx' => Routing::where('is_default', 'Y')->where('is_use', 'Y')->value('routing_idx'),
+            'routing_idx' => Routing::templates()->where('is_default', 'Y')->where('is_use', 'Y')->value('routing_idx'),
         ];
     }
 
-    // 기본 라우팅 : 라우팅코드 또는 라우팅명
+    // 라우팅 틀 : 라우팅코드 또는 라우팅명 ( 틀에서만 찾는다 )
     public function resolveRef(string $ref, string $text): mixed {
         if ($ref !== 'routing') {
             return null;
         }
-        return Routing::where('routing_code', $text)->value('routing_idx')
-            ?? Routing::where('routing_name', $text)->value('routing_idx');
+        return Routing::templates()->where('routing_code', $text)->value('routing_idx')
+            ?? Routing::templates()->where('routing_name', $text)->value('routing_idx');
     }
 
     public function validate(array $data, ?Model $existing, array $attributes): array {
@@ -71,9 +75,11 @@ class ItemImport implements ImportHandler {
     }
 
     public function save(array $validated, ?Model $existing): Model {
-        $item = $existing ?? new Item();
+        $item        = $existing ?? new Item();
+        $templateIdx = $validated['routing_idx'] ?? null;
+        unset($validated['routing_idx']);   // item.routing_idx 는 품목 라우팅( ② ) — 서비스가 맞춘다
         $item->fill($validated)->save();
-        Item::refreshCycleTime([$item->item_idx]);   // 라우팅이 바뀌었을 수 있다
+        app(RoutingService::class)->syncItemRouting($item, $templateIdx ? (int) $templateIdx : null, null);
         return $item;
     }
 }

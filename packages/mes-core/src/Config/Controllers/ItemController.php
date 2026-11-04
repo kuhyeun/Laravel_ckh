@@ -9,6 +9,7 @@ use MesCore\Config\Models\Item;
 use MesCore\Config\Models\LeadTime;
 use MesCore\Basic\Services\PolicyService;
 use MesCore\Config\Models\Routing;
+use MesCore\Config\Services\RoutingService;
 use MesCore\Config\Validation\ItemRules;
 use MesCore\Basic\Services\Import\ExcelImportService;
 use Illuminate\Http\Request;
@@ -21,7 +22,11 @@ use Illuminate\Validation\ValidationException;
 //   탭 4 추가정보 : 정책 덮어쓰기( 입고검사 · 출하검사 · 차감 위치 ) + 리드타임( lead_time 품목 행 )을 품목 저장과 한 트랜잭션으로
 //     덮어쓰기 · 리드타임 저장 권한은 이 화면의 쓰기 권한 ( 정책-설정-설계 §7 )
 //   삭제하지 않는다 → is_use = N 으로 내림 ( ADR 0019 )
+//   공정 탭 : 라우팅 틀( ① )을 골라 공정을 고치면 저장 때 품목 전용 라우팅( ② ) — docs/라우팅-3단계-설계.md
+//     item.routing_idx = ② · 미사용 처리하면 ② 도 미사용
 class ItemController extends Controller {
+
+    public function __construct(private RoutingService $routings) {}
 
     // 대분류별로 품목 단위 덮어쓰기가 의미 있는 정책 ( 자재는 입고 · 소비, 제품은 입고 · 출하 )
     private const POLICY_KEYS_BY_TYPE = [
@@ -33,6 +38,7 @@ class ItemController extends Controller {
     private const EXTRA_ATTRIBUTES = [
         'main_material.child_item_idx' => '주 자재',
         'main_material.qty'            => '주 자재 소요',
+        'routing_lines'                => '공정',
     ];
 
     // 목록 : 검색어( 품번·품명 ) + 대분류 + 사용 여부( Y / N / 전체 )
@@ -89,6 +95,9 @@ class ItemController extends Controller {
                 ->each(function (Item $item) use (&$changed) {
                     $item->is_use = 'N';
                     $item->save();
+                    if ($own = $this->routings->itemRouting($item->item_idx)) {
+                        $this->routings->setUse($own, $item);   // 품목 라우팅도 미사용
+                    }
                     $changed++;
                 });
 
@@ -129,9 +138,11 @@ class ItemController extends Controller {
             'lead_time.produce_days'  => 'nullable|integer|min:0|max:999',
             'lead_time.inspect_days'  => 'nullable|integer|min:0|max:999',
             'lead_time.pack_days'     => 'nullable|integer|min:0|max:999',
-        ], ItemRules::MESSAGES + [
+            // 공정 탭 : 품목 라우팅( ② ) 공정 줄 — 보내지 않으면( null ) 손대지 않음
+            'routing_lines'           => 'nullable|array|max:100',
+        ] + RoutingService::lineRules('routing_lines'), ItemRules::MESSAGES + [
             'main_material.qty.gt' => '주 자재 소요는 0보다 커야 합니다.',
-        ], ItemRules::ATTRIBUTES + self::EXTRA_ATTRIBUTES);
+        ], ItemRules::ATTRIBUTES + self::EXTRA_ATTRIBUTES + RoutingService::lineAttributes('routing_lines'));
 
         // 빈 숫자 → 0, 소재 항목 정리 ( 엑셀 일괄 등록과 같은 규칙 )
         $validated = ItemRules::normalize($validated);
@@ -141,7 +152,10 @@ class ItemController extends Controller {
         $mainMaterial = $isProduct ? ($validated['main_material'] ?? null) : null;
         $policyValues = $validated['policies'] ?? null;
         $leadTime     = $validated['lead_time'] ?? null;
-        unset($validated['main_material'], $validated['policies'], $validated['lead_time']);
+        // 라우팅 : 틀( ① ) + 공정 줄 → 저장 뒤 품목 라우팅( ② ) ( item.routing_idx 는 서비스가 맞춘다 )
+        $templateIdx  = isset($validated['routing_idx']) ? (int) $validated['routing_idx'] : null;
+        $routingLines = $isProduct && isset($validated['routing_lines']) ? array_values($validated['routing_lines']) : null;
+        unset($validated['main_material'], $validated['policies'], $validated['lead_time'], $validated['routing_idx'], $validated['routing_lines']);
 
         $policy = app(PolicyService::class);
 
@@ -158,14 +172,18 @@ class ItemController extends Controller {
             $this->assertMainMaterial($item, $mainMaterial['child_item_idx']);
         }
 
-        try {
-            $warnings = [];
+        // 공정 줄 업무 규칙 ( 검사 · 선행 승인 ) — 공정 없음은 허용( 라우팅 없는 제품 )
+        $warnings = $routingLines !== null
+            ? $this->routings->assertLines($routingLines, $item->exists ? $this->routings->itemRouting($item->item_idx) : null, 'routing_lines', true)
+            : [];
 
-            DB::transaction(function () use ($item, $validated, $isProduct, $mainMaterial, $policyValues, $leadTime, $policy, &$warnings) {
+        try {
+            DB::transaction(function () use ($item, $validated, $isProduct, $mainMaterial, $policyValues, $leadTime, $policy, $templateIdx, $routingLines, &$warnings) {
                 $item->fill($validated)->save();
-                Item::refreshCycleTime([$item->item_idx]);   // 라우팅을 바꿨을 수 있다
+                // 품목 라우팅( ② ) — 제품이 아니면 미사용으로 · 1개 생산 표준시간도 여기서
+                $warnings = array_merge($warnings, $this->routings->syncItemRouting($item, $templateIdx, $routingLines));
                 if ($isProduct) {
-                    $warnings = $this->syncMainMaterial($item, $mainMaterial);
+                    $warnings = array_merge($warnings, $this->syncMainMaterial($item, $mainMaterial));
                 }
 
                 if ($policyValues !== null) {
@@ -219,16 +237,24 @@ class ItemController extends Controller {
         ]);
     }
 
-    // 품목 모달용 : 라우팅 선택지 · 자재 선택지 · 주 자재( BOM ) 현황
+    // 공정 탭 : 고른 틀( ① )의 공정을 "복사할 새 줄"로 ( 틀을 바꾸면 화면이 공정을 갈아 끼운다 )
+    public function routingTemplate(int $routingIdx) {
+        $template = Routing::templates()->find($routingIdx);
+        if (!$template) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        return response()->json(['lines' => $this->routings->copyRows($template)]);
+    }
+
+    // 품목 모달용 : 라우팅 틀 선택지 · 공정 선택지 · 품목 라우팅( ② ) · 자재 선택지 · 주 자재( BOM ) 현황
     //   BOM 줄이 2개 이상이면 주 자재 칸은 읽기 전용 → BOM관리에서 다룬다
     public function formData(Request $request) {
         $validated = $request->validate([
             'item_idx' => 'nullable|integer|exists:item,item_idx',
         ]);
 
-        // 개당 시간 합계 포함 ( 추가정보 탭의 1개 생산 표준시간 — 고른 라우팅 기준으로 바로 보여 준다 )
-        $routings = Routing::select('routing_idx', 'routing_code', 'routing_name', 'is_default')
-            ->withSum('lines', 'cycle_time_sec')
+        // 라우팅 틀( ① )만
+        $routings = Routing::templates()->select('routing_idx', 'routing_code', 'routing_name', 'is_default')
             ->where('is_use', 'Y')
             ->orderByDesc('is_default')
             ->orderBy('routing_code')
@@ -265,6 +291,11 @@ class ItemController extends Controller {
 
         $itemIdx = $validated['item_idx'] ?? null;
         $policy  = app(PolicyService::class);
+        $own     = $itemIdx ? $this->routings->itemRouting((int) $itemIdx) : null;
+        $base    = $own?->base_routing_idx ? Routing::find($own->base_routing_idx) : null;
+
+        // 공정 선택지 ( 라우팅 관리 권한 없이도 — 품목 화면 권한으로 )
+        $processes = $this->routings->processOptions();
         // 리드타임 행 → [ 5구간 일수 …, is_use ] ( 행이 없으면 null )
         $days = function (?LeadTime $l): ?array {
             if (!$l) {
@@ -281,6 +312,15 @@ class ItemController extends Controller {
         return response()->json([
             'routings'            => $routings,
             'default_routing_idx' => $routings->firstWhere('is_default', 'Y')?->routing_idx,
+            'processes'           => $processes,
+            // 품목 라우팅( ② ) : 틀 · 공정 줄 ( 없으면 null — 등록 화면은 기본 틀을 불러온다 )
+            'item_routing'        => $own ? [
+                'routing_idx'      => $own->routing_idx,
+                'base_routing_idx' => $own->base_routing_idx,
+                'base_name'        => $base?->routing_name,
+                'base_is_use'      => $base?->is_use,
+                'lines'            => $this->routings->linesPayload($own),
+            ] : null,
             'materials'           => $materials,
             'bom_line_count'      => $bomLineCount,
             'main_material'       => $mainMaterial,

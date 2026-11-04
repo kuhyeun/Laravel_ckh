@@ -234,7 +234,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor, processKindLabel, isIfl } from '@core/Components/Production/productionCodes';
-import { blankOp, toOps, applyItemDefaults } from '@core/Components/Production/workOrderLine';
+import { blankOp, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
 
 const props = defineProps({
     line:     { type: Object,  required: true },   // 부모의 줄 객체 ( workOrderLine.blankLine )
@@ -275,7 +275,14 @@ const itemOptions = computed(() => {
     if (props.line.item_idx && !opts.some(o => Number(o.value) === Number(props.line.item_idx))) opts.push({ value: props.line.item_idx, label: `${props.line.savedItem} ( 현재 선택 불가 )` });
     return opts;
 });
-const routingOptions = computed(() => [{ value: '', label: '( 없음 )' }, ...props.ctx.routings.map(r => ({ value: r.routing_idx, label: `${r.routing_name} [${r.routing_code}]` }))]);
+// 선택지는 라우팅 틀( ① ) — 불러온 품목 공정( ② ) · 수주 공정( ③ )은 틀 목록에 없으므로 따로 보인다 ( docs/라우팅-3단계-설계.md )
+const routingOptions = computed(() => {
+    const opts = [{ value: '', label: '( 없음 )' }, ...props.ctx.routings.map(r => ({ value: r.routing_idx, label: `${r.routing_name} [${r.routing_code}]` }))];
+    if (props.line.routing_idx && !opts.some(o => Number(o.value) === Number(props.line.routing_idx))) {
+        opts.splice(1, 0, { value: props.line.routing_idx, label: props.line.sources.length ? '수주 공정' : '품목 공정' });
+    }
+    return opts;
+});
 const ruleOptions    = computed(() => props.ctx.lot.rules.map(r => ({ value: r.lot_rule_idx, label: `${r.lot_rule_name} ( ${r.rule_type === 'PRODUCE_END' ? '종료일' : '생산일'} )` })));
 const processOptions = computed(() => props.ctx.processes.map(p => ({ value: p.process_idx, label: `${p.process_name} [${p.process_code}]` })));
 const workerOptions  = computed(() => [{ value: '', label: '—' }, ...props.ctx.workers.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id }))]);
@@ -298,7 +305,8 @@ function inputOpLabel(m) {
     const ops = props.line.ops;
     const i = m.work_order_op_idx
         ? ops.findIndex(o => Number(o.work_order_op_idx) === Number(m.work_order_op_idx))
-        : ops.findIndex(o => m.routing_line_idx && Number(o.routing_line_idx) === Number(m.routing_line_idx));
+        // BOM 은 품목 공정( ② ) 줄을 가리킨다 — 수주 공정( ③ ) 줄이면 그 원본 줄로
+        : ops.findIndex(o => m.routing_line_idx && (Number(o.routing_line_idx) === Number(m.routing_line_idx) || Number(o.source_routing_line_idx) === Number(m.routing_line_idx)));
     if (i < 0) return '첫 수량 공정';
     return `${String((i + 1) * 10).padStart(3, '0')} ${procOf(ops[i])?.process_name ?? ''}`;
 }
@@ -343,7 +351,8 @@ async function onRoutingChange(v) {
 
 // ---- 수주 연결 ( 같은 품목 ) ----
 const picker = reactive({ open: false, loading: false, lines: [] });
-const pickable = computed(() => picker.lines.filter(l => !props.line.sources.some(s => s.sales_order_line_idx === l.sales_order_line_idx)));
+// 공정 순서가 첫 수주 줄과 다른 줄은 담지 않는다 ( 따로 지시 )
+const pickable = computed(() => picker.lines.filter(l => !props.line.sources.some(s => s.sales_order_line_idx === l.sales_order_line_idx) && sameRouting(props.line, l)));
 const sourceSum = computed(() => props.line.sources.reduce((s, x) => s + num(x.qty), 0));
 async function togglePicker() {
     if (picker.open) { picker.open = false; return; }
@@ -355,7 +364,18 @@ async function togglePicker() {
         picker.loading = false;
     }
 }
-function addSource(l) {
+async function addSource(l) {
+    // 처음 담는 수주 줄 : 공정을 그 줄의 수주 공정으로 ( 대기 · 공정 구성을 바꿀 수 있을 때 )
+    if (!props.line.sources.length && structEditable.value) {
+        const r = await showAlert('수주 줄 담기', '공정 탭을 이 수주 줄의 공정으로 다시 채웁니다. 지금 공정 구성은 사라집니다.', 'question', 'confirm');
+        if (!r.isConfirmed) return;
+        try {
+            await applyOrderRouting(props.line, l.sales_order_line_idx);
+        } catch (e) {
+            showAlert('수주 줄 담기', '수주 공정을 불러오지 못했습니다.', 'error');
+            return;
+        }
+    }
     props.line.sources.push({ ...l, qty: String(l.remaining) });
     picker.open = false;
 }

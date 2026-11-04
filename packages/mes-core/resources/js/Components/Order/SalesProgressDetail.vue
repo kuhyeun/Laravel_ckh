@@ -1,13 +1,25 @@
 <!-- 수주 진행 — 공정 상세 ( 2002 수주진행관리의 줄 클릭 ) — docs/screens/30-수주.md §10
      - 위 : 수주 줄 요약 + 단계 흐름( 지시 → 자재 출고 → 생산 → 출고검사 → 출하 )
      - 작업지시마다 공정 표( 상태 · 시작 · 완료 · 수량 · 미달 · 검사 ) · 자재 표 / 아래 : 출하 내역
-     - 조회만 — 처리는 각 메뉴에서 -->
+     - 조회만 — 처리는 각 메뉴에서
+     - [공정 비교] 탭 : 품목 공정 → 수주 공정 → 작업지시 공정 + 변경 이력 ( RoutingCompare — 탭을 처음 열 때 불러온다 ) -->
 <template>
     <div class="mt-3 text-sm">
         <p v-if="loading" class="py-8 text-center text-gray-400">불러오는 중...</p>
         <p v-else-if="errorMsg" class="py-8 text-center text-red-500">{{ errorMsg }}</p>
 
         <template v-else-if="line">
+            <!-- 탭 -->
+            <div class="flex gap-1 border-b mb-3">
+                <button v-for="t in TABS" :key="t.key" type="button"
+                    class="px-3 py-1.5 -mb-px border-b-2 text-sm transition-colors"
+                    :class="tab === t.key ? 'border-blue-600 text-blue-700 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    @click="openTab(t.key)">{{ t.label }}</button>
+            </div>
+
+            <RoutingCompare v-if="opened.routing" v-show="tab === 'routing'" :line-idx="lineIdx" />
+
+            <div v-show="tab === 'progress'">
             <!-- 요약 -->
             <div class="grid grid-cols-4 gap-x-4 gap-y-1.5 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/70">
                 <div><span class="text-xs text-gray-500">수주</span><p>{{ line.order_no }} - {{ line.line_no }}</p></div>
@@ -110,6 +122,7 @@
                     </tbody>
                 </table>
             </div>
+            </div>
         </template>
 
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
@@ -119,9 +132,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import RoutingCompare from '@core/Components/Order/RoutingCompare.vue';
 import { fmtNum, fmtQty } from '@core/Utils/format';
 import { STATUS_COLOR } from '@core/Utils/colors';
 import { progressLabel, progressColor } from '@core/Components/Order/orderCodes';
@@ -136,6 +150,15 @@ defineEmits(['close']);
 const RESULT_NAMES = { PASS: '합격', FAIL: '불합격', PARTIAL: '일부 불합격' };
 const STAGE_NAMES  = { FIRST: '초물', MIDDLE: '중물', LAST: '종물' };
 const resultColor  = (r) => ({ PASS: STATUS_COLOR.done, FAIL: STATUS_COLOR.bad, PARTIAL: STATUS_COLOR.attention }[r] ?? STATUS_COLOR.off);
+
+// 탭 : 진행 / 공정 비교 ( 공정 비교는 처음 열 때 불러온다 )
+const TABS   = [{ key: 'progress', label: '진행' }, { key: 'routing', label: '공정 비교' }];
+const tab    = ref('progress');
+const opened = reactive({ routing: false });
+function openTab(key) {
+    tab.value = key;
+    opened[key] = true;
+}
 
 const loading    = ref(true);
 const errorMsg   = ref('');

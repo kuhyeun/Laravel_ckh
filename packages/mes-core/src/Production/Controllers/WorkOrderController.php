@@ -11,6 +11,7 @@ use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Process;
 use MesCore\Config\Models\Routing;
 use MesCore\Config\Models\RoutingLine;
+use MesCore\Config\Services\RoutingService;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderOp;
@@ -54,7 +55,7 @@ class WorkOrderController extends Controller {
 
     private const SORTABLE = ['sheet_no', 'start_date', 'due_date'];
 
-    public function __construct(private WorkOrderService $orders, private WorkOrderSheetService $sheets, private LotService $lots) {}
+    public function __construct(private WorkOrderService $orders, private WorkOrderSheetService $sheets, private LotService $lots, private RoutingService $routingSvc) {}
 
     // 목록 : 지시서 행 + 품목 줄( 펼침 ). 기간( 착수 예정 / 생산 기한 ) + 검색어( 지시번호 · 품번 · 품명 · LOT · 수주번호 ) + 출처 + 상태
     //   검색어 · 출처는 그 품목 줄이 든 지시서를 찾는다
@@ -134,7 +135,7 @@ class WorkOrderController extends Controller {
 
         return response()->json([
             'items'     => $items,
-            'routings'  => Routing::where('is_use', 'Y')->orderBy('routing_code')->get(['routing_idx', 'routing_code', 'routing_name', 'is_default']),
+            'routings'  => Routing::templates()->where('is_use', 'Y')->orderBy('routing_code')->get(['routing_idx', 'routing_code', 'routing_name', 'is_default']),
             'processes' => $processes,
             'lot'       => [
                 'enabled' => $this->lots->enabled(),
@@ -155,16 +156,19 @@ class WorkOrderController extends Controller {
         return response()->json(['ops' => $this->opsFromRouting($routingIdx)]);
     }
 
-    // 품목을 고르면 : 기본 라우팅 공정 · 사용 중 BOM 자재( 현재고 ) · 회당 상승 기본값
+    // 품목을 고르면 : 품목 라우팅( ② ) 공정 · 사용 중 BOM 자재( 현재고 ) · 회당 상승 기본값
+    //   수주 줄을 주면 그 줄의 수주 라우팅( ③ ) 공정 ( docs/라우팅-3단계-설계.md )
     public function itemDefaults(Request $request) {
-        $v = $request->validate(['item_idx' => 'required|integer', 'qty' => 'nullable|numeric|min:0']);
+        $v = $request->validate(['item_idx' => 'required|integer', 'qty' => 'nullable|numeric|min:0', 'sales_order_line_idx' => 'nullable|integer']);
         $item = Item::find($v['item_idx']);
         if (!$item) {
             return response()->json(['message' => 'NotFound'], 404);
         }
+        $orderRouting = !empty($v['sales_order_line_idx']) ? $this->routingSvc->orderLineRouting((int) $v['sales_order_line_idx']) : null;
+        $routingIdx   = $orderRouting?->routing_idx ?? $item->routing_idx;
         return response()->json([
-            'routing_idx' => $item->routing_idx,
-            'ops'         => $item->routing_idx ? $this->opsFromRouting((int) $item->routing_idx) : [],
+            'routing_idx' => $routingIdx,
+            'ops'         => $routingIdx ? $this->opsFromRouting((int) $routingIdx) : [],
             'bom'         => $this->bomPreview($item->item_idx),
             'scan_qty'    => (float) ($item->pack_qty ?: 1),
         ]);
@@ -328,6 +332,7 @@ class WorkOrderController extends Controller {
                 return [
                     'process_idx'      => $l->process_idx,
                     'routing_line_idx' => $l->routing_line_idx,
+                    'source_routing_line_idx' => $l->source_routing_line_idx,   // 수주 공정이면 품목 공정 줄 ( BOM 투입 지점 미리보기 )
                     'equipment_idx'    => $default?->equipment_idx,
                     'cycle_time_sec'   => (float) $l->cycle_time_sec,
                     'insp_first'       => $l->insp_first,
@@ -374,6 +379,8 @@ class WorkOrderController extends Controller {
             'due_date'             => $l->due_date?->toDateString(),
             'qty'                  => (float) $l->qty,
             'remaining'            => $this->orders->remainingQty($l, $exceptWo),
+            // 수주 공정 순서 — 같은 지시에는 이것이 같은 줄끼리만 담는다
+            'routing_key'          => $this->routingSvc->orderLineProcessKeys([$l->sales_order_line_idx])[$l->sales_order_line_idx] ?? '',
         ];
     }
 
@@ -406,6 +413,7 @@ class WorkOrderController extends Controller {
                 'seq'               => $o->seq,
                 'process_idx'       => $o->process_idx,
                 'routing_line_idx'  => $o->routing_line_idx,
+                'source_routing_line_idx' => $o->routing_line_idx ? RoutingLine::whereKey($o->routing_line_idx)->value('source_routing_line_idx') : null,
                 'equipment_idx'     => $o->equipment_idx,
                 'worker_idx'        => $o->worker_idx,
                 'cycle_time_sec'    => (float) $o->cycle_time_sec,
