@@ -45,7 +45,7 @@ class RoutingController extends Controller {
                                        ->orWhere('routing_name', 'like', "%{$keyword}%"));
             })
             ->when($validated['is_use'] ?? null, fn ($q, $isUse) => $q->where('is_use', $isUse))
-            ->orderByDesc('is_default')
+            ->orderByRaw("is_default = 'Y' DESC")   // enum( 'Y','N' ) 은 orderByDesc 가 N 을 앞에 둔다
             ->orderBy('routing_code')
             ->get()
             ->map(fn (Routing $r) => array_merge(

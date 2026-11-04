@@ -98,8 +98,35 @@ class Item extends Model {
         ];
     }
 
-    // 등록자/수정자 자동 채움 ( Auth 없으면 0 = 시스템 )
+    // 품목 고르기( ItemPicker )의 선택지 칸 — 품목을 고르는 화면은 모두 forPicker() 로 이 칸을 내려 준다
+    //   표시 · 찾기 규칙이 바뀌면 여기와 ItemPicker 만 고친다 ( 화면마다 칸 목록을 따로 적지 않는다 )
+    public const PICKER_COLUMNS = ['item_idx', 'item_code', 'item_name', 'spec', 'material', 'spec_unit', 'item_type', 'item_kind', 'is_use'];
+
+    // 선택지 칸 + 그 화면에만 필요한 칸( 단가 · 포장 수량 등 )
+    public function scopeForPicker(\Illuminate\Database\Eloquent\Builder $query, array $extra = []): \Illuminate\Database\Eloquent\Builder {
+        return $query->select(array_values(array_unique(array_merge(self::PICKER_COLUMNS, $extra))));
+    }
+
+    // 선택지 한 줄 ( 새로 등록한 품목을 화면 선택지에 더할 때 )
+    public function pickerRow(): array {
+        return $this->only(self::PICKER_COLUMNS);
+    }
+
+    /**
+     * 규격 비교 값 — 품번 + 이 값이 유일 ( docs/품목-규격구분-설계.md )
+     *   공백( 앞뒤 · 가운데 ) 무시 · 대소문자 무시 · x / X / × 같게 → "100 x 10" = "100X10" = "100×10"
+     */
+    public static function specKey(?string $spec): string {
+        $s = preg_replace('/\s+/u', '', (string) $spec);
+        $s = mb_strtoupper(str_replace(['×', 'x'], 'X', $s));
+        return mb_substr($s, 0, 100);
+    }
+
+    // 등록자/수정자 자동 채움 ( Auth 없으면 0 = 시스템 ) · 규격 비교 값
     protected static function booted(): void {
+        static::saving(function (self $m) {
+            $m->spec_key = self::specKey($m->spec);
+        });
         static::creating(function (self $m) {
             if (empty($m->create_account_idx)) {
                 $m->create_account_idx = Auth::id() ?? 0;

@@ -294,7 +294,9 @@ class OpResultService {
 
     // 덜 나간 자재 : 출고 계획의 남은 소요 > 0, 또는 한 번도 출고 안 함 ( 계산이 안 된 자재 ) → "품번 남음 n 단위"
     private function unissued(WorkOrder $wo): array {
+        // 주 자재 행만 ( 대체 자재로 채운 몫은 주 자재의 issued_qty · need_qty 에 환산돼 있다 )
         return collect($this->materials->plan($wo))
+            ->filter(fn ($m) => empty($m['substitute_of_idx']))
             ->filter(fn ($m) => $m['need_qty'] > self::EPS || $m['issued_qty'] <= self::EPS)
             ->map(fn ($m) => $m['issued_qty'] <= self::EPS ? "{$m['item_code']} 미출고" : "{$m['item_code']} 남음 {$this->num($m['need_qty'])}" . ($m['result_kind'] === 'SPEC_COUNT' ? '개' : ($m['spec_unit'] ? " {$m['spec_unit']}" : '')))
             ->values()->all();

@@ -23,6 +23,7 @@ Route::prefix('order')->name('order.')->middleware([UserAuth::class])->group(fun
             Route::get('/show/{orderIdx}', [SalesOrderController::class, 'show'])->whereNumber('orderIdx')->name('show');
             Route::get('/formData', [SalesOrderController::class, 'formData'])->name('formData');
             Route::get('/itemRouting/{itemIdx}', [SalesOrderController::class, 'itemRouting'])->whereNumber('itemIdx')->name('itemRouting');
+            Route::get('/itemBom/{itemIdx}', [SalesOrderController::class, 'itemBom'])->whereNumber('itemIdx')->name('itemBom');
         });
 
         Route::middleware($write)->group(function() {

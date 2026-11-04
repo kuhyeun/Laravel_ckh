@@ -18,8 +18,8 @@
                 <span v-if="leadTime.item_is_use === 'N'" class="ml-1 text-xs text-gray-400">( 미사용 품목 )</span>
             </p>
             <template v-else>
-                <BaseSelect v-model="form.item_idx" :options="itemOptions" class="w-full" placeholder="품목 선택" :disabled="!canWrite" />
-                <p v-if="!itemLoading && !itemOptions.length" class="text-xs text-amber-600 mt-0.5">리드타임을 새로 등록할 수 있는 품목이 없습니다.</p>
+                <ItemPicker v-model="form.item_idx" :options="pickable" size="md" show-type :disabled="!canWrite" />
+                <p v-if="!itemLoading && !pickable.length" class="text-xs text-amber-600 mt-0.5">리드타임을 새로 등록할 수 있는 품목이 없습니다.</p>
             </template>
             <p v-if="errors.item_idx" class="text-xs text-red-500 mt-0.5">{{ errors.item_idx[0] }}</p>
         </div>
@@ -70,9 +70,9 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 
 const props = defineProps({
     leadTime: { type: Object,   default: null },   // lead_time_idx 있으면 수정 / is_default = Y 면 기본값 행
@@ -107,11 +107,7 @@ const total = computed(() => STAGES.reduce((sum, s) => sum + (Number(form[s.key]
 // ---- 품목 선택지 ( 등록일 때만. 이미 행이 있는 품목은 제외 ) ----
 const items       = ref([]);
 const itemLoading = ref(false);
-const itemOptions = computed(() =>
-    items.value
-        .filter(i => !i.has_lead_time)
-        .map(i => ({ value: i.item_idx, label: `${i.item_name} [${i.item_code}] · ${i.item_type === 'MATERIAL' ? '자재' : '제품'}` }))
-);
+const pickable = computed(() => items.value.filter(i => !i.has_lead_time));
 
 onMounted(async () => {
     if (isEdit.value || isDefault.value) return;

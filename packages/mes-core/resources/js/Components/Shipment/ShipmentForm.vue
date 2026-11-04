@@ -39,7 +39,7 @@
                 </div>
                 <div class="col-span-2">
                     <label class="block text-gray-500 font-medium mb-1">고객사 <span class="text-red-500">*</span></label>
-                    <BaseSelect v-model="form.partner_idx" :options="partnerOptions" class="w-full" placeholder="고객사 선택" :disabled="!editable || lines.some(l => l.sales_order_line_idx)" />
+                    <PartnerSelect v-model="form.partner_idx" :options="ctx.partners" class="w-full" placeholder="고객사 선택" :current="{ partner_name: form.partner_name }" :disabled="!editable || lines.some(l => l.sales_order_line_idx)" />
                     <p v-if="errors.partner_idx" class="text-xs text-red-500 mt-0.5">{{ errors.partner_idx[0] }}</p>
                 </div>
                 <div>
@@ -61,7 +61,7 @@
                 <div class="flex-1"></div>
                 <template v-if="editable">
                     <BaseButton variant="secondary" :disabled="!form.partner_idx" @click="togglePicker">+ 수주 줄</BaseButton>
-                    <BaseSelect v-model="addItemIdx" :options="itemOptions" size="sm" class="w-48" placeholder="+ 품목 ( 수주 없이 )" @update:modelValue="addItemLine" />
+                    <ItemPicker v-model="addItemIdx" :options="ctx.items" class="w-56" placeholder="+ 품목 ( 수주 없이 )" @update:model-value="addItemLine" />
                 </template>
             </div>
 
@@ -177,17 +177,18 @@ import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { showAlert } from '@core/Utils/message';
 import { failMsg } from '@core/Composables/useFlash';
-import { fmtNum } from '@core/Utils/format';
+import { fmtNum, withSpec } from '@core/Utils/format';
 import { stageLabel, stageColor, inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
 import InvoicePreview from '@core/Components/Shipment/InvoicePreview.vue';
 import ShippingInspectionForm from '@core/Components/Quality/ShippingInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import LabelIssueForm from '@core/Components/Label/LabelIssueForm.vue';
 import { useLabelAccess } from '@core/Composables/useLabelAccess';
+import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 
 const props = defineProps({
     shipmentIdx: { type: Number, default: null },
@@ -219,8 +220,6 @@ const label = useLabelAccess();
 const editable = computed(() => props.canWrite && (!form.shipment_idx || (form.status === 'WAIT' && form.approval_status !== 'PENDING')));
 // 아직 나가지 않은 건 ( 신규 · 출하대기 ) — 가용 · 수주 남은 수량 경고는 여기서만 ( 완료 건은 이미 재고 · 출하 수량에 반영돼 0 과 비교하게 된다 )
 const pending  = computed(() => !form.shipment_idx || form.status === 'WAIT');
-const partnerOptions = computed(() => ctx.partners.map(p => ({ value: p.partner_idx, label: p.partner_name })));
-const itemOptions    = computed(() => ctx.items.map(it => ({ value: it.item_idx, label: `${it.item_code} ${it.item_name}` })));
 
 // 단계 표시 : 출하대기 → ( 결재 ) → ( 검사 ) → 출하처리
 const steps = computed(() => {
@@ -291,7 +290,7 @@ async function togglePicker() {
 }
 async function addSoLine(p) {
     const l = blankLine({
-        sales_order_line_idx: p.sales_order_line_idx, item_idx: p.item_idx, item_label: `${p.item_code} ${p.item_name}`, spec_unit: p.spec_unit,
+        sales_order_line_idx: p.sales_order_line_idx, item_idx: p.item_idx, item_label: withSpec(`${p.item_code} ${p.item_name}`, p.item_spec ?? p.spec), spec_unit: p.spec_unit,
         order_label: `${p.order_no} #${p.line_no}`, due_date: p.due_date, so_remaining: p.remaining,
         unit_price: p.unit_price === null || p.unit_price === undefined ? '' : String(p.unit_price),
     });
@@ -305,7 +304,7 @@ async function addItemLine(v) {
     const it = ctx.items.find(x => Number(x.item_idx) === Number(v));
     addItemIdx.value = '';
     if (!it) return;
-    const l = blankLine({ item_idx: it.item_idx, item_label: `${it.item_code} ${it.item_name}`, spec_unit: it.spec_unit,
+    const l = blankLine({ item_idx: it.item_idx, item_label: withSpec(`${it.item_code} ${it.item_name}`, it.spec), spec_unit: it.spec_unit,
                           unit_price: it.std_sale_price === null || it.std_sale_price === undefined ? '' : String(it.std_sale_price) });
     lines.value.push(l);
     await loadCands(l);

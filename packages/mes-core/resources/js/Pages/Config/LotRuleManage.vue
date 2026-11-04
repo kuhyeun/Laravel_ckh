@@ -229,17 +229,18 @@ const TYPE_BADGE = {
 const TYPE_FILTER_OPTIONS = [{ value: '', label: '기준 전체' }, ...TYPE_OPTIONS.map(t => ({ value: t.value, label: t.label }))];
 
 const ELEMENT_LABEL = {
-    TEXT: '고정 문자', ITEM_CD: '품목코드', DATE: '날짜', SEQ: '순번', LOT_NO: 'LOT번호',
+    TEXT: '고정 문자', ITEM_CD: '품목코드', SPEC: '규격', DATE: '날짜', SEQ: '순번', LOT_NO: 'LOT번호',
     PARTNER: '거래처', PLANT: '생산공장', LINE: '생산라인', SHIFT: '교대조',
 };
 const ELEMENT_HINT = {
     ITEM_CD: '발행하는 품목의 품번',
+    SPEC:    '품목 규격 ( 바코드에 맞게 글자 · 숫자 · . · - 만 — Φ10×1000 → 10X1000 · 규격 없으면 빠짐 )',
     LOT_NO:  '출하 : 제품 LOT / 시리얼 : 생산 LOT',
     PLANT:   '발행 시점의 생산공장',
     LINE:    '발행 시점의 생산라인',
     SHIFT:   '발행 시점의 교대조',
 };
-const SINGLE_ELEMENTS = ['ITEM_CD', 'DATE', 'SEQ', 'LOT_NO', 'PARTNER', 'PLANT', 'LINE', 'SHIFT'];
+const SINGLE_ELEMENTS = ['ITEM_CD', 'SPEC', 'DATE', 'SEQ', 'LOT_NO', 'PARTNER', 'PLANT', 'LINE', 'SHIFT'];
 const PARTNER_TYPES   = ['MATERIAL', 'SHIPPING'];
 const LOT_NO_TYPES    = ['SHIPPING', 'SERIAL'];
 const MIN_SEQ_DIGITS  = { YY: 4, YYMM: 3, YYMMDD: 2, NONE: 6 };
@@ -291,12 +292,13 @@ const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 const now = new Date();
 const pad = (n, w = 2) => String(n).padStart(w, '0');
 const YY = pad(now.getFullYear() % 100), MM = pad(now.getMonth() + 1), DD = pad(now.getDate());
-const SAMPLE = { item_code: 'PN-A', lot_no: `L-${YY}${MM}-001`, partner_code: 'PT0012', plant: 'P1', line: 'L01', shift: 'A' };
+const SAMPLE = { item_code: 'PN-A', spec: '10X1000', lot_no: `L-${YY}${MM}-001`, partner_code: 'PT0012', plant: 'P1', line: 'L01', shift: 'A' };
 
 function renderElement(el, withPartner) {
     switch (el.type) {
         case 'TEXT':    return String(el.value ?? '').trim().toUpperCase();
         case 'ITEM_CD': return SAMPLE.item_code;
+        case 'SPEC':    return SAMPLE.spec;
         case 'DATE':    return { YY, YYMM: YY + MM, YYMMDD: YY + MM + DD }[el.unit] ?? '';
         case 'SEQ':     return '1'.padStart(Math.max(1, Number(el.digits) || 1), '0');
         case 'LOT_NO':  return SAMPLE.lot_no;

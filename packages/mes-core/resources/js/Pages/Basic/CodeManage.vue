@@ -319,6 +319,12 @@ async function saveCode() {
         return;
     }
 
+    // 규격 그룹( SPEC ) : 코드키는 서버가 규격 비교 값으로 정한다 → 비어 있으면 코드명으로 채워 필수 검사를 통과시킨다
+    rows.filter(r => r.system_code_group_key === 'SPEC' && !r.system_code_key && r.system_code_name).forEach(r => {
+        g.setValue(r.rowKey, 'system_code_key', r.system_code_name);
+        r.system_code_key = r.system_code_name;
+    });
+
     // 필수값( validation.required ) 클라이언트 검사 → 첫 오류 셀로 포커스
     const invalid = g.validate().filter(v => rows.some(r => r.rowKey === v.rowKey));
     if (invalid.length) {

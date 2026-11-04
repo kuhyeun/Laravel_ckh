@@ -4,7 +4,7 @@
             <button id="sidebar-toggle" class="p-1 mr-2 border border-transparent rounded-md box-border hover:border-black" @click="toggleSidebar">
                 <Bars3BottomLeftIcon class="h-5 w-5" />
             </button>
-            <h1 class="top-frame-title">Laravel_CKH</h1>
+            <h1 class="top-frame-title">{{ page.props.appName }}</h1>
         </div>
         <!-- 화면 제목 = 지금 메뉴 이름 ( 화면마다 두던 제목 줄의 h2 대신 ) — 본문 왼쪽 끝과 같은 x 에 -->
         <h2 v-if="pageTitle" class="top-page-title text-lg tracking-tight text-gray-800 truncate">{{ pageTitle }}</h2>

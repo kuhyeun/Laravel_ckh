@@ -119,6 +119,10 @@ class CodeController extends Controller {
 
         foreach ($rows as $i => $row) {
             $idx = $row['system_code_idx'] ?? null;
+            // 규격 그룹 : 코드키 = 규격 비교 값( 공백 · 대소문자 · x/× 무시 ) — 같은 규격을 두 번 등록하지 못하게 ( 품목 규격과 같은 기준 )
+            if (($row['system_code_group_key'] ?? null) === \MesCore\Config\Services\SpecCodeService::GROUP && filled($row['system_code_name'] ?? null)) {
+                $row['system_code_key'] = \MesCore\Config\Models\Item::specKey($row['system_code_name']);
+            }
 
             $validator = Validator::make($row, [
                 'system_code_idx'       => 'nullable|integer|exists:system_code,system_code_idx',

@@ -130,6 +130,7 @@ import WorkOrderLinePanel from '@core/Components/Production/WorkOrderLinePanel.v
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import { blankLine, lineFromServer, applyItemDefaults, linePayload, sameRouting } from '@core/Components/Production/workOrderLine';
+import { withSpec } from '@core/Utils/format';
 
 const props = defineProps({
     order:     { type: Object,   default: null },   // { sheet_idx, work_order_idx? } — 있으면 수정 ( work_order_idx 는 처음 고를 줄 )
@@ -159,7 +160,7 @@ const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v)
 const fmt = (v) => num(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const itemLabel = (l) => {
     const it = ctx.items.find(i => Number(i.item_idx) === Number(l.item_idx));
-    return it ? `${it.item_code} ${it.item_name}` : (l.item_idx ? l.savedItem : '');
+    return it ? withSpec(`${it.item_code} ${it.item_name}`, it.spec) : (l.item_idx ? l.savedItem : '');
 };
 const lineLabel = (l) => `${String(lines.value.indexOf(l) + 1).padStart(2, '0')} ${itemLabel(l)}`;
 

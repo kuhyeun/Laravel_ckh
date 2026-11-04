@@ -34,6 +34,11 @@ use MesCore\Stock\Services\StockService;
  *   returnCancel()    : 반납 취소 = 역분개. 그 LOT · 창고에 반납 수량만큼 재고가 남아 있을 때
  *
  *   계산 경고는 막지 않는다 ( W_* ). 한 LOT 의 잔고보다 많이 내는 것만 막는다 ( 그 조각이 없다 — §17-5 )
+ *
+ *   대체 자재 ( docs/대체자재-수주자재-설계.md §5.4 ) : 지시 자재의 대체 행( substitute_of_idx )도 같은 기계로 출고 · 보유 · 사용처리 · 반납
+ *     plan() 은 주 자재 행 바로 뒤에 그 대체 행을 붙인다 — 대체 행은 후보 LOT 만 보이고 채우지 않는다( 자동 채움은 주 자재만 )
+ *     채운 정도( 주 자재 기준 ) = 주 자재 출고 + Σ 대체 출고 × ( 주 소요 ÷ 대체 소요 ) → 주 자재의 남은 소요 · 자동 채움도 이것으로
+ *     대체 행의 남은 소요 = 주 자재의 남은 소요를 대체 자재 기준으로 바꾼 값 ( 주 남음 × 대체 소요 ÷ 주 소요 )
  */
 class MaterialIssueService {
 
@@ -51,126 +56,154 @@ class MaterialIssueService {
     // ---- 소요 계산 ----
 
     public function plan(WorkOrder $wo): array {
-        $wo->loadMissing(['item', 'ops.process', 'materials.childItem']);
+        $wo->loadMissing(['item', 'ops.process', 'materials.childItem', 'materials.substitutes.childItem']);
 
-        $ops       = $wo->ops->keyBy('work_order_op_idx');
-        $firstOp   = $this->firstQtyOp($wo->ops);
-        $equips    = ProcessEquipment::with('equipment')->whereIn('process_idx', $wo->ops->pluck('process_idx'))->get()->groupBy('process_idx');
-        $defs      = CalcDef::where('is_use', 'Y')->get()->keyBy('calc_code');
-        $itemIdxs  = $wo->materials->pluck('child_item_idx')->unique()->values();
-        $lots      = $this->candidates($itemIdxs);
-        $held      = $this->heldByItem($wo->work_order_idx);
+        $itemIdxs = $wo->materials->pluck('child_item_idx')
+            ->merge($wo->materials->flatMap(fn ($m) => $m->substitutes->pluck('child_item_idx')))->unique()->values();
+        $ctx = [
+            'ops'     => $wo->ops->keyBy('work_order_op_idx'),
+            'firstOp' => $this->firstQtyOp($wo->ops),
+            'equips'  => ProcessEquipment::with('equipment')->whereIn('process_idx', $wo->ops->pluck('process_idx'))->get()->groupBy('process_idx'),
+            'defs'    => CalcDef::where('is_use', 'Y')->get()->keyBy('calc_code'),
+            'lots'    => $this->candidates($itemIdxs),
+            'held'    => $this->heldByItem($wo->work_order_idx),
+        ];
+        $net = fn (WorkOrderMaterial $m) => (float) $m->issued_qty - (float) $m->returned_qty;   // 반납한 몫은 다시 필요하다
 
-        return $wo->materials->map(function (WorkOrderMaterial $m) use ($wo, $ops, $firstOp, $equips, $defs, $lots, $held) {
-            $item     = $m->childItem;
-            $warnings = [];
+        $rows = [];
+        foreach ($wo->materials as $m) {
+            // 주 자재 : 채운 정도 = 자기 출고 + 대체 출고 환산 ( 주 소요 ÷ 대체 소요 )
+            $ratio   = fn (WorkOrderMaterial $s) => (float) $s->qty_per > 0 ? (float) $m->qty_per / (float) $s->qty_per : 0.0;
+            $equiv   = $m->substitutes->sum(fn ($s) => $net($s) * $ratio($s));
+            $main    = $this->planRow($m, $wo, $ctx, $net($m) + $equiv, true, null);
+            $main   += ['substitute_of_idx' => null, 'own_issued_qty' => $net($m), 'substitute_issued_equiv' => $equiv, 'substitute_count' => $m->substitutes->count()];
+            $rows[]  = $main;
 
-            // 식 : 자재 줄 → 자재 품목 → 정책 → BOM_BASIC ( 설계 §5 )
-            $code = $m->calc_code ?: ($item->calc_code ?: ($this->policy->get('material.issue_calc') ?: CalcDef::DEFAULT_CODE));
-            $def  = $this->def($defs, $code, $warnings);
-            try {
-                $tree = Formula::parse($def['expr']);
-            } catch (FormulaException $e) {
-                $warnings['W_CALC'] = "계산식 {$def['code']} 오류( {$e->getMessage()} ) — 개당 × 지시 수량으로 계산했습니다.";
-                $def  = $this->def($defs, CalcDef::DEFAULT_CODE, $warnings);
-                $tree = Formula::parse($def['expr']);
+            foreach ($m->substitutes as $sub) {
+                // 대체 : 남은 소요 = 주 자재 남음을 대체 자재 기준으로 · 채우지 않는다
+                $toSub  = (float) $m->qty_per > 0 ? (float) $sub->qty_per / (float) $m->qty_per : 0.0;
+                $row    = $this->planRow($sub, $wo, $ctx, $net($sub), false, $main['need_qty'] * $toSub);
+                $rows[] = $row + [
+                    'substitute_of_idx' => $m->work_order_material_idx,
+                    'main_item_code'    => $m->childItem?->item_code,
+                    'main_item_name'    => $m->childItem?->item_name,
+                    'ratio_to_main'     => $ratio($sub),   // 대체 1 = 주 자재 몇 ( 화면의 대체 포함 채움 )
+                ];
             }
+        }
+        return $rows;
+    }
 
-            // 투입 공정 · SETUP ( 설계 §4.3 )
-            $op = $m->work_order_op_idx ? $ops->get($m->work_order_op_idx) : $firstOp;
-            [$setup, $setupSrc] = $this->setup($op, $equips, $warnings);
+    // 자재 행 하나의 계산 · 규격 묶음 · 후보 LOT ( $issued = 채운 정도 · $autoFill = 자동 채움 · $needOverride = 남은 소요를 바깥에서 )
+    private function planRow(WorkOrderMaterial $m, WorkOrder $wo, array $ctx, float $issued, bool $autoFill, ?float $needOverride): array {
+        ['ops' => $ops, 'firstOp' => $firstOp, 'equips' => $equips, 'defs' => $defs, 'lots' => $lots, 'held' => $held] = $ctx;
+        $item     = $m->childItem;
+        $warnings = [];
 
-            $issued = (float) $m->issued_qty - (float) $m->returned_qty;   // 반납한 몫은 다시 필요하다
-            $base   = (float) $m->qty_per * (float) $wo->target_qty;
-            $cands  = $lots->get($m->child_item_idx) ?? collect();
-            $vars   = [
-                'ORDER_QTY' => [(float) $wo->target_qty, '작업지시'],
-                'BOM_QTY'   => [(float) $m->qty_per, '자재 줄'],
-                'SPEC2'     => [null, 'Phase 2'],
-                'PACK'      => [$item->pack_qty !== null ? (float) $item->pack_qty : null, '품목 포장 수량'],
-                'STOCK'     => [(float) $cands->sum('qty'), '현재고 합계'],
-                'ISSUED'    => [$issued, '이미 출고 ( 반납 뺌 )'],
-                'REMAIN'    => [max(0, $base - $issued), '개당 × 지시 − 출고'],
-                'SETUP'     => [$setup, $setupSrc],
-            ] + $this->customVars($m, $wo);
+        // 식 : 자재 줄 → 자재 품목 → 정책 → BOM_BASIC ( 설계 §5 )
+        $code = $m->calc_code ?: ($item->calc_code ?: ($this->policy->get('material.issue_calc') ?: CalcDef::DEFAULT_CODE));
+        $def  = $this->def($defs, $code, $warnings);
+        try {
+            $tree = Formula::parse($def['expr']);
+        } catch (FormulaException $e) {
+            $warnings['W_CALC'] = "계산식 {$def['code']} 오류( {$e->getMessage()} ) — 개당 × 지시 수량으로 계산했습니다.";
+            $def  = $this->def($defs, CalcDef::DEFAULT_CODE, $warnings);
+            $tree = Formula::parse($def['expr']);
+        }
 
-            $usesSpec = in_array('SPEC', Formula::variables($tree), true);
-            $groups   = $this->groups($cands, $usesSpec, $item->min_usable_spec !== null ? (float) $item->min_usable_spec : null);
+        // 투입 공정 · SETUP ( 설계 §4.3 )
+        $op = $m->work_order_op_idx ? $ops->get($m->work_order_op_idx) : $firstOp;
+        [$setup, $setupSrc] = $this->setup($op, $equips, $warnings);
 
+        $base   = (float) $m->qty_per * (float) $wo->target_qty;
+        $cands  = $lots->get($m->child_item_idx) ?? collect();
+        $vars   = [
+            'ORDER_QTY' => [(float) $wo->target_qty, '작업지시'],
+            'BOM_QTY'   => [(float) $m->qty_per, '자재 줄'],
+            'SPEC2'     => [null, 'Phase 2'],
+            'PACK'      => [$item->pack_qty !== null ? (float) $item->pack_qty : null, '품목 포장 수량'],
+            'STOCK'     => [(float) $cands->sum('qty'), '현재고 합계'],
+            'ISSUED'    => [$issued, '이미 출고 ( 반납 뺌 )'],
+            'REMAIN'    => [max(0, $base - $issued), '개당 × 지시 − 출고'],
+            'SETUP'     => [$setup, $setupSrc],
+        ] + $this->customVars($m, $wo);
+
+        $usesSpec = in_array('SPEC', Formula::variables($tree), true);
+        $groups   = $this->groups($cands, $usesSpec, $item->min_usable_spec !== null ? (float) $item->min_usable_spec : null);
+
+        foreach ($groups as &$g) {
+            $v = $vars;
+            if ($usesSpec) {
+                $v['SPEC'] = [$g['spec'], 'LOT 규격'];
+            }
+            $e = $this->evaluate($def, $tree, $v, $usesSpec);
+            $g['excluded'] = $g['excluded'] || $e['excluded'];
+            $g['reason']   = $g['reason'] ?? $e['reason'];
+            $g['value']    = $g['excluded'] ? null : $e['value'];
+            $g['warnings'] = $e['warnings'];
+            $g['trace']    = $e['trace'];
+            $g['stock']    = (float) collect($g['lots'])->sum('qty');
+        }
+        unset($g);
+
+        // 기본 묶음 : 쓸 수 있는 가장 큰 규격 ( 자투리 최소 — 설계 §6.2 ). SPEC 을 안 쓰면 하나뿐
+        $usable  = array_values(array_filter($groups, fn ($g) => !$g['excluded']));
+        $default = $usable ? $usable[0] : null;
+        if ($usesSpec && !$usable) {
+            $warnings['W_NOLOT'] = $groups ? '물림 · 절단을 빼면 쓸 수 있는 LOT 이 없습니다. 더 긴 규격을 입고해야 합니다.' : '출고할 수 있는 재고가 없습니다.';
+        }
+        $result = $default['value'] ?? ($usesSpec ? null : $this->evaluate($def, $tree, $vars, false)['value']);
+        if ($default) {
+            $warnings += $default['warnings'];
+        }
+        if ($needOverride === null && $result !== null && $result > ($default['stock'] ?? 0) + self::EPS) {   // 대체 행은 주 자재 대신이라 전체 소요와 견주지 않는다
+            $warnings['W_OVER'] = '계산된 소요가 재고보다 많습니다. ( 부족 ' . $this->num($result - ($default['stock'] ?? 0)) . ' )';
+        }
+
+        // 채움 : 자동이면 기본 묶음의 LOT 을 선입선출로 위에서부터 ( 남은 소요 = 계산 − 이미 출고 — §17-4 )
+        $mode = (string) ($this->policy->get('material.consume_mode', ['item' => $m->child_item_idx]) ?? 'AUTO');
+        $need = $needOverride ?? max(0, ($result ?? 0) - $issued);
+        if ($autoFill && $mode === 'AUTO' && $default) {
+            $left = $need;
             foreach ($groups as &$g) {
-                $v = $vars;
-                if ($usesSpec) {
-                    $v['SPEC'] = [$g['spec'], 'LOT 규격'];
+                if ($g['key'] !== $default['key']) {
+                    continue;
                 }
-                $e = $this->evaluate($def, $tree, $v, $usesSpec);
-                $g['excluded'] = $g['excluded'] || $e['excluded'];
-                $g['reason']   = $g['reason'] ?? $e['reason'];
-                $g['value']    = $g['excluded'] ? null : $e['value'];
-                $g['warnings'] = $e['warnings'];
-                $g['trace']    = $e['trace'];
-                $g['stock']    = (float) collect($g['lots'])->sum('qty');
+                foreach ($g['lots'] as &$l) {
+                    $l['fill'] = $left > self::EPS ? (float) min($l['qty'], $left) : 0.0;
+                    $left     -= $l['fill'];
+                }
+                unset($l);
             }
             unset($g);
+        }
 
-            // 기본 묶음 : 쓸 수 있는 가장 큰 규격 ( 자투리 최소 — 설계 §6.2 ). SPEC 을 안 쓰면 하나뿐
-            $usable  = array_values(array_filter($groups, fn ($g) => !$g['excluded']));
-            $default = $usable ? $usable[0] : null;
-            if ($usesSpec && !$usable) {
-                $warnings['W_NOLOT'] = $groups ? '물림 · 절단을 빼면 쓸 수 있는 LOT 이 없습니다. 더 긴 규격을 입고해야 합니다.' : '출고할 수 있는 재고가 없습니다.';
-            }
-            $result = $default['value'] ?? ($usesSpec ? null : $this->evaluate($def, $tree, $vars, false)['value']);
-            if ($default) {
-                $warnings += $default['warnings'];
-            }
-            if ($result !== null && $result > ($default['stock'] ?? 0) + self::EPS) {
-                $warnings['W_OVER'] = '계산된 소요가 재고보다 많습니다. ( 부족 ' . $this->num($result - ($default['stock'] ?? 0)) . ' )';
-            }
-
-            // 채움 : 자동이면 기본 묶음의 LOT 을 선입선출로 위에서부터 ( 남은 소요 = 계산 − 이미 출고 — §17-4 )
-            $mode = (string) ($this->policy->get('material.consume_mode', ['item' => $m->child_item_idx]) ?? 'AUTO');
-            $need = max(0, ($result ?? 0) - $issued);
-            if ($mode === 'AUTO' && $default) {
-                $left = $need;
-                foreach ($groups as &$g) {
-                    if ($g['key'] !== $default['key']) {
-                        continue;
-                    }
-                    foreach ($g['lots'] as &$l) {
-                        $l['fill'] = $left > self::EPS ? (float) min($l['qty'], $left) : 0.0;
-                        $left     -= $l['fill'];
-                    }
-                    unset($l);
-                }
-                unset($g);
-            }
-
-            $h = $held[$m->child_item_idx] ?? ['issued' => 0.0, 'consumed' => 0.0, 'qty' => 0.0];
-            return [
-                'work_order_material_idx' => $m->work_order_material_idx,
-                'item_idx'      => $m->child_item_idx,
-                'item_code'     => $item->item_code,
-                'item_name'     => $item->item_name,
-                'item_spec'     => $item->spec,
-                'item_material' => $item->material,
-                'spec_unit'     => $item->spec_unit,
-                'calc_code'     => $def['code'],
-                'calc_name'     => $def['name'],
-                'result_kind'   => $def['kind'],
-                'op_label'      => $op ? sprintf('%03d %s', $op->seq, $op->process?->process_name) : '',
-                'qty_per'       => (float) $m->qty_per,
-                'required_qty'  => $base,
-                'calc_qty'      => $result,
-                'issued_qty'    => $issued,
-                'consumed_qty'  => $h['consumed'],
-                'held_qty'      => $h['qty'],
-                'need_qty'      => $need,
-                'consume_mode'  => $mode,
-                'uses_spec'     => $usesSpec,
-                'default_key'   => $default['key'] ?? null,
-                'groups'        => array_map(fn ($g) => ['warnings' => array_values($g['warnings'])] + $g, $groups),
-                'warnings'      => array_values($warnings),
-            ];
-        })->values()->all();
+        $h = $held[$m->child_item_idx] ?? ['issued' => 0.0, 'consumed' => 0.0, 'qty' => 0.0];
+        return [
+            'work_order_material_idx' => $m->work_order_material_idx,
+            'item_idx'      => $m->child_item_idx,
+            'item_code'     => $item->item_code,
+            'item_name'     => $item->item_name,
+            'item_spec'     => $item->spec,
+            'item_material' => $item->material,
+            'spec_unit'     => $item->spec_unit,
+            'calc_code'     => $def['code'],
+            'calc_name'     => $def['name'],
+            'result_kind'   => $def['kind'],
+            'op_label'      => $op ? sprintf('%03d %s', $op->seq, $op->process?->process_name) : '',
+            'qty_per'       => (float) $m->qty_per,
+            'required_qty'  => $base,
+            'calc_qty'      => $result,
+            'issued_qty'    => $issued,   // 주 자재 행 = 대체 출고 환산 포함 ( 채운 정도 )
+            'consumed_qty'  => $h['consumed'],
+            'held_qty'      => $h['qty'],
+            'need_qty'      => $need,
+            'consume_mode'  => $mode,
+            'uses_spec'     => $usesSpec,
+            'default_key'   => $default['key'] ?? null,
+            'groups'        => array_map(fn ($g) => ['warnings' => array_values($g['warnings'])] + $g, $groups),
+            'warnings'      => array_values($warnings),
+        ];
     }
 
     // ---- 출고 ----

@@ -14,7 +14,10 @@ use Illuminate\Support\Facades\Validator;
 //   기본 정보만 — 주 자재( BOM ) · 정책 덮어쓰기 · 리드타임은 화면에서
 //   검증 · 정리 · 업무 조건은 화면 단건 저장과 같은 ItemRules
 //   라우팅 칸 = 틀( ① ) — 저장하면 품목 전용 라우팅( ② )으로 복사 · 틀이 그대로면 ② 는 손대지 않는다 ( 화면에서 고친 공정 보존 )
+//   같은 품목 찾기 : 자재 = 품번 + 규격( specKey ) / 제품 = 품번 ( docs/품목-규격구분-설계.md )
 class ItemImport implements ImportHandler {
+
+    private const SEP = "\x1F";   // 행 열쇠의 품번 · 규격 구분
 
     // 엑셀로 다루는 칸 ( 이 밖의 칸은 수정할 때 건드리지 않는다 )
     private const FIELDS = [
@@ -35,8 +38,24 @@ class ItemImport implements ImportHandler {
         return ['item_name', 'item_type', 'item_kind', 'spec_unit'];
     }
 
+    // 행 열쇠 : 자재 = 품번 + 규격 · 제품 = 품번
+    public function rowKey(array $converted): string {
+        $code = (string) ($converted['item_code'] ?? '');
+        return ($converted['item_type'] ?? null) === 'MATERIAL'
+            ? $code . self::SEP . Item::specKey($converted['spec'] ?? null)
+            : $code;
+    }
+
+    public function keyLabel(string $key): string {
+        [$code, $spec] = array_pad(explode(self::SEP, $key, 2), 2, null);
+        return $spec === null ? $code : ($spec === '' ? "{$code} ( 규격 없음 )" : "{$code} / {$spec}");
+    }
+
     public function find(string $key): ?Model {
-        return Item::where('item_code', $key)->first();
+        [$code, $spec] = array_pad(explode(self::SEP, $key, 2), 2, null);
+        return $spec === null
+            ? Item::where('item_code', $code)->where('item_type', '!=', 'MATERIAL')->first() ?? Item::where('item_code', $code)->first()
+            : Item::where('item_code', $code)->where('spec_key', $spec)->where('item_type', 'MATERIAL')->first();
     }
 
     // 수정 : 기존 값( 라우팅은 품목 라우팅의 틀 ) / 신규 : 화면 등록과 같은 기본값 ( 기본 틀 자동 적용 포함 )
@@ -66,7 +85,7 @@ class ItemImport implements ImportHandler {
         $item = $existing ?? new Item();
         $data = array_intersect_key($data, array_flip(self::FIELDS));
 
-        $validated = Validator::make($data, ItemRules::rules($item, $data['item_type'] ?? null), ItemRules::MESSAGES, $attributes + ItemRules::ATTRIBUTES)
+        $validated = Validator::make($data, ItemRules::rules($item, $data['item_type'] ?? null, $data['spec'] ?? null), ItemRules::MESSAGES, $attributes + ItemRules::ATTRIBUTES)
             ->validate();
         $validated = ItemRules::normalize($validated);
         ItemRules::assertBusiness($item, $validated);
@@ -79,6 +98,7 @@ class ItemImport implements ImportHandler {
         $templateIdx = $validated['routing_idx'] ?? null;
         unset($validated['routing_idx']);   // item.routing_idx 는 품목 라우팅( ② ) — 서비스가 맞춘다
         $item->fill($validated)->save();
+        app(\MesCore\Config\Services\SpecCodeService::class)->ensure($item->spec);   // 없는 규격은 규격 코드에 더한다
         app(RoutingService::class)->syncItemRouting($item, $templateIdx ? (int) $templateIdx : null, null);
         return $item;
     }

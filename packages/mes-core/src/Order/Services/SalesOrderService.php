@@ -9,6 +9,7 @@ use MesCore\Basic\Services\AttachmentService;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Partner;
 use MesCore\Config\Services\RoutingService;
+use MesCore\Config\Services\BomService;
 use MesCore\Order\Models\SalesOrder;
 use MesCore\Order\Models\SalesOrderLine;
 
@@ -21,12 +22,14 @@ use MesCore\Order\Models\SalesOrderLine;
  *   삭제 : 아래 단계가 없으면 지운다( 줄 · 첨부까지 ), 있으면 취소 상태로
  *   공정 : 줄마다 수주 라우팅( ③ )을 항상 만든다 — 품목 라우팅( ② ) 복사 + 이 수주에서 고친 공정 · 변경 이력 ( docs/라우팅-3단계-설계.md )
  *          그 줄로 작업지시( 취소 제외 )가 생기면 공정은 잠긴다
+ *   자재 : 줄마다 수주 자재( 품목 BOM 복사 + 대체 자재 )를 항상 만든다 — 공정과 같은 규칙( 잠금 · 이력 ) · docs/대체자재-수주자재-설계.md
+ *          투입 지점은 수주 공정 줄 ( 화면은 수주 공정의 순서 routing_seq 로 보낸다 — 공정을 먼저 저장하고 잇는다 )
  */
 class SalesOrderService {
 
     public const NO_PREFIX = 'SO-';
 
-    public function __construct(private AttachmentService $attachments, private RoutingService $routings) {}
+    public function __construct(private AttachmentService $attachments, private RoutingService $routings, private BomService $boms) {}
 
     /**
      * @param array $data 검증된 요청 ( 머리 + lines[] )
@@ -109,6 +112,19 @@ class SalesOrderService {
                     }
                 }
             }
+
+            // 자재 : 공정과 같은 잠금 · 자기 자신 · 순환 · 대체 자재 규칙
+            if (isset($row['material_lines'])) {
+                if ($old && $old->directedQty() > 0) {
+                    $errors["lines.{$i}.material_lines"] = ['작업지시가 생성된 줄의 자재는 바꿀 수 없습니다.'];
+                } else {
+                    try {
+                        $this->boms->assertLines((int) $row['item_idx'], array_values($row['material_lines']), "lines.{$i}.material_lines");
+                    } catch (ValidationException $e) {
+                        $errors += $e->errors();
+                    }
+                }
+            }
         }
 
         // 지워지는 기존 줄 중 아래 단계가 붙은 것
@@ -162,6 +178,10 @@ class SalesOrderService {
                 // 수주 라우팅( ③ ) — 보낸 공정이 없으면 그대로( 없거나 품목을 바꿨으면 품목 라우팅 복사 )
                 $routingLines = isset($row['routing_lines']) ? array_values($row['routing_lines']) : null;
                 $this->routings->syncOrderLineRouting($line, $order->order_no, $routingLines);
+
+                // 수주 자재 — 공정 다음 ( 투입 지점이 수주 공정 줄을 가리킨다 )
+                $materialLines = isset($row['material_lines']) ? array_values($row['material_lines']) : null;
+                $this->boms->syncOrderLineBom($line, $order->order_no, $materialLines);
 
                 $total += $amount;
                 $keep[] = $line->sales_order_line_idx;

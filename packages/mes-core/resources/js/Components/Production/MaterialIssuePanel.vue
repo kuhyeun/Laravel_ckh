@@ -4,7 +4,9 @@
      - 쓰는 곳 : 자재출고 화면( Production/MaterialIssue ) · 공정실적 화면의 [출고] ( Production/OpResult — 그 화면 권한으로 부르는 주소 )
                · 재고관리 LOT 창의 [출고] ( preferBalanceIdx — 그 LOT 을 먼저 채운다 )
      - routes : { plan, history, save, cancel, returnPlan, returnSave, returnCancel } route name. 처리 후 changed, 알림은 flash( text, error )
-     - 탭 [출고] / [반납]( MaterialReturnPanel — §15-1 ). 완료 · 취소된 줄은 출고를 끄고 반납 탭으로 연다 -->
+     - 탭 [출고] / [반납]( MaterialReturnPanel — §15-1 ). 완료 · 취소된 줄은 출고를 끄고 반납 탭으로 연다
+     - 대체 자재 ( docs/대체자재-수주자재-설계.md §5.4 ) : 주 자재 카드 바로 뒤 "대체" 카드 — 후보만 보이고 채우지 않는다( 사람이 고른다 )
+       주 자재의 남음 · 부족은 대체 자재 출고 · 이번 채움을 주 자재 기준으로 환산해 함께 본다 ( 대체 1 = 주 ratio_to_main ) -->
 <template>
     <div class="flex flex-col min-h-0">
         <div v-if="!order" class="flex-1 flex items-center justify-center text-sm text-gray-400 py-6">
@@ -39,10 +41,11 @@
             <div class="flex-1 min-h-0 overflow-auto px-3 py-2 space-y-3">
                 <p v-if="!materials.length" class="py-6 text-center text-sm text-gray-400">이 지시에 자재가 없습니다 ( 사용 중 BOM 없음 ).</p>
 
-                <div v-for="m in materials" :key="m.work_order_material_idx" class="border border-gray-200 rounded">
+                <div v-for="m in materials" :key="m.work_order_material_idx" class="border rounded" :class="m.substitute_of_idx ? 'ml-6 border-dashed border-gray-300' : 'border-gray-200'">
                     <!-- 자재 머리 -->
-                    <div class="flex items-center gap-2 px-2 py-1.5 bg-gray-50 cursor-pointer select-none" @click="m._open = !m._open">
+                    <div class="flex items-center gap-2 px-2 py-1.5 cursor-pointer select-none" :class="m.substitute_of_idx ? 'bg-white' : 'bg-gray-50'" @click="m._open = !m._open">
                         <span class="text-gray-400 text-xs w-3">{{ m._open ? '▾' : '▸' }}</span>
+                        <span v-if="m.substitute_of_idx" class="text-[10px] px-1 rounded bg-gray-100 text-gray-600" :title="`${m.main_item_code} 대신 낼 수 있습니다 · 대체 1 = 주 자재 ${fmt(m.ratio_to_main)}`">대체 · {{ m.main_item_code }} 대신</span>
                         <span class="text-sm font-semibold">{{ m.item_code }}</span>
                         <span class="text-sm text-gray-600 truncate">{{ m.item_name }}</span>
                         <span class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700" :title="m.calc_name">{{ m.calc_code }}</span>
@@ -50,9 +53,10 @@
                         <div class="flex-1"></div>
                         <span class="text-xs text-gray-500">
                             계산 <b class="text-gray-800">{{ m.calc_qty === null ? '—' : fmt(m.calc_qty) }}</b>
-                            · 출고 {{ fmt(m.issued_qty) }} · 보유 {{ fmt(m.held_qty) }}
+                            · 출고 {{ fmt(m.issued_qty) }}<span v-if="m.substitute_issued_equiv > 1e-9" class="text-gray-400" title="대체 자재 출고를 주 자재 기준으로 바꾼 몫"> ( 대체 환산 {{ fmt(m.substitute_issued_equiv) }} 포함 )</span>
+                            · 보유 {{ fmt(m.held_qty) }}
                             · 남음 <b :class="m.need_qty > 0 ? 'text-blue-700' : 'text-green-600'">{{ fmt(m.need_qty) }}</b>
-                            {{ unitOf(m) }}
+                            {{ unitOf(m) }}<template v-if="m.substitute_of_idx"> ( 주 자재 남음을 이 자재 기준으로 )</template>
                         </span>
                         <button v-if="!m.uses_spec && m.groups[0]?.trace" type="button" class="text-gray-400 hover:text-blue-600 text-sm" title="계산 과정" @click.stop="toggleTrace(m.groups[0])">ⓘ</button>
                     </div>
@@ -95,10 +99,15 @@
                             </table>
                         </div>
 
-                        <p class="text-right text-xs mt-1" :class="filled(m) > m.need_qty + 1e-9 ? 'text-amber-600' : 'text-gray-500'">
-                            이번 출고 <b>{{ fmt(filled(m)) }}</b> {{ unitOf(m) }}
-                            <span v-if="m.need_qty - filled(m) > 1e-9" class="text-red-500"> · 부족 {{ fmt(m.need_qty - filled(m)) }}</span>
-                            <span v-else-if="filled(m) > m.need_qty + 1e-9"> · 남은 소요보다 {{ fmt(filled(m) - m.need_qty) }} 많음</span>
+                        <!-- 대체 카드 : 이번 채움이 주 자재 몇 개분인지 -->
+                        <p v-if="m.substitute_of_idx" class="text-right text-xs mt-1 text-gray-500">
+                            이번 출고 <b>{{ fmt(filled(m)) }}</b> {{ unitOf(m) }} · 주 자재 {{ fmt(filled(m) * m.ratio_to_main) }} 몫
+                        </p>
+                        <!-- 주 자재 카드 : 대체 자재 채움을 환산해 함께 본다 -->
+                        <p v-else class="text-right text-xs mt-1" :class="covered(m) > m.need_qty + 1e-9 ? 'text-amber-600' : 'text-gray-500'">
+                            이번 출고 <b>{{ fmt(filled(m)) }}</b> {{ unitOf(m) }}<span v-if="covered(m) - filled(m) > 1e-9" class="text-gray-400"> + 대체 환산 {{ fmt(covered(m) - filled(m)) }}</span>
+                            <span v-if="m.need_qty - covered(m) > 1e-9" class="text-red-500"> · 부족 {{ fmt(m.need_qty - covered(m)) }}</span>
+                            <span v-else-if="covered(m) > m.need_qty + 1e-9"> · 남은 소요보다 {{ fmt(covered(m) - m.need_qty) }} 많음</span>
                         </p>
                     </div>
                 </div>
@@ -204,6 +213,10 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n
 const filled = (m) => m.groups.reduce((s, g) => s + g.lots.reduce((t, l) => t + num(l.fill), 0), 0);
 const over = (l) => num(l.fill) > l.qty + 1e-9;
 const fillTotal = computed(() => materials.value.reduce((s, m) => s + filled(m), 0));
+// 주 자재 카드의 이번 채움 ( 주 자재 기준 ) = 자기 채움 + 그 대체 카드 채움 × 환산
+const covered = (m) => filled(m) + materials.value
+    .filter(x => x.substitute_of_idx === m.work_order_material_idx)
+    .reduce((s, x) => s + filled(x) * num(x.ratio_to_main), 0);
 
 function toggleTrace(g) { g._trace = !g._trace; }
 
@@ -219,7 +232,8 @@ async function loadPlan() {
         if (!['WAIT', 'RUN'].includes(data.order.status)) mode.value = 'return';
         materials.value = (data.materials ?? []).map(m => reactive({
             ...m,
-            _open: m.need_qty > 0 || !m.issued_qty,
+            // 대체 카드는 낸 적이 있을 때만 펼친다 ( 자동 채움 없음 )
+            _open: m.substitute_of_idx ? m.issued_qty > 0 : (m.need_qty > 0 || !m.issued_qty),
             groups: m.groups.map(g => ({ ...g, _trace: false, lots: g.lots.map(l => ({ ...l, fill: l.fill ? String(l.fill) : '' })) })),
         }));
         if (props.preferBalanceIdx) preferLot(props.preferBalanceIdx);

@@ -42,7 +42,7 @@
             </div>
             <div>
                 <label class="block text-gray-500 font-medium mb-1">대분류 <span class="text-red-400">*</span></label>
-                <BaseSelect v-model="form.item_type" :options="ITEM_TYPES" class="w-full" :disabled="!canWrite" @update:model-value="onTypeChange" />
+                <BaseSelect v-model="form.item_type" :options="typeOptions" class="w-full" :disabled="!canWrite" @update:model-value="onTypeChange" />
                 <p v-if="errors.item_type" class="text-xs text-red-500 mt-0.5">{{ errors.item_type[0] }}</p>
             </div>
             <div>
@@ -52,22 +52,23 @@
             </div>
             <div>
                 <label class="block text-gray-500 font-medium mb-1">단위 <span class="text-red-400">*</span></label>
-                <BaseSelect v-model="form.spec_unit" :options="unitOptions" class="w-full" placeholder="단위 선택" :disabled="!canWrite" />
+                <UnitSelect v-model="form.spec_unit" :disabled="!canWrite" empty-hint />
                 <p v-if="errors.spec_unit" class="text-xs text-red-500 mt-0.5">{{ errors.spec_unit[0] }}</p>
-                <p v-else-if="!unitLoading && !unitOptions.length" class="text-xs text-amber-600 mt-0.5">
-                    등록된 단위가 없습니다. 코드관리의 UNIT 그룹에 먼저 추가하세요.
-                </p>
             </div>
             <div>
                 <label class="block text-gray-500 font-medium mb-1">규격</label>
-                <BaseInput v-model="form.spec" class="w-full" :disabled="!canWrite" />
+                <!-- 코드관리 규격에서 찾기 · 새 규격도 그대로 ( 저장하면 규격 코드에 추가 ) -->
+                <SpecPicker v-model="form.spec" :can-create="canWrite" :disabled="!canWrite" />
                 <p v-if="errors.spec" class="text-xs text-red-500 mt-0.5">{{ errors.spec[0] }}</p>
             </div>
-            <div>
+
+            <!-- 재질 일단 보류 -->
+            <!-- <div>
                 <label class="block text-gray-500 font-medium mb-1">재질</label>
                 <BaseInput v-model="form.material" class="w-full" maxlength="100" :disabled="!canWrite" />
                 <p v-if="errors.material" class="text-xs text-red-500 mt-0.5">{{ errors.material[0] }}</p>
-            </div>
+            </div> -->
+
             <!-- 주 자재( BOM ) 는 만드는 품목( 제품 )만 · 공정은 공정 탭 -->
             <!-- 주 자재 : 가공품은 제품 1 : 원자재 1 이 대부분 → 저장하면 BOM V1 이 만들어진다 -->
             <div v-if="isProduct" class="col-span-2 border-t pt-3">
@@ -78,8 +79,23 @@
                 </div>
                 <div class="grid grid-cols-3 gap-x-4 gap-y-2">
                     <div class="col-span-2">
-                        <BaseSelect v-model="mainMaterial.child_item_idx" :options="materialOptions" class="w-full" placeholder="( 없음 )" :disabled="!canWrite || bomLocked" />
+                        <!-- 품번 · 품명 · 규격으로 찾기 · 없으면 새 자재 등록 ( 품번이 같아도 규격이 다르면 다른 자재 ) -->
+                        <ItemPicker v-model="mainMaterial.child_item_idx" :options="materials" placeholder="( 없음 )" allow-empty size="md"
+                            :can-create="canWrite" :disabled="!canWrite || bomLocked"
+                            :current="mainMaterial.child_item_name ? { item_code: mainMaterial.child_item_code, item_name: mainMaterial.child_item_name, spec: mainMaterial.child_item_spec } : null"
+                            @created="m => materials.push(m)" />
                         <p v-if="errors['main_material.child_item_idx']" class="text-xs text-red-500 mt-0.5">{{ errors['main_material.child_item_idx'][0] }}</p>
+                        <!-- 이미 주 자재가 있는데 다른 자재를 고르면 : 교체 / 대체 자재로 추가 ( docs/대체자재-수주자재-설계.md ) -->
+                        <div v-if="mainChanged" class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-gray-600">
+                            <label class="inline-flex items-center gap-1 cursor-pointer">
+                                <input type="radio" class="accent-blue-600" value="REPLACE" v-model="mainMaterial.mode" :disabled="!canWrite" /> 주 자재 교체
+                            </label>
+                            <label class="inline-flex items-center gap-1 cursor-pointer">
+                                <input type="radio" class="accent-blue-600" value="SUBSTITUTE" v-model="mainMaterial.mode" :disabled="!canWrite" /> 대체 자재로 추가
+                                <span class="text-gray-400">( 주 자재 {{ originalMainName }} 는 그대로 · 소요는 이 자재 기준 )</span>
+                            </label>
+                        </div>
+                        <p v-else-if="mainMaterial.substitute_count" class="mt-0.5 text-xs text-gray-400">대체 자재 {{ mainMaterial.substitute_count }}개 ( BOM관리에서 관리 )</p>
                     </div>
                     <div>
                         <BaseInput v-model="mainMaterial.qty" type="number" min="0" class="w-full text-right" placeholder="소요" :disabled="!canWrite || bomLocked || !mainMaterial.child_item_idx" />
@@ -324,13 +340,17 @@ import { ITEM_TYPES, ITEM_KINDS } from '@core/Components/Config/itemCodes';
 import PolicyOverrideField from '@core/Components/Config/PolicyOverrideField.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
+import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import SpecPicker from '@core/Components/Config/SpecPicker.vue';
 import { toLinePayload, totalCycleOf } from '@core/Components/Config/routingLines';
 import { showAlert } from '@core/Utils/message';
+import UnitSelect from '@core/Components/Common/UnitSelect.vue';
 
 const props = defineProps({
     item:     { type: Object,   default: null },   // 있으면 수정, 없으면 등록
     canWrite: { type: Boolean,  default: false },
     onSaved:  { type: Function, default: null },   // 저장 후 호출 ( 저장된 품목 전달 )
+    onlyTypes: { type: Array,   default: null },   // 고를 수 있는 대분류만 ( 수주의 [+ 새 품목 등록] = ['PRODUCT'] ) · 없으면 전부
 });
 const emit = defineEmits(['close']);
 
@@ -388,7 +408,7 @@ const form = reactive({
     item_idx:         src.item_idx ?? null,
     item_code:        src.item_code ?? '',
     item_name:        src.item_name ?? '',
-    item_type:        src.item_type ?? 'PRODUCT',
+    item_type:        src.item_type ?? props.onlyTypes?.[0] ?? 'PRODUCT',
     item_kind:        src.item_kind ?? 'FINISHED',
     spec_unit:        src.spec_unit ?? 'EA',
     spec:             src.spec ?? '',
@@ -418,7 +438,10 @@ const baseInfo     = ref(null);         // 지금 틀 { name, is_use } ( 미사�
 const templateLoading = ref(false);
 const materials    = ref([]);
 const bomLineCount = ref(0);
-const mainMaterial = reactive({ bom_line_idx: null, child_item_idx: '', qty: '', calc_code: null, ext_n01: null });
+const mainMaterial = reactive({ bom_line_idx: null, child_item_idx: '', qty: '', calc_code: null, ext_n01: null, substitute_count: 0, mode: 'REPLACE' });
+const originalMain = ref(null);   // 저장된 주 자재 { idx, name } — 다른 자재를 고르면 교체 / 대체를 묻는다
+const mainChanged  = computed(() => !!originalMain.value && mainMaterial.child_item_idx !== '' && Number(mainMaterial.child_item_idx) !== Number(originalMain.value.idx));
+const originalMainName = computed(() => originalMain.value?.name ?? '');
 
 // BOM 자재가 2건 이상이면 주 자재 칸은 읽기 전용 ( BOM관리에서 다룬다 )
 const bomLocked = computed(() => bomLineCount.value >= 2);
@@ -462,10 +485,6 @@ async function reloadTemplate() {
     const r = await showAlert('틀에서 다시 불러오기', '지금 공정을 지우고 틀의 공정을 다시 불러옵니다. 계속할까요?', 'warning', 'confirm');
     if (r.isConfirmed) await loadTemplate(form.routing_idx);
 }
-const materialOptions = computed(() => [
-    { value: '', label: '( 없음 )' },
-    ...materials.value.map(m => ({ value: m.item_idx, label: `${m.item_name} [${m.item_code}]` })),
-]);
 
 async function loadFormData() {
     try {
@@ -479,6 +498,7 @@ async function loadFormData() {
 
         if (data.main_material) {
             Object.assign(mainMaterial, data.main_material);
+            originalMain.value = { idx: data.main_material.child_item_idx, name: data.main_material.child_item_name };
         }
 
         // 탭 4 : 정책 덮어쓰기 · 리드타임 · 시리얼 기능
@@ -509,6 +529,8 @@ async function loadFormData() {
 onMounted(loadFormData);
 
 const kindOptions = computed(() => ITEM_KINDS[form.item_type] ?? []);
+// 대분류 선택지 ( onlyTypes 를 주면 그것만 — 수주에서 등록하는 품목은 제품만 )
+const typeOptions = computed(() => props.onlyTypes ? ITEM_TYPES.filter(t => props.onlyTypes.includes(t.value)) : ITEM_TYPES);
 
 // ---- 탭 4 · 추가정보 ----
 const policyFields     = ref([]);        // PolicyService::entityFields
@@ -554,16 +576,6 @@ function onTypeChange(type) {
     }
 }
 
-// ---- 단위 ( 코드 마스터 UNIT ) ----
-const { options: codeOptions, loading: unitLoading } = useCommonCode(['UNIT']);
-const unitOptions = computed(() => {
-    const opts = codeOptions('UNIT');
-    // 기존 품목의 단위가 미사용으로 내려가 목록에 없으면 현재 값은 보이도록 추가
-    if (form.spec_unit && !unitLoading.value && !opts.some(o => o.value === form.spec_unit) && isEdit.value) {
-        return [...opts, { value: form.spec_unit, label: `${form.spec_unit} ( 미사용 )` }];
-    }
-    return opts;
-});
 
 // ---- 지시 수량 미리보기 ----
 const PREVIEW_NEED = 1400;
@@ -599,6 +611,7 @@ async function save() {
                     qty: mainMaterial.qty === '' ? null : mainMaterial.qty,
                     calc_code: mainMaterial.calc_code ?? null,
                     ext_n01: mainMaterial.ext_n01 ?? null,
+                    mode: mainChanged.value ? mainMaterial.mode : 'REPLACE',
                 }
                 : null,
             // 탭 4 : 대분류에 맞는 정책만 ( 나머지는 서버가 해제 ). '' = 따름 → null

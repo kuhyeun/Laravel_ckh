@@ -82,12 +82,12 @@ class PurchaseOrderController extends Controller {
     public function formData() {
         $partners = Partner::where('is_supplier', 'Y')->where('is_use', 'Y')
             ->orderBy('partner_name')
-            ->get(['partner_idx', 'partner_code', 'partner_name']);
+            ->forPicker()->get();
 
         $items = Item::where('is_use', 'Y')
             ->orderByRaw("item_type = 'MATERIAL' DESC")
             ->orderBy('item_code')
-            ->get(['item_idx', 'item_code', 'item_name', 'item_type', 'spec_unit', 'std_buy_price']);
+            ->forPicker(['std_buy_price'])->get();
 
         return response()->json([
             'partners' => $partners,

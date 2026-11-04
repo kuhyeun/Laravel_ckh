@@ -13,7 +13,7 @@
             @search="loadFirstPage"
         >
             <BaseSelect v-model="search.status" :options="STATUS_OPTIONS" class="w-32" />
-            <BaseSelect v-model="search.partner_idx" :options="partnerOptions" class="w-40" />
+            <PartnerSelect v-model="search.partner_idx" :options="partners" class="w-40" all-label="고객사 전체" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -58,6 +58,7 @@ import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtQty, itemLabel } from '@core/Utils/format';
 import { inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
 import { COLORS } from '@core/Utils/colors';
+import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -81,7 +82,6 @@ const SEARCH_FIELDS = [
 const blankFilters = () => ({ status: 'TODO', partner_idx: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search   = reactive({ date_basis: 'plan_date', from: '', to: '', keyword: '', ...blankFilters() });
 const partners = ref([]);
-const partnerOptions = computed(() => [{ value: '', label: '고객사 전체' }, ...partners.value]);
 
 const columns = [
     { header: '출하 줄', name: 'line_label', width: 190, className: 'cursor-pointer', lockHide: true },

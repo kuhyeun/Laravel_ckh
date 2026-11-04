@@ -8,7 +8,9 @@
      - 첨부 탭 : 저장한 뒤 첨부 ( AttachFiles )
      - 줄 [공정] : 수주 라우팅( ③ ) — 품목을 고르면 품목 공정을 불러오고, 이 수주에 맞게 고친다 ( OrderLineRoutingForm )
        그 줄로 작업지시가 생기면 잠김 · 고친 줄만 보낸다( routing_lines ) · docs/라우팅-3단계-설계.md
-     - [+ 새 품목] : 품목관리 등록 창( ItemForm ) → 저장하면 품목 목록에 더하고 줄에 바로 고른다 ( 품목관리 쓰기 권한 ) -->
+     - [+ 새 품목] : 품목관리 등록 창( ItemForm ) → 저장하면 품목 목록에 더하고 줄에 바로 고른다 ( 품목관리 쓰기 권한 )
+     - 줄 [자재] : 수주 자재 — 품목을 고르면 품목 BOM( 대체 자재 포함 )을 불러오고, 이 수주에 맞게 고친다 ( OrderLineMaterialForm )
+       공정과 같은 잠금 · 고친 줄만 보낸다( material_lines ) · 투입 공정은 수주 공정의 순서로 · docs/대체자재-수주자재-설계.md -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <div v-if="errorMsg" class="mb-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</div>
@@ -61,7 +63,7 @@
 
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">고객사 <span class="text-red-500">*</span></label>
-                        <BaseSelect v-model="form.partner_idx" :options="partnerOptions" class="w-full" placeholder="고객사 선택" :disabled="readonly || orderLocked" />
+                        <PartnerSelect v-model="form.partner_idx" :options="partners" class="w-full" placeholder="고객사 선택" :current="{ partner_name: form.partner_name }" :disabled="readonly || orderLocked" />
                         <p v-if="errors.partner_idx" class="text-xs text-red-500 mt-0.5">{{ errors.partner_idx[0] }}</p>
                     </div>
                     <div>
@@ -109,6 +111,7 @@
                                     <th class="px-2 py-1.5 w-28 text-right">금액</th>
                                     <th class="px-2 py-1.5 w-36">납품일 *</th>
                                     <th class="px-2 py-1.5 w-24">공정</th>
+                                    <th class="px-2 py-1.5 w-24">자재</th>
                                     <th v-if="isEdit" class="px-2 py-1.5 w-28 text-right">지시 · 생산 / 출하</th>
                                     <th class="px-2 py-1.5 min-w-[100px] text-left">비고</th>
                                     <th v-if="!readonly" class="px-2 py-1.5 w-8"></th>
@@ -121,7 +124,7 @@
                                 <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
                                     <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
                                     <td class="px-1.5 py-1">
-                                        <BaseSelect v-model="l.item_idx" :options="itemOptionsFor(l)" size="sm" class="w-full" placeholder="품목 선택" :disabled="readonly || l.locked" @update:modelValue="v => onItemChange(l, v)" />
+                                        <ItemPicker v-model="l.item_idx" :options="items" :disabled="readonly || l.locked" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @update:model-value="v => onItemChange(l, v)" />
                                         <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                     </td>
                                     <td class="px-1.5 py-1">
@@ -145,6 +148,13 @@
                                         <span v-if="l.routing_locked" class="ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 공정을 바꿀 수 없습니다">잠김</span>
                                         <span v-else-if="l.routing_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 공정과 다르게 고쳤습니다">수정됨</span>
                                         <p v-if="routingError(i)" class="text-[11px] text-red-500">공정을 확인하세요</p>
+                                    </td>
+                                    <td class="px-1.5 py-1.5 text-center whitespace-nowrap">
+                                        <button v-if="l.item_idx" type="button" class="text-blue-700 hover:underline" @click="openMaterial(l, i)">자재 {{ l.material_lines.length }}</button>
+                                        <span v-else class="text-gray-300">—</span>
+                                        <span v-if="l.material_locked" class="ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 자재를 바꿀 수 없습니다">잠김</span>
+                                        <span v-else-if="l.material_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 BOM 과 다르게 고쳤습니다">수정됨</span>
+                                        <p v-if="materialError(i)" class="text-[11px] text-red-500">자재를 확인하세요</p>
                                     </td>
                                     <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500 whitespace-nowrap">
                                         <p>지시 {{ fmt(l.directed_qty) }} · {{ fmt(l.produced_qty) }} / {{ fmt(l.shipped_qty) }}</p>
@@ -194,16 +204,19 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
 import ItemForm from '@core/Components/Config/ItemForm.vue';
 import OrderLineRoutingForm from '@core/Components/Order/OrderLineRoutingForm.vue';
+import OrderLineMaterialForm from '@core/Components/Order/OrderLineMaterialForm.vue';
+import { linkRouting, toMaterialPayload } from '@core/Components/Order/orderMaterial';
 import { toLinePayload } from '@core/Components/Config/routingLines';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor } from '@core/Components/Order/orderCodes';
+import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 
 const props = defineProps({
     order:    { type: Object,   default: null },   // 목록 행 ( sales_order_idx 로 다시 조회 )
@@ -231,6 +244,8 @@ const blankLine = () => ({
     qty: '', unit_price: 0, due_date: '', produced_qty: 0, shipped_qty: 0, directed_qty: 0, locked: false, min_qty: 0, remark: '',
     // 공정( ③ ) : 줄 · 고쳤는가( 보낼지 ) · 품목 공정과 다른가 · 잠김
     routing_lines: [], routing_dirty: false, routing_modified: false, routing_locked: false,
+    // 자재( 수주 자재 ) : 줄( 대체 자재 포함 ) · 고쳤는가 · 품목 BOM 과 다른가 · 잠김
+    material_lines: [], material_dirty: false, material_modified: false, material_locked: false,
 });
 
 const form = reactive({
@@ -250,32 +265,18 @@ const form = reactive({
 const editableStatus = computed(() => EDITABLE_STATUSES.includes(form.status));
 const readonly       = computed(() => !props.canWrite || !editableStatus.value);
 const orderLocked    = computed(() => form.locked);   // 생산 · 출하가 붙은 줄이 있으면 고객사 고정
-// # · 품목 · 수량 · 단위 · 단가 · 금액 · 납품일 · 공정 · 비고 = 9 ( + 생산/출하 · 삭제 )
-const colCount       = computed(() => 9 + (isEdit.value ? 1 : 0) + (readonly.value ? 0 : 1));
+// # · 품목 · 수량 · 단위 · 단가 · 금액 · 납품일 · 공정 · 자재 · 비고 = 10 ( + 생산/출하 · 삭제 )
+const colCount       = computed(() => 10 + (isEdit.value ? 1 : 0) + (readonly.value ? 0 : 1));
 
 // ---- 선택지 ----
 const partners  = ref([]);
 const items     = ref([]);
 const today     = ref('');
 const processes = ref([]);       // 줄 공정 편집기
+const materials = ref([]);       // 줄 자재 편집기 ( 자재 · 대체 자재 선택지 )
 const canCreateItem = ref(false);   // [+ 새 품목 등록] ( 품목관리 쓰기 권한 )
 
-const partnerOptions = computed(() => {
-    const opts = partners.value.map(p => ({ value: p.partner_idx, label: `${p.partner_name} [${p.partner_code}]` }));
-    // 수정 화면의 기존 고객사가 목록에 없으면( 미사용 · 고객사 해제 ) 그 값만 덧붙인다
-    if (form.partner_idx && !opts.some(o => Number(o.value) === Number(form.partner_idx))) {
-        opts.push({ value: form.partner_idx, label: `${form.partner_name} ( 현재 선택 불가 )` });
-    }
-    return opts;
-});
 
-const itemOptions = computed(() => items.value.map(it => ({ value: it.item_idx, label: `${it.item_code} ${it.item_name}` })));
-function itemOptionsFor(line) {
-    if (line.item_idx && !items.value.some(it => Number(it.item_idx) === Number(line.item_idx))) {
-        return [...itemOptions.value, { value: line.item_idx, label: `${line.item_code} ${line.item_name} ( 현재 선택 불가 )` }];
-    }
-    return itemOptions.value;
-}
 
 // 품목을 고르면 단위 · 판매단가를 채우고 품목 공정( ② )을 불러온다
 async function onItemChange(line, value) {
@@ -293,6 +294,38 @@ async function onItemChange(line, value) {
         // 못 불러오면 보내지 않는다 → 서버가 품목 공정을 복사한다
         Object.assign(line, { routing_lines: [], routing_dirty: false, routing_modified: false });
     }
+    // 자재 : 품목 BOM ( 투입 공정은 방금 불러온 수주 공정 줄에 잇는다 )
+    try {
+        const { data } = await window.axios.get(route('order.sales.itemBom', value));
+        if (Number(line.item_idx) !== Number(value)) return;
+        Object.assign(line, { material_lines: linkRouting(data.lines ?? [], line.routing_lines), material_dirty: true, material_modified: false });
+    } catch (e) {
+        Object.assign(line, { material_lines: [], material_dirty: false, material_modified: false });
+    }
+}
+
+// ---- 자재 ( 수주 자재 ) ----
+const materialError = (i) => Object.keys(errors.value).some(k => k.startsWith(`lines.${i}.material_lines`));
+
+function openMaterial(l, i) {
+    modalStore.open(
+        OrderLineMaterialForm,
+        {
+            initial: linkRouting(l.material_lines, l.routing_lines),
+            routingRows: l.routing_lines,
+            processes: processes.value,
+            materials: materials.value,
+            canCreate: canCreateItem.value,
+            itemIdx: l.item_idx,
+            readonly: readonly.value,
+            locked: l.material_locked,
+            errors: errors.value,
+            errorPrefix: `lines.${i}.material_lines`,
+            onApply: (rows) => Object.assign(l, { material_lines: rows, material_dirty: true, material_modified: true }),
+            modalTitle: `자재 [ #${i + 1} ${l.item_code} ${l.item_name} ]`,
+        },
+        { size: 'xl', closeOnClickOutside: false }
+    );
 }
 
 // ---- 공정 ( 수주 라우팅 ③ ) ----
@@ -322,6 +355,7 @@ function openNewItem() {
         ItemForm,
         {
             canWrite: true,
+            onlyTypes: ['PRODUCT'],   // 수주할 수 있는 품목은 제품뿐
             onSaved: (item) => {
                 if (item.item_type !== 'PRODUCT' || item.is_use !== 'Y') {
                     showAlert('품목 등록', '등록했지만 수주할 수 있는 품목이 아닙니다. ( 제품 대분류의 사용 중 품목만 )', 'info');
@@ -383,10 +417,14 @@ function fillForm(o) {
         status:          o.status,
         remark:          o.remark ?? '',
         locked:          o.locked === true,
-        lines:           (o.lines ?? []).map(({ routing, ...l }) => ({
-            ...blankLine(), ...l, remark: l.remark ?? '',
-            routing_lines: routing?.lines ?? [], routing_modified: routing?.modified === true, routing_locked: routing?.locked === true,
-        })),
+        lines:           (o.lines ?? []).map(({ routing, material, ...l }) => {
+            const routingLines = routing?.lines ?? [];
+            return {
+                ...blankLine(), ...l, remark: l.remark ?? '',
+                routing_lines: routingLines, routing_modified: routing?.modified === true, routing_locked: routing?.locked === true,
+                material_lines: linkRouting(material?.lines ?? [], routingLines), material_modified: material?.modified === true, material_locked: material?.locked === true,
+            };
+        }),
     });
 }
 
@@ -399,6 +437,7 @@ onMounted(async () => {
         items.value    = fd.data.items ?? [];
         today.value    = fd.data.today;
         processes.value     = fd.data.processes ?? [];
+        materials.value     = fd.data.materials ?? [];
         canCreateItem.value = fd.data.can_create_item === true && props.canWrite;
 
         if (show) {
@@ -465,6 +504,8 @@ async function save() {
                 remark:     l.remark || null,
                 // 고친 줄만 공정을 보낸다 ( null = 그대로 · 서버가 없으면 품목 공정을 복사 )
                 routing_lines: l.routing_dirty && !l.routing_locked ? l.routing_lines.map(toLinePayload) : null,
+                // 고친 줄만 자재를 보낸다 ( 투입 공정 = 지금 공정 줄의 순서 )
+                material_lines: l.material_dirty && !l.material_locked ? toMaterialPayload(l.material_lines, l.routing_lines) : null,
             })),
         };
         const { data } = await window.axios.post(route('order.sales.save'), payload);
@@ -507,7 +548,7 @@ function handleError(e, fallback) {
     if (status === 422) {
         errors.value = e.response.data.errors || {};
         // 줄 · 머리 칸에 붙지 않는 오류( status 등 )는 위에 모아 보여 준다
-        const shown = /^(order_date|partner_idx|order_name|customer_po_no|lines(\.\d+\.\w+)?|lines\.\d+\.routing_lines\..+)$/;
+        const shown = /^(order_date|partner_idx|order_name|customer_po_no|lines(\.\d+\.\w+)?|lines\.\d+\.(routing|material)_lines\..+)$/;
         const other = Object.entries(errors.value).filter(([k]) => !shown.test(k)).flatMap(([, v]) => v);
         if (other.length) errorMsg.value = other.join('\n');
         tab.value = 'basic';

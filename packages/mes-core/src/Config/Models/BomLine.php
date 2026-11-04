@@ -4,10 +4,12 @@ namespace MesCore\Config\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 
 // BOM 자재 줄 ( BOM 1 : N )
 //   routing_line_idx = 투입 지점이자 소요 조건. 라우팅의 "줄"을 가리킨다( 공정 마스터가 아님 )
+//   substitutes = 대체 자재 N ( 이 줄 대신 쓸 수 있는 자재 · 소요는 대체 자재 기준 )
 class BomLine extends Model {
 
     protected $table      = 'bom_line';
@@ -19,6 +21,7 @@ class BomLine extends Model {
 
     protected $fillable = [
         'bom_idx',
+        'source_bom_line_idx',
         'seq',
         'child_item_idx',
         'routing_line_idx',
@@ -50,6 +53,10 @@ class BomLine extends Model {
 
     public function childItem(): BelongsTo {
         return $this->belongsTo(Item::class, 'child_item_idx', 'item_idx');
+    }
+
+    public function substitutes(): HasMany {
+        return $this->hasMany(BomLineSubstitute::class, 'bom_line_idx', 'bom_line_idx')->orderBy('seq')->orderBy('bom_line_substitute_idx');
     }
 
     public function routingLine(): BelongsTo {

@@ -59,7 +59,7 @@
 
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">구매처 <span class="text-red-500">*</span></label>
-                        <BaseSelect v-model="form.partner_idx" :options="partnerOptions" class="w-full" placeholder="구매처 선택" :disabled="readonly || orderLocked" />
+                        <PartnerSelect v-model="form.partner_idx" :options="partners" class="w-full" placeholder="구매처 선택" :current="{ partner_name: form.partner_name }" :disabled="readonly || orderLocked" />
                         <p v-if="errors.partner_idx" class="text-xs text-red-500 mt-0.5">{{ errors.partner_idx[0] }}</p>
                     </div>
                     <div>
@@ -113,7 +113,7 @@
                                 <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
                                     <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
                                     <td class="px-1.5 py-1">
-                                        <BaseSelect v-model="l.item_idx" :options="itemOptionsFor(l)" size="sm" class="w-full" placeholder="품목 선택" :disabled="readonly || l.locked" @update:modelValue="v => onItemChange(l, v)" />
+                                        <ItemPicker v-model="l.item_idx" :options="items" show-type :disabled="readonly || l.locked" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @update:model-value="v => onItemChange(l, v)" />
                                         <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                     </td>
                                     <td class="px-1.5 py-1">
@@ -177,12 +177,13 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import { showAlert } from '@core/Utils/message';
-import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor, itemGroupLabel } from '@core/Components/Purchase/purchaseCodes';
+import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor } from '@core/Components/Purchase/purchaseCodes';
+import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 
 const props = defineProps({
     order:    { type: Object,   default: null },   // 목록 행 ( purchase_order_idx 로 다시 조회 )
@@ -233,26 +234,7 @@ const partners = ref([]);
 const items    = ref([]);
 const today    = ref('');
 
-const partnerOptions = computed(() => {
-    const opts = partners.value.map(p => ({ value: p.partner_idx, label: `${p.partner_name} [${p.partner_code}]` }));
-    // 수정 화면의 기존 구매처가 목록에 없으면( 미사용 · 구매처 해제 ) 그 값만 덧붙인다
-    if (form.partner_idx && !opts.some(o => Number(o.value) === Number(form.partner_idx))) {
-        opts.push({ value: form.partner_idx, label: `${form.partner_name} ( 현재 선택 불가 )` });
-    }
-    return opts;
-});
 
-// 자재가 먼저 오고, 제품은 [제품] 표시 ( 경고 후 허용 )
-const itemOptions = computed(() => items.value.map(it => ({
-    value: it.item_idx,
-    label: `${it.item_type === 'PRODUCT' ? `[${itemGroupLabel(it.item_type)}] ` : ''}${it.item_code} ${it.item_name}`,
-})));
-function itemOptionsFor(line) {
-    if (line.item_idx && !items.value.some(it => Number(it.item_idx) === Number(line.item_idx))) {
-        return [...itemOptions.value, { value: line.item_idx, label: `${line.item_code} ${line.item_name} ( 현재 선택 불가 )` }];
-    }
-    return itemOptions.value;
-}
 
 // 품목을 고르면 단위 · 발주단가를 채운다
 function onItemChange(line, value) {

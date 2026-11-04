@@ -44,11 +44,17 @@ class SalesProgressService {
                 ->orderBy('o.seq')
                 ->get(['o.work_order_idx', 'o.seq', 'o.status', 'p.process_name'])
                 ->groupBy('work_order_idx');
-            $mats = DB::table('work_order_material')
-                ->whereIn('work_order_idx', $woIdxs)
-                ->groupBy('work_order_idx')
-                ->get(['work_order_idx', DB::raw('COUNT(*) as cnt'), DB::raw('SUM(CASE WHEN issued_qty + ' . self::EPS . ' >= required_qty THEN 1 ELSE 0 END) as done_cnt')])
-                ->keyBy('work_order_idx');
+            // 주 자재 기준 — 채운 정도 = 자기 출고 + 대체 출고 × ( 주 소요 ÷ 대체 소요 )
+            $matRows = DB::table('work_order_material')->whereIn('work_order_idx', $woIdxs)
+                ->get(['work_order_material_idx', 'work_order_idx', 'substitute_of_idx', 'qty_per', 'required_qty', 'issued_qty']);
+            $subsOf  = $matRows->whereNotNull('substitute_of_idx')->groupBy('substitute_of_idx');
+            $mats    = $matRows->whereNull('substitute_of_idx')->groupBy('work_order_idx')->map(fn ($rows, $woIdx) => (object) [
+                'work_order_idx' => $woIdx,
+                'cnt'            => $rows->count(),
+                'done_cnt'       => $rows->filter(fn ($m) => (float) $m->issued_qty
+                    + ($subsOf[$m->work_order_material_idx] ?? collect())->sum(fn ($s) => (float) $s->qty_per > 0 ? (float) $s->issued_qty * (float) $m->qty_per / (float) $s->qty_per : 0)
+                    + self::EPS >= (float) $m->required_qty)->count(),
+            ]);
             $issues = DB::table('stock_txn_line as l')
                 ->join('stock_txn as t', 't.stock_txn_idx', '=', 'l.stock_txn_idx')
                 ->leftJoin('lot', 'lot.lot_idx', '=', 'l.lot_idx')

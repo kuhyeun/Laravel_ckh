@@ -12,6 +12,7 @@ use MesCore\Config\Models\Process;
 use MesCore\Config\Models\Routing;
 use MesCore\Config\Models\RoutingLine;
 use MesCore\Config\Services\RoutingService;
+use MesCore\Config\Services\BomService;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderOp;
@@ -55,7 +56,7 @@ class WorkOrderController extends Controller {
 
     private const SORTABLE = ['sheet_no', 'start_date', 'due_date'];
 
-    public function __construct(private WorkOrderService $orders, private WorkOrderSheetService $sheets, private LotService $lots, private RoutingService $routingSvc) {}
+    public function __construct(private WorkOrderService $orders, private WorkOrderSheetService $sheets, private LotService $lots, private RoutingService $routingSvc, private BomService $bomSvc) {}
 
     // 목록 : 지시서 행 + 품목 줄( 펼침 ). 기간( 착수 예정 / 생산 기한 ) + 검색어( 지시번호 · 품번 · 품명 · LOT · 수주번호 ) + 출처 + 상태
     //   검색어 · 출처는 그 품목 줄이 든 지시서를 찾는다
@@ -127,10 +128,10 @@ class WorkOrderController extends Controller {
     // 등록 모달 선택지 : 품목 · 라우팅 · 공정( 설비 후보 포함 ) · LOT 규칙 · 작업자
     public function formData(MenuPermissionService $permissions) {
         $items = Item::where('item_type', 'PRODUCT')->where('is_use', 'Y')->orderBy('item_code')
-            ->get(['item_idx', 'item_code', 'item_name', 'item_kind', 'spec_unit', 'routing_idx', 'pack_qty']);
+            ->forPicker(['routing_idx', 'pack_qty'])->get();
 
         $processes = Process::with(['equipments.equipment:equipment_idx,equipment_code,equipment_name,is_use'])
-            ->where('is_use', 'Y')->orderBy('is_system', 'desc')->orderBy('process_code')->get()
+            ->where('is_use', 'Y')->orderByRaw("is_system = 'Y' DESC")->orderBy('process_code')->get()
             ->map(fn (Process $p) => $this->processRow($p))->values();
 
         return response()->json([
@@ -169,7 +170,7 @@ class WorkOrderController extends Controller {
         return response()->json([
             'routing_idx' => $routingIdx,
             'ops'         => $routingIdx ? $this->opsFromRouting((int) $routingIdx) : [],
-            'bom'         => $this->bomPreview($item->item_idx),
+            'bom'         => $this->bomPreview($item->item_idx, !empty($v['sales_order_line_idx']) ? (int) $v['sales_order_line_idx'] : null),
             'scan_qty'    => (float) ($item->pack_qty ?: 1),
         ]);
     }
@@ -344,26 +345,33 @@ class WorkOrderController extends Controller {
     }
 
     // 사용 중 BOM 자재 + 현재고( 잔고 합 — 참고 )
-    private function bomPreview(int $itemIdx): ?array {
-        $bom = Bom::with(['lines.childItem:item_idx,item_code,item_name,spec,material,spec_unit'])->where('item_idx', $itemIdx)->where('is_active', 'Y')->first();
+    // 자재 미리보기 + 현재고( 잔고 합 — 참고 ) — 수주 줄을 주면 그 줄의 수주 자재, 아니면 품목 활성 BOM · 대체 자재 포함
+    private function bomPreview(int $itemIdx, ?int $salesOrderLineIdx = null): ?array {
+        $bom = ($salesOrderLineIdx ? $this->bomSvc->orderLineBom($salesOrderLineIdx) : null)
+            ?? Bom::itemBoms()->where('item_idx', $itemIdx)->where('is_active', 'Y')->first();
         if (!$bom) {
             return null;
         }
-        $stock = DB::table('stock_balance')->whereIn('item_idx', $bom->lines->pluck('child_item_idx'))
+        $bom->load(['lines.childItem:item_idx,item_code,item_name,spec,material,spec_unit', 'lines.substitutes.childItem:item_idx,item_code,item_name,spec,material,spec_unit']);
+        $ids   = $bom->lines->pluck('child_item_idx')->merge($bom->lines->flatMap(fn ($l) => $l->substitutes->pluck('child_item_idx')));
+        $stock = DB::table('stock_balance')->whereIn('item_idx', $ids)
             ->groupBy('item_idx')->selectRaw('item_idx, SUM(qty) AS qty')->pluck('qty', 'item_idx');
+        $row = fn ($l, $item) => [
+            'child_item_idx' => $l->child_item_idx,
+            'item_code'      => $item?->item_code,
+            'item_name'      => $item?->item_name,
+            'item_spec'      => $item?->spec,
+            'item_material'  => $item?->material,
+            'spec_unit'      => $item?->spec_unit,
+            'qty_per'        => (float) $l->qty,
+            'stock_qty'      => (float) ($stock[$l->child_item_idx] ?? 0),
+        ];
         return [
             'bom_idx' => $bom->bom_idx,
-            'version' => $bom->version,
-            'lines'   => $bom->lines->map(fn ($l) => [
-                'child_item_idx'   => $l->child_item_idx,
-                'item_code'        => $l->childItem?->item_code,
-                'item_name'        => $l->childItem?->item_name,
-                'item_spec'        => $l->childItem?->spec,
-                'item_material'    => $l->childItem?->material,
-                'spec_unit'        => $l->childItem?->spec_unit,
-                'qty_per'          => (float) $l->qty,
+            'version' => $bom->owner_type === Bom::OWNER_ORDER_LINE ? '수주 자재' : $bom->version,
+            'lines'   => $bom->lines->map(fn ($l) => $row($l, $l->childItem) + [
                 'routing_line_idx' => $l->routing_line_idx,
-                'stock_qty'        => (float) ($stock[$l->child_item_idx] ?? 0),
+                'substitutes'      => $l->substitutes->map(fn ($s) => $row($s, $s->childItem))->values(),
             ])->values(),
         ];
     }
@@ -381,11 +389,13 @@ class WorkOrderController extends Controller {
             'remaining'            => $this->orders->remainingQty($l, $exceptWo),
             // 수주 공정 순서 — 같은 지시에는 이것이 같은 줄끼리만 담는다
             'routing_key'          => $this->routingSvc->orderLineProcessKeys([$l->sales_order_line_idx])[$l->sales_order_line_idx] ?? '',
+            // 수주 자재 구성 — 같은 지시에는 이것도 같은 줄끼리만
+            'material_key'         => $this->bomSvc->orderLineMaterialKeys([$l->sales_order_line_idx])[$l->sales_order_line_idx] ?? '',
         ];
     }
 
     private function toForm(WorkOrder $w): array {
-        $stock = DB::table('stock_balance')->whereIn('item_idx', $w->materials->pluck('child_item_idx'))
+        $stock = DB::table('stock_balance')->whereIn('item_idx', $w->materials->pluck('child_item_idx')->merge($w->materials->flatMap(fn ($m) => $m->substitutes->pluck('child_item_idx'))))
             ->groupBy('item_idx')->selectRaw('item_idx, SUM(qty) AS qty')->pluck('qty', 'item_idx');
         $held  = app(MaterialIssueService::class)->heldByItem($w->work_order_idx);
         return [
@@ -439,6 +449,18 @@ class WorkOrderController extends Controller {
                 'issued_qty'        => (float) $m->issued_qty,
                 'consumed_qty'      => $held[$m->child_item_idx]['consumed'] ?? 0.0,
                 'held_qty'          => $held[$m->child_item_idx]['qty'] ?? 0.0,
+                // 대체 자재 ( 자기 소요 · 출고 )
+                'substitutes'       => $m->substitutes->map(fn ($s) => [
+                    'child_item_idx' => $s->child_item_idx,
+                    'item_code'      => $s->childItem?->item_code,
+                    'item_name'      => $s->childItem?->item_name,
+                    'item_spec'      => $s->childItem?->spec,
+                    'spec_unit'      => $s->childItem?->spec_unit,
+                    'qty_per'        => (float) $s->qty_per,
+                    'required_qty'   => (float) $s->required_qty,
+                    'stock_qty'      => (float) ($stock[$s->child_item_idx] ?? 0),
+                    'issued_qty'     => (float) $s->issued_qty,
+                ])->values(),
             ])->values(),
             // 병합 이력 : 수주 줄마다 담은 수량 · 추가한 사람 · 일시
             'sources'        => $w->sources->map(fn (WorkOrderSource $s) => $this->soLineRow($s->salesOrderLine, $w->work_order_idx) + [

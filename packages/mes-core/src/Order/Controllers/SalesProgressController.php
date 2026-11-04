@@ -68,7 +68,7 @@ class SalesProgressController extends Controller {
     // 고객사 거르기 선택지 ( 수주관리 권한 없이도 쓰게 따로 )
     public function formData() {
         return response()->json([
-            'partners' => Partner::where('is_customer', 'Y')->orderBy('partner_name')->get(['partner_idx', 'partner_name']),
+            'partners' => Partner::where('is_customer', 'Y')->orderBy('partner_name')->forPicker()->get(),
         ]);
     }
 

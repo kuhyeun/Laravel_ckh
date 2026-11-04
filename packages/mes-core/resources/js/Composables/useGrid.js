@@ -117,6 +117,10 @@ export function useGrid() {
                 },
                 focused: {
                     border: COLORS.blue500
+                },
+                // 필수 셀 : 기본 프리셋은 옅은 노랑( #fffdeb ) — 일반 셀과 같게 ( 필수 표시는 헤더 * · 저장 검증으로 )
+                required: {
+                    background: COLORS.white
                 }
             }
         });

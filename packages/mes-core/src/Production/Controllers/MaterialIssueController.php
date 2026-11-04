@@ -36,15 +36,18 @@ class MaterialIssueController extends Controller {
             'include_done' => 'nullable|boolean',
         ], [], ['from' => '시작일', 'to' => '종료일']);
 
+        // 출고한 자재 = 주 자재 또는 그 대체 자재를 낸 주 자재 줄
+        $has = fn ($q) => $q->where(fn ($w) => $w->where('issued_qty', '>', 0)->orWhereHas('substitutes', fn ($r) => $r->where('issued_qty', '>', 0)));
+
         $query = WorkOrder::query()
             ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no'])
-            ->withCount(['materials', 'materials as issued_count' => fn ($q) => $q->where('issued_qty', '>', 0)])
+            ->withCount(['materials', 'materials as issued_count' => $has])
             ->whereIn('status', filter_var($v['include_done'] ?? false, FILTER_VALIDATE_BOOLEAN) ? ['WAIT', 'RUN', 'DONE'] : ['WAIT', 'RUN'])   // 완료 포함 = 남은 자재 반납
             ->orderBy('start_date')->orderBy('work_order_idx');
 
         if (!empty($v['from'])) $query->where('start_date', '>=', $v['from']);
         if (!empty($v['to']))   $query->where('start_date', '<=', $v['to']);
-        $has = fn ($q) => $q->where('issued_qty', '>', 0);
+
         if (($v['issue_status'] ?? '') === 'NONE') $query->whereDoesntHave('materials', $has);
         if (($v['issue_status'] ?? '') === 'SOME') $query->whereHas('materials', $has);
         $this->applyKeyword($query, $v['keyword'] ?? null, [

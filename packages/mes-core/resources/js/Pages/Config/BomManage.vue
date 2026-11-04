@@ -35,7 +35,7 @@
             <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">
-                        {{ selectedItem ? `${selectedItem.item_name} [${selectedItem.item_code}]` : 'BOM' }}
+                        {{ selectedItem ? withSpec(`${selectedItem.item_name} [${selectedItem.item_code}]`, selectedItem.spec) : 'BOM' }}
                     </span>
                     <template v-if="selectedItem">
                         <BaseSelect
@@ -110,10 +110,16 @@
                                     <tr v-if="!form.lines.length">
                                         <td :colspan="canWrite ? 6 : 5" class="px-2 py-6 text-center text-gray-400">자재를 추가하세요.</td>
                                     </tr>
-                                    <tr v-for="(l, i) in form.lines" :key="l._rowKey" class="border-t align-top">
+                                    <template v-for="(l, i) in form.lines" :key="l._rowKey">
+                                    <tr class="border-t align-top">
                                         <td class="px-1.5 py-1">
-                                            <BaseSelect v-model="l.child_item_idx" :options="childOptions(l)" size="sm" class="w-full" placeholder="자재 선택" :disabled="!canWrite" />
+                                            <ItemPicker placeholder="자재 선택" v-model="l.child_item_idx" :options="items" :exclude="[selectedItem?.item_idx]" :can-create="canCreateItem" :disabled="!canWrite"
+                                                :current="{ item_code: l.child_item_code, item_name: l.child_item_name, spec: l.child_item_spec }" @created="m => items.push(m)" />
                                             <p v-if="rowError(i, 'child_item_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'child_item_idx') }}</p>
+                                            <!-- 대체 자재 : 이 줄 대신 쓸 수 있는 자재 ( 펼쳐서 편집 ) -->
+                                            <button type="button" class="mt-0.5 text-[11px] hover:underline" :class="subHasError(i) ? 'text-red-500' : (l.substitutes.length ? 'text-blue-700' : 'text-gray-400')" @click="l._open = !l._open">
+                                                대체 자재 {{ l.substitutes.length }} {{ l._open ? '▴' : '▾' }}
+                                            </button>
                                         </td>
                                         <td class="px-1.5 py-1">
                                             <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" />
@@ -133,6 +139,39 @@
                                             <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="줄 삭제" @click="form.lines.splice(i, 1)">✕</button>
                                         </td>
                                     </tr>
+                                    <!-- 대체 자재 : 소요는 대체 자재 기준 ( 출고 때 주 자재 대신 · 섞어서 낸다 — 자동 채움은 주 자재만 ) -->
+                                    <tr v-if="l._open" class="bg-gray-50/70">
+                                        <td :colspan="canWrite ? 6 : 5" class="pl-6 pr-1.5 py-1.5">
+                                            <table class="w-full text-xs">
+                                                <tbody>
+                                                    <tr v-if="!l.substitutes.length">
+                                                        <td class="py-1 text-gray-400">대체 자재가 없습니다. 이 자재 대신 쓸 수 있는 자재를 넣으면 자재 출고 때 대신 · 섞어서 낼 수 있습니다.</td>
+                                                    </tr>
+                                                    <tr v-for="(sub, j) in l.substitutes" :key="sub._rowKey" class="align-top">
+                                                        <td class="w-6 py-1 text-gray-300">└</td>
+                                                        <td class="pr-1.5 py-1">
+                                                            <ItemPicker v-model="sub.child_item_idx" :options="items" :exclude="[selectedItem?.item_idx, l.child_item_idx]" placeholder="대체 자재 선택"
+                                                                :can-create="canCreateItem" :disabled="!canWrite"
+                                                                :current="{ item_code: sub.child_item_code, item_name: sub.child_item_name, spec: sub.child_item_spec }" @created="m => items.push(m)" />
+                                                            <p v-if="subError(i, j, 'child_item_idx')" class="text-[11px] text-red-500">{{ subError(i, j, 'child_item_idx') }}</p>
+                                                        </td>
+                                                        <td class="w-24 pr-1.5 py-1">
+                                                            <BaseInput v-model="sub.qty" type="number" min="0" size="sm" class="w-full text-right" placeholder="소요" :disabled="!canWrite" />
+                                                            <p v-if="subError(i, j, 'qty')" class="text-[11px] text-red-500">{{ subError(i, j, 'qty') }}</p>
+                                                        </td>
+                                                        <td class="w-44 pr-1.5 py-1 text-gray-400">투입 지점은 주 자재와 같음</td>
+                                                        <td class="w-32 pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="sm" class="w-full" placeholder="계산식" :disabled="!canWrite" /></td>
+                                                        <td class="w-24 pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="!canWrite" /></td>
+                                                        <td v-if="canWrite" class="w-10 py-1 text-center">
+                                                            <button type="button" class="px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
+                                                        </td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                            <BaseButton v-if="canWrite" size="sm" variant="secondary" class="mt-1" @click="addSubstitute(l)">+ 대체 자재</BaseButton>
+                                        </td>
+                                    </tr>
+                                    </template>
                                 </tbody>
                             </table>
                         </div>
@@ -189,8 +228,10 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
+import { withSpec } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
 
@@ -201,6 +242,7 @@ const myPerm   = computed(() => page.props.permissions?.[menuCode] ?? {});
 const canWrite = computed(() => myPerm.value.can_write === true);
 
 const items        = ref([]);
+const canCreateItem = ref(false);   // 자재 고르기의 [+ 새 자재 등록] ( 품목관리 쓰기 권한 )
 const itemKeyword  = ref('');
 const selectedItem = ref(null);
 const versions     = ref([]);
@@ -233,24 +275,21 @@ const routingOptions = computed(() => [
     ...routingLines.value.map(l => ({ value: l.routing_line_idx, label: `${l.seq}. ${l.process_name}` })),
 ]);
 
-// 자재 선택지 : 자기 자신 제외
-function childOptions(line) {
-    const opts = items.value
-        .filter(it => it.item_idx !== selectedItem.value?.item_idx)
-        .map(it => ({ value: it.item_idx, label: `${it.item_name} [${it.item_code}]` }));
-    if (line.child_item_idx && !opts.some(o => Number(o.value) === Number(line.child_item_idx))) {
-        opts.push({ value: line.child_item_idx, label: `${line.child_item_name ?? line.child_item_idx}` });
-    }
-    return opts;
-}
-
 const rowError = (i, field) => errors.value[`lines.${i}.${field}`]?.[0] ?? '';
+const subError = (i, j, field) => errors.value[`lines.${i}.substitutes.${j}.${field}`]?.[0] ?? '';
+const subHasError = (i) => Object.keys(errors.value).some(k => k.startsWith(`lines.${i}.substitutes.`));
+
+function addSubstitute(line) {
+    line.substitutes.push({ _rowKey: `s${++rowSeq}`, child_item_idx: '', qty: line.qty || 1, calc_code: '', ext_n01: '', remark: '' });
+    line._open = true;
+}
 
 // ---- 데이터 ----
 async function loadItems() {
     try {
         const { data } = await window.axios.get(route('config.bom.items'), { params: itemKeyword.value ? { keyword: itemKeyword.value } : {} });
         items.value = data.items ?? [];
+        canCreateItem.value = data.can_create_item === true;
     } catch (e) {
         showFlash('품목 목록을 불러오지 못했습니다', true);
     }
@@ -290,7 +329,10 @@ async function loadBom(bomIdx) {
         Object.assign(form, {
             bom_idx: b.bom_idx, item_idx: b.item_idx, version: b.version, is_active: b.is_active,
             changed_at: b.changed_at ?? '', approved_at: b.approved_at, remark: b.remark ?? '',
-            lines: (b.lines ?? []).map(l => ({ ...l, routing_line_idx: l.routing_line_idx ?? '', _rowKey: `b${++rowSeq}` })),
+            lines: (b.lines ?? []).map(l => ({
+                ...l, routing_line_idx: l.routing_line_idx ?? '', _rowKey: `b${++rowSeq}`,
+                substitutes: (l.substitutes ?? []).map(sub => ({ ...sub, _rowKey: `s${++rowSeq}` })), _open: false,
+            })),
         });
     } catch (e) {
         showFlash('BOM 을 불러오지 못했습니다', true);
@@ -315,6 +357,7 @@ function addLine() {
     form.lines.push({
         _rowKey: `b${++rowSeq}`, bom_line_idx: null,
         child_item_idx: '', routing_line_idx: '', qty: 1, calc_code: '', ext_n01: '', remark: '',
+        substitutes: [], _open: false,
     });
 }
 
@@ -360,10 +403,17 @@ async function save() {
                 bom_line_idx: l.bom_line_idx,
                 child_item_idx: l.child_item_idx === '' ? null : Number(l.child_item_idx),
                 routing_line_idx: l.routing_line_idx === '' ? null : Number(l.routing_line_idx),
-                qty: l.qty,
+                qty: l.qty === '' || l.qty === null ? null : String(l.qty),   // 숫자 검증에 float 를 넘기면 brick/math 경고
                 calc_code: l.calc_code || null,
                 ext_n01: l.ext_n01 === '' ? null : l.ext_n01,
                 remark: l.remark ?? null,
+                substitutes: l.substitutes.map(sub => ({
+                    child_item_idx: sub.child_item_idx === '' ? null : Number(sub.child_item_idx),
+                    qty: sub.qty === '' || sub.qty === null ? null : String(sub.qty),
+                    calc_code: sub.calc_code || null,
+                    ext_n01: sub.ext_n01 === '' || sub.ext_n01 === null ? null : String(sub.ext_n01),
+                    remark: sub.remark ?? null,
+                })),
             })),
         };
         const { data } = await window.axios.post(route('config.bom.save'), payload);
@@ -376,7 +426,11 @@ async function save() {
         showFlash(notes.length ? `저장되었습니다. ⚠ ${notes.join(' / ')}` : '저장되었습니다.');
     } catch (e) {
         const status = e.response?.status;
-        if (status === 422)      { errors.value = e.response.data.errors || {}; showFlash('입력값을 확인하세요', true); }
+        if (status === 422) {
+            errors.value = e.response.data.errors || {};
+            form.lines.forEach((l, i) => { if (subHasError(i)) l._open = true; });   // 대체 자재 오류가 있는 줄은 펼친다
+            showFlash('입력값을 확인하세요', true);
+        }
         else if (status === 403) showFlash('저장 권한이 없습니다.', true);
         else                     showFlash('저장에 실패했습니다.', true);
     } finally {

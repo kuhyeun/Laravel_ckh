@@ -60,11 +60,11 @@ class LeadTimeController extends Controller {
     public function itemOptions() {
         $registered = LeadTime::whereNotNull('item_idx')->pluck('item_idx')->flip();
 
-        $items = Item::select('item_idx', 'item_code', 'item_name', 'item_type')
+        $items = Item::forPicker()
             ->where('is_use', 'Y')
             ->orderBy('item_code')
             ->get()
-            ->map(fn (Item $i) => $i->only(['item_idx', 'item_code', 'item_name', 'item_type'])
+            ->map(fn (Item $i) => $i->pickerRow()
                 + ['has_lead_time' => $registered->has($i->item_idx)]);
 
         return response()->json(['items' => $items]);

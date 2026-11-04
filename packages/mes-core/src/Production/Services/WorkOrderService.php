@@ -11,6 +11,7 @@ use MesCore\Config\Models\ProcessEquipment;
 use MesCore\Config\Models\RoutingChangeLog;
 use MesCore\Config\Models\RoutingLine;
 use MesCore\Config\Services\RoutingService;
+use MesCore\Config\Services\BomService;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderMaterial;
@@ -33,13 +34,16 @@ use MesCore\Stock\Services\LotService;
  *   라우팅 3단계 ( docs/라우팅-3단계-설계.md ) : 수주에서 온 지시는 수주 라우팅( ③ ) 공정 — 공정 순서가 다른 수주 줄은 한 지시에 못 담는다
  *     공정 변경 이력( scope WORK_ORDER ) : 처음 = CREATE + 불러온 라우팅과 다른 점 / 수정 = 바뀐 줄 · 공정 구성 + 표준시간 · 검사만
  *     투입 지점 : BOM 줄은 품목 라우팅( ② ) 줄을 가리킨다 → 지시 공정의 라우팅 줄 또는 그 원본 줄로 맞춘다
+ *   자재 ( docs/대체자재-수주자재-설계.md ) : 수주에서 온 지시 = 첫 수주 줄의 수주 자재 / 재고 · 수동 = 품목 활성 BOM
+ *     대체 자재도 행으로 복사 ( substitute_of_idx = 주 자재 행 · 투입 공정은 주 자재와 같다 )
+ *     자재 구성이 다른 수주 줄은 한 지시에 못 담는다 ( 공정 순서와 같은 규칙 )
  */
 class WorkOrderService {
 
     // 화면( toForm )이 쓰는 관계
-    public const FORM_RELATIONS = ['item', 'lot', 'ops.process', 'materials.childItem', 'sources.salesOrderLine.order', 'sources.creator'];
+    public const FORM_RELATIONS = ['item', 'lot', 'ops.process', 'materials.childItem', 'materials.substitutes.childItem', 'sources.salesOrderLine.order', 'sources.creator'];
 
-    public function __construct(private LotService $lots, private RoutingService $routings) {}
+    public function __construct(private LotService $lots, private RoutingService $routings, private BomService $boms) {}
 
     /**
      * 품목 줄 하나 저장. 새 줄은 $sheet( 저장된 지시서 )에 순번을 매겨 붙인다
@@ -134,6 +138,16 @@ class WorkOrderService {
                 }
             }
         }
+        // 자재 구성이 다른 수주 줄도 한 지시에 담지 않는다 ( 수주마다 자재가 다를 수 있다 — 첫 줄 기준 )
+        if (count($sources) > 1) {
+            $mkeys = $this->boms->orderLineMaterialKeys(array_column($sources, 'sales_order_line_idx'));
+            $first = $mkeys[$sources[0]['sales_order_line_idx']] ?? '';
+            foreach ($sources as $i => $s) {
+                if ($i > 0 && !isset($errors["sources.{$i}.qty"]) && ($mkeys[$s['sales_order_line_idx']] ?? '') !== $first && $line = $soLines->get($s['sales_order_line_idx'])) {
+                    $errors["sources.{$i}.qty"] = ["{$line->order->order_no} #{$line->line_no} 는 첫 수주 줄과 자재가 달라 같이 담을 수 없습니다. 따로 지시하세요."];   // E_WO_SOURCE_BOM
+                }
+            }
+        }
         if ($sources && abs($sumSrc - (float) $data['target_qty']) > 0.000001) {
             $warnings[] = '수주 연결 수량 합( ' . $this->num($sumSrc) . ' )이 지시 수량과 다릅니다.';   // W_WO_SOURCE_SUM
         }
@@ -144,7 +158,10 @@ class WorkOrderService {
         }
 
         // 경고
-        $bom = Bom::with('lines')->where('item_idx', $item->item_idx)->where('is_active', 'Y')->first();
+        // 자재 원본 : 수주에서 온 지시 = 첫 수주 줄의 수주 자재 ( 없으면 품목 BOM ) / 재고 · 수동 = 품목 활성 BOM
+        $bom = ($sources ? $this->boms->orderLineBom((int) $sources[0]['sales_order_line_idx']) : null)
+            ?? Bom::itemBoms()->where('item_idx', $item->item_idx)->where('is_active', 'Y')->first();
+        $bom?->load('lines.substitutes');
         if ($issued) {
             if ($bom?->bom_idx !== $wo->bom_idx) {
                 $warnings[] = '출고된 자재가 있어 바뀐 BOM 을 다시 복사하지 않았습니다.';
@@ -314,26 +331,47 @@ class WorkOrderService {
 
     // 자재 사본 — 사용 중 BOM 을 지시 수량으로 다시 펼친다. 투입 지점은 같은 라우팅 줄을 가진 지시 공정 ( 없으면 첫 수량 공정 = NULL )
     private function copyMaterials(WorkOrder $wo, ?Bom $bom, array $opMap): void {
+        // 대체 자재 행 먼저 ( 주 자재 행을 가리키는 FK )
+        WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->whereNotNull('substitute_of_idx')->delete();
         WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->delete();
         if (!$bom) {
             return;
         }
-        foreach ($bom->lines as $n => $l) {
-            WorkOrderMaterial::create([
+        $seq = 0;
+        foreach ($bom->lines as $l) {
+            $opIdx = $l->routing_line_idx ? ($opMap[$l->routing_line_idx] ?? null) : null;
+            $main  = WorkOrderMaterial::create([
                 'work_order_idx'    => $wo->work_order_idx,
-                'seq'               => $n + 1,
+                'seq'               => ++$seq,
                 'child_item_idx'    => $l->child_item_idx,
                 'bom_line_idx'      => $l->bom_line_idx,
-                'work_order_op_idx' => $l->routing_line_idx ? ($opMap[$l->routing_line_idx] ?? null) : null,
+                'work_order_op_idx' => $opIdx,
                 'qty_per'           => (string) $l->qty,
                 'calc_code'         => $l->calc_code,
                 'ext_n01'           => $l->ext_n01 !== null ? (string) $l->ext_n01 : null,
                 'required_qty'      => $this->str((float) $l->qty * (float) $wo->target_qty),
             ]);
+            // 대체 자재 행 : 같은 BOM 줄 · 같은 투입 공정 · 자기 소요 ( 투입 지점을 다시 맞출 때도 주 자재와 같이 움직인다 )
+            foreach ($l->substitutes as $sub) {
+                WorkOrderMaterial::create([
+                    'work_order_idx'          => $wo->work_order_idx,
+                    'seq'                     => ++$seq,
+                    'child_item_idx'          => $sub->child_item_idx,
+                    'bom_line_idx'            => $l->bom_line_idx,
+                    'substitute_of_idx'       => $main->work_order_material_idx,
+                    'bom_line_substitute_idx' => $sub->bom_line_substitute_idx,
+                    'work_order_op_idx'       => $opIdx,
+                    'qty_per'                 => (string) $sub->qty,
+                    'calc_code'               => $sub->calc_code,
+                    'ext_n01'                 => $sub->ext_n01 !== null ? (string) $sub->ext_n01 : null,
+                    'required_qty'            => $this->str((float) $sub->qty * (float) $wo->target_qty),
+                ]);
+            }
         }
     }
 
     // 출고된 지시 : 자재 줄은 그대로 두고 투입 지점( 공정이 바뀌었을 수 있다 ) · 단순 소요( 수량이 바뀌었을 수 있다 )만
+    //   대체 자재 행은 주 자재와 같은 BOM 줄을 가리키므로 같이 맞춰진다
     private function remapMaterials(WorkOrder $wo, array $opMap): void {
         $materials = WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->get();
         $rlOf      = DB::table('bom_line')->whereIn('bom_line_idx', $materials->pluck('bom_line_idx')->filter())->pluck('routing_line_idx', 'bom_line_idx');

@@ -13,7 +13,7 @@
             :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.partner_idx" :options="partnerOptions" class="w-44" />
+            <PartnerSelect v-model="search.partner_idx" :options="partners" class="w-44" all-label="고객사 전체" />
             <BaseSelect v-model="search.status" :options="PROGRESS_STATUS_FILTER" class="w-32" />
             <!-- <label class="flex items-center gap-1.5 text-sm text-gray-600 whitespace-nowrap">
                 <input v-model="search.late" type="checkbox" true-value="1" false-value="" class="accent-red-600" /> 납기 지연만
@@ -65,6 +65,7 @@ import { ditto, escapeHtml } from '@core/Utils/gridTree';
 import { COLORS, STATUS_COLOR } from '@core/Utils/colors';
 import { PROGRESS_STATUS_FILTER, progressLabel, progressColor } from '@core/Components/Order/orderCodes';
 import { inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
+import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -89,10 +90,6 @@ const blankFilters = () => ({ partner_idx: '', status: '', late: '' });
 const search = reactive({ date_basis: 'order_date', from: '', to: '', keyword: '', ...blankFilters() });
 
 const partners = ref([]);
-const partnerOptions = computed(() => [
-    { value: '', label: '고객사 전체' },
-    ...partners.value.map(p => ({ value: p.partner_idx, label: p.partner_name })),
-]);
 
 // ---- 그리드 ----
 const gridOptions = {

@@ -51,7 +51,7 @@
 
                 <div class="col-span-2">
                     <label class="lbl">품목 <span class="text-red-500">*</span></label>
-                    <BaseSelect v-model="line.item_idx" :options="itemOptions" class="w-full" placeholder="품목 선택" :disabled="!structEditable" @update:modelValue="onItemChange" />
+                    <ItemPicker v-model="line.item_idx" :options="ctx.items" size="md" :disabled="!structEditable" :current="{ item_name: line.savedItem }" @update:model-value="onItemChange" />
                     <p v-if="errors.item_idx" class="err">{{ errors.item_idx[0] }}</p>
                 </div>
                 <div>
@@ -194,7 +194,8 @@
                     </thead>
                     <tbody>
                         <tr v-if="!materials.length"><td :colspan="showIssued ? 8 : 5" class="px-2 py-4 text-center text-gray-400">자재가 없습니다 ( 사용 중 BOM 없음 )</td></tr>
-                        <tr v-for="m in materials" :key="m.child_item_idx + '-' + m.qty_per" class="border-t">
+                        <template v-for="m in materials" :key="m.child_item_idx + '-' + m.qty_per">
+                        <tr class="border-t">
                             <td class="px-2 py-1">{{ m.item_code }} {{ m.item_name }}</td>
                             <td class="px-2 py-1 text-right">{{ fmt(m.qty_per) }}</td>
                             <td class="px-2 py-1 text-right font-semibold">{{ fmt(m.qty_per * num(line.target_qty)) }} {{ m.spec_unit }}</td>
@@ -206,6 +207,20 @@
                                 <td class="px-2 py-1 text-right font-semibold">{{ fmt(m.held_qty) }}</td>
                             </template>
                         </tr>
+                        <!-- 대체 자재 : 주 자재 대신 · 섞어서 출고할 수 있다 ( 자기 소요 · 투입 공정은 주 자재와 같음 · 자동 채움 안 함 ) -->
+                        <tr v-for="sub in (m.substitutes ?? [])" :key="'s' + m.child_item_idx + '-' + sub.child_item_idx" class="text-gray-500">
+                            <td class="px-2 py-1 pl-5"><span class="text-gray-300">└</span> <span class="text-[10px] px-1 rounded bg-gray-100">대체</span> {{ sub.item_code }} {{ sub.item_name }}</td>
+                            <td class="px-2 py-1 text-right">{{ fmt(sub.qty_per) }}</td>
+                            <td class="px-2 py-1 text-right">{{ fmt(sub.qty_per * num(line.target_qty)) }} {{ sub.spec_unit }}</td>
+                            <td class="px-2 py-1 text-gray-400">주 자재와 같음</td>
+                            <td class="px-2 py-1 text-right">{{ fmt(sub.stock_qty) }}</td>
+                            <template v-if="showIssued">
+                                <td class="px-2 py-1 text-right">{{ fmt(sub.issued_qty) }}</td>
+                                <td class="px-2 py-1"></td>
+                                <td class="px-2 py-1"></td>
+                            </template>
+                        </tr>
+                        </template>
                     </tbody>
                 </table>
             </div>
@@ -235,6 +250,7 @@ import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor, processKindLabel, isIfl } from '@core/Components/Production/productionCodes';
 import { blankOp, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
+import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 
 const props = defineProps({
     line:     { type: Object,  required: true },   // 부모의 줄 객체 ( workOrderLine.blankLine )
@@ -270,11 +286,6 @@ const runEditable    = computed(() => props.canWrite && ['WAIT', 'RUN'].includes
 const isSaved        = computed(() => !!props.line.work_order_idx);
 
 // ---- 선택지 ----
-const itemOptions = computed(() => {
-    const opts = props.ctx.items.map(i => ({ value: i.item_idx, label: `${i.item_code} ${i.item_name}` }));
-    if (props.line.item_idx && !opts.some(o => Number(o.value) === Number(props.line.item_idx))) opts.push({ value: props.line.item_idx, label: `${props.line.savedItem} ( 현재 선택 불가 )` });
-    return opts;
-});
 // 선택지는 라우팅 틀( ① ) — 불러온 품목 공정( ② ) · 수주 공정( ③ )은 틀 목록에 없으므로 따로 보인다 ( docs/라우팅-3단계-설계.md )
 const routingOptions = computed(() => {
     const opts = [{ value: '', label: '( 없음 )' }, ...props.ctx.routings.map(r => ({ value: r.routing_idx, label: `${r.routing_name} [${r.routing_code}]` }))];
@@ -367,7 +378,7 @@ async function togglePicker() {
 async function addSource(l) {
     // 처음 담는 수주 줄 : 공정을 그 줄의 수주 공정으로 ( 대기 · 공정 구성을 바꿀 수 있을 때 )
     if (!props.line.sources.length && structEditable.value) {
-        const r = await showAlert('수주 줄 담기', '공정 탭을 이 수주 줄의 공정으로 다시 채웁니다. 지금 공정 구성은 사라집니다.', 'question', 'confirm');
+        const r = await showAlert('수주 줄 담기', '공정 · 자재 탭을 이 수주 줄의 공정 · 자재로 다시 채웁니다. 지금 공정 구성은 사라집니다.', 'question', 'confirm');
         if (!r.isConfirmed) return;
         try {
             await applyOrderRouting(props.line, l.sales_order_line_idx);

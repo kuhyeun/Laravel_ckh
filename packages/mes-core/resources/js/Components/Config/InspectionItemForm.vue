@@ -33,11 +33,8 @@
             <!-- 정량 : 단위 -->
             <div v-if="isQuantitative">
                 <label class="block text-gray-500 font-medium mb-1">단위 <span class="text-red-400">*</span></label>
-                <BaseSelect v-model="form.unit_code" :options="unitOptions" class="w-full" placeholder="단위 선택" :disabled="!canWrite" />
+                <UnitSelect v-model="form.unit_code" :disabled="!canWrite" empty-hint />
                 <p v-if="errors.unit_code" class="text-xs text-red-500 mt-0.5">{{ errors.unit_code[0] }}</p>
-                <p v-else-if="!unitLoading && !unitOptions.length" class="text-xs text-amber-600 mt-0.5">
-                    등록된 단위가 없습니다. 코드관리의 UNIT 그룹에 먼저 추가하세요.
-                </p>
             </div>
 
             <!-- 정성 : 판정 기준 -->
@@ -81,10 +78,10 @@
 import { ref, reactive, computed } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
+import UnitSelect from '@core/Components/Common/UnitSelect.vue';
 
 const props = defineProps({
     inspectionItem: { type: Object,   default: null },   // 있으면 수정, 없으면 등록
@@ -115,16 +112,6 @@ const form = reactive({
 
 const isQuantitative = computed(() => form.is_quantitative === 'Y');
 
-// ---- 단위 ( 코드 마스터 UNIT ) ----
-const { options: codeOptions, loading: unitLoading } = useCommonCode(['UNIT']);
-const unitOptions = computed(() => {
-    const opts = codeOptions('UNIT');
-    // 기존 항목의 단위가 미사용으로 내려가 목록에 없으면 현재 값은 보이도록 추가
-    if (form.unit_code && !unitLoading.value && !opts.some(o => o.value === form.unit_code) && isEdit.value) {
-        return [...opts, { value: form.unit_code, label: `${form.unit_code} ( 미사용 )` }];
-    }
-    return opts;
-});
 
 const errors   = ref({});
 const errorMsg = ref('');

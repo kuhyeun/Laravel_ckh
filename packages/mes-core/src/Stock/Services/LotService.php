@@ -72,6 +72,7 @@ class LotService {
             }
             $lotNo = LotRule::render($rule->format_spec ?? [], (string) $rule->separator, [
                 'item_code'    => $item->item_code,
+                'item_spec'    => $item->spec,
                 'date'         => $ctx['date'],
                 'seq'          => $this->nextSeq($rule, $ctx['date']),
                 'partner_code' => $ctx['partner_code'] ?? '',
@@ -112,6 +113,7 @@ class LotService {
 
         $lotNo = LotRule::render($rule->format_spec ?? [], (string) $rule->separator, [
             'item_code' => $item->item_code,
+            'item_spec' => $item->spec,
             'date'      => $date,
             'seq'       => $this->nextSeq($rule, $date),
         ]);

@@ -10,11 +10,15 @@ use MesCore\Config\Models\LeadTime;
 use MesCore\Basic\Services\PolicyService;
 use MesCore\Config\Models\Routing;
 use MesCore\Config\Services\RoutingService;
+use MesCore\Config\Services\BomService;
+use MesCore\Config\Services\SpecCodeService;
+use MesCore\Config\Models\BomLineSubstitute;
 use MesCore\Config\Validation\ItemRules;
 use MesCore\Basic\Services\Import\ExcelImportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
@@ -26,7 +30,7 @@ use Illuminate\Validation\ValidationException;
 //     item.routing_idx = ② · 미사용 처리하면 ② 도 미사용
 class ItemController extends Controller {
 
-    public function __construct(private RoutingService $routings) {}
+    public function __construct(private RoutingService $routings, private BomService $boms, private SpecCodeService $specs) {}
 
     // 대분류별로 품목 단위 덮어쓰기가 의미 있는 정책 ( 자재는 입고 · 소비, 제품은 입고 · 출하 )
     private const POLICY_KEYS_BY_TYPE = [
@@ -36,6 +40,7 @@ class ItemController extends Controller {
 
     // 화면 전용 칸의 이름 ( 기본 정보 칸은 ItemRules::ATTRIBUTES )
     private const EXTRA_ATTRIBUTES = [
+        'main_material'                => '주 자재',
         'main_material.child_item_idx' => '주 자재',
         'main_material.qty'            => '주 자재 소요',
         'routing_lines'                => '공정',
@@ -120,13 +125,15 @@ class ItemController extends Controller {
         $type = $request->input('item_type');
 
         // 기본 정보 규칙은 엑셀 일괄 등록과 같이 쓴다 ( ItemRules ) + 화면 전용 칸
-        $validated = $request->validate(ItemRules::rules($item, $type) + [
+        $validated = $request->validate(ItemRules::rules($item, $type, $request->input('spec')) + [
             // 주 자재 : 가공품은 제품 1 : 원자재 1 이 대부분 → 저장 시 BOM V1 을 대신 만들어 준다
             'main_material'                 => 'nullable|array',
             'main_material.child_item_idx'  => 'required_with:main_material|integer|exists:item,item_idx',
             'main_material.qty'             => 'required_with:main_material|numeric|gt:0|max:9999999999',
             'main_material.calc_code'       => 'nullable|string|max:30',
             'main_material.ext_n01'         => 'nullable|numeric|min:0|max:9999999999',
+            // 이미 주 자재가 있는데 다른 자재를 고르면 : REPLACE 교체( 기본 ) / SUBSTITUTE 대체 자재로 추가 ( 주 자재는 그대로 )
+            'main_material.mode'            => 'nullable|in:REPLACE,SUBSTITUTE',
             // 탭 4 : 정책 덮어쓰기 [ key => 값 | null( 따름 ) ] — 값 검증은 PolicyService
             'policies'   => 'nullable|array',
             'policies.*' => 'nullable|string|max:300',
@@ -141,7 +148,9 @@ class ItemController extends Controller {
             // 공정 탭 : 품목 라우팅( ② ) 공정 줄 — 보내지 않으면( null ) 손대지 않음
             'routing_lines'           => 'nullable|array|max:100',
         ] + RoutingService::lineRules('routing_lines'), ItemRules::MESSAGES + [
-            'main_material.qty.gt' => '주 자재 소요는 0보다 커야 합니다.',
+            'main_material.qty.gt'                     => '주 자재 소요는 0보다 커야 합니다.',
+            'main_material.qty.required_with'          => '주 자재 소요를 넣으세요.',
+            'main_material.child_item_idx.required_with' => '주 자재를 고르세요.',
         ], ItemRules::ATTRIBUTES + self::EXTRA_ATTRIBUTES + RoutingService::lineAttributes('routing_lines'));
 
         // 빈 숫자 → 0, 소재 항목 정리 ( 엑셀 일괄 등록과 같은 규칙 )
@@ -180,6 +189,7 @@ class ItemController extends Controller {
         try {
             DB::transaction(function () use ($item, $validated, $isProduct, $mainMaterial, $policyValues, $leadTime, $policy, $templateIdx, $routingLines, &$warnings) {
                 $item->fill($validated)->save();
+                $this->specs->ensure($item->spec);   // 없는 규격은 규격 코드에 더한다
                 // 품목 라우팅( ② ) — 제품이 아니면 미사용으로 · 1개 생산 표준시간도 여기서
                 $warnings = array_merge($warnings, $this->routings->syncItemRouting($item, $templateIdx, $routingLines));
                 if ($isProduct) {
@@ -237,6 +247,47 @@ class ItemController extends Controller {
         ]);
     }
 
+    /**
+     * 자재 찾기 · 새로 등록 ( 자재 고르기 MaterialPicker 의 [새 자재 등록] ) — docs/품목-규격구분-설계.md §2-4
+     *   품번 + 규격( specKey )이 같은 자재가 있으면 그것을 돌려준다( found ) / 없으면 소분류 · 단위만 받아 새 자재로
+     *   검증은 품목 저장과 같은 ItemRules ( 같은 품번의 제품이 있으면 막힘 )
+     */
+    public function quickMaterial(Request $request) {
+        $v = $request->validate([
+            'item_code' => 'required|string|max:40',
+            'item_name' => 'required|string|max:100',
+            'spec'      => 'nullable|string|max:100',
+        ], [], ItemRules::ATTRIBUTES);
+
+        $found = Item::where('item_type', 'MATERIAL')->where('item_code', $v['item_code'])->where('spec_key', Item::specKey($v['spec'] ?? null))->first();
+        if ($found) {
+            return response()->json(['found' => true, 'item' => $found->pickerRow()]);
+        }
+
+        $item = new Item();
+        // 받는 것 = 품번 · 품명 · 규격 · 소분류 · 단위 — 나머지는 품목 등록 기본값
+        $input = array_merge(['serial_use' => 'N', 'is_use' => 'Y'], $request->only(['item_code', 'item_name', 'spec', 'item_kind', 'spec_unit']), ['item_type' => 'MATERIAL']);
+        $data  = ItemRules::normalize(Validator::make($input, ItemRules::rules($item, 'MATERIAL', $v['spec'] ?? null),
+            ItemRules::MESSAGES, ItemRules::ATTRIBUTES)->validate());
+        ItemRules::assertBusiness($item, $data);
+        unset($data['routing_idx']);
+
+        DB::transaction(function () use ($item, $data) {
+            $item->fill($data)->save();
+            $this->specs->ensure($item->spec);
+            $this->routings->syncItemRouting($item, null, []);   // 자재 — 라우팅 없음 ( 표준시간 0 )
+        });
+
+        return response()->json(['found' => false, 'item' => $item->fresh()->pickerRow()]);
+    }
+
+    // 규격 고르기의 [+ 새 규격 추가] — 규격 코드에 더하고( 같은 규격이 있으면 그것 ) 돌려준다 · 품목관리 쓰기 권한
+    public function quickSpec(Request $request) {
+        $v = $request->validate(['spec' => 'required|string|max:100'], [], ['spec' => '규격']);
+        $code = $this->specs->ensure($v['spec']);
+        return response()->json(['code' => ['key' => $code->system_code_key, 'name' => $code->system_code_name, 'is_use' => $code->is_use]]);
+    }
+
     // 공정 탭 : 고른 틀( ① )의 공정을 "복사할 새 줄"로 ( 틀을 바꾸면 화면이 공정을 갈아 끼운다 )
     public function routingTemplate(int $routingIdx) {
         $template = Routing::templates()->find($routingIdx);
@@ -256,11 +307,13 @@ class ItemController extends Controller {
         // 라우팅 틀( ① )만
         $routings = Routing::templates()->select('routing_idx', 'routing_code', 'routing_name', 'is_default')
             ->where('is_use', 'Y')
-            ->orderByDesc('is_default')
+            ->orderByRaw("is_default = 'Y' DESC")   // enum( 'Y','N' ) 은 orderByDesc 가 N 을 앞에 둔다
             ->orderBy('routing_code')
             ->get();
 
-        $materials = Item::select('item_idx', 'item_code', 'item_name', 'spec_unit', 'item_type', 'item_kind')
+        // 주 자재 선택지 : 자재( MATERIAL )만 ( 반제품 등 제품을 하위로 넣는 것은 BOM관리에서 )
+        $materials = Item::forPicker()
+            ->where('item_type', 'MATERIAL')
             ->where('is_use', 'Y')
             ->when($validated['item_idx'] ?? null, fn ($q, $itemIdx) => $q->where('item_idx', '!=', $itemIdx))
             ->orderBy('item_code')
@@ -278,9 +331,12 @@ class ItemController extends Controller {
                 if ($bomLineCount === 1) {
                     $line = $lines->first();
                     $mainMaterial = [
+                        'substitute_count' => $line->substitutes()->count(),
                         'bom_line_idx'    => $line->bom_line_idx,
                         'child_item_idx'  => $line->child_item_idx,
                         'child_item_name' => $line->childItem?->item_name,
+                        'child_item_code' => $line->childItem?->item_code,
+                        'child_item_spec' => $line->childItem?->spec,
                         'qty'             => $line->qty,
                         'calc_code'       => $line->calc_code,
                         'ext_n01'         => $line->ext_n01,
@@ -365,8 +421,9 @@ class ItemController extends Controller {
     }
 
     private function activeBom(int $itemIdx): ?Bom {
-        return Bom::where('item_idx', $itemIdx)
-            ->orderByDesc('is_active')
+        // is_active 는 enum( 'Y','N' ) — orderByDesc 는 선언 순서로 정렬돼 N 이 먼저 온다 → 활성을 직접 앞으로
+        return Bom::itemBoms()->where('item_idx', $itemIdx)
+            ->orderByRaw("is_active = 'Y' DESC")
             ->orderByDesc('bom_idx')
             ->first();
     }
@@ -377,38 +434,25 @@ class ItemController extends Controller {
             throw ValidationException::withMessages(['main_material.child_item_idx' => ['자기 자신을 자재로 넣을 수 없습니다.']]);
         }
 
+        // 주 자재는 자재만 ( 이미 BOM 에 들어 있던 값은 그대로 저장 허용 — 제품 하위는 BOM관리에서 )
+        $current = $item->exists ? $this->activeBom($item->item_idx)?->lines()->value('child_item_idx') : null;
+        if ((int) $childItemIdx !== (int) $current && Item::whereKey($childItemIdx)->value('item_type') !== 'MATERIAL') {
+            throw ValidationException::withMessages(['main_material.child_item_idx' => ['주 자재는 자재만 고를 수 있습니다. ( 제품을 하위로 넣으려면 BOM관리에서 )']]);
+        }
+
         if (!$item->exists) {
             return;   // 신규 품목은 아직 아무도 참조하지 않으므로 순환이 생길 수 없다
         }
 
-        // 자재의 BOM 을 따라 내려가 이 품목이 나오면 순환
-        $edges = DB::table('bom')
-            ->join('bom_line', 'bom.bom_idx', '=', 'bom_line.bom_idx')
-            ->select('bom.item_idx', 'bom_line.child_item_idx')
-            ->get()
-            ->groupBy('item_idx')
-            ->map(fn ($rows) => $rows->pluck('child_item_idx')->all());
-
-        $seen  = [];
-        $queue = [$childItemIdx];
-        while ($queue) {
-            $current = (int) array_pop($queue);
-            if ($current === (int) $item->item_idx) {
-                throw ValidationException::withMessages(['main_material.child_item_idx' => ['순환 참조입니다. 이 자재의 BOM 이 이 품목을 포함합니다.']]);
-            }
-            if (isset($seen[$current])) {
-                continue;
-            }
-            $seen[$current] = true;
-            foreach ($edges[$current] ?? [] as $next) {
-                $queue[] = (int) $next;
-            }
+        // 자재의 BOM( 대체 자재 포함 )을 따라 내려가 이 품목이 나오면 순환
+        if ($this->boms->reaches($this->boms->edges(), $childItemIdx, (int) $item->item_idx)) {
+            throw ValidationException::withMessages(['main_material.child_item_idx' => ['순환 참조입니다. 이 자재의 BOM 이 이 품목을 포함합니다.']]);
         }
     }
 
     // 주 자재 ↔ BOM 동기화 ( 진실은 bom · bom_line 하나. 품목에 자재 컬럼을 두지 않는다 )
     //   BOM 없음  + 주 자재 있음 → BOM V1 생성( 활성 ) + 줄 하나
-    //   BOM 1줄   + 주 자재 있음 → 그 줄 수정
+    //   BOM 1줄   + 주 자재 있음 → 그 줄 수정 ( 다른 자재 + SUBSTITUTE 면 그 줄의 대체 자재로 추가 — 주 자재는 그대로 )
     //   BOM 1줄   + 주 자재 비움 → 그 줄 삭제 ( BOM 버전은 남긴다 )
     //   BOM 2줄 이상            → 건드리지 않는다 ( BOM관리에서 다룬다 )
     private function syncMainMaterial(Item $item, ?array $mainMaterial): array {
@@ -438,6 +482,23 @@ class ItemController extends Controller {
         }
 
         $line = $bom->lines()->first() ?? new BomLine(['bom_idx' => $bom->bom_idx]);
+
+        if ($line->exists && ($mainMaterial['mode'] ?? 'REPLACE') === 'SUBSTITUTE'
+            && (int) $line->child_item_idx !== (int) $mainMaterial['child_item_idx']) {
+            $sub = BomLineSubstitute::firstOrNew(['bom_line_idx' => $line->bom_line_idx, 'child_item_idx' => $mainMaterial['child_item_idx']]);
+            $sub->fill([
+                'seq'       => $sub->exists ? $sub->seq : (int) $line->substitutes()->max('seq') + 1,
+                'qty'       => (string) $mainMaterial['qty'],
+                'calc_code' => $mainMaterial['calc_code'] ?? null,
+                'ext_n01'   => isset($mainMaterial['ext_n01']) ? (string) $mainMaterial['ext_n01'] : null,
+            ])->save();
+            if ($bom->isApproved()) {
+                $bom->clearApproval();
+                $bom->save();
+            }
+            return ['대체 자재로 추가했습니다. ( 주 자재는 그대로 · BOM관리에서 확인 )'];
+        }
+
         $line->fill([
             'seq'            => 1,
             'child_item_idx' => $mainMaterial['child_item_idx'],
@@ -445,6 +506,9 @@ class ItemController extends Controller {
             'calc_code'      => $mainMaterial['calc_code'] ?? null,
             'ext_n01'        => $mainMaterial['ext_n01'] ?? null,
         ])->save();
+
+        // 교체한 자재가 그 줄의 대체 자재였으면 대체에서 뺀다 ( 주 자재 = 대체 자재가 되지 않게 )
+        BomLineSubstitute::where('bom_line_idx', $line->bom_line_idx)->where('child_item_idx', $line->child_item_idx)->delete();
 
         return $bom->wasRecentlyCreated ? ['BOM ' . $bom->version . ' 이 자동으로 만들어졌습니다.'] : [];
     }

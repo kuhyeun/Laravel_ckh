@@ -11,6 +11,7 @@ use MesCore\Order\Models\SalesOrder;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Order\Services\SalesOrderService;
 use MesCore\Config\Services\RoutingService;
+use MesCore\Config\Services\BomService;
 use MesCore\Menu\Services\MenuPermissionService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Builder;
@@ -25,6 +26,7 @@ use Illuminate\Validation\ValidationException;
 //   저장 · 채번 · 삭제 규칙은 SalesOrderService
 //   줄마다 공정( 수주 라우팅 ③ ) — 품목 라우팅을 복사해 이 수주에 맞게 고친다 · 작업지시가 생기면 잠김 ( docs/라우팅-3단계-설계.md )
 //   [+ 새 품목] : 품목관리 등록 창을 그대로 연다 ( 품목관리 쓰기 권한 )
+//   줄마다 자재( 수주 자재 — 품목 BOM + 대체 자재 복사 ) — 공정과 같은 잠금 · 이력 ( docs/대체자재-수주자재-설계.md )
 class SalesOrderController extends Controller {
     use SearchesKeyword;
     use RespondsWithList;
@@ -47,7 +49,7 @@ class SalesOrderController extends Controller {
     // 목록 정렬 허용 ( 화면 열 이름 → 쿼리 별칭과 같다 )
     private const SORTABLE = ['order_no', 'order_date', 'partner_name', 'next_due_date', 'total_amount'];
 
-    public function __construct(private SalesOrderService $orders, private RoutingService $routings) {}
+    public function __construct(private SalesOrderService $orders, private RoutingService $routings, private BomService $boms) {}
 
     // 목록 : 기간( 수주일 / 납품일 ) + 검색어( 수주번호 · 수주명 · 고객 발주번호 · 품번 · 품명 ) + 고객사 + 상태
     public function list(Request $request) {
@@ -91,19 +93,28 @@ class SalesOrderController extends Controller {
     public function formData(MenuPermissionService $permissions) {
         $partners = Partner::where('is_customer', 'Y')->where('is_use', 'Y')
             ->orderBy('partner_name')
-            ->get(['partner_idx', 'partner_code', 'partner_name']);
+            ->forPicker()->get();
 
         $items = Item::where('item_type', 'PRODUCT')->where('is_use', 'Y')
             ->orderBy('item_code')
-            ->get(['item_idx', 'item_code', 'item_name', 'item_kind', 'spec_unit', 'std_sale_price']);
+            ->forPicker(['std_sale_price'])->get();
 
         return response()->json([
             'partners'        => $partners,
             'items'           => $items,
             'today'           => now()->toDateString(),
             'processes'       => $this->routings->processOptions(),   // 줄 공정 편집기
+            // 줄 자재 편집기 : 자재 · 대체 자재 선택지 ( 사용 중 품목 )
+            'materials'       => Item::where('is_use', 'Y')->orderBy('item_code')->forPicker()->get(),
             'can_create_item' => $permissions->canPage(Auth::user(), 'Config/ItemManage', 'can_write'),
         ]);
+    }
+
+    // 줄의 품목을 고르면 : 그 품목의 활성 BOM 을 "복사할 새 줄"로 ( 수주 자재의 처음 값 · 대체 자재 포함 )
+    //   투입 지점은 routing_source_line_idx( 품목 공정 줄 ) — 화면이 수주 공정 줄에 잇는다
+    public function itemBom(int $itemIdx) {
+        $base = $this->boms->activeItemBom($itemIdx);
+        return response()->json(['lines' => $base ? $this->boms->copyRows($base) : []]);
     }
 
     // 줄의 품목을 고르면 : 그 품목의 품목 라우팅( ② )을 "복사할 새 줄"로 ( 수주 공정의 처음 값 )
@@ -140,11 +151,11 @@ class SalesOrderController extends Controller {
             'lines.*.remark'               => 'nullable|string|max:200',
             // 줄 공정( ③ ) — 보내지 않으면( null ) 그대로
             'lines.*.routing_lines'        => 'nullable|array|max:100',
-        ] + RoutingService::lineRules('lines.*.routing_lines'), [
+        ] + RoutingService::lineRules('lines.*.routing_lines') + $this->materialRules(), [
             'lines.required' => '품목을 하나 이상 넣으세요.',
             'lines.min'      => '품목을 하나 이상 넣으세요.',
             'lines.*.qty.gt' => '수량은 0보다 커야 합니다.',
-        ], self::ATTRIBUTES + RoutingService::lineAttributes('lines.*.routing_lines'));
+        ] + BomService::lineMessages('lines.*.material_lines'), self::ATTRIBUTES + RoutingService::lineAttributes('lines.*.routing_lines') + BomService::lineAttributes('lines.*.material_lines'));
 
         try {
             [$saved, $warnings] = $this->orders->save($data, $order);
@@ -293,6 +304,24 @@ class SalesOrderController extends Controller {
         ];
     }
 
+    // 줄 자재 검증 — BOM 줄 규칙에서 투입 지점만 수주 공정의 순서( routing_seq )로
+    private function materialRules(): array {
+        $rules = BomService::lineRules('lines.*.material_lines');
+        unset($rules['lines.*.material_lines.*.routing_line_idx']);
+        return ['lines.*.material_lines' => 'nullable|array|max:100', 'lines.*.material_lines.*.routing_seq' => 'nullable|integer|min:1|max:100',
+            'lines.*.material_lines.*.source_bom_line_idx' => 'nullable|integer'] + $rules;
+    }
+
+    // 줄 자재 : 자재 줄( 대체 자재 포함 ) · 품목 BOM 과 다른가 · 잠김( 작업지시 생성 )
+    private function materialPayload(SalesOrderLine $l): array {
+        $own = $this->boms->orderLineBom($l->sales_order_line_idx);
+        return [
+            'lines'    => $own ? $this->boms->linesPayload($own) : [],
+            'modified' => $own ? $this->boms->differsFromBase($own) : false,
+            'locked'   => $l->directedQty() > 0,
+        ];
+    }
+
     // 줄 공정( ③ ) : 공정 줄 · 품목 라우팅과 다른가 · 잠김( 작업지시 생성 )
     private function routingPayload(SalesOrderLine $l): array {
         $own = $this->routings->orderLineRouting($l->sales_order_line_idx);
@@ -338,6 +367,7 @@ class SalesOrderController extends Controller {
                 'directed_qty'         => $l->directedQty(),   // 작업지시에 담긴 수량 ( 수주 창의 [작업지시] )
                 'remark'               => $l->remark,
                 'routing'              => $this->routingPayload($l),
+                'material'             => $this->materialPayload($l),
             ])->values()->all(),
         ];
     }

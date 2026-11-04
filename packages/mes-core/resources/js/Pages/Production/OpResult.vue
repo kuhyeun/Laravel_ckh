@@ -132,7 +132,7 @@
                                 </div>
                                 <div v-if="selectedOp.receives_on_run">
                                     <label class="lbl">입고 창고 <span class="text-red-500">*</span></label>
-                                    <BaseSelect v-model="runForm.warehouse_idx" :options="warehouseOptions" class="w-44" placeholder="창고" />
+                                    <WarehouseSelect v-model="runForm.warehouse_idx" :options="warehouses" class="w-44" placeholder="창고" />
                                 </div>
                                 <div class="flex-1 min-w-[140px]">
                                     <label class="lbl">비고</label>
@@ -166,7 +166,7 @@
                                 </div>
                                 <div v-if="selectedOp.needs_warehouse">
                                     <label class="lbl">입고 창고 <span class="text-red-500">*</span></label>
-                                    <BaseSelect v-model="doneForm.warehouse_idx" :options="warehouseOptions" class="w-44" placeholder="창고" />
+                                    <WarehouseSelect v-model="doneForm.warehouse_idx" :options="warehouses" class="w-44" placeholder="창고" />
                                 </div>
                                 <div class="flex gap-1">
                                     <BaseButton size="sm" variant="secondary" @click="panel = ''">닫기</BaseButton>
@@ -243,6 +243,7 @@ import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.v
 import ProcessInspectionForm from '@core/Components/Quality/ProcessInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast } from '@core/Composables/useToast';
+import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -314,7 +315,6 @@ const me         = ref(null);
 // 작업 일시 기본값 = 입력 창을 연 지금 ( datetime-local 형식 )
 const localNow = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const userOptions      = computed(() => users.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
-const warehouseOptions = computed(() => warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label })));
 const reasonOptions    = computed(() => reasons.value.map(r => ({ value: r.system_code_key, label: r.system_code_name })));
 const equipOptions     = computed(() => [{ value: '', label: '( 미지정 )' }, ...(selectedOp.value?.equipments ?? []).map(e => ({ value: e.equipment_idx, label: e.equipment_name }))]);
 

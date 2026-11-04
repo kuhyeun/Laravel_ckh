@@ -2,13 +2,18 @@
 
 namespace MesCore\Config\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Auth;
 
 // BOM ( BAS-03 ) — 품목 × 버전. 변경 한 번이 버전 하나이므로 버전 목록이 곧 변경 이력
+//   owner_type : ITEM 품목 BOM( BOM관리 · scopeItemBoms ) / ORDER_LINE 수주 줄 자재( 수주 저장 때 품목 BOM 복사 · 목록에 안 보임 )
 class Bom extends Model {
+
+    const OWNER_ITEM       = 'ITEM';
+    const OWNER_ORDER_LINE = 'ORDER_LINE';
 
     protected $table      = 'bom';
     protected $primaryKey = 'bom_idx';
@@ -18,6 +23,9 @@ class Bom extends Model {
     const UPDATED_AT = 'update_datetime';
 
     protected $fillable = [
+        'owner_type',
+        'sales_order_line_idx',
+        'base_bom_idx',
         'item_idx',
         'version',
         'is_active',
@@ -31,8 +39,14 @@ class Bom extends Model {
     ];
 
     protected $attributes = [
-        'is_active' => 'N',
+        'owner_type' => self::OWNER_ITEM,
+        'is_active'  => 'N',
     ];
+
+    // 품목 BOM 만 ( 수주 줄 자재는 BOM관리 · 활성 BOM 찾기 · 순환 검사에 나오지 않는다 )
+    public function scopeItemBoms(Builder $query): Builder {
+        return $query->where('bom.owner_type', self::OWNER_ITEM);
+    }
 
     protected function casts(): array {
         return [

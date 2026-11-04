@@ -16,3 +16,15 @@ export const itemLabel = (row) => {
     if (!row) return '';
     return [row.item_name, row.item_code ? `[${row.item_code}]` : ''].filter(Boolean).join(' ');
 };
+
+// 품목 선택지 · 고르기 — "품명 [품번] · 규격" ( 자재는 품번이 같아도 규격이 다르면 다른 품목 — docs/품목-규격구분-설계.md )
+export const itemSpecLabel = (row) => {
+    if (!row) return '';
+    return itemLabel(row) + (row.spec ? ` · ${row.spec}` : '');
+};
+
+// 표시 글에 규격을 붙인다 — "PN-A 환봉" + "Φ10×1000" → "PN-A 환봉 · Φ10×1000" ( 같은 품번 자재를 구분 )
+export const withSpec = (label, spec) => spec ? `${label} · ${spec}` : label;
+
+// 규격 비교 값 ( 서버 Item::specKey 와 같다 — 공백 · 대소문자 무시 · x / × → X )
+export const specKey = (spec) => String(spec ?? '').replace(/\s+/g, '').replace(/[x×]/g, 'X').toUpperCase();

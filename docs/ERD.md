@@ -265,6 +265,7 @@ erDiagram
   process ||--o{ process_equipment : "사용가능 설비"
   process_equipment }o--|| equipment : ""
   bom_line }o--o| routing_line : "투입 지점"
+  bom_line ||--o{ bom_line_substitute : "대체 자재"
   warehouse ||--o{ warehouse : "하위 구역"
   inspection_spec ||--o{ inspection_spec_item : ""
   inspection_item ||--o{ inspection_spec_item : "골라 쓰기"
@@ -318,6 +319,15 @@ erDiagram
     smallint seq PK
     bigint child_item_id FK
     bigint routing_line_id FK
+    decimal qty
+    string calc_cd
+    decimal ext_n01
+  }
+  bom_line_substitute {
+    bigint id PK
+    bigint bom_line_id FK
+    smallint seq
+    bigint child_item_id FK
     decimal qty
     string calc_cd
     decimal ext_n01
@@ -750,9 +760,14 @@ bom (
 | `wo_op_pre_approval` | **건별 선행 진행 승인.** 한 사람이 두 번 눌러도 한 번입니다(PK) |
 | `routing_line.cycle_time_sec` | **공정별 1개 표준시간.** 수량 기반 일정 계산의 원본 |
 | `lead_time` | 5구간 **일수**. `item_id = 0`이 default. 개당 시간과는 **다른 축** |
+| `item.spec_key` | **품번 + 규격 = 품목** — 규격( `item.spec` 글자 )을 비교용으로 정리한 값( 공백 · 대소문자 무시 · x / × → X ). 유일 키 `( item_cd, spec_key )`. 자재만 규격으로 구분하고 제품은 보류 동안 품번만으로 유일 — [품목-규격구분-설계.md](./품목-규격구분-설계.md) |
 | `item.routing_id` | **품목 전용 라우팅( ② )**. 품목 저장 때 고른 틀( ① )을 복사해 만든다 ([라우팅-3단계-설계.md](./라우팅-3단계-설계.md)) |
 | `routing.owner_type` | `TEMPLATE` ① 공용 틀 · `ITEM` ② 품목 전용( `item_id` ) · `ORDER_LINE` ③ 수주 줄 전용( `sales_order_line_id` ). 라우팅 관리 목록은 ① 만. `base_routing_id` = 복사해 온 원본 |
 | `routing_line.source_routing_line_id` | 복사해 온 원본 줄( ② ← ① · ③ ← ② ). 화면에서 더한 공정이면 `NULL`. BOM 투입 지점( ② 줄 )을 ③ · 작업지시까지 잇는다 |
+| `bom.owner_type` | `ITEM` 품목 BOM( BOM관리 ) · `ORDER_LINE` **수주 자재**( `sales_order_line_id` — 수주 저장 때 품목 활성 BOM 복사 · `is_active` N · 목록 · 순환 검사에 안 나옴 ). `base_bom_id` = 원본 · `bom_line.source_bom_line_id` = 원본 줄. 수주 자재의 투입 지점 = 그 수주 줄의 수주 공정 줄 |
+| `bom_change_log` | 수주 자재 변경 이력 — CREATE · RELOAD( 구성 통째 ) · ADD · REMOVE · UPDATE( 자재 줄 ) · SUB_ADD · SUB_REMOVE · SUB_UPDATE( 대체 자재 · `main_item_id` = 그 주 자재 ) |
+| `work_order_material.substitute_of_id` | 대체 자재 행이면 **주 자재 행**( 같은 표 ). 자기 `qty_per` · 계산식 · `required_qty` · `issued_qty` — 출고 · 보유 · 사용처리 · 반납을 행 단위 그대로. 주 자재 기준 계산( 부족 · 진행 요약 )은 `substitute_of_id IS NULL` 만 ( `WorkOrder::materials()` ) |
+| `bom_line_substitute` | **대체 자재** — 자재 줄마다 N. 소요 · 계산식 · 기능형 값은 **대체 자재 기준**. 한 줄에 같은 대체 자재는 하나( 유일 ) · 주 자재와 같으면 안 됨 · 순환 검사에 포함. 출고 때 주 자재 대신 · 섞어서( 자동 채움은 주 자재만 · 부족 판단은 주 자재 기준 ) — [대체자재-수주자재-설계.md](./대체자재-수주자재-설계.md) |
 | `routing_change_log` | 공정 변경 이력 — 품목( ② ) · 수주( ③ ) · 작업지시. `CREATE` · `RELOAD` 는 공정 목록 통째, `ADD` · `REMOVE` · `MOVE` · `UPDATE` 는 줄 하나 |
 | `item.pack_qty` · `min_usable_spec` · `spec_dim` | 포장 · 소재 잔재 ([재고-수불-설계.md](./재고-수불-설계.md) §2-1) |
 | `item.spec_unit` | **코드 마스터 참조** — `code_item` 의 `UNIT` 그룹. 자유 입력이 아닙니다(§6.1) |

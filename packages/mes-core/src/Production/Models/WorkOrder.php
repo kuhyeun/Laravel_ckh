@@ -67,7 +67,13 @@ class WorkOrder extends Model {
         return $this->hasMany(WorkOrderOp::class, 'work_order_idx', 'work_order_idx')->orderBy('seq');
     }
 
+    // 주 자재 행만 ( 대체 자재 행은 각 행의 substitutes — 부족 · 진행 요약은 주 자재 기준 )
     public function materials() {
+        return $this->hasMany(WorkOrderMaterial::class, 'work_order_idx', 'work_order_idx')->whereNull('substitute_of_idx')->orderBy('seq');
+    }
+
+    // 대체 자재 행까지 전부 ( 출고 · 보유 · 사용처리 · 반납 )
+    public function allMaterials() {
         return $this->hasMany(WorkOrderMaterial::class, 'work_order_idx', 'work_order_idx')->orderBy('seq');
     }
 

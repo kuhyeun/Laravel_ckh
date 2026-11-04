@@ -21,7 +21,7 @@
             <div class="grid grid-cols-3 gap-x-4 gap-y-3">
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">구매처 <span class="text-red-500">*</span></label>
-                    <BaseSelect v-model="form.partner_idx" :options="partnerOptions" class="w-full" placeholder="구매처 선택" @update:modelValue="onPartnerChange" />
+                    <PartnerSelect v-model="form.partner_idx" :options="partners" class="w-full" placeholder="구매처 선택" @update:model-value="onPartnerChange" />
                     <p v-if="errors.partner_idx" class="text-xs text-red-500 mt-0.5">{{ errors.partner_idx[0] }}</p>
                 </div>
                 <div>
@@ -113,7 +113,7 @@
                                 <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
                                 <td class="px-1.5 py-1">
                                     <p v-if="l.purchase_order_line_idx" class="py-1.5">{{ l.item_code }} {{ l.item_name }}</p>
-                                    <BaseSelect v-else v-model="l.item_idx" :options="itemOptions" size="sm" class="w-full h-[30px]" placeholder="품목 선택" @update:modelValue="v => onItemChange(l, v)" />
+                                    <ItemPicker v-else v-model="l.item_idx" :options="items" show-type @update:model-value="v => onItemChange(l, v)" />
                                     <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                 </td>
                                 <td class="px-2 py-1.5 text-gray-600 whitespace-nowrap">{{ l.order_label || '( 직접 )' }}
@@ -131,7 +131,7 @@
                                     <p v-if="lineError(i, 'spec_value')" class="text-[11px] text-red-500">{{ lineError(i, 'spec_value') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseSelect v-model="l.warehouse_idx" :options="warehouseOptions" size="sm" class="w-full h-[30px]" @update:modelValue="rememberWarehouse" />
+                                    <WarehouseSelect v-model="l.warehouse_idx" :options="warehouses" size="sm" class="w-full h-[30px]" @update:model-value="rememberWarehouse" />
                                     <p v-if="lineError(i, 'warehouse_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'warehouse_idx') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
@@ -172,6 +172,9 @@ import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { inspModeLabel } from '@core/Components/Stock/stockCodes';
+import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
+import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
 
 const props = defineProps({
     onSaved: { type: Function, default: null },   // 저장 후 ( { stock_txn_idx, txn_no, status }, 경고 )
@@ -195,9 +198,6 @@ const today      = ref('');
 let keySeq = 0;
 const form = reactive({ partner_idx: '', occurred_at: '', lot_rule_idx: '', with_partner: false, remark: '', lines: [] });
 
-const partnerOptions   = computed(() => partners.value.map(p => ({ value: p.partner_idx, label: `${p.partner_name} [${p.partner_code}]` })));
-const itemOptions      = computed(() => items.value.map(it => ({ value: it.item_idx, label: `${it.item_type === 'PRODUCT' ? '[제품] ' : ''}${it.item_code} ${it.item_name}` })));
-const warehouseOptions = computed(() => warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label })));
 const ruleOptions      = computed(() => lot.rules.map(r => ({ value: r.lot_rule_idx, label: r.lot_rule_name })));
 const selectedRule     = computed(() => lot.rules.find(r => Number(r.lot_rule_idx) === Number(form.lot_rule_idx)) ?? lot.rules[0] ?? null);
 const lotRuleMissing   = computed(() => lot.enabled && lot.source === 'INTERNAL' && !lot.rules.length);

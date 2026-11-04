@@ -64,7 +64,7 @@
                         <div class="grid grid-cols-3 gap-x-4 gap-y-3 text-sm mb-2">
                             <div>
                                 <label class="block text-gray-500 font-medium mb-1">품목 <span class="text-red-400">*</span></label>
-                                <BaseSelect v-model="form.item_idx" :options="itemSelectOptions" class="w-full" placeholder="품목 선택" :disabled="!canWrite" @update:model-value="refreshAutoName" />
+                                <ItemPicker v-model="form.item_idx" :options="items" size="md" :disabled="!canWrite" current-note="미사용" :current="{ item_code: form.item_code, item_name: form.item_name, spec: form.item_spec }" @update:model-value="refreshAutoName" />
                                 <p v-if="errors.item_idx" class="text-xs text-red-500 mt-0.5">{{ errors.item_idx[0] }}</p>
                             </div>
                             <div>
@@ -165,7 +165,7 @@
                                                 <BaseInput v-model="l.upper_limit" type="number" size="sm" class="w-full text-right" :disabled="!canWrite" />
                                             </td>
                                             <td class="px-1.5 py-1">
-                                                <BaseSelect v-model="l.unit_code" :options="lineUnitOptions(l)" size="sm" class="w-full" placeholder="단위" :disabled="!canWrite" />
+                                                <UnitSelect v-model="l.unit_code" size="sm" placeholder="단위" :disabled="!canWrite" />
                                                 <p v-if="rowError(i, 'unit_code')" class="text-[11px] text-red-500">{{ rowError(i, 'unit_code') }}</p>
                                             </td>
                                         </template>
@@ -210,6 +210,8 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
+import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import UnitSelect from '@core/Components/Common/UnitSelect.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -261,26 +263,10 @@ const form = reactive(blankForm());
 const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 // ---- 선택지 ----
-const itemSelectOptions = computed(() => {
-    const opts = items.value.map(it => ({ value: it.item_idx, label: `${it.item_name} [${it.item_code}]` }));
-    // 기존 기준서의 품목이 미사용이면 표시용으로 추가
-    if (form.item_idx && !opts.some(o => Number(o.value) === Number(form.item_idx))) {
-        opts.push({ value: form.item_idx, label: `${form.item_name ?? form.item_idx} [${form.item_code ?? ''}] ( 미사용 )` });
-    }
-    return opts;
-});
 const masterOptions = computed(() =>
     masters.value.map(m => ({ value: m.inspection_item_idx, label: `${m.inspection_item_name} ( ${m.is_quantitative === 'Y' ? '정량' : '정성'} )` }))
 );
 
-const { options: codeOptions } = useCommonCode(['UNIT']);
-function lineUnitOptions(line) {
-    const opts = codeOptions('UNIT');
-    if (line.unit_code && !opts.some(o => o.value === line.unit_code)) {
-        return [...opts, { value: line.unit_code, label: `${line.unit_code} ( 미사용 )` }];
-    }
-    return opts;
-}
 
 // 저장하면 내려갈 기존 기준서 ( 목록에 보이는 것 기준 — 최종 판단은 서버 )
 const replaceTarget = computed(() => {

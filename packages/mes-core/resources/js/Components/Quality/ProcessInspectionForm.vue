@@ -119,7 +119,7 @@
                 </template>
                 <div v-if="op.needs_warehouse">
                     <label class="block text-gray-500 font-medium mb-1">입고 창고 <span class="text-red-500">*</span></label>
-                    <BaseSelect v-model="form.warehouse_idx" :options="warehouseOptions" class="w-full" placeholder="창고" />
+                    <WarehouseSelect v-model="form.warehouse_idx" :options="warehouses" class="w-full" placeholder="창고" />
                 </div>
                 <div :class="op.needs_warehouse ? 'col-span-3' : 'col-span-4'">
                     <label class="block text-gray-500 font-medium mb-1">비고</label>
@@ -187,6 +187,7 @@ import { showAlert } from '@core/Utils/message';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { fmtNum, fmtQty } from '@core/Utils/format';
 import { STATUS_COLOR } from '@core/Utils/colors';
+import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
 
 const props = defineProps({
     opIdx:  { type: Number,   required: true },
@@ -221,7 +222,6 @@ const stageForm = reactive({ stage: '', result: '', fail_qty: '', defect_type_co
 const { options } = useCommonCode(['DEFECT_TYPE']);
 
 const inspectorOptions = computed(() => inspectors.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
-const warehouseOptions = computed(() => warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label })));
 const open    = computed(() => op.value && op.value.status !== 'DONE' && ['WAIT', 'RUN'].includes(op.value.wo_status));
 const summary = computed(() => [...history.value].reverse().find(h => !h.stage && !h.is_canceled) ?? null);
 

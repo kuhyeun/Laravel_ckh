@@ -109,7 +109,12 @@ class ExcelImportService {
             }
 
             // 2) 키 · 파일 안 중복 · 모드
+            // 행 열쇠 : 기본 = 키 필드 / 처리기가 rowKey 를 두면 그것 ( 예: 자재 = 품번 + 규격 ) · 메시지에는 keyLabel
             $key      = isset($converted[$keyField]) ? (string) $converted[$keyField] : '';
+            if ($key !== '' && method_exists($handler, 'rowKey')) {
+                $key = $handler->rowKey($converted);
+            }
+            $label    = method_exists($handler, 'keyLabel') ? $handler->keyLabel($key) : $key;
             $existing = $key !== '' ? $handler->find($key) : null;
             $action   = $existing ? 'update' : 'create';
 
@@ -121,7 +126,7 @@ class ExcelImportService {
                 $seen[$key] = $rowNo;
             }
             if ($existing && $mode === 'create') {
-                $messages[] = "이미 등록된 {$key} 입니다. 수정하려면 '신규 + 수정'으로 올리세요.";
+                $messages[] = "이미 등록된 {$label} 입니다. 수정하려면 '신규 + 수정'으로 올리세요.";
             }
 
             // 3) 시작 데이터 + 엑셀 값 ( 수정은 빈 칸 유지, 신규는 빈 칸 = 기본값 )
@@ -146,7 +151,7 @@ class ExcelImportService {
 
             $results[] = [
                 'row'       => $rowNo,
-                'key'       => $key,
+                'key'       => $label,
                 'action'    => $action,
                 'status'    => $messages ? 'error' : 'ok',
                 'messages'  => array_values(array_unique($messages)),

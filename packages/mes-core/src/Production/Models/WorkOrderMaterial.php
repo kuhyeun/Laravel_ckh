@@ -9,6 +9,7 @@ use MesCore\Support\RecordsAccount;
 // 작업지시 자재 — BOM 줄의 사본 ( 지시 시점에 고정 ). 투입 지점은 지시 공정을 가리킨다 ( ADR 0007 )
 //   required_qty : 개당 × 지시 수량 ( 단순 소요 ). 계산식( 절단 · 물림 손실 )은 출고 화면이 그때 계산한다
 //   issued_qty   : 출고 합계 ( MaterialIssueService 가 더하고 뺀다 )
+//   substitute_of_idx : 대체 자재 행이면 주 자재 행 — 자기 소요( qty_per · 계산식 ) · 출고 합계를 따로 가진다 ( docs/대체자재-수주자재-설계.md )
 class WorkOrderMaterial extends Model {
     use RecordsAccount;
 
@@ -19,7 +20,7 @@ class WorkOrderMaterial extends Model {
     const UPDATED_AT = 'update_datetime';
 
     protected $fillable = [
-        'work_order_idx', 'seq', 'child_item_idx', 'bom_line_idx', 'work_order_op_idx',
+        'work_order_idx', 'seq', 'child_item_idx', 'bom_line_idx', 'substitute_of_idx', 'bom_line_substitute_idx', 'work_order_op_idx',
         'qty_per', 'calc_code', 'ext_n01', 'required_qty', 'issued_qty',
     ];
 
@@ -30,6 +31,15 @@ class WorkOrderMaterial extends Model {
             'required_qty' => 'decimal:6',
             'issued_qty'   => 'decimal:6',
         ];
+    }
+
+    public function isSubstitute(): bool {
+        return $this->substitute_of_idx !== null;
+    }
+
+    // 이 주 자재 행의 대체 자재 행
+    public function substitutes() {
+        return $this->hasMany(self::class, 'substitute_of_idx', 'work_order_material_idx')->orderBy('seq');
     }
 
     public function childItem() {

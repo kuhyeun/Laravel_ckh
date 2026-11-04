@@ -46,7 +46,7 @@
                                 :class="over(l) ? '!border-red-400 !text-red-600' : ''" :disabled="!canWrite || l.returnable <= 0" />
                         </td>
                         <td class="px-1 py-0.5">
-                            <BaseSelect v-model="l.warehouse_idx" :options="warehouseOptions" size="sm" class="w-full" :disabled="!canWrite || l.returnable <= 0" />
+                            <WarehouseSelect v-model="l.warehouse_idx" :options="warehouses" size="sm" class="w-full" :disabled="!canWrite || l.returnable <= 0" />
                         </td>
                     </tr>
                 </tbody>
@@ -99,6 +99,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import { showAlert } from '@core/Utils/message';
 import { failMsg } from '@core/Composables/useFlash';
 import { fmtNum, fmtQty } from '@core/Utils/format';
+import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
 
 const props = defineProps({
     woIdx:     { type: Number, required: true },
@@ -124,7 +125,6 @@ const saving     = ref(false);
 const errorText  = ref('');
 const form       = reactive({ occurred_at: '', remark: '' });
 
-const warehouseOptions = computed(() => warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label })));
 const num  = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
 const over = (l) => num(l.fill) > l.returnable + 1e-9;
 const fillTotal = computed(() => lots.value.reduce((s, l) => s + num(l.fill), 0));

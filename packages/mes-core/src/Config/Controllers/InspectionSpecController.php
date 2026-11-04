@@ -85,7 +85,7 @@ class InspectionSpecController extends Controller {
 
     // 기준서 화면의 선택지 : 품목 · 검사항목 마스터 ( 각 관리 화면 권한 없이도 고를 수 있도록 기준서 권한으로 제공 )
     public function options() {
-        $items = Item::select('item_idx', 'item_code', 'item_name', 'item_type')
+        $items = Item::forPicker()
             ->where('is_use', 'Y')
             ->orderBy('item_code')
             ->get();

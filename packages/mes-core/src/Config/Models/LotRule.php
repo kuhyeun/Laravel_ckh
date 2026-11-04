@@ -32,6 +32,7 @@ class LotRule extends Model {
     const ELEMENTS = [
         'TEXT'    => '고정 문자',
         'ITEM_CD' => '품목코드',
+        'SPEC'    => '규격',
         'DATE'    => '날짜',
         'SEQ'     => '순번',
         'LOT_NO'  => 'LOT번호',
@@ -50,7 +51,7 @@ class LotRule extends Model {
     const LOT_NO_TYPES  = ['SHIPPING', 'SERIAL'];
 
     // 한 규칙에 한 번만 넣을 수 있는 요소 ( TEXT 는 여러 번 가능 )
-    const SINGLE_ELEMENTS = ['ITEM_CD', 'DATE', 'SEQ', 'LOT_NO', 'PARTNER', 'PLANT', 'LINE', 'SHIFT'];
+    const SINGLE_ELEMENTS = ['ITEM_CD', 'SPEC', 'DATE', 'SEQ', 'LOT_NO', 'PARTNER', 'PLANT', 'LINE', 'SHIFT'];
 
     // 순번 자릿수가 이보다 작으면 경고 ( W_LOT_SEQ_CAPACITY ) — 날짜 세밀도 = 리셋 주기
     const MIN_SEQ_DIGITS = [
@@ -104,6 +105,7 @@ class LotRule extends Model {
             $parts[] = match ($el['type'] ?? '') {
                 'TEXT'    => (string) ($el['value'] ?? ''),
                 'ITEM_CD' => (string) ($ctx['item_code'] ?? ''),
+                'SPEC'    => self::specPart($ctx['item_spec'] ?? null),
                 'DATE'    => match ($el['unit'] ?? '') {
                     'YY'     => date('y', $date),
                     'YYMM'   => date('ym', $date),
@@ -123,6 +125,11 @@ class LotRule extends Model {
         return implode($separator, array_filter($parts, fn ($p) => $p !== ''));
     }
 
+    // 규격 요소 : LOT 번호는 바코드( Code128 )가 되므로 글자 · 숫자 · . · - 만 ( Φ10×1000 → 10X1000 ) — 규격이 없으면 빠진다
+    public static function specPart(?string $spec): string {
+        return preg_replace('/[^A-Z0-9.\-]/', '', Item::specKey($spec));
+    }
+
     // W_LOT_NO_SHIP_RULE : 출하 LOT 을 자동 채번( lot.shipment_lot = AUTO )하는데 사용 중인 출하일 기준 규칙이 없음
     //   설정 화면과 LOT규칙관리가 같이 쓴다. 문제 없으면 null
     public static function shippingRuleWarning(): ?string {
@@ -140,6 +147,7 @@ class LotRule extends Model {
     public static function sampleContext(array $overrides = []): array {
         return array_merge([
             'item_code'    => 'PN-A',
+            'item_spec'    => 'Φ10×1000',
             'date'         => date('Y-m-d'),
             'seq'          => 1,
             'lot_no'       => 'L-' . date('ym') . '-001',

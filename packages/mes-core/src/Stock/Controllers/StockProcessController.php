@@ -138,7 +138,7 @@ class StockProcessController extends Controller {
             ->whereIn('status', $statuses)
             ->when($this->itemScope($request) === 'PRODUCT',
                 fn ($q) => $q->where('item_idx', $v['item_idx']),
-                fn ($q) => $q->whereHas('materials', fn ($r) => $r->where('child_item_idx', $v['item_idx'])))
+                fn ($q) => $q->whereHas('allMaterials', fn ($r) => $r->where('child_item_idx', $v['item_idx'])))   // 대체 자재로 쓰는 지시도
             ->orderByDesc('work_order_idx')->limit(100)
             ->get(['work_order_idx', 'wo_no', 'item_idx', 'status', 'target_qty', 'start_date']);
 

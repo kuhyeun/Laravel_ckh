@@ -94,11 +94,11 @@ class ReceiptController extends Controller {
     // 등록 모달 : 구매처 · 품목 · 창고 · LOT 설정
     public function formData() {
         $partners = Partner::where('is_supplier', 'Y')->where('is_use', 'Y')
-            ->orderBy('partner_name')->get(['partner_idx', 'partner_code', 'partner_name']);
+            ->orderBy('partner_name')->forPicker()->get();
 
         $items = Item::where('is_use', 'Y')
             ->orderByRaw("item_type = 'MATERIAL' DESC")->orderBy('item_code')
-            ->get(['item_idx', 'item_code', 'item_name', 'item_type', 'item_kind', 'spec_unit']);
+            ->forPicker()->get();
 
         $rules = $this->lots->materialRules()->map(fn ($r) => [
             'lot_rule_idx'  => $r->lot_rule_idx,

@@ -16,6 +16,7 @@ class HandleInertiaRequests extends Middleware {
         $payload = $this->getMenuPayload();
 
         return array_merge(parent::share($request), [
+            'appName' => config( 'app.name' ),
             'auth' => [
                 'user' => Auth::check() ? [
                     'account_idx' => Auth::user()->account_idx,

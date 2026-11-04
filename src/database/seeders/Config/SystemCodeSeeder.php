@@ -25,6 +25,12 @@ class SystemCodeSeeder extends Seeder {
                 'L'   => '리터',
             ],
         ],
+        // 규격 : 코드는 품목 저장 때 자동으로 쌓인다 ( 코드키 = 규격 비교 값 — SpecCodeService )
+        'SPEC' => [
+            'name'  => '규격',
+            'desc'  => '품목 규격 ( 품목관리 규격 고르기 — 없는 규격은 품목 저장 때 자동 추가 · 코드키는 규격 비교 값 )',
+            'codes' => [],
+        ],
         'PARTNER_CONTACT_TYPE' => [
             'name'  => '거래처 담당자 구분',
             'desc'  => '거래처 담당자의 역할 ( 소속 출고지와는 별도 축 )',

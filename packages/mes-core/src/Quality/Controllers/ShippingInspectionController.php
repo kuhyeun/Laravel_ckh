@@ -109,7 +109,7 @@ class ShippingInspectionController extends Controller {
         $this->requireScreen(self::READ_SCREENS, 'can_read');
         return response()->json([
             'partners' => Partner::whereIn('partner_idx', Shipment::select('partner_idx')->distinct())->orderBy('partner_name')
-                ->get(['partner_idx', 'partner_name'])->map(fn ($p) => ['value' => $p->partner_idx, 'label' => $p->partner_name])->values(),
+                ->forPicker()->get(),   // 거래처 고르기 줄 ( 화면 PartnerSelect )
         ]);
     }
 

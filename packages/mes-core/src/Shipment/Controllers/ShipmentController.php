@@ -134,8 +134,8 @@ class ShipmentController extends Controller {
     // 선택지 : 고객사 · 품목( 제품 ) · 결재 사용 여부
     public function formData() {
         return response()->json([
-            'partners'          => Partner::where('is_customer', 'Y')->where('is_use', 'Y')->orderBy('partner_name')->get(['partner_idx', 'partner_code', 'partner_name']),
-            'items'             => Item::where('item_type', 'PRODUCT')->where('is_use', 'Y')->orderBy('item_code')->get(['item_idx', 'item_code', 'item_name', 'spec_unit', 'std_sale_price']),
+            'partners'          => Partner::where('is_customer', 'Y')->where('is_use', 'Y')->orderBy('partner_name')->forPicker()->get(),
+            'items'             => Item::where('item_type', 'PRODUCT')->where('is_use', 'Y')->orderBy('item_code')->forPicker(['std_sale_price'])->get(),
             'approval_required' => $this->shipments->approvalRequired(),
             'today'             => now()->toDateString(),
             'now'               => now()->format('Y-m-d\TH:i'),

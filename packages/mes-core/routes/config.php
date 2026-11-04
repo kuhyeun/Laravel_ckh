@@ -39,6 +39,8 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
 
         Route::middleware($itemWrite)->group(function() {
             Route::post('/save', [ItemController::class, 'save'])->name('save');
+            Route::post('/quickMaterial', [ItemController::class, 'quickMaterial'])->name('quickMaterial');
+            Route::post('/quickSpec', [ItemController::class, 'quickSpec'])->name('quickSpec');
             // 엑셀 일괄 등록 ( 검증 · 반영 )
             Route::post('/import/validate', [ItemController::class, 'importValidate'])->name('import.validate');
             Route::post('/import/commit', [ItemController::class, 'importCommit'])->name('import.commit');

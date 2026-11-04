@@ -27,7 +27,7 @@ export const lineFromServer = (o) => blankLine({
     item_idx: o.item_idx, target_qty: String(o.target_qty), scan_qty: String(o.scan_qty),
     lot_rule_idx: o.lot_rule_idx ?? '', routing_idx: o.routing_idx ?? '',
     ops: toOps(o.ops), sources: o.sources.map(s => ({ ...s, qty: String(s.qty_in) })),
-    savedMaterials: o.materials ?? [], savedItem: `${o.item_code} ${o.item_name}`,
+    savedMaterials: o.materials ?? [], savedItem: o.item_spec ? `${o.item_code} ${o.item_name} · ${o.item_spec}` : `${o.item_code} ${o.item_name}`,
 });
 
 // 품목을 고르면 : 품목 공정( ② ) · 사용 중 BOM · 회당 상승 기본값 ( 다른 품목의 수주 줄은 뺀다 )
@@ -43,17 +43,19 @@ export async function applyItemDefaults(line, itemIdx, { isNew = true, salesOrde
     line.sources = [];
 }
 
-// 수주 줄을 처음 담을 때 : 공정을 그 줄의 수주 공정( ③ )으로 ( BOM · 수량은 그대로 )
+// 수주 줄을 처음 담을 때 : 공정 · 자재를 그 줄의 수주 공정( ③ ) · 수주 자재로 ( 수량은 그대로 )
 export async function applyOrderRouting(line, salesOrderLineIdx) {
     const { data } = await window.axios.get(route('production.workOrder.itemDefaults'), {
         params: { item_idx: line.item_idx, sales_order_line_idx: salesOrderLineIdx },
     });
     line.routing_idx = data.routing_idx ?? '';
     line.ops         = toOps(data.ops ?? []);
+    line.bom         = data.bom;   // 자재도 그 줄의 수주 자재로 ( 저장하면 다시 복사 )
 }
 
-// 같은 지시에 담을 수 있는 수주 줄 : 공정 순서( routing_key )가 첫 수주 줄과 같아야 한다
-export const sameRouting = (line, soLine) => !line.sources.length || (line.sources[0].routing_key ?? '') === (soLine.routing_key ?? '');
+// 같은 지시에 담을 수 있는 수주 줄 : 공정 순서( routing_key ) · 자재 구성( material_key )이 첫 수주 줄과 같아야 한다
+export const sameRouting = (line, soLine) => !line.sources.length
+    || ((line.sources[0].routing_key ?? '') === (soLine.routing_key ?? '') && (line.sources[0].material_key ?? '') === (soLine.material_key ?? ''));
 
 // 저장 payload 의 줄
 export const linePayload = (l) => ({

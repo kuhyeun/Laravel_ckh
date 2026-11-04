@@ -49,10 +49,11 @@ class ItemRules {
     // 비어 있으면 0 으로 채우는 NOT NULL 숫자 칸
     private const ZERO_DEFAULTS = ['safety_stock', 'order_cycle_days', 'moq', 'unit_round', 'std_sale_price', 'std_buy_price', 'std_subcon_price'];
 
-    // 기본 정보 규칙 ( $item : 수정이면 기존 품목, 신규면 new Item )
-    public static function rules(Item $item, ?string $type): array {
+    // 기본 정보 규칙 ( $item : 수정이면 기존 품목, 신규면 new Item · $spec : 저장할 규격 — 같은 품목 검사 )
+    public static function rules(Item $item, ?string $type, ?string $spec = null): array {
         return [
-            'item_code' => ['required', 'string', 'max:40', Rule::unique('item', 'item_code')->ignore($item->item_idx, 'item_idx')],
+            // 품번 : 자재는 품번 + 규격이 같으면 같은 품목 / 제품은 ( 보류 동안 ) 품번만으로 유일 — docs/품목-규격구분-설계.md
+            'item_code' => ['required', 'string', 'max:40', fn ($attribute, $value, $fail) => self::assertUniqueCode($item, $type, (string) $value, $spec, $fail)],
             'item_name' => 'required|string|max:100',
             'item_type' => ['required', Rule::in(array_keys(Item::KINDS_BY_TYPE))],
             // E_ITEM_KIND_MISMATCH : 대분류에 속하지 않는 소분류
@@ -95,6 +96,26 @@ class ItemRules {
             // 라우팅 틀( ① ) : 저장하면 품목 전용 라우팅( ② )으로 복사된다 — item.routing_idx 는 ② ( RoutingService::syncItemRouting )
             'routing_idx'      => ['nullable', 'integer', Rule::exists('routing', 'routing_idx')->where('owner_type', Routing::OWNER_TEMPLATE)],
         ];
+    }
+
+    /**
+     * 같은 품목이 이미 있는가 ( 화면 · 엑셀 같이 )
+     *   제품 : 같은 품번의 다른 품목이 있으면 안 됨 ( 규격 구분은 보류 )
+     *   자재 : 품번 + 규격( specKey )이 같은 다른 품목 · 같은 품번의 제품이 있으면 안 됨
+     */
+    public static function assertUniqueCode(Item $item, ?string $type, string $code, ?string $spec, callable $fail): void {
+        $others = Item::where('item_code', $code)->when($item->exists, fn ($q) => $q->where('item_idx', '!=', $item->item_idx));
+        if ($type !== 'MATERIAL') {
+            if ($others->exists()) {
+                $fail('이미 쓰는 품번입니다.');
+            }
+            return;
+        }
+        if ((clone $others)->where('item_type', '!=', 'MATERIAL')->exists()) {
+            $fail('같은 품번의 제품이 있습니다.');
+        } elseif ((clone $others)->where('spec_key', Item::specKey($spec))->exists()) {
+            $fail(blank($spec) ? '같은 품번 · 규격( 없음 )의 자재가 있습니다.' : "같은 품번 · 규격( {$spec} )의 자재가 있습니다.");
+        }
     }
 
     // 검증 뒤 저장 전 정리 ( 빈 숫자 → 0, 소재 항목은 원소재만 )
