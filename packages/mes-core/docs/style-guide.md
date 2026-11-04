@@ -238,9 +238,12 @@ async function exportRows() {
         <BaseButton v-if="canCancel" variant="danger" :disabled="!checked.length" @click="cancelChecked">반납 취소</BaseButton>
     </div>
     <div class="overflow-auto">
-        <table class="w-full text-xs">
+        <table class="w-full min-w-[640px] table-fixed text-xs">
+            <colgroup>
+                <col class="w-8"> <col class="w-32"> <col class="w-36"> <col> … <col class="w-24">
+            </colgroup>
             <thead class="text-gray-400 sticky top-0 bg-white">
-                <tr><th class="w-8"></th><th class="text-left font-normal px-1">전표</th> … <th class="text-right font-normal px-1">수량</th></tr>
+                <tr><th></th><th class="text-left font-normal px-1">전표</th> … <th class="text-right font-normal px-1">수량</th></tr>
             </thead>
             <tbody>
                 <tr v-if="!rows.length"><td colspan="9" class="px-2 py-2 text-center text-gray-400">반납 이력이 없습니다.</td></tr>
@@ -265,6 +268,8 @@ async function exportRows() {
 | 취소된 줄 | 지우지 않고 `text-gray-400 line-through` ( 그리드는 `row-canceled` — §5 ) |
 | 빈 목록 | 한 줄 가운데 `text-gray-400` "○○이 없습니다." |
 | 강조 | 지금 보고 있는 줄 `bg-amber-50` ( 예 : 생산실적 상세에서 누른 실적 ) |
+| **칸 너비** ( 2026-11-04 ) | 너비를 정하는 표는 **`table-fixed` + `<colgroup>`** — 너비는 `<col class="w-…">` 에만( `th` · `td` 에 `w-*` · `min-w-*` 를 두지 않는다 ) · **남는 폭을 받는 칸 하나**는 `<col>` 에 너비 없음 · 표에 `min-w-[…]`( 고정 칸 합 + 남는 칸 **160px** ) + 감싼 `div` 는 `overflow-x-auto` · **최소 폭은 들어갈 자리보다 작게** — 모달 안쪽 너비 xl 약 1080 · lg 약 750 · md 약 550 ( 넘으면 칸 너비를 줄인다 — 넓은 화면에서도 가로 스크롤이 생긴다 ) · `th v-if` 칸은 `col` 에도 같은 `v-if` · 넘칠 수 있는 글은 `truncate` + `title` · 줄바꿈 없는 칸( 배지 · 버튼 )은 가장 긴 내용 기준 너비 · 안쪽 표( 대체 자재 줄 등 )도 같은 방식 |
+| 자동 배치 | 너비 지정이 없는 단순 표만 ( 브라우저 기본 `table-layout: auto` — `th` 의 `w-*` 는 희망값일 뿐이라 내용 · 배지 · 오류 문구에 따라 칸이 흔들린다 ) |
 
 ---
 

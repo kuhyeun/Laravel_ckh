@@ -100,20 +100,34 @@
                     <p v-if="errors.lines" class="text-xs text-red-500 mb-1">{{ errors.lines[0] }}</p>
 
                     <div class="border rounded overflow-x-auto">
-                        <table class="w-full text-xs">
+                        <!-- 최소 폭 = 고정 칸 864 + 품목 160 — xl 모달 안쪽( 약 1080 )에 들어가게 -->
+                        <table class="w-full table-fixed min-w-[1024px] text-xs">
+                            <colgroup>
+                                <col class="w-8">
+                                <col>
+                                <col class="w-24">
+                                <col class="w-12">
+                                <col class="w-24">
+                                <col class="w-24">
+                                <col class="w-38">
+                                <col class="w-24">
+                                <col class="w-24">
+                                <col v-if="isEdit" class="w-36">
+                                <col v-if="!readonly" class="w-8">
+                            </colgroup>
                             <thead class="bg-gray-50 text-gray-500">
                                 <tr>
-                                    <th class="px-2 py-1.5 w-8">#</th>
-                                    <th class="px-2 py-1.5 text-left min-w-[220px]">품목 *</th>
-                                    <th class="px-2 py-1.5 w-28 text-right">수량 *</th>
-                                    <th class="px-2 py-1.5 w-12">단위</th>
-                                    <th class="px-2 py-1.5 w-28 text-right">단가</th>
-                                    <th class="px-2 py-1.5 w-28 text-right">금액</th>
-                                    <th class="px-2 py-1.5 w-32">납품일 *</th>
-                                    <th class="px-2 py-1.5 w-24">공정</th>
-                                    <th class="px-2 py-1.5 w-24">자재</th>
-                                    <th v-if="isEdit" class="px-2 py-1.5 w-32 text-right">지시 · 생산 / 출하</th>
-                                    <th v-if="!readonly" class="px-2 py-1.5 w-8"></th>
+                                    <th class="px-2 py-1.5">#</th>
+                                    <th class="px-2 py-1.5 text-left">품목 *</th>
+                                    <th class="px-2 py-1.5 text-right">수량 *</th>
+                                    <th class="px-2 py-1.5">단위</th>
+                                    <th class="px-2 py-1.5 text-right">단가</th>
+                                    <th class="px-2 py-1.5 text-right">금액</th>
+                                    <th class="px-2 py-1.5">납품일 *</th>
+                                    <th class="px-2 py-1.5">공정</th>
+                                    <th class="px-2 py-1.5">자재</th>
+                                    <th v-if="isEdit" class="px-2 py-1.5 text-right">지시 · 생산 / 출하</th>
+                                    <th v-if="!readonly" class="px-2 py-1.5"></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -141,21 +155,21 @@
                                         <BaseDatePicker v-model="l.due_date" size="sm" class="w-full" :disabled="readonly" />
                                         <p v-if="lineError(i, 'due_date')" class="text-[11px] text-red-500">{{ lineError(i, 'due_date') }}</p>
                                     </td>
-                                    <td class="px-1.5 py-1.5 text-center whitespace-nowrap">
+                                    <td class="px-1.5 py-1.5 text-center">
                                         <button v-if="l.item_idx" type="button" class="text-blue-700 hover:underline" @click="openRouting(l, i)">공정 {{ l.routing_lines.length }}</button>
                                         <span v-else class="text-gray-300">—</span>
                                         <span v-if="l.routing_locked" class="ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 공정을 바꿀 수 없습니다">잠김</span>
                                         <span v-else-if="l.routing_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 공정과 다르게 고쳤습니다">수정됨</span>
                                         <p v-if="routingError(i)" class="text-[11px] text-red-500">공정을 확인하세요</p>
                                     </td>
-                                    <td class="px-1.5 py-1.5 text-center whitespace-nowrap">
+                                    <td class="px-1.5 py-1.5 text-center">
                                         <button v-if="l.item_idx" type="button" class="text-blue-700 hover:underline" @click="openMaterial(l, i)">자재 {{ l.material_lines.length }}</button>
                                         <span v-else class="text-gray-300">—</span>
                                         <span v-if="l.material_locked" class="ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 자재를 바꿀 수 없습니다">잠김</span>
                                         <span v-else-if="l.material_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 BOM 과 다르게 고쳤습니다">수정됨</span>
                                         <p v-if="materialError(i)" class="text-[11px] text-red-500">자재를 확인하세요</p>
                                     </td>
-                                    <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500 whitespace-nowrap">
+                                    <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500">
                                         <p>지시 {{ fmt(l.directed_qty) }} · {{ fmt(l.produced_qty) }} / {{ fmt(l.shipped_qty) }}</p>
                                         <!-- 작업지시 ( 50-생산 §4 — 이 줄을 담은 지시 창. 남은 지시 수량이 기본 ) -->
                                         <button v-if="canDirect(l)" type="button" class="text-[11px] text-blue-700 hover:underline" @click="openWorkOrder(l, i)">작업지시</button>
@@ -262,8 +276,8 @@ const form = reactive({
 const editableStatus = computed(() => EDITABLE_STATUSES.includes(form.status));
 const readonly       = computed(() => !props.canWrite || !editableStatus.value);
 const orderLocked    = computed(() => form.locked);   // 생산 · 출하가 붙은 줄이 있으면 고객사 고정
-// # · 품목 · 수량 · 단위 · 단가 · 금액 · 납품일 · 공정 · 자재 · 비고 = 10 ( + 생산/출하 · 삭제 )
-const colCount       = computed(() => 10 + (isEdit.value ? 1 : 0) + (readonly.value ? 0 : 1));
+// # · 품목 · 수량 · 단위 · 단가 · 금액 · 납품일 · 공정 · 자재 = 9 ( + 지시 · 생산 / 출하 · 삭제 ) — colgroup 과 같아야 한다 ( 많으면 오른쪽에 빈 칸이 생긴다 )
+const colCount       = computed(() => 9 + (isEdit.value ? 1 : 0) + (readonly.value ? 0 : 1));
 
 // ---- 선택지 ----
 const partners  = ref([]);

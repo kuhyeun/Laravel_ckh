@@ -77,13 +77,19 @@
                 </p>
 
                 <div class="overflow-x-auto border rounded">
-                    <table class="w-full text-sm">
+                    <table class="w-full min-w-[424px] table-fixed text-sm">
+                        <colgroup>
+                            <col>
+                            <col class="w-16">
+                            <col class="w-40">
+                            <col v-if="!readonly" class="w-10">
+                        </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr>
                                 <th class="px-2 py-1.5 font-medium">설비 <span class="text-red-400">*</span></th>
-                                <th class="px-2 py-1.5 font-medium w-16">기본</th>
-                                <th class="px-2 py-1.5 font-medium w-40">물림·세팅 손실</th>
-                                <th v-if="!readonly" class="px-2 py-1.5 w-10"></th>
+                                <th class="px-2 py-1.5 font-medium">기본</th>
+                                <th class="px-2 py-1.5 font-medium">물림·세팅 손실</th>
+                                <th v-if="!readonly" class="px-2 py-1.5"></th>
                             </tr>
                         </thead>
                         <tbody>

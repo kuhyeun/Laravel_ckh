@@ -14,17 +14,20 @@
             </div>
 
             <div class="border rounded overflow-x-auto">
-                <table class="w-full text-xs">
+                <table class="w-full min-w-[912px] table-fixed text-xs">
+                    <colgroup>
+                        <col class="w-8"><col><col class="w-32"><col class="w-56"><col class="w-28"><col class="w-16"><col class="w-20"><col class="w-28">
+                    </colgroup>
                     <thead class="bg-gray-50 text-gray-500">
                         <tr>
-                            <th class="px-2 py-1.5 w-8"><input type="checkbox" class="row-check" :checked="allOn" @change="toggleAll($event.target.checked)" /></th>
+                            <th class="px-2 py-1.5"><input type="checkbox" class="row-check" :checked="allOn" @change="toggleAll($event.target.checked)" /></th>
                             <th class="px-2 py-1.5 text-left">품목</th>
                             <th class="px-2 py-1.5 text-left">규격</th>
-                            <th class="px-2 py-1.5 text-left w-56">바코드 번호</th>
+                            <th class="px-2 py-1.5 text-left">바코드 번호</th>
                             <th class="px-2 py-1.5 text-right">수량</th>
                             <th class="px-2 py-1.5 text-right">발행됨</th>
-                            <th class="px-2 py-1.5 w-20">장수</th>
-                            <th class="px-2 py-1.5 w-28">라벨당 수량</th>
+                            <th class="px-2 py-1.5">장수</th>
+                            <th class="px-2 py-1.5">라벨당 수량</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -34,7 +37,7 @@
                                 {{ r.item_label }}
                                 <p v-if="r.sub_label" class="text-gray-400">{{ r.sub_label }}</p>
                             </td>
-                            <td class="px-2 py-1.5">{{ r.spec }}</td>
+                            <td class="px-2 py-1.5 truncate" :title="r.spec">{{ r.spec }}</td>
                             <td class="px-2 py-1.5">
                                 <span v-if="isLot" class="font-semibold">{{ r.barcode_no }}</span>
                                 <BaseInput v-else v-model="r.barcode_no" size="sm" class="w-full" :placeholder="r.default_no" :disabled="!r.on" />

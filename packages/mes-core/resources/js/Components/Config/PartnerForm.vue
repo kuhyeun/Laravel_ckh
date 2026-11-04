@@ -103,15 +103,23 @@
                 </p>
 
                 <div class="overflow-x-auto border rounded">
-                    <table class="w-full text-sm">
+                    <table class="w-full min-w-[696px] table-fixed text-sm">
+                        <colgroup>
+                            <col class="w-32">
+                            <col class="w-32">
+                            <col class="w-28">
+                            <col class="w-32">
+                            <col>
+                            <col v-if="canWrite" class="w-10">
+                        </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr>
-                                <th class="px-2 py-1.5 font-medium w-32">구분 <span class="text-red-400">*</span></th>
-                                <th class="px-2 py-1.5 font-medium w-32">소속</th>
-                                <th class="px-2 py-1.5 font-medium w-28">이름 <span class="text-red-400">*</span></th>
-                                <th class="px-2 py-1.5 font-medium w-32">연락처</th>
+                                <th class="px-2 py-1.5 font-medium">구분 <span class="text-red-400">*</span></th>
+                                <th class="px-2 py-1.5 font-medium">소속</th>
+                                <th class="px-2 py-1.5 font-medium">이름 <span class="text-red-400">*</span></th>
+                                <th class="px-2 py-1.5 font-medium">연락처</th>
                                 <th class="px-2 py-1.5 font-medium">이메일</th>
-                                <th v-if="canWrite" class="px-2 py-1.5 w-10"></th>
+                                <th v-if="canWrite" class="px-2 py-1.5"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -156,14 +164,21 @@
                 </div>
 
                 <div class="overflow-x-auto border rounded">
-                    <table class="w-full text-sm">
+                    <table class="w-full min-w-[584px] table-fixed text-sm">
+                        <colgroup>
+                            <col class="w-40">
+                            <col>
+                            <col class="w-36">
+                            <col class="w-20">
+                            <col v-if="canWrite" class="w-10">
+                        </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr>
-                                <th class="px-2 py-1.5 font-medium w-40">출고지명 <span class="text-red-400">*</span></th>
+                                <th class="px-2 py-1.5 font-medium">출고지명 <span class="text-red-400">*</span></th>
                                 <th class="px-2 py-1.5 font-medium">주소</th>
-                                <th class="px-2 py-1.5 font-medium w-36">연락처</th>
-                                <th class="px-2 py-1.5 font-medium w-20">담당자</th>
-                                <th v-if="canWrite" class="px-2 py-1.5 w-10"></th>
+                                <th class="px-2 py-1.5 font-medium">연락처</th>
+                                <th class="px-2 py-1.5 font-medium">담당자</th>
+                                <th v-if="canWrite" class="px-2 py-1.5"></th>
                             </tr>
                         </thead>
                         <tbody>

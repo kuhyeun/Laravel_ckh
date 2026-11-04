@@ -28,17 +28,26 @@
         </div>
         <p v-if="errors[errorPrefix]" class="mb-2 text-xs text-red-500">{{ errors[errorPrefix][0] }}</p>
 
-        <div class="flex-1 min-h-0 overflow-y-auto border rounded">
-            <table class="w-full text-sm">
+        <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto border rounded">
+            <table class="w-full table-fixed min-w-[880px] text-sm">
+                <colgroup>
+                    <col>
+                    <col class="w-40">
+                    <col class="w-24">
+                    <col class="w-44">
+                    <col v-if="SHOW_CALC" class="w-28">
+                    <col v-if="SHOW_CALC" class="w-24">
+                    <col v-if="!ro" class="w-10">
+                </colgroup>
                 <thead class="bg-gray-50 text-gray-500 sticky top-0">
                     <tr>
                         <th class="px-2 py-1.5 font-medium text-left">자재 <span class="text-red-400">*</span></th>
-                        <th class="px-2 py-1.5 w-40 font-medium text-left">규격</th>
-                        <th class="px-2 py-1.5 w-24 font-medium">소요 <span class="text-red-400">*</span></th>
-                        <th class="px-2 py-1.5 w-44 font-medium">투입 공정</th>
-                        <th v-if="SHOW_CALC" class="px-2 py-1.5 w-28 font-medium">계산식</th>
-                        <th v-if="SHOW_CALC" class="px-2 py-1.5 w-24 font-medium">절단(CUT)</th>
-                        <th v-if="!ro" class="px-2 py-1.5 w-10"></th>
+                        <th class="px-2 py-1.5 font-medium text-left">규격</th>
+                        <th class="px-2 py-1.5 font-medium">소요 <span class="text-red-400">*</span></th>
+                        <th class="px-2 py-1.5 font-medium">투입 공정</th>
+                        <th v-if="SHOW_CALC" class="px-2 py-1.5 font-medium">계산식</th>
+                        <th v-if="SHOW_CALC" class="px-2 py-1.5 font-medium">절단(CUT)</th>
+                        <th v-if="!ro" class="px-2 py-1.5"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -84,29 +93,40 @@
                         </tr>
                         <tr v-if="SHOW_SUBS && open.has(keyOf(l))" class="bg-gray-50/70">
                             <td :colspan="(ro ? 4 : 5) + (SHOW_CALC ? 2 : 0)" class="pl-6 pr-1.5 py-1.5">
-                                <table class="w-full text-xs">
+                                <!-- 바깥 표가 min-w 를 가지므로 안쪽 표는 셀 너비를 그대로 채운다 -->
+                                <table class="w-full table-fixed text-xs">
+                                    <colgroup>
+                                        <col class="w-6">
+                                        <col>
+                                        <col class="w-40">
+                                        <col class="w-24">
+                                        <col class="w-44">
+                                        <col v-if="SHOW_CALC" class="w-28">
+                                        <col v-if="SHOW_CALC" class="w-24">
+                                        <col v-if="!ro" class="w-10">
+                                    </colgroup>
                                     <tbody>
-                                        <tr v-if="!l.substitutes.length"><td class="py-1 text-gray-400">대체 자재가 없습니다.</td></tr>
+                                        <tr v-if="!l.substitutes.length"><td :colspan="(ro ? 5 : 6) + (SHOW_CALC ? 2 : 0)" class="py-1 text-gray-400">대체 자재가 없습니다.</td></tr>
                                         <tr v-for="(sub, j) in l.substitutes" :key="keyOf(sub)" class="align-top">
-                                            <td class="w-6 py-1 text-gray-300">└</td>
+                                            <td class="py-1 text-gray-300">└</td>
                                             <td class="pr-1.5 py-1">
                                                 <ItemPicker v-model="sub.child_item_idx" :remote="MATERIAL_ONLY" :exclude="[itemIdx, l.child_item_idx]" placeholder="대체 자재 선택" :can-create="canCreate" :disabled="ro"
                                                     :current="{ item_code: sub.child_item_code, item_name: sub.child_item_name, spec: sub._item_spec }" @select="it => applyItem(sub, it)" />
                                                 <p v-if="subErr(i, j, 'child_item_idx')" class="text-[11px] text-red-500">{{ subErr(i, j, 'child_item_idx') }}</p>
                                                 <p v-else-if="!ro && itemBomLoaded && sub.child_item_idx && !itemBomIds.has(Number(sub.child_item_idx))" class="text-[11px] text-blue-600">품목 BOM 에도 대체 자재로 추가됩니다.</p>
                                             </td>
-                                            <td class="w-40 pr-1.5 py-1">
+                                            <td class="pr-1.5 py-1">
                                                 <SpecPicker v-model="sub.child_item_spec" size="sm" :options="specOptions(sub)" :new-hint="newSpecHint" :disabled="ro || !sub.child_item_idx" placeholder="규격"
                                     @open="loadSpecs(sub.child_item_code)" @commit="v => onSpecCommit(sub, v)" />
                                             </td>
-                                            <td class="w-24 pr-1.5 py-1">
+                                            <td class="pr-1.5 py-1">
                                                 <BaseInput v-model="sub.qty" type="number" min="0" size="sm" class="w-full text-right" placeholder="소요" :disabled="ro" />
                                                 <p v-if="subErr(i, j, 'qty')" class="text-[11px] text-red-500">{{ subErr(i, j, 'qty') }}</p>
                                             </td>
-                                            <td class="w-44 pr-1.5 py-1 text-gray-400">투입 공정은 주 자재와 같음</td>
-                                            <td v-if="SHOW_CALC" class="w-28 pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="sm" class="w-full" placeholder="계산식" :disabled="ro" /></td>
-                                            <td v-if="SHOW_CALC" class="w-24 pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="ro" /></td>
-                                            <td v-if="!ro" class="w-10 py-1 text-center">
+                                            <td class="pr-1.5 py-1 text-gray-400">투입 공정은 주 자재와 같음</td>
+                                            <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="sm" class="w-full" placeholder="계산식" :disabled="ro" /></td>
+                                            <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="ro" /></td>
+                                            <td v-if="!ro" class="py-1 text-center">
                                                 <button type="button" class="px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
                                             </td>
                                         </tr>

@@ -94,19 +94,31 @@
                     <p v-if="errors.lines" class="text-xs text-red-500 mb-1">{{ errors.lines[0] }}</p>
 
                     <div class="border rounded overflow-x-auto">
-                        <table class="w-full text-xs">
+                        <table class="w-full table-fixed min-w-[1052px] text-xs">
+                            <colgroup>
+                                <col class="w-8">
+                                <col>
+                                <col class="w-28">
+                                <col class="w-12">
+                                <col class="w-28">
+                                <col class="w-28">
+                                <col class="w-36">
+                                <col v-if="isEdit" class="w-20">
+                                <col class="w-40">
+                                <col v-if="!readonly" class="w-8">
+                            </colgroup>
                             <thead class="bg-gray-50 text-gray-500">
                                 <tr>
-                                    <th class="px-2 py-1.5 w-8">#</th>
-                                    <th class="px-2 py-1.5 text-left min-w-[220px]">품목 *</th>
-                                    <th class="px-2 py-1.5 w-28 text-right">수량 *</th>
-                                    <th class="px-2 py-1.5 w-12">단위</th>
-                                    <th class="px-2 py-1.5 w-28 text-right">단가</th>
-                                    <th class="px-2 py-1.5 w-28 text-right">금액</th>
-                                    <th class="px-2 py-1.5 w-36">입고 예정일 *</th>
-                                    <th v-if="isEdit" class="px-2 py-1.5 w-20 text-right">입고</th>
-                                    <th class="px-2 py-1.5 min-w-[100px] text-left">비고</th>
-                                    <th v-if="!readonly" class="px-2 py-1.5 w-8"></th>
+                                    <th class="px-2 py-1.5">#</th>
+                                    <th class="px-2 py-1.5 text-left">품목 *</th>
+                                    <th class="px-2 py-1.5 text-right">수량 *</th>
+                                    <th class="px-2 py-1.5">단위</th>
+                                    <th class="px-2 py-1.5 text-right">단가</th>
+                                    <th class="px-2 py-1.5 text-right">금액</th>
+                                    <th class="px-2 py-1.5">입고 예정일 *</th>
+                                    <th v-if="isEdit" class="px-2 py-1.5 text-right">입고</th>
+                                    <th class="px-2 py-1.5 text-left">비고</th>
+                                    <th v-if="!readonly" class="px-2 py-1.5"></th>
                                 </tr>
                             </thead>
                             <tbody>

@@ -110,16 +110,19 @@
                         </tbody>
                     </table>
                 </div>
-                <div class="border rounded">
-                    <table class="w-full text-xs">
+                <div class="border rounded overflow-x-auto">
+                    <table class="w-full min-w-[832px] table-fixed text-xs">
+                        <colgroup>
+                            <col class="w-36"><col><col class="w-28"><col class="w-24"><col class="w-28"><col class="w-44"><col class="w-8">
+                        </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
-                            <tr><th class="px-2 py-1.5 text-left">수주</th><th class="px-2 py-1.5 text-left">고객사</th><th class="px-2 py-1.5">납품일</th><th class="px-2 py-1.5 text-right">남은 지시</th><th class="px-2 py-1.5 text-right w-28">담을 수량</th><th class="px-2 py-1.5 text-left">추가</th><th class="w-8"></th></tr>
+                            <tr><th class="px-2 py-1.5 text-left">수주</th><th class="px-2 py-1.5 text-left">고객사</th><th class="px-2 py-1.5">납품일</th><th class="px-2 py-1.5 text-right">남은 지시</th><th class="px-2 py-1.5 text-right">담을 수량</th><th class="px-2 py-1.5 text-left">추가</th><th></th></tr>
                         </thead>
                         <tbody>
                             <tr v-if="!line.sources.length"><td colspan="7" class="px-2 py-3 text-center text-gray-400">수주 연결 없음 ( 재고 · 수동 지시 )</td></tr>
                             <tr v-for="(s, i) in line.sources" :key="s.sales_order_line_idx" class="border-t">
                                 <td class="px-2 py-1">{{ s.order_no }} #{{ s.line_no }}</td>
-                                <td class="px-2 py-1">{{ s.partner_name }}</td>
+                                <td class="px-2 py-1 truncate" :title="s.partner_name">{{ s.partner_name }}</td>
                                 <td class="px-2 py-1 text-center">{{ s.due_date }}</td>
                                 <td class="px-2 py-1 text-right">{{ fmt(s.remaining) }}</td>
                                 <td class="px-1.5 py-1">
@@ -127,7 +130,7 @@
                                     <p v-if="errors[`sources.${i}.qty`]" class="err">{{ errors[`sources.${i}.qty`][0] }}</p>
                                     <p v-else-if="num(s.qty) > num(s.remaining)" class="text-[11px] text-amber-600">남은 지시 수량 초과</p>
                                 </td>
-                                <td class="px-2 py-1 text-gray-500">{{ s.added_at ? `${s.added_by ?? ''} · ${s.added_at}` : '저장 전' }}</td>
+                                <td class="px-2 py-1 text-gray-500 truncate" :title="s.added_at ? `${s.added_by ?? ''} · ${s.added_at}` : ''">{{ s.added_at ? `${s.added_by ?? ''} · ${s.added_at}` : '저장 전' }}</td>
                                 <td class="px-1 text-center"><button v-if="structEditable" type="button" class="text-gray-400 hover:text-red-500" @click="line.sources.splice(i, 1)">✕</button></td>
                             </tr>
                         </tbody>
@@ -141,12 +144,17 @@
         <div v-show="tab === 'ops'" class="pt-4">
             <p v-if="errors.ops" class="err mb-1">{{ errors.ops[0] }}</p>
             <div class="border rounded overflow-x-auto">
-                <table class="w-full text-xs">
+                <table class="w-full min-w-[832px] table-fixed text-xs">
+                    <colgroup>
+                        <col class="w-6"><col class="w-12"><col><col class="w-14">
+                        <col class="w-36"><col class="w-32"><col class="w-36">
+                        <col class="w-24"><col class="w-8">
+                    </colgroup>
                     <thead class="bg-gray-50 text-gray-500">
                         <tr>
-                            <th class="w-6"></th><th class="px-2 py-1.5 w-12">OP</th><th class="px-2 py-1.5 text-left">공정</th><th class="px-2 py-1.5 w-14">구분</th>
-                            <th class="px-2 py-1.5 text-left w-36">설비</th><th class="px-2 py-1.5 text-left w-32">작업자</th><th class="px-2 py-1.5 w-36">기한</th>
-                            <th class="px-2 py-1.5 w-24">초 · 중 · 종</th><th class="w-8"></th>
+                            <th></th><th class="px-2 py-1.5">OP</th><th class="px-2 py-1.5 text-left">공정</th><th class="px-2 py-1.5">구분</th>
+                            <th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5">기한</th>
+                            <th class="px-2 py-1.5">초 · 중 · 종</th><th></th>
                         </tr>
                     </thead>
                     <tbody>

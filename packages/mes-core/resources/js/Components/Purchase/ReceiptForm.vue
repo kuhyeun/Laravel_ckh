@@ -56,13 +56,22 @@
                 <p v-if="errors.lines" class="text-xs text-red-500 mb-1">{{ errors.lines[0] }}</p>
 
                 <!-- 발주 줄 고르기 -->
-                <div v-if="picker.open" class="mb-2 border rounded border-blue-200 bg-blue-50/40">
+                <div v-if="picker.open" class="mb-2 border rounded border-blue-200 bg-blue-50/40 overflow-x-auto">
                     <p v-if="picker.loading" class="px-3 py-3 text-xs text-gray-400">발주를 불러오는 중…</p>
                     <p v-else-if="!picker.lines.length" class="px-3 py-3 text-xs text-gray-500">이 구매처에 입고할 확정 발주가 없습니다.</p>
-                    <table v-else class="w-full text-xs">
+                    <table v-else class="w-full table-fixed min-w-[736px] text-xs">
+                        <colgroup>
+                            <col class="w-8">
+                            <col class="w-36">
+                            <col>
+                            <col class="w-24">
+                            <col class="w-24">
+                            <col class="w-24">
+                            <col class="w-28">
+                        </colgroup>
                         <thead class="text-gray-500">
                             <tr>
-                                <th class="px-2 py-1.5 w-8"><input type="checkbox" class="row-check" :checked="allPicked" @change="pickAll($event.target.checked)" /></th>
+                                <th class="px-2 py-1.5"><input type="checkbox" class="row-check" :checked="allPicked" @change="pickAll($event.target.checked)" /></th>
                                 <th class="px-2 py-1.5 text-left">발주</th>
                                 <th class="px-2 py-1.5 text-left">품목</th>
                                 <th class="px-2 py-1.5 text-right">발주</th>
@@ -74,8 +83,8 @@
                         <tbody>
                             <tr v-for="pl in picker.lines" :key="pl.purchase_order_line_idx" class="border-t border-blue-100" :class="alreadyAdded(pl) ? 'opacity-40' : ''">
                                 <td class="px-2 py-1 text-center"><input type="checkbox" class="row-check" v-model="picker.checked" :value="pl.purchase_order_line_idx" :disabled="alreadyAdded(pl)" /></td>
-                                <td class="px-2 py-1">{{ pl.order_no }}-{{ pl.line_no }}</td>
-                                <td class="px-2 py-1">{{ pl.item_code }} {{ pl.item_name }}</td>
+                                <td class="px-2 py-1 whitespace-nowrap">{{ pl.order_no }}-{{ pl.line_no }}</td>
+                                <td class="px-2 py-1 truncate" :title="`${pl.item_code} ${pl.item_name}`">{{ pl.item_code }} {{ pl.item_name }}</td>
                                 <td class="px-2 py-1 text-right">{{ fmt(pl.qty) }}</td>
                                 <td class="px-2 py-1 text-right">{{ fmt(pl.received_qty) }}</td>
                                 <td class="px-2 py-1 text-right font-semibold">{{ fmt(pl.remaining) }}</td>
@@ -90,19 +99,31 @@
                 </div>
 
                 <div class="border rounded overflow-x-auto">
-                    <table class="w-full text-xs">
+                    <table class="w-full table-fixed min-w-[992px] text-xs">
+                        <colgroup>
+                            <col class="w-7">
+                            <col>
+                            <col class="w-36">
+                            <col class="w-20">
+                            <col class="w-24">
+                            <col class="w-24">
+                            <col class="w-36">
+                            <col class="w-28">
+                            <col class="w-16">
+                            <col class="w-7">
+                        </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr>
-                                <th class="px-2 py-1.5 w-7">#</th>
-                                <th class="px-2 py-1.5 text-left min-w-[200px]">품목 *</th>
-                                <th class="px-2 py-1.5 text-left w-32">발주</th>
-                                <th class="px-2 py-1.5 text-right w-20">남은 수량</th>
-                                <th class="px-2 py-1.5 text-right w-24">입고 수량 *</th>
-                                <th class="px-2 py-1.5 text-right w-24">규격</th>
-                                <th class="px-2 py-1.5 text-left w-36">창고 *</th>
-                                <th class="px-2 py-1.5 text-left w-28">공급처 LOT{{ lot.source === 'EXTERNAL' ? ' *' : '' }}</th>
-                                <th class="px-2 py-1.5 w-14">검사</th>
-                                <th class="px-2 py-1.5 w-7"></th>
+                                <th class="px-2 py-1.5">#</th>
+                                <th class="px-2 py-1.5 text-left">품목 *</th>
+                                <th class="px-2 py-1.5 text-left">발주</th>
+                                <th class="px-2 py-1.5 text-right">남은 수량</th>
+                                <th class="px-2 py-1.5 text-right">입고 수량 *</th>
+                                <th class="px-2 py-1.5 text-right">규격</th>
+                                <th class="px-2 py-1.5 text-left">창고 *</th>
+                                <th class="px-2 py-1.5 text-left">공급처 LOT{{ lot.source === 'EXTERNAL' ? ' *' : '' }}</th>
+                                <th class="px-2 py-1.5">검사</th>
+                                <th class="px-2 py-1.5"></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -112,7 +133,7 @@
                             <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-middle">
                                 <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
                                 <td class="px-1.5 py-1">
-                                    <p v-if="l.purchase_order_line_idx" class="py-1.5">{{ l.item_code }} {{ l.item_name }}</p>
+                                    <p v-if="l.purchase_order_line_idx" class="py-1.5 truncate" :title="`${l.item_code} ${l.item_name}`">{{ l.item_code }} {{ l.item_name }}</p>
                                     <ItemPicker v-else v-model="l.item_idx" :remote="{}" show-type @select="row => onItemPicked(l, row)" />
                                     <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                 </td>

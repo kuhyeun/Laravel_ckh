@@ -168,7 +168,7 @@
                 </div>
 
                 <!-- 레벨별 권한 -->
-                <div class="border border-gray-200 rounded-lg p-5 mt-4">
+                <div class="border border-gray-200 rounded-lg p-5 mt-4 overflow-x-auto">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="text-base font-bold tracking-tight">레벨별 권한</h3>
                         <BaseButton size="sm" variant="primary" :disabled="!form.menu_idx || !canWrite" @click="savePerm">권한 저장</BaseButton>
@@ -177,10 +177,13 @@
                     <p v-if="!form.menu_idx" class="text-sm text-gray-400">메뉴를 먼저 저장하면 레벨별 권한을 설정할 수 있습니다.</p>
                     <p v-else-if="isSystemOnlyMenu" class="text-xs text-gray-400 mb-2">메뉴관리는 시스템 계정 전용입니다.</p>
 
-                    <table v-else class="w-full text-sm">
+                    <table v-else class="w-full min-w-[496px] table-fixed text-sm">
+                        <colgroup>
+                            <col><col class="w-28"><col class="w-28"><col class="w-28">
+                        </colgroup>
                         <thead>
                             <tr class="text-gray-500 border-b">
-                                <th class="text-left font-medium py-2 w-24">레벨</th>
+                                <th class="text-left font-medium py-2">레벨</th>
                                 <th class="font-medium py-2 cursor-pointer select-none hover:text-blue-500"
                                     @click="toggleColumn('can_read')">노출(읽기)</th>
                                 <th class="font-medium py-2 cursor-pointer select-none hover:text-blue-500"

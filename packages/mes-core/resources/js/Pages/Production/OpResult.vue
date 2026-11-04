@@ -69,40 +69,47 @@
                         <p v-if="errorText" class="text-xs text-red-500 whitespace-pre-line">{{ errorText }}</p>
 
                         <!-- 공정 표 -->
-                        <table class="w-full text-sm border">
-                            <thead class="bg-gray-50 text-gray-500 text-xs">
-                                <tr>
-                                    <th class="px-2 py-1.5 w-12">OP</th><th class="px-2 py-1.5 text-left">공정</th>
-                                    <th class="px-2 py-1.5 w-20 text-right">기준</th><th class="px-2 py-1.5 w-20 text-right">실적</th>
-                                    <th class="px-2 py-1.5 w-14">상태</th><th class="px-2 py-1.5 text-left">비고</th><th class="px-2 py-1.5 w-52"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="o in line.ops" :key="o.work_order_op_idx" class="border-t cursor-pointer"
-                                    :class="selectedOp?.work_order_op_idx === o.work_order_op_idx ? 'bg-blue-50' : 'hover:bg-gray-50'"
-                                    @click="pickOp(o)">
-                                    <td class="px-2 py-1.5 text-center text-gray-500">{{ String(o.seq).padStart(3, '0') }}</td>
-                                    <td class="px-2 py-1.5">{{ o.name }} <span class="text-xs text-gray-400">{{ o.is_qty ? '' : (o.is_inspection && line.quality_on ? '( 검사 )' : '( 완료만 )') }}</span></td>
-                                    <td class="px-2 py-1.5 text-right text-gray-500">{{ o.base_qty === null ? '—' : fmt(o.base_qty) }}</td>
-                                    <td class="px-2 py-1.5 text-right font-semibold">{{ o.is_qty || (o.is_inspection && o.status === 'DONE') ? fmt(o.qty) : '—' }}</td>
-                                    <td class="px-2 py-1.5 text-center font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</td>
-                                    <td class="px-2 py-1.5 text-xs">
-                                        <span v-if="o.short_qty" class="text-amber-700">미달 {{ fmt(o.short_qty) }} · {{ o.short_reason }}</span>
-                                        <span v-else-if="o.block" class="text-gray-400">{{ o.block }}</span>
-                                    </td>
-                                    <td class="px-2 py-1 text-right whitespace-nowrap" @click.stop>
-                                        <!-- 검사 공정 : 검사 창 ( 완료 뒤에도 기록을 본다 · 취소도 그 창에서 ) -->
-                                        <BaseButton v-if="o.is_inspection && line.quality_on" size="sm" :variant="o.status === 'DONE' ? 'secondary' : 'primary'" @click="openInspection(o)">검사</BaseButton>
-                                        <template v-else-if="canWrite && o.status !== 'DONE' && line.status !== 'DONE'">
-                                            <BaseButton v-if="o.is_qty" size="sm" variant="secondary" :disabled="!!o.block" @click="openPanel(o, 'run')">실적 입력</BaseButton>
-                                            <BaseButton v-if="o.is_rm_out && line.materials.length" size="sm" variant="secondary" @click="openIssue">출고</BaseButton>
-                                            <BaseButton size="sm" variant="primary" class="ml-1" :disabled="!o.is_qty && !!o.block" @click="openPanel(o, 'done')">{{ o.is_qty ? '공정 완료' : '완료' }}</BaseButton>
-                                        </template>
-                                        <BaseButton v-if="canDelete && o.status === 'DONE' && line.status !== 'DONE' && !(o.is_inspection && line.quality_on)" size="sm" variant="secondary" :disabled="busy" @click="cancelComplete(o)">완료 취소</BaseButton>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[832px] table-fixed text-sm border">
+                                <colgroup>
+                                    <col class="w-12"><col>
+                                    <col class="w-20"><col class="w-20">
+                                    <col class="w-16"><col class="w-48"><col class="w-52">
+                                </colgroup>
+                                <thead class="bg-gray-50 text-gray-500 text-xs">
+                                    <tr>
+                                        <th class="px-2 py-1.5">OP</th><th class="px-2 py-1.5 text-left">공정</th>
+                                        <th class="px-2 py-1.5 text-right">기준</th><th class="px-2 py-1.5 text-right">실적</th>
+                                        <th class="px-2 py-1.5">상태</th><th class="px-2 py-1.5 text-left">비고</th><th class="px-2 py-1.5"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="o in line.ops" :key="o.work_order_op_idx" class="border-t cursor-pointer"
+                                        :class="selectedOp?.work_order_op_idx === o.work_order_op_idx ? 'bg-blue-50' : 'hover:bg-gray-50'"
+                                        @click="pickOp(o)">
+                                        <td class="px-2 py-1.5 text-center text-gray-500">{{ String(o.seq).padStart(3, '0') }}</td>
+                                        <td class="px-2 py-1.5 truncate" :title="o.name">{{ o.name }} <span class="text-xs text-gray-400">{{ o.is_qty ? '' : (o.is_inspection && line.quality_on ? '( 검사 )' : '( 완료만 )') }}</span></td>
+                                        <td class="px-2 py-1.5 text-right text-gray-500">{{ o.base_qty === null ? '—' : fmt(o.base_qty) }}</td>
+                                        <td class="px-2 py-1.5 text-right font-semibold">{{ o.is_qty || (o.is_inspection && o.status === 'DONE') ? fmt(o.qty) : '—' }}</td>
+                                        <td class="px-2 py-1.5 text-center font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</td>
+                                        <td class="px-2 py-1.5 text-xs">
+                                            <span v-if="o.short_qty" class="text-amber-700">미달 {{ fmt(o.short_qty) }} · {{ o.short_reason }}</span>
+                                            <span v-else-if="o.block" class="text-gray-400">{{ o.block }}</span>
+                                        </td>
+                                        <td class="px-2 py-1 text-right whitespace-nowrap" @click.stop>
+                                            <!-- 검사 공정 : 검사 창 ( 완료 뒤에도 기록을 본다 · 취소도 그 창에서 ) -->
+                                            <BaseButton v-if="o.is_inspection && line.quality_on" size="sm" :variant="o.status === 'DONE' ? 'secondary' : 'primary'" @click="openInspection(o)">검사</BaseButton>
+                                            <template v-else-if="canWrite && o.status !== 'DONE' && line.status !== 'DONE'">
+                                                <BaseButton v-if="o.is_qty" size="sm" variant="secondary" :disabled="!!o.block" @click="openPanel(o, 'run')">실적 입력</BaseButton>
+                                                <BaseButton v-if="o.is_rm_out && line.materials.length" size="sm" variant="secondary" @click="openIssue">출고</BaseButton>
+                                                <BaseButton size="sm" variant="primary" class="ml-1" :disabled="!o.is_qty && !!o.block" @click="openPanel(o, 'done')">{{ o.is_qty ? '공정 완료' : '완료' }}</BaseButton>
+                                            </template>
+                                            <BaseButton v-if="canDelete && o.status === 'DONE' && line.status !== 'DONE' && !(o.is_inspection && line.quality_on)" size="sm" variant="secondary" :disabled="busy" @click="cancelComplete(o)">완료 취소</BaseButton>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
 
                         <!-- 선택한 공정 : 입력 · 완료 · 실적 줄 -->
                         <section v-if="selectedOp" class="border rounded">
@@ -175,20 +182,25 @@
                             </div>
 
                             <!-- 실적 줄 -->
-                            <table v-if="selectedOp.is_qty" class="w-full text-xs">
-                                <thead class="text-gray-500"><tr><th class="px-3 py-1.5 text-left">작업 일시</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">수량</th><th class="px-2 py-1.5 text-left">비고</th><th class="w-14"></th></tr></thead>
-                                <tbody>
-                                    <tr v-if="!selectedOp.runs.length"><td colspan="6" class="px-3 py-3 text-center text-gray-400">실적이 없습니다.</td></tr>
-                                    <tr v-for="r in selectedOp.runs" :key="r.run_idx" class="border-t">
-                                        <td class="px-3 py-1.5">{{ r.worked_at }}</td>
-                                        <td class="px-2 py-1.5">{{ r.equipment_name ?? '—' }}</td>
-                                        <td class="px-2 py-1.5">{{ r.operator }} <span v-if="r.is_proxy" class="text-gray-400">( 입력 : {{ r.creator }} )</span></td>
-                                        <td class="px-2 py-1.5 text-right font-semibold">{{ fmt(r.qty) }}<span v-if="r.received" class="ml-1 px-1 rounded bg-blue-50 text-blue-700 font-normal">입고</span></td>
-                                        <td class="px-2 py-1.5 text-gray-500">{{ r.remark }}</td>
-                                        <td class="px-2 py-1 text-right"><button v-if="canDelete && selectedOp.status !== 'DONE'" type="button" class="text-gray-400 hover:text-red-500" :disabled="busy" @click="cancelRun(r)">취소</button></td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            <div v-if="selectedOp.is_qty" class="overflow-x-auto">
+                                <table class="w-full min-w-[760px] table-fixed text-xs">
+                                    <colgroup>
+                                        <col class="w-36"><col class="w-32"><col class="w-40"><col class="w-28"><col><col class="w-14">
+                                    </colgroup>
+                                    <thead class="text-gray-500"><tr><th class="px-3 py-1.5 text-left">작업 일시</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">수량</th><th class="px-2 py-1.5 text-left">비고</th><th></th></tr></thead>
+                                    <tbody>
+                                        <tr v-if="!selectedOp.runs.length"><td colspan="6" class="px-3 py-3 text-center text-gray-400">실적이 없습니다.</td></tr>
+                                        <tr v-for="r in selectedOp.runs" :key="r.run_idx" class="border-t">
+                                            <td class="px-3 py-1.5">{{ r.worked_at }}</td>
+                                            <td class="px-2 py-1.5 truncate" :title="r.equipment_name ?? ''">{{ r.equipment_name ?? '—' }}</td>
+                                            <td class="px-2 py-1.5">{{ r.operator }} <span v-if="r.is_proxy" class="text-gray-400">( 입력 : {{ r.creator }} )</span></td>
+                                            <td class="px-2 py-1.5 text-right font-semibold">{{ fmt(r.qty) }}<span v-if="r.received" class="ml-1 px-1 rounded bg-blue-50 text-blue-700 font-normal">입고</span></td>
+                                            <td class="px-2 py-1.5 text-gray-500 truncate" :title="r.remark">{{ r.remark }}</td>
+                                            <td class="px-2 py-1 text-right"><button v-if="canDelete && selectedOp.status !== 'DONE'" type="button" class="text-gray-400 hover:text-red-500" :disabled="busy" @click="cancelRun(r)">취소</button></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </section>
 
                         <!-- 자재 -->

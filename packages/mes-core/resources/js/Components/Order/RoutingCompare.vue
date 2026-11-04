@@ -22,52 +22,73 @@
                     <span v-if="c.status" class="text-xs" :class="c.status.cls">{{ c.status.text }}</span>
                     <span class="text-xs" :class="c.diffCount ? 'text-amber-700' : 'text-gray-400'">{{ c.diffCount ? `다른 곳 ${c.diffCount}` : '같음' }}</span>
                 </div>
-                <table class="w-full text-xs border rounded">
-                    <thead class="bg-gray-50 text-gray-500">
-                        <tr>
-                            <th class="px-2 py-1 w-10">순서</th><th class="px-2 py-1 text-left">{{ c.left }}</th><th class="px-2 py-1 w-16 text-right">개당(초)</th><th class="px-2 py-1 w-20">검사</th>
-                            <th class="px-2 py-1 w-10 border-l">순서</th><th class="px-2 py-1 text-left">{{ c.right }}</th><th class="px-2 py-1 w-16 text-right">개당(초)</th><th class="px-2 py-1 w-20">검사</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-if="!c.rows.length"><td colspan="8" class="px-2 py-3 text-center text-gray-400">공정이 없습니다.</td></tr>
-                        <tr v-for="(r, i) in c.rows" :key="i" class="border-t" :class="ROW_CLASS[r.kind]">
-                            <template v-if="r.left">
-                                <td class="px-2 py-1 text-center text-gray-400">{{ r.li + 1 }}</td>
-                                <td class="px-2 py-1" :class="r.kind === 'removed' ? 'line-through text-red-700' : ''">{{ procName(r.left.process_idx) }}</td>
-                                <td class="px-2 py-1 text-right" :class="r.changed?.includes('cycle_time_sec') ? 'font-semibold' : ''">{{ fmtNum(r.left.cycle_time_sec) }}</td>
-                                <td class="px-2 py-1 text-center" :class="r.changed?.some(f => f.startsWith('insp')) ? 'font-semibold' : ''">{{ inspText(r.left) }}</td>
-                            </template>
-                            <td v-else colspan="4"></td>
-                            <template v-if="r.right">
-                                <td class="px-2 py-1 text-center text-gray-400 border-l">{{ r.ri + 1 }}</td>
-                                <td class="px-2 py-1" :class="r.kind === 'added' ? 'text-green-800 font-semibold' : ''">{{ procName(r.right.process_idx) }}</td>
-                                <td class="px-2 py-1 text-right" :class="r.changed?.includes('cycle_time_sec') ? 'font-semibold text-amber-800' : ''">{{ fmtNum(r.right.cycle_time_sec) }}</td>
-                                <td class="px-2 py-1 text-center" :class="r.changed?.some(f => f.startsWith('insp')) ? 'font-semibold text-amber-800' : ''">{{ inspText(r.right) }}</td>
-                            </template>
-                            <td v-else colspan="4" class="border-l"></td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="overflow-x-auto">
+                    <table class="w-full table-fixed min-w-[608px] text-xs border rounded">
+                        <colgroup>
+                            <!-- 좌우 공정명 칸은 남는 너비를 반씩 나눠 쓴다 -->
+                            <col class="w-10">
+                            <col>
+                            <col class="w-16">
+                            <col class="w-20">
+                            <col class="w-10">
+                            <col>
+                            <col class="w-16">
+                            <col class="w-20">
+                        </colgroup>
+                        <thead class="bg-gray-50 text-gray-500">
+                            <tr>
+                                <th class="px-2 py-1">순서</th><th class="px-2 py-1 text-left truncate" :title="c.left">{{ c.left }}</th><th class="px-2 py-1 text-right">개당(초)</th><th class="px-2 py-1">검사</th>
+                                <th class="px-2 py-1 border-l">순서</th><th class="px-2 py-1 text-left truncate" :title="c.right">{{ c.right }}</th><th class="px-2 py-1 text-right">개당(초)</th><th class="px-2 py-1">검사</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-if="!c.rows.length"><td colspan="8" class="px-2 py-3 text-center text-gray-400">공정이 없습니다.</td></tr>
+                            <tr v-for="(r, i) in c.rows" :key="i" class="border-t" :class="ROW_CLASS[r.kind]">
+                                <template v-if="r.left">
+                                    <td class="px-2 py-1 text-center text-gray-400">{{ r.li + 1 }}</td>
+                                    <td class="px-2 py-1 truncate" :class="r.kind === 'removed' ? 'line-through text-red-700' : ''" :title="procName(r.left.process_idx)">{{ procName(r.left.process_idx) }}</td>
+                                    <td class="px-2 py-1 text-right" :class="r.changed?.includes('cycle_time_sec') ? 'font-semibold' : ''">{{ fmtNum(r.left.cycle_time_sec) }}</td>
+                                    <td class="px-2 py-1 text-center" :class="r.changed?.some(f => f.startsWith('insp')) ? 'font-semibold' : ''">{{ inspText(r.left) }}</td>
+                                </template>
+                                <td v-else colspan="4"></td>
+                                <template v-if="r.right">
+                                    <td class="px-2 py-1 text-center text-gray-400 border-l">{{ r.ri + 1 }}</td>
+                                    <td class="px-2 py-1 truncate" :class="r.kind === 'added' ? 'text-green-800 font-semibold' : ''" :title="procName(r.right.process_idx)">{{ procName(r.right.process_idx) }}</td>
+                                    <td class="px-2 py-1 text-right" :class="r.changed?.includes('cycle_time_sec') ? 'font-semibold text-amber-800' : ''">{{ fmtNum(r.right.cycle_time_sec) }}</td>
+                                    <td class="px-2 py-1 text-center" :class="r.changed?.some(f => f.startsWith('insp')) ? 'font-semibold text-amber-800' : ''">{{ inspText(r.right) }}</td>
+                                </template>
+                                <td v-else colspan="4" class="border-l"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </section>
             <p v-if="!data.work_orders.length" class="mb-4 px-3 py-3 text-center text-xs text-gray-400 border rounded">작업지시가 없어 작업지시 공정과 비교할 것이 없습니다.</p>
 
             <!-- 변경 이력 -->
             <div class="mb-1 text-xs font-semibold text-gray-500">변경 이력</div>
             <p v-if="!data.logs.length" class="px-3 py-3 text-center text-xs text-gray-400 border rounded">이력이 없습니다.</p>
-            <table v-else class="w-full text-xs border rounded">
-                <thead class="bg-gray-50 text-gray-500">
-                    <tr><th class="px-2 py-1 w-32">일시</th><th class="px-2 py-1 w-20">변경</th><th class="px-2 py-1 w-36 text-left">대상</th><th class="px-2 py-1 text-left">내용</th></tr>
-                </thead>
-                <tbody>
-                    <tr v-for="l in data.logs" :key="l.log_idx" class="border-t">
-                        <td class="px-2 py-1 text-center whitespace-nowrap text-gray-500">{{ l.at }}</td>
-                        <td class="px-2 py-1 text-center">{{ l.by }}</td>
-                        <td class="px-2 py-1">{{ l.target }}</td>
-                        <td class="px-2 py-1"><span class="font-semibold mr-1" :class="ACTION_CLASS[l.action]">{{ ACTION_LABEL[l.action] }}</span>{{ logText(l) }}</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div v-else class="overflow-x-auto">
+                <table class="w-full table-fixed min-w-[512px] text-xs border rounded">
+                    <colgroup>
+                        <col class="w-32">
+                        <col class="w-20">
+                        <col class="w-36">
+                        <col>
+                    </colgroup>
+                    <thead class="bg-gray-50 text-gray-500">
+                        <tr><th class="px-2 py-1">일시</th><th class="px-2 py-1">변경</th><th class="px-2 py-1 text-left">대상</th><th class="px-2 py-1 text-left">내용</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="l in data.logs" :key="l.log_idx" class="border-t">
+                            <td class="px-2 py-1 text-center whitespace-nowrap text-gray-500">{{ l.at }}</td>
+                            <td class="px-2 py-1 text-center truncate" :title="l.by">{{ l.by }}</td>
+                            <td class="px-2 py-1 truncate" :title="l.target">{{ l.target }}</td>
+                            <td class="px-2 py-1"><span class="font-semibold mr-1" :class="ACTION_CLASS[l.action]">{{ ACTION_LABEL[l.action] }}</span>{{ logText(l) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </template>
     </div>
 </template>

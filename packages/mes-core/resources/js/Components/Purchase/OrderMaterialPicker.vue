@@ -17,19 +17,31 @@
         <p v-if="errorMsg" class="mb-2 text-xs text-red-500">{{ errorMsg }}</p>
 
         <div class="flex-1 min-h-0 max-h-[60vh] overflow-auto border rounded">
-            <table class="w-full text-xs">
+            <table class="w-full table-fixed min-w-[1052px] text-xs">
+                <colgroup>
+                    <col class="w-8">
+                    <col class="w-36">
+                    <col class="w-[120px]">
+                    <col class="w-[180px]">
+                    <col class="w-24">
+                    <col>
+                    <col class="w-20">
+                    <col class="w-20">
+                    <col class="w-20">
+                    <col class="w-20">
+                </colgroup>
                 <thead class="bg-gray-50 text-gray-500 sticky top-0">
                     <tr>
-                        <th class="px-2 py-1.5 w-8"><input type="checkbox" class="accent-blue-600" :checked="allPicked" :disabled="!pickable.length" @change="toggleAll" /></th>
+                        <th class="px-2 py-1.5"><input type="checkbox" class="accent-blue-600" :checked="allPicked" :disabled="!pickable.length" @change="toggleAll" /></th>
                         <th class="px-2 py-1.5 text-left">수주</th>
                         <th class="px-2 py-1.5 text-left">고객</th>
                         <th class="px-2 py-1.5 text-left">제품</th>
-                        <th class="px-2 py-1.5 w-24">납기</th>
+                        <th class="px-2 py-1.5">납기</th>
                         <th class="px-2 py-1.5 text-left">자재</th>
-                        <th class="px-2 py-1.5 w-20 text-right">소요</th>
-                        <th class="px-2 py-1.5 w-20 text-right">발주됨</th>
-                        <th class="px-2 py-1.5 w-20 text-right">남은 소요</th>
-                        <th class="px-2 py-1.5 w-20 text-right">현재고</th>
+                        <th class="px-2 py-1.5 text-right">소요</th>
+                        <th class="px-2 py-1.5 text-right">발주됨</th>
+                        <th class="px-2 py-1.5 text-right">남은 소요</th>
+                        <th class="px-2 py-1.5 text-right">현재고</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -40,8 +52,8 @@
                             <input type="checkbox" class="accent-blue-600" :checked="picked.has(keyOf(r))" :disabled="inForm(r)" @click.stop="toggle(r)" />
                         </td>
                         <td class="px-2 py-1 whitespace-nowrap">{{ r.order_no }} <span class="text-gray-400">#{{ r.line_no }}</span></td>
-                        <td class="px-2 py-1 truncate max-w-[120px]" :title="r.partner_name">{{ r.partner_name }}</td>
-                        <td class="px-2 py-1 truncate max-w-[180px]" :title="`${r.product_name} [${r.product_code}]`">{{ r.product_name }} <span class="text-gray-400">[{{ r.product_code }}]</span> · {{ fmt(r.order_qty) }}</td>
+                        <td class="px-2 py-1 truncate" :title="r.partner_name">{{ r.partner_name }}</td>
+                        <td class="px-2 py-1 truncate" :title="`${r.product_name} [${r.product_code}]`">{{ r.product_name }} <span class="text-gray-400">[{{ r.product_code }}]</span> · {{ fmt(r.order_qty) }}</td>
                         <td class="px-2 py-1 text-center">{{ r.due_date }}</td>
                         <td class="px-2 py-1">
                             {{ r.item_name }} <span class="text-gray-400">[{{ r.item_code }}]</span>

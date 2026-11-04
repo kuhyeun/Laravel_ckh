@@ -20,19 +20,25 @@
         <div class="flex-1 min-h-0 overflow-auto px-3 py-2">
             <p v-if="loading" class="py-6 text-center text-sm text-gray-400">불러오는 중…</p>
             <p v-else-if="!lots.length" class="py-6 text-center text-sm text-gray-400">이 지시가 출고한 자재가 없습니다.</p>
-            <table v-else class="w-full text-xs">
+            <table v-else class="w-full min-w-[1104px] table-fixed text-xs">
+                <colgroup>
+                    <col><col class="w-40">
+                    <col class="w-20"><col class="w-20"><col class="w-20">
+                    <col class="w-20"><col class="w-20">
+                    <col class="w-32"><col class="w-28"><col class="w-36">
+                </colgroup>
                 <thead class="text-gray-400">
                     <tr>
                         <th class="text-left font-normal px-1">자재</th><th class="text-left font-normal px-1">LOT</th>
                         <th class="text-right font-normal px-1">출고</th><th class="text-right font-normal px-1">사용</th><th class="text-right font-normal px-1">보유</th>
                         <th class="text-right font-normal px-1">반납</th><th class="text-right font-normal px-1">반납 가능</th>
-                        <th class="text-left font-normal px-1 w-32">처리</th><th class="text-right font-normal px-1 w-28">수량</th><th class="text-left font-normal px-1 w-36">창고</th>
+                        <th class="text-left font-normal px-1">처리</th><th class="text-right font-normal px-1">수량</th><th class="text-left font-normal px-1">창고</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr v-for="l in lots" :key="l.key" class="border-t border-gray-100">
-                        <td class="px-1 py-1">{{ l.item_code }} <span class="text-gray-500">{{ l.item_name }}</span></td>
-                        <td class="px-1">{{ l.lot_no || '( LOT 미사용 )' }}<span v-if="l.spec_value !== null" class="text-gray-400"> · {{ fmtNum(l.spec_value) }}{{ l.spec_unit }}</span></td>
+                        <td class="px-1 py-1 truncate" :title="`${l.item_code} ${l.item_name}`">{{ l.item_code }} <span class="text-gray-500">{{ l.item_name }}</span></td>
+                        <td class="px-1 truncate" :title="l.lot_no">{{ l.lot_no || '( LOT 미사용 )' }}<span v-if="l.spec_value !== null" class="text-gray-400"> · {{ fmtNum(l.spec_value) }}{{ l.spec_unit }}</span></td>
                         <td class="px-1 text-right">{{ fmtNum(l.issued) }}</td>
                         <td class="px-1 text-right text-gray-500">{{ fmtNum(l.consumed) }}</td>
                         <td class="px-1 text-right text-gray-500">{{ fmtNum(l.held) }}</td>
@@ -61,10 +67,15 @@
                 <BaseButton v-if="canCancel" variant="danger" :disabled="!checked.length || saving" @click="cancelChecked">반납 취소</BaseButton>
             </div>
             <div class="overflow-auto">
-                <table class="w-full text-xs">
+                <table class="w-full min-w-[944px] table-fixed text-xs">
+                    <colgroup>
+                        <col class="w-8"><col class="w-32"><col class="w-36">
+                        <col><col class="w-32"><col class="w-28">
+                        <col class="w-28"><col class="w-12"><col class="w-20">
+                    </colgroup>
                     <thead class="text-gray-400 sticky top-0 bg-white">
                         <tr>
-                            <th class="w-8"></th><th class="text-left font-normal px-1">전표</th><th class="text-left font-normal px-1">반납일시</th>
+                            <th></th><th class="text-left font-normal px-1">전표</th><th class="text-left font-normal px-1">반납일시</th>
                             <th class="text-left font-normal px-1">자재</th><th class="text-left font-normal px-1">LOT</th><th class="text-left font-normal px-1">창고</th>
                             <th class="text-right font-normal px-1">수량</th><th class="text-center font-normal px-1">상태</th><th class="text-left font-normal px-1">등록자</th>
                         </tr>
@@ -75,9 +86,9 @@
                             <td class="text-center"><input v-if="canCancel && h.status === 'DONE'" type="checkbox" class="row-check" :value="h.stock_txn_line_idx" v-model="checked" /></td>
                             <td class="px-1 py-0.5">{{ h.txn_no }}</td>
                             <td class="px-1">{{ h.occurred_at.replace('T', ' ') }}</td>
-                            <td class="px-1">{{ h.item_code }} {{ h.item_name }}</td>
-                            <td class="px-1">{{ h.lot_no }}</td>
-                            <td class="px-1">{{ h.warehouse_name }}</td>
+                            <td class="px-1 truncate" :title="`${h.item_code} ${h.item_name}`">{{ h.item_code }} {{ h.item_name }}</td>
+                            <td class="px-1 truncate" :title="h.lot_no">{{ h.lot_no }}</td>
+                            <td class="px-1 truncate" :title="h.warehouse_name">{{ h.warehouse_name }}</td>
                             <td class="px-1 text-right">{{ fmtQty(h.qty, h.spec_unit) }}</td>
                             <td class="px-1 text-center">{{ h.status === 'CANCELED' ? '취소' : '반납' }}</td>
                             <td class="px-1">{{ h.user_name }}</td>

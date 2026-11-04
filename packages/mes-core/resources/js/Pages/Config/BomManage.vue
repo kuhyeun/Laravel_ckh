@@ -94,16 +94,25 @@
                             <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="addLine">+ 자재</BaseButton>
                         </div>
 
-                        <div class="border rounded overflow-hidden">
-                            <table class="w-full text-sm">
+                        <div class="border rounded overflow-x-auto">
+                            <!-- 최소 너비 = 고정 칸 합 + 자재 칸 160px ( 계산식 · 절단 칸 표시 여부에 따라 ) -->
+                            <table class="w-full table-fixed text-sm" :class="SHOW_CALC ? 'min-w-[696px]' : 'min-w-[472px]'">
+                                <colgroup>
+                                    <col>
+                                    <col class="w-24">
+                                    <col class="w-44">
+                                    <col v-if="SHOW_CALC" class="w-32">
+                                    <col v-if="SHOW_CALC" class="w-24">
+                                    <col v-if="canWrite" class="w-10">
+                                </colgroup>
                                 <thead class="bg-gray-50 text-gray-500">
                                     <tr>
                                         <th class="px-2 py-1.5 font-medium">자재 <span class="text-red-400">*</span></th>
-                                        <th class="px-2 py-1.5 w-24 font-medium">소요 <span class="text-red-400">*</span></th>
-                                        <th class="px-2 py-1.5 w-44 font-medium">투입 지점</th>
-                                        <th v-if="SHOW_CALC" class="px-2 py-1.5 w-32 font-medium">계산식</th>
-                                        <th v-if="SHOW_CALC" class="px-2 py-1.5 w-24 font-medium">절단(CUT)</th>
-                                        <th v-if="canWrite" class="px-2 py-1.5 w-10"></th>
+                                        <th class="px-2 py-1.5 font-medium">소요 <span class="text-red-400">*</span></th>
+                                        <th class="px-2 py-1.5 font-medium">투입 지점</th>
+                                        <th v-if="SHOW_CALC" class="px-2 py-1.5 font-medium">계산식</th>
+                                        <th v-if="SHOW_CALC" class="px-2 py-1.5 font-medium">절단(CUT)</th>
+                                        <th v-if="canWrite" class="px-2 py-1.5"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -142,27 +151,37 @@
                                     <!-- 대체 자재 : 소요는 대체 자재 기준 ( 출고 때 주 자재 대신 · 섞어서 낸다 — 자동 채움은 주 자재만 ) -->
                                     <tr v-if="l._open" class="bg-gray-50/70">
                                         <td :colspan="(canWrite ? 4 : 3) + (SHOW_CALC ? 2 : 0)" class="pl-6 pr-1.5 py-1.5">
-                                            <table class="w-full text-xs">
+                                            <table class="w-full table-fixed text-xs">
+                                                <colgroup>
+                                                    <col class="w-6">
+                                                    <col>
+                                                    <col class="w-24">
+                                                    <col class="w-44">
+                                                    <col v-if="SHOW_CALC" class="w-32">
+                                                    <col v-if="SHOW_CALC" class="w-24">
+                                                    <col v-if="canWrite" class="w-10">
+                                                </colgroup>
                                                 <tbody>
+                                                    <!-- 고정 레이아웃이라 안내 문구는 전체 칸을 덮는다 -->
                                                     <tr v-if="!l.substitutes.length">
-                                                        <td class="py-1 text-gray-400">대체 자재가 없습니다. 이 자재 대신 쓸 수 있는 자재를 넣으면 자재 출고 때 대신 · 섞어서 낼 수 있습니다.</td>
+                                                        <td :colspan="(canWrite ? 5 : 4) + (SHOW_CALC ? 2 : 0)" class="py-1 text-gray-400">대체 자재가 없습니다. 이 자재 대신 쓸 수 있는 자재를 넣으면 자재 출고 때 대신 · 섞어서 낼 수 있습니다.</td>
                                                     </tr>
                                                     <tr v-for="(sub, j) in l.substitutes" :key="sub._rowKey" class="align-top">
-                                                        <td class="w-6 py-1 text-gray-300">└</td>
+                                                        <td class="py-1 text-gray-300">└</td>
                                                         <td class="pr-1.5 py-1">
                                                             <ItemPicker v-model="sub.child_item_idx" :remote="{}" :exclude="[selectedItem?.item_idx, l.child_item_idx]" placeholder="대체 자재 선택"
                                                                 :can-create="canCreateItem" :disabled="!canWrite"
                                                                 :current="{ item_code: sub.child_item_code, item_name: sub.child_item_name, spec: sub.child_item_spec }" />
                                                             <p v-if="subError(i, j, 'child_item_idx')" class="text-[11px] text-red-500">{{ subError(i, j, 'child_item_idx') }}</p>
                                                         </td>
-                                                        <td class="w-24 pr-1.5 py-1">
+                                                        <td class="pr-1.5 py-1">
                                                             <BaseInput v-model="sub.qty" type="number" min="0" size="sm" class="w-full text-right" placeholder="소요" :disabled="!canWrite" />
                                                             <p v-if="subError(i, j, 'qty')" class="text-[11px] text-red-500">{{ subError(i, j, 'qty') }}</p>
                                                         </td>
-                                                        <td class="w-44 pr-1.5 py-1 text-gray-400">투입 지점은 주 자재와 같음</td>
-                                                        <td v-if="SHOW_CALC" class="w-32 pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="sm" class="w-full" placeholder="계산식" :disabled="!canWrite" /></td>
-                                                        <td v-if="SHOW_CALC" class="w-24 pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="!canWrite" /></td>
-                                                        <td v-if="canWrite" class="w-10 py-1 text-center">
+                                                        <td class="pr-1.5 py-1 text-gray-400">투입 지점은 주 자재와 같음</td>
+                                                        <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="sm" class="w-full" placeholder="계산식" :disabled="!canWrite" /></td>
+                                                        <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="!canWrite" /></td>
+                                                        <td v-if="canWrite" class="py-1 text-center">
                                                             <button type="button" class="px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
                                                         </td>
                                                     </tr>
@@ -180,15 +199,22 @@
                         <div v-if="versions.length" class="mt-5">
                             <span class="text-sm font-semibold text-gray-600">버전 이력</span>
                             <span class="ml-1 text-xs text-gray-400">변경 한 번이 버전 하나입니다.</span>
-                            <div class="mt-2 border rounded overflow-hidden">
-                                <table class="w-full text-sm">
+                            <div class="mt-2 border rounded overflow-x-auto">
+                                <table class="w-full min-w-[576px] table-fixed text-sm">
+                                    <colgroup>
+                                        <col>
+                                        <col class="w-20">
+                                        <col class="w-28">
+                                        <col class="w-36">
+                                        <col class="w-20">
+                                    </colgroup>
                                     <thead class="bg-gray-50 text-gray-500">
                                         <tr>
-                                            <th class="px-2 py-1.5 w-24 font-medium text-left">버전</th>
-                                            <th class="px-2 py-1.5 w-20 font-medium">상태</th>
-                                            <th class="px-2 py-1.5 w-28 font-medium">변경일</th>
-                                            <th class="px-2 py-1.5 w-36 font-medium">승인</th>
-                                            <th class="px-2 py-1.5 w-20 font-medium">자재</th>
+                                            <th class="px-2 py-1.5 font-medium text-left">버전</th>
+                                            <th class="px-2 py-1.5 font-medium">상태</th>
+                                            <th class="px-2 py-1.5 font-medium">변경일</th>
+                                            <th class="px-2 py-1.5 font-medium">승인</th>
+                                            <th class="px-2 py-1.5 font-medium">자재</th>
                                         </tr>
                                     </thead>
                                     <tbody>

@@ -105,16 +105,25 @@
                     </div>
                     <p v-if="errors.format_spec" class="mb-2 text-xs text-red-500">{{ errors.format_spec[0] }}</p>
 
-                    <div class="border rounded overflow-hidden">
-                        <table class="w-full">
+                    <div class="border rounded overflow-x-auto">
+                        <!-- 최소 너비 = 고정 칸 합 416px + 설정 칸 320px ( 라디오 · 안내 문구가 한 줄로 들어가게 ) -->
+                        <table class="w-full min-w-[736px] table-fixed">
+                            <colgroup>
+                                <col class="w-8">
+                                <col class="w-14">
+                                <col class="w-32">
+                                <col>
+                                <col class="w-40">
+                                <col v-if="canWrite" class="w-10">
+                            </colgroup>
                             <thead class="bg-gray-50 text-gray-500">
                                 <tr>
-                                    <th class="px-2 py-1.5 w-8"></th>
-                                    <th class="px-2 py-1.5 w-14 font-medium">순서</th>
-                                    <th class="px-2 py-1.5 w-32 font-medium text-left">요소</th>
+                                    <th class="px-2 py-1.5"></th>
+                                    <th class="px-2 py-1.5 font-medium">순서</th>
+                                    <th class="px-2 py-1.5 font-medium text-left">요소</th>
                                     <th class="px-2 py-1.5 font-medium text-left">설정</th>
-                                    <th class="px-2 py-1.5 w-40 font-medium text-left">예시</th>
-                                    <th v-if="canWrite" class="px-2 py-1.5 w-10"></th>
+                                    <th class="px-2 py-1.5 font-medium text-left">예시</th>
+                                    <th v-if="canWrite" class="px-2 py-1.5"></th>
                                 </tr>
                             </thead>
                             <tbody>

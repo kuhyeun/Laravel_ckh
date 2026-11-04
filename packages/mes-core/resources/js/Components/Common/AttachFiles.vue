@@ -34,38 +34,47 @@
             <p v-if="errorMsg" class="mb-2 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
 
             <!-- 목록 -->
-            <table class="w-full text-xs">
-                <thead>
-                    <tr class="border-b text-gray-500">
-                        <th class="py-1.5 px-2 text-left font-medium w-20">구분</th>
-                        <th class="py-1.5 px-2 text-left font-medium">파일</th>
-                        <th class="py-1.5 px-2 text-right font-medium w-20">크기</th>
-                        <th class="py-1.5 px-2 text-left font-medium w-36">올린 사람 · 시각</th>
-                        <th v-if="!readonly" class="w-12"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-if="loading">
-                        <td :colspan="readonly ? 4 : 5" class="py-4 text-center text-gray-400">불러오는 중…</td>
-                    </tr>
-                    <tr v-else-if="!files.length">
-                        <td :colspan="readonly ? 4 : 5" class="py-4 text-center text-gray-400">첨부된 파일이 없습니다.</td>
-                    </tr>
-                    <tr v-for="f in files" v-else :key="f.attachment_idx" class="border-b last:border-b-0 hover:bg-gray-50">
-                        <td class="py-1.5 px-2 text-gray-600">{{ nameOf('ATTACH_TYPE', f.category_code) }}</td>
-                        <td class="py-1.5 px-2 break-all">
-                            <a :href="route('attachment.download', f.attachment_idx)" class="text-blue-700 hover:underline">{{ f.file_name }}</a>
-                        </td>
-                        <td class="py-1.5 px-2 text-right text-gray-500 whitespace-nowrap">{{ sizeText(f.file_size) }}</td>
-                        <td class="py-1.5 px-2 text-gray-500 whitespace-nowrap">
-                            {{ f.creator?.user_name || f.creator?.user_id || '-' }} · {{ dateText(f.create_datetime) }}
-                        </td>
-                        <td v-if="!readonly" class="py-1.5 px-2 text-right">
-                            <button type="button" class="text-red-500 hover:underline disabled:opacity-40" :disabled="busy" @click="remove(f)">삭제</button>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[544px] table-fixed text-xs">
+                    <colgroup>
+                        <col class="w-20">
+                        <col>
+                        <col class="w-20">
+                        <col class="w-44">
+                        <col v-if="!readonly" class="w-12">
+                    </colgroup>
+                    <thead>
+                        <tr class="border-b text-gray-500">
+                            <th class="py-1.5 px-2 text-left font-medium">구분</th>
+                            <th class="py-1.5 px-2 text-left font-medium">파일</th>
+                            <th class="py-1.5 px-2 text-right font-medium">크기</th>
+                            <th class="py-1.5 px-2 text-left font-medium">올린 사람 · 시각</th>
+                            <th v-if="!readonly"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="loading">
+                            <td :colspan="readonly ? 4 : 5" class="py-4 text-center text-gray-400">불러오는 중…</td>
+                        </tr>
+                        <tr v-else-if="!files.length">
+                            <td :colspan="readonly ? 4 : 5" class="py-4 text-center text-gray-400">첨부된 파일이 없습니다.</td>
+                        </tr>
+                        <tr v-for="f in files" v-else :key="f.attachment_idx" class="border-b last:border-b-0 hover:bg-gray-50">
+                            <td class="py-1.5 px-2 text-gray-600 truncate" :title="nameOf('ATTACH_TYPE', f.category_code)">{{ nameOf('ATTACH_TYPE', f.category_code) }}</td>
+                            <td class="py-1.5 px-2 break-all">
+                                <a :href="route('attachment.download', f.attachment_idx)" class="text-blue-700 hover:underline">{{ f.file_name }}</a>
+                            </td>
+                            <td class="py-1.5 px-2 text-right text-gray-500 whitespace-nowrap">{{ sizeText(f.file_size) }}</td>
+                            <td class="py-1.5 px-2 text-gray-500 whitespace-nowrap truncate" :title="`${f.creator?.user_name || f.creator?.user_id || '-'} · ${dateText(f.create_datetime)}`">
+                                {{ f.creator?.user_name || f.creator?.user_id || '-' }} · {{ dateText(f.create_datetime) }}
+                            </td>
+                            <td v-if="!readonly" class="py-1.5 px-2 text-right">
+                                <button type="button" class="text-red-500 hover:underline disabled:opacity-40" :disabled="busy" @click="remove(f)">삭제</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </template>
     </div>
 </template>

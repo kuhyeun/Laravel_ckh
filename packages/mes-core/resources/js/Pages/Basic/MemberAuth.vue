@@ -69,25 +69,28 @@
                     </div>
                 </div>
 
-                <div class="flex-1 min-h-0 overflow-y-auto">
+                <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
                     <p v-if="!selectedUser" class="px-3 py-6 text-sm text-gray-400">왼쪽에서 사용자를 선택하세요.</p>
                     <p v-else-if="!perm.length" class="px-3 py-6 text-sm text-gray-400">이 레벨에 표시할 메뉴가 없습니다.</p>
 
-                    <table v-else class="w-full text-sm">
+                    <table v-else class="w-full min-w-[560px] table-fixed text-sm">
+                        <colgroup>
+                            <col><col class="w-28"><col class="w-28"><col class="w-24">
+                        </colgroup>
                         <thead>
                             <tr class="text-gray-500">
                                 <th class="sticky top-0 z-10 bg-white px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)]"></th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
                                     @click="toggleColumn('can_read')">노출(읽기)</th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-28 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
                                     @click="toggleColumn('can_write')">등록·수정</th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 w-24 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
                                     @click="toggleColumn('can_delete')">삭제</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="row in perm" :key="row.menu_idx" class="border-t first:border-t-0 last:border-0 transition-colors hover:bg-blue-50/70" :class="{ 'bg-gray-50/60': row._depth === 0 }">
-                                <td class="px-3 py-1.5 text-gray-700">
+                                <td class="px-3 py-1.5 text-gray-700 truncate" :title="row.menu_name">
                                     <span :style="{ paddingLeft: (row._depth * 16) + 'px' }" class="inline-flex items-center gap-1.5">
                                         <span v-if="row._depth > 0" class="text-gray-300">└</span>
                                         <span :class="row._depth === 0 ? 'font-semibold' : ''">{{ row.menu_name }}</span>

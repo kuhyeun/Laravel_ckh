@@ -6,15 +6,22 @@
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <p class="text-xs text-gray-500 mb-2 shrink-0">체크를 끄면 화면에서 숨깁니다 ( 엑셀에는 숨긴 열로 나갑니다 ). 이름 · 너비를 비우면 원래 값으로 돌아갑니다.</p>
-        <div class="flex-1 min-h-0 overflow-y-auto border border-gray-200 rounded">
-            <table class="w-full text-sm">
+        <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto border border-gray-200 rounded">
+            <table class="w-full min-w-[504px] table-fixed text-sm">
+                <colgroup>
+                    <col class="w-10">
+                    <col>
+                    <col class="w-32">
+                    <col class="w-24">
+                    <col class="w-20">
+                </colgroup>
                 <thead class="bg-gray-50 text-xs text-gray-500 sticky top-0">
                     <tr>
-                        <th class="w-10 px-2 py-1.5">표시</th>
+                        <th class="px-2 py-1.5">표시</th>
                         <th class="px-2 py-1.5 text-left">이름</th>
-                        <th class="px-2 py-1.5 text-left w-32">원래 이름</th>
-                        <th class="w-24 px-2 py-1.5">너비( px )</th>
-                        <th class="w-20 px-2 py-1.5">순서</th>
+                        <th class="px-2 py-1.5 text-left">원래 이름</th>
+                        <th class="px-2 py-1.5">너비( px )</th>
+                        <th class="px-2 py-1.5">순서</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -24,7 +31,7 @@
                             <input type="checkbox" class="row-check accent-blue-600" :checked="!c.hidden" :disabled="c.lockHide" :title="c.lockHide ? '꼭 있어야 하는 열입니다' : ''" @change="c.hidden = !$event.target.checked" />
                         </td>
                         <td class="px-2 py-1"><BaseInput v-model="c.header" size="sm" class="w-full" :placeholder="c.origHeader" maxlength="50" /></td>
-                        <td class="px-2 py-1 text-xs text-gray-400 truncate">{{ c.origHeader }}</td>
+                        <td class="px-2 py-1 text-xs text-gray-400 truncate" :title="c.origHeader">{{ c.origHeader }}</td>
                         <td class="px-2 py-1">
                             <BaseInput v-model="c.width" type="number" min="20" size="sm" class="w-full text-right" :placeholder="c.origWidth ? String(c.origWidth) : '자동'" :class="widthBad(c) ? 'border-red-400' : ''" />
                         </td>

@@ -107,19 +107,32 @@
                         <p v-if="errors.lines" class="mb-2 text-xs text-red-500">{{ errors.lines[0] }}</p>
 
                         <div class="border rounded overflow-x-auto">
-                            <table class="w-full text-sm">
+                            <!-- 최소 너비 = 고정 칸 합 800px + 항목명 160px -->
+                            <table class="w-full min-w-[960px] table-fixed text-sm">
+                                <colgroup>
+                                    <col class="w-8">
+                                    <col class="w-14">
+                                    <col>
+                                    <col class="w-24">
+                                    <col class="w-32">
+                                    <col class="w-28">
+                                    <col class="w-28">
+                                    <col class="w-28">
+                                    <col class="w-28">
+                                    <col v-if="canWrite" class="w-10">
+                                </colgroup>
                                 <thead class="bg-gray-50 text-gray-500">
                                     <tr>
-                                        <th class="px-2 py-1.5 w-8"></th>
-                                        <th class="px-2 py-1.5 w-14 font-medium">순서</th>
-                                        <th class="px-2 py-1.5 min-w-[160px] font-medium">항목명 <span class="text-red-400">*</span></th>
-                                        <th class="px-2 py-1.5 w-24 font-medium">성격</th>
-                                        <th class="px-2 py-1.5 w-32 font-medium">검사 방법</th>
-                                        <th class="px-2 py-1.5 w-28 font-medium">규격</th>
-                                        <th class="px-2 py-1.5 w-28 font-medium">하한</th>
-                                        <th class="px-2 py-1.5 w-28 font-medium">상한</th>
-                                        <th class="px-2 py-1.5 w-28 font-medium">단위</th>
-                                        <th v-if="canWrite" class="px-2 py-1.5 w-10"></th>
+                                        <th class="px-2 py-1.5"></th>
+                                        <th class="px-2 py-1.5 font-medium">순서</th>
+                                        <th class="px-2 py-1.5 font-medium">항목명 <span class="text-red-400">*</span></th>
+                                        <th class="px-2 py-1.5 font-medium">성격</th>
+                                        <th class="px-2 py-1.5 font-medium">검사 방법</th>
+                                        <th class="px-2 py-1.5 font-medium">규격</th>
+                                        <th class="px-2 py-1.5 font-medium">하한</th>
+                                        <th class="px-2 py-1.5 font-medium">상한</th>
+                                        <th class="px-2 py-1.5 font-medium">단위</th>
+                                        <th v-if="canWrite" class="px-2 py-1.5"></th>
                                     </tr>
                                 </thead>
                                 <tbody>

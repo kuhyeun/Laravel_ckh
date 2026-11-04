@@ -80,7 +80,7 @@
 
             <!-- 2-1. 얇은 목록 -->
             <section id="thin" class="scroll-mt-4">
-                <SectionHead title="얇은 표 목록" note="패널 · 모달 안의 짧은 목록 ( 이력 · 줄 ) — 주인공 목록 · 페이징 · 정렬이 필요하면 DataGrid ( md §5-1 )" />
+                <SectionHead title="얇은 표 목록" note="패널 · 모달 안의 짧은 목록 ( 이력 · 줄 ) — 주인공 목록 · 페이징 · 정렬이 필요하면 DataGrid ( md §5-1 ) · 너비를 정하는 표는 table-fixed + colgroup" />
                 <ShowcaseCard title="반납 이력 모양 — 체크 · 취소 줄 · 빈 목록 · 강조" :code="code.thin">
                     <div class="w-full border border-dashed border-gray-300 bg-white">
                         <div class="border-t border-gray-200 max-h-56 flex flex-col">
@@ -90,10 +90,15 @@
                                 <BaseButton variant="danger" :disabled="!thinChecked.length" @click="showFlash(`${thinChecked.length}줄의 반납을 취소했습니다. ( 예시 )`)">반납 취소</BaseButton>
                             </div>
                             <div class="overflow-auto">
-                                <table class="w-full text-xs">
+                                <table class="w-full min-w-[752px] table-fixed text-xs">
+                                    <colgroup>
+                                        <col class="w-8"><col class="w-32"><col class="w-36">
+                                        <col><col class="w-32">
+                                        <col class="w-28"><col class="w-12">
+                                    </colgroup>
                                     <thead class="text-gray-400 sticky top-0 bg-white">
                                         <tr>
-                                            <th class="w-8"></th><th class="text-left font-normal px-1">전표</th><th class="text-left font-normal px-1">반납일시</th>
+                                            <th></th><th class="text-left font-normal px-1">전표</th><th class="text-left font-normal px-1">반납일시</th>
                                             <th class="text-left font-normal px-1">자재</th><th class="text-left font-normal px-1">LOT</th>
                                             <th class="text-right font-normal px-1">수량</th><th class="text-center font-normal px-1">상태</th>
                                         </tr>
@@ -104,7 +109,7 @@
                                             <td><input v-if="r.status === 'DONE'" type="checkbox" class="row-check" :value="r.id" v-model="thinChecked" /></td>
                                             <td class="px-1 py-0.5">{{ r.txn_no }}</td>
                                             <td class="px-1">{{ r.at }}</td>
-                                            <td class="px-1">{{ r.item }}</td>
+                                            <td class="px-1 truncate" :title="r.item">{{ r.item }}</td>
                                             <td class="px-1">{{ r.lot }}</td>
                                             <td class="px-1 text-right">{{ fmtQty(r.qty, 'EA') }}</td>
                                             <td class="px-1 text-center">{{ r.status === 'CANCELED' ? '취소' : '반납' }}</td>
@@ -496,6 +501,8 @@ const canDelete = computed(() => page.props.permissions?.[menuCode]?.can_delete 
 </div>`,
 
     thin: `<!-- 패널 아래에 붙는 짧은 목록 : 머리( 제목 · 건수 · 동작 ) + 표( text-xs · 머리줄 sticky ) -->
+<!-- 너비를 정하는 표는 table-fixed + colgroup — 너비는 <col> 에만, 남는 폭을 받는 칸 하나는 너비 없음,
+     표에 min-w 를 두고 감싼 div 는 overflow-x-auto. 너비 지정이 없는 단순 표는 자동 배치 그대로 -->
 <div class="shrink-0 border-t border-gray-200 max-h-56 flex flex-col">
     <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50/70">
         <span class="text-sm font-semibold text-gray-600">반납 이력 <span class="text-xs text-gray-400">{{ rows.length }} 줄</span></span>
@@ -503,9 +510,12 @@ const canDelete = computed(() => page.props.permissions?.[menuCode]?.can_delete 
         <BaseButton v-if="canCancel" variant="danger" :disabled="!checked.length" @click="cancelChecked">반납 취소</BaseButton>
     </div>
     <div class="overflow-auto">
-        <table class="w-full text-xs">
+        <table class="w-full min-w-[304px] table-fixed text-xs">
+            <colgroup>
+                <col class="w-8"><col><col class="w-28">
+            </colgroup>
             <thead class="text-gray-400 sticky top-0 bg-white">
-                <tr><th class="w-8"></th><th class="text-left font-normal px-1">전표</th><th class="text-right font-normal px-1">수량</th></tr>
+                <tr><th></th><th class="text-left font-normal px-1">전표</th><th class="text-right font-normal px-1">수량</th></tr>
             </thead>
             <tbody>
                 <tr v-if="!rows.length"><td colspan="3" class="px-2 py-2 text-center text-gray-400">반납 이력이 없습니다.</td></tr>

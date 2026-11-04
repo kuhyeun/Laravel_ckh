@@ -52,75 +52,107 @@
                     <span v-if="w.lot_no" class="text-xs text-gray-500">· LOT {{ w.lot_no }}</span>
                     <span class="text-xs text-gray-400">· 착수 {{ w.start_date || '—' }} · 기한 {{ w.due_date || '—' }}</span>
                 </div>
-                <table class="w-full text-xs border rounded">
-                    <thead class="bg-gray-50 text-gray-500">
-                        <tr>
-                            <th class="px-2 py-1 w-10">순서</th><th class="px-2 py-1 text-left">공정</th><th class="px-2 py-1 w-14">상태</th>
-                            <th class="px-2 py-1 w-28">시작</th><th class="px-2 py-1 w-28">완료</th>
-                            <th class="px-2 py-1 text-right w-16">수량</th><th class="px-2 py-1 text-left">미달</th><th class="px-2 py-1 text-left">검사</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="o in w.ops" :key="o.seq" class="border-t" :class="o.status === 'RUN' ? 'bg-blue-50/60' : ''">
-                            <td class="px-2 py-1 text-center text-gray-400">{{ o.seq }}</td>
-                            <td class="px-2 py-1">{{ o.process_name }}</td>
-                            <td class="px-2 py-1 text-center font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</td>
-                            <td class="px-2 py-1 text-center whitespace-nowrap">{{ o.started_at || '' }}</td>
-                            <td class="px-2 py-1 text-center whitespace-nowrap">{{ o.done_at || '' }}</td>
-                            <td class="px-2 py-1 text-right">{{ o.status === 'WAIT' && !o.qty ? '' : fmtNum(o.qty) }}</td>
-                            <td class="px-2 py-1">
-                                <span v-if="o.short_qty" class="text-amber-700">{{ fmtNum(o.short_qty) }}<template v-if="o.short_reason"> · {{ o.short_reason }}</template></span>
-                            </td>
-                            <td class="px-2 py-1">
-                                <template v-if="o.is_inspection">
-                                    <span v-for="st in o.stages" :key="st.stage" class="mr-1.5" :style="{ color: resultColor(st.result) }">{{ STAGE_NAMES[st.stage] }} {{ RESULT_NAMES[st.result] }}</span>
-                                    <span v-if="o.insp" class="font-semibold" :style="{ color: resultColor(o.insp.result) }">{{ RESULT_NAMES[o.insp.result] }}</span>
-                                    <span v-if="o.insp" class="text-gray-500"> 합격 {{ fmtNum(o.insp.pass_qty) }}<template v-if="o.insp.fail_qty"> · <span class="text-red-600">불합격 {{ fmtNum(o.insp.fail_qty) }}</span></template></span>
-                                    <span v-else-if="!o.stages.length" class="text-gray-400">대기</span>
-                                </template>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="overflow-x-auto">
+                    <table class="w-full table-fixed min-w-[832px] text-xs border rounded">
+                        <colgroup>
+                            <!-- 검사 칸이 남는 너비를 쓴다 ( 단계별 결과가 길어질 수 있음 ) -->
+                            <col class="w-10">
+                            <col class="w-32">
+                            <col class="w-14">
+                            <col class="w-32">
+                            <col class="w-32">
+                            <col class="w-16">
+                            <col class="w-32">
+                            <col>
+                        </colgroup>
+                        <thead class="bg-gray-50 text-gray-500">
+                            <tr>
+                                <th class="px-2 py-1">순서</th><th class="px-2 py-1 text-left">공정</th><th class="px-2 py-1">상태</th>
+                                <th class="px-2 py-1">시작</th><th class="px-2 py-1">완료</th>
+                                <th class="px-2 py-1 text-right">수량</th><th class="px-2 py-1 text-left">미달</th><th class="px-2 py-1 text-left">검사</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="o in w.ops" :key="o.seq" class="border-t" :class="o.status === 'RUN' ? 'bg-blue-50/60' : ''">
+                                <td class="px-2 py-1 text-center text-gray-400">{{ o.seq }}</td>
+                                <td class="px-2 py-1 truncate" :title="o.process_name">{{ o.process_name }}</td>
+                                <td class="px-2 py-1 text-center font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</td>
+                                <td class="px-2 py-1 text-center whitespace-nowrap">{{ o.started_at || '' }}</td>
+                                <td class="px-2 py-1 text-center whitespace-nowrap">{{ o.done_at || '' }}</td>
+                                <td class="px-2 py-1 text-right">{{ o.status === 'WAIT' && !o.qty ? '' : fmtNum(o.qty) }}</td>
+                                <td class="px-2 py-1">
+                                    <span v-if="o.short_qty" class="text-amber-700">{{ fmtNum(o.short_qty) }}<template v-if="o.short_reason"> · {{ o.short_reason }}</template></span>
+                                </td>
+                                <td class="px-2 py-1">
+                                    <template v-if="o.is_inspection">
+                                        <span v-for="st in o.stages" :key="st.stage" class="mr-1.5" :style="{ color: resultColor(st.result) }">{{ STAGE_NAMES[st.stage] }} {{ RESULT_NAMES[st.result] }}</span>
+                                        <span v-if="o.insp" class="font-semibold" :style="{ color: resultColor(o.insp.result) }">{{ RESULT_NAMES[o.insp.result] }}</span>
+                                        <span v-if="o.insp" class="text-gray-500"> 합격 {{ fmtNum(o.insp.pass_qty) }}<template v-if="o.insp.fail_qty"> · <span class="text-red-600">불합격 {{ fmtNum(o.insp.fail_qty) }}</span></template></span>
+                                        <span v-else-if="!o.stages.length" class="text-gray-400">대기</span>
+                                    </template>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
-                <table v-if="w.materials.length" class="w-full text-xs border rounded mt-1.5">
-                    <thead class="bg-gray-50 text-gray-500">
-                        <tr><th class="px-2 py-1 text-left">자재</th><th class="px-2 py-1 text-right w-24">소요</th><th class="px-2 py-1 text-right w-24">출고</th><th class="px-2 py-1 text-right w-20">반납</th><th class="px-2 py-1 w-28">출고일시</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="(m, i) in w.materials" :key="i" class="border-t">
-                            <td class="px-2 py-1">{{ m.item_label }}<span v-if="m.item_spec" class="text-gray-400"> · {{ m.item_spec }}</span></td>
-                            <td class="px-2 py-1 text-right">{{ fmtQty(m.required_qty, m.spec_unit) }}</td>
-                            <td class="px-2 py-1 text-right" :class="m.issued_qty + 0.000001 < m.required_qty ? 'text-amber-700 font-semibold' : ''">{{ fmtNum(m.issued_qty) }}</td>
-                            <td class="px-2 py-1 text-right text-gray-500">{{ m.returned_qty ? fmtNum(m.returned_qty) : '' }}</td>
-                            <td class="px-2 py-1 text-center whitespace-nowrap">{{ m.issued_at || '' }}</td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div v-if="w.materials.length" class="overflow-x-auto mt-1.5">
+                    <table class="w-full table-fixed min-w-[560px] text-xs border rounded">
+                        <colgroup>
+                            <col>
+                            <col class="w-24">
+                            <col class="w-24">
+                            <col class="w-20">
+                            <col class="w-32">
+                        </colgroup>
+                        <thead class="bg-gray-50 text-gray-500">
+                            <tr><th class="px-2 py-1 text-left">자재</th><th class="px-2 py-1 text-right">소요</th><th class="px-2 py-1 text-right">출고</th><th class="px-2 py-1 text-right">반납</th><th class="px-2 py-1">출고일시</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(m, i) in w.materials" :key="i" class="border-t">
+                                <td class="px-2 py-1 truncate" :title="m.item_spec ? `${m.item_label} · ${m.item_spec}` : m.item_label">{{ m.item_label }}<span v-if="m.item_spec" class="text-gray-400"> · {{ m.item_spec }}</span></td>
+                                <td class="px-2 py-1 text-right">{{ fmtQty(m.required_qty, m.spec_unit) }}</td>
+                                <td class="px-2 py-1 text-right" :class="m.issued_qty + 0.000001 < m.required_qty ? 'text-amber-700 font-semibold' : ''">{{ fmtNum(m.issued_qty) }}</td>
+                                <td class="px-2 py-1 text-right text-gray-500">{{ m.returned_qty ? fmtNum(m.returned_qty) : '' }}</td>
+                                <td class="px-2 py-1 text-center whitespace-nowrap">{{ m.issued_at || '' }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </section>
 
             <!-- 출하 -->
             <div class="mt-4">
                 <div class="mb-1.5 text-xs font-semibold text-gray-500">출하</div>
                 <p v-if="!shipments.length" class="px-3 py-3 text-center text-xs text-gray-400 border rounded">출하 내역이 없습니다.</p>
-                <table v-else class="w-full text-xs border rounded">
-                    <thead class="bg-gray-50 text-gray-500">
-                        <tr><th class="px-2 py-1 text-left">출하번호</th><th class="px-2 py-1 w-16">상태</th><th class="px-2 py-1 w-24">예정일</th><th class="px-2 py-1 w-28">출하일시</th><th class="px-2 py-1 text-right w-20">수량</th><th class="px-2 py-1 w-36">출고검사</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="s in shipments" :key="s.shipment_no" class="border-t">
-                            <td class="px-2 py-1">{{ s.shipment_no }}</td>
-                            <td class="px-2 py-1 text-center font-semibold" :style="{ color: s.status === 'DONE' ? STATUS_COLOR.done : STATUS_COLOR.attention }">{{ s.status === 'DONE' ? '완료' : '대기' }}</td>
-                            <td class="px-2 py-1 text-center">{{ s.plan_date || '' }}</td>
-                            <td class="px-2 py-1 text-center whitespace-nowrap">{{ s.shipped_at || '' }}</td>
-                            <td class="px-2 py-1 text-right">{{ fmtNum(s.qty) }}</td>
-                            <td class="px-2 py-1 text-center">
-                                <span class="font-semibold" :style="{ color: inspectColor(s.inspect_status) }">{{ inspectLabel(s.inspect_status) }}</span>
-                                <span v-if="s.inspected_at" class="text-gray-400"> {{ s.inspected_at.slice(5) }}</span>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div v-else class="overflow-x-auto">
+                    <table class="w-full table-fixed min-w-[672px] text-xs border rounded">
+                        <colgroup>
+                            <col>
+                            <col class="w-16">
+                            <col class="w-24">
+                            <col class="w-32">
+                            <col class="w-20">
+                            <col class="w-36">
+                        </colgroup>
+                        <thead class="bg-gray-50 text-gray-500">
+                            <tr><th class="px-2 py-1 text-left">출하번호</th><th class="px-2 py-1">상태</th><th class="px-2 py-1">예정일</th><th class="px-2 py-1">출하일시</th><th class="px-2 py-1 text-right">수량</th><th class="px-2 py-1">출고검사</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="s in shipments" :key="s.shipment_no" class="border-t">
+                                <td class="px-2 py-1">{{ s.shipment_no }}</td>
+                                <td class="px-2 py-1 text-center font-semibold" :style="{ color: s.status === 'DONE' ? STATUS_COLOR.done : STATUS_COLOR.attention }">{{ s.status === 'DONE' ? '완료' : '대기' }}</td>
+                                <td class="px-2 py-1 text-center">{{ s.plan_date || '' }}</td>
+                                <td class="px-2 py-1 text-center whitespace-nowrap">{{ s.shipped_at || '' }}</td>
+                                <td class="px-2 py-1 text-right">{{ fmtNum(s.qty) }}</td>
+                                <td class="px-2 py-1 text-center">
+                                    <span class="font-semibold" :style="{ color: inspectColor(s.inspect_status) }">{{ inspectLabel(s.inspect_status) }}</span>
+                                    <span v-if="s.inspected_at" class="text-gray-400"> {{ s.inspected_at.slice(5) }}</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
             </div>
         </template>

@@ -17,16 +17,24 @@
         </div>
         <p v-if="errors[errorPrefix]" class="mb-2 text-xs text-red-500">{{ errors[errorPrefix][0] }}</p>
 
-        <div class="border rounded overflow-hidden">
-            <table class="w-full text-sm">
+        <div class="border rounded overflow-x-auto">
+            <table class="w-full min-w-[720px] table-fixed text-sm">
+                <colgroup>
+                    <col class="w-8">
+                    <col class="w-14">
+                    <col>
+                    <col class="w-28">
+                    <col class="w-80">
+                    <col v-if="!readonly" class="w-10">
+                </colgroup>
                 <thead class="bg-gray-50 text-gray-500">
                     <tr>
-                        <th class="px-2 py-1.5 w-8"></th>
-                        <th class="px-2 py-1.5 w-14 font-medium">순서</th>
+                        <th class="px-2 py-1.5"></th>
+                        <th class="px-2 py-1.5 font-medium">순서</th>
                         <th class="px-2 py-1.5 font-medium">공정 <span class="text-red-400">*</span></th>
-                        <th class="px-2 py-1.5 w-28 font-medium">개당(초)</th>
-                        <th class="px-2 py-1.5 w-80 font-medium">초 · 중 · 종 / 선행 진행</th>
-                        <th v-if="!readonly" class="px-2 py-1.5 w-10"></th>
+                        <th class="px-2 py-1.5 font-medium">개당(초)</th>
+                        <th class="px-2 py-1.5 font-medium">초 · 중 · 종 / 선행 진행</th>
+                        <th v-if="!readonly" class="px-2 py-1.5"></th>
                     </tr>
                 </thead>
                 <tbody>

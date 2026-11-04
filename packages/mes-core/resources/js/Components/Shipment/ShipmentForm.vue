@@ -116,26 +116,31 @@
 
                     <!-- LOT 지정 -->
                     <div v-if="l._open" class="px-2 py-1">
-                        <table class="w-full text-xs">
-                            <thead class="text-gray-400">
-                                <tr><th class="text-left font-normal px-1">LOT</th><th class="text-left font-normal px-1">창고</th><th class="text-center font-normal px-1">입고일</th><th class="text-right font-normal px-1">잔고</th><th class="text-right font-normal px-1">다른 출하대기</th><th class="text-right font-normal px-1">가용</th><th class="text-right font-normal px-1 w-28">지정</th></tr>
-                            </thead>
-                            <tbody>
-                                <tr v-if="!l.cands.length"><td colspan="7" class="px-1 py-1 text-gray-400">{{ l.candLoading ? '불러오는 중…' : '출하할 수 있는 재고가 없습니다.' }}</td></tr>
-                                <tr v-for="c in l.cands" :key="c.key" class="border-t border-gray-100">
-                                    <td class="px-1 py-0.5">{{ c.lot_no || '( LOT 미사용 )' }}</td>
-                                    <td class="px-1">{{ c.warehouse_name }}</td>
-                                    <td class="px-1 text-center text-gray-500">{{ c.in_at }}</td>
-                                    <td class="px-1 text-right">{{ fmtNum(c.qty) }}</td>
-                                    <td class="px-1 text-right text-gray-500">{{ c.reserved ? fmtNum(c.reserved) : '' }}</td>
-                                    <td class="px-1 text-right font-semibold">{{ fmtNum(c.available) }}</td>
-                                    <td class="px-1 py-0.5">
-                                        <BaseInput v-model="c.fill" type="number" min="0" size="sm" class="w-full text-right"
-                                            :class="num(c.fill) > c.available + 1e-9 ? '!border-red-400 !text-red-600' : ''" :disabled="!editable" />
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                        <div class="overflow-x-auto">
+                            <table class="w-full min-w-[880px] table-fixed text-xs">
+                                <colgroup>
+                                    <col class="w-56"><col><col class="w-24"><col class="w-24"><col class="w-24"><col class="w-24"><col class="w-28">
+                                </colgroup>
+                                <thead class="text-gray-400">
+                                    <tr><th class="text-left font-normal px-1">LOT</th><th class="text-left font-normal px-1">창고</th><th class="text-center font-normal px-1">입고일</th><th class="text-right font-normal px-1">잔고</th><th class="text-right font-normal px-1">다른 출하대기</th><th class="text-right font-normal px-1">가용</th><th class="text-right font-normal px-1">지정</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-if="!l.cands.length"><td colspan="7" class="px-1 py-1 text-gray-400">{{ l.candLoading ? '불러오는 중…' : '출하할 수 있는 재고가 없습니다.' }}</td></tr>
+                                    <tr v-for="c in l.cands" :key="c.key" class="border-t border-gray-100">
+                                        <td class="px-1 py-0.5 truncate" :title="c.lot_no">{{ c.lot_no || '( LOT 미사용 )' }}</td>
+                                        <td class="px-1 truncate" :title="c.warehouse_name">{{ c.warehouse_name }}</td>
+                                        <td class="px-1 text-center text-gray-500">{{ c.in_at }}</td>
+                                        <td class="px-1 text-right">{{ fmtNum(c.qty) }}</td>
+                                        <td class="px-1 text-right text-gray-500">{{ c.reserved ? fmtNum(c.reserved) : '' }}</td>
+                                        <td class="px-1 text-right font-semibold">{{ fmtNum(c.available) }}</td>
+                                        <td class="px-1 py-0.5">
+                                            <BaseInput v-model="c.fill" type="number" min="0" size="sm" class="w-full text-right"
+                                                :class="num(c.fill) > c.available + 1e-9 ? '!border-red-400 !text-red-600' : ''" :disabled="!editable" />
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                         <p class="text-right text-xs mt-1" :class="Math.abs(picked(l) - num(l.qty)) > 1e-9 ? 'text-red-500' : 'text-gray-500'">
                             지정 합 <b>{{ fmtNum(picked(l)) }}</b> / 출하 {{ fmtNum(num(l.qty)) }}
                             <button v-if="editable" type="button" class="ml-2 text-blue-700 hover:underline" @click="fillFifo(l)">선입선출로 다시 채우기</button>

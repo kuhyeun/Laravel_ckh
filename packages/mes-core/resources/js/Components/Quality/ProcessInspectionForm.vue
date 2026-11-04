@@ -140,25 +140,30 @@
             <!-- 이력 -->
             <div v-if="history.length" class="mt-4">
                 <div class="mb-1.5 text-xs font-semibold text-gray-500">검사 이력 ( 취소 포함 )</div>
-                <table class="w-full text-xs border rounded">
-                    <thead class="bg-gray-50 text-gray-500">
-                        <tr><th class="px-2 py-1 text-left">구분</th><th class="px-2 py-1">판정</th><th class="px-2 py-1 text-right">합격</th><th class="px-2 py-1 text-right">불량</th><th class="px-2 py-1 text-left">유형 · 상세</th><th class="px-2 py-1">검사자</th><th class="px-2 py-1">일시</th><th class="w-12"></th></tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="h in history" :key="h.inspection_idx" class="border-t" :class="h.is_canceled ? 'text-gray-400 line-through' : ''">
-                            <td class="px-2 py-1">{{ h.stage_name }}</td>
-                            <td class="px-2 py-1 text-center font-semibold" :style="{ color: h.is_canceled ? '' : resultColor(h.result) }">{{ RESULT_NAMES[h.result] }}</td>
-                            <td class="px-2 py-1 text-right">{{ h.stage ? '' : fmtNum(h.pass_qty) }}</td>
-                            <td class="px-2 py-1 text-right">{{ h.fail_qty ? fmtNum(h.fail_qty) : '' }}</td>
-                            <td class="px-2 py-1">{{ [h.defect_type, h.reason || (h.stage ? h.remark : '')].filter(Boolean).join(' — ') }}</td>
-                            <td class="px-2 py-1 text-center">{{ h.inspector_name }}</td>
-                            <td class="px-2 py-1 text-center whitespace-nowrap">{{ h.inspected_at }}</td>
-                            <td class="px-2 py-1 text-right">
-                                <button v-if="canWrite && open && h.stage && !h.is_canceled" type="button" class="text-red-600 hover:underline" @click="cancelStage(h)">취소</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[736px] table-fixed text-xs border rounded">
+                        <colgroup>
+                            <col class="w-20"><col class="w-16"><col class="w-20"><col class="w-20"><col><col class="w-20"><col class="w-36"><col class="w-12">
+                        </colgroup>
+                        <thead class="bg-gray-50 text-gray-500">
+                            <tr><th class="px-2 py-1 text-left">구분</th><th class="px-2 py-1">판정</th><th class="px-2 py-1 text-right">합격</th><th class="px-2 py-1 text-right">불량</th><th class="px-2 py-1 text-left">유형 · 상세</th><th class="px-2 py-1">검사자</th><th class="px-2 py-1">일시</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="h in history" :key="h.inspection_idx" class="border-t" :class="h.is_canceled ? 'text-gray-400 line-through' : ''">
+                                <td class="px-2 py-1">{{ h.stage_name }}</td>
+                                <td class="px-2 py-1 text-center font-semibold" :style="{ color: h.is_canceled ? '' : resultColor(h.result) }">{{ RESULT_NAMES[h.result] }}</td>
+                                <td class="px-2 py-1 text-right">{{ h.stage ? '' : fmtNum(h.pass_qty) }}</td>
+                                <td class="px-2 py-1 text-right">{{ h.fail_qty ? fmtNum(h.fail_qty) : '' }}</td>
+                                <td class="px-2 py-1">{{ [h.defect_type, h.reason || (h.stage ? h.remark : '')].filter(Boolean).join(' — ') }}</td>
+                                <td class="px-2 py-1 text-center truncate" :title="h.inspector_name">{{ h.inspector_name }}</td>
+                                <td class="px-2 py-1 text-center whitespace-nowrap">{{ h.inspected_at }}</td>
+                                <td class="px-2 py-1 text-right">
+                                    <button v-if="canWrite && open && h.stage && !h.is_canceled" type="button" class="text-red-600 hover:underline" @click="cancelStage(h)">취소</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </template>
 
