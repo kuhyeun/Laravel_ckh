@@ -1078,6 +1078,8 @@ erDiagram
   sales_order_line |o--o{ work_order : "수주 기반 지시"
   partner ||--o{ purchase_order : "구매처"
   purchase_order ||--o{ purchase_order_line : ""
+  purchase_order_line ||--o{ purchase_order_line_source : "출처"
+  sales_order_line ||--o{ purchase_order_line_source : "수주 자재 발주"
   sales_order ||--o{ shipment : ""
   shipment ||--o{ shipment_line : ""
   shipment_line }o--|| lot : "출하 LOT"
@@ -1124,6 +1126,12 @@ erDiagram
     decimal amount
     date due_date
     decimal received_qty
+  }
+  purchase_order_line_source {
+    bigint purchase_order_line_source_idx PK
+    bigint purchase_order_line_idx FK
+    bigint sales_order_line_idx FK
+    decimal qty
   }
   shipment {
     bigint id PK

@@ -96,10 +96,7 @@ class ReceiptController extends Controller {
         $partners = Partner::where('is_supplier', 'Y')->where('is_use', 'Y')
             ->orderBy('partner_name')->forPicker()->get();
 
-        $items = Item::where('is_use', 'Y')
-            ->orderByRaw("item_type = 'MATERIAL' DESC")->orderBy('item_code')
-            ->forPicker()->get();
-
+        // 품목 선택지는 보내지 않는다 — 화면의 ItemPicker 가 공용 검색( common.items.search )에서 30개씩
         $rules = $this->lots->materialRules()->map(fn ($r) => [
             'lot_rule_idx'  => $r->lot_rule_idx,
             'lot_rule_name' => $r->lot_rule_name,
@@ -108,7 +105,6 @@ class ReceiptController extends Controller {
 
         return response()->json([
             'partners'   => $partners,
-            'items'      => $items,
             'warehouses' => Warehouse::options(),
             'lot'        => [
                 'enabled' => $this->lots->enabled(),

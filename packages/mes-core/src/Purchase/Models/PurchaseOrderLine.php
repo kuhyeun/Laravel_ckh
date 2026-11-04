@@ -70,6 +70,11 @@ class PurchaseOrderLine extends Model {
         return $this->belongsTo(Item::class, 'item_idx', 'item_idx');
     }
 
+    // 출처 수주 줄 ( 수주 자재에서 내린 발주 — 지금은 하나 )
+    public function sources() {
+        return $this->hasMany(PurchaseOrderLineSource::class, 'purchase_order_line_idx', 'purchase_order_line_idx');
+    }
+
     // 입고가 시작됐는가 — 입고된 줄은 품목 변경 · 삭제 불가, 수량은 입고량 아래로 못 줄임
     public function hasDownstream(): bool {
         return (float) $this->received_qty > 0;

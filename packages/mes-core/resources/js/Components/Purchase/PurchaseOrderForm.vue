@@ -3,6 +3,8 @@
      - 라우터를 모른다 : 저장 후 onSaved( 저장된 발주, 경고 ) 호출 + close
      - 머리 + 품목 줄 N 을 한 번에 저장. 금액 · 합계 · 발주번호는 서버가 정한다 ( 화면 금액은 미리보기 )
      - 품목을 고르면 발주단가 · 단위를 채운다 ( 단가는 건마다 고칠 수 있다 ). 자재가 기본, 제품은 경고 후 허용
+     - [+ 수주 자재에서] : 확정 수주 줄의 수주 자재( 주 자재 )를 골라 줄로 담는다 — 수주 줄마다 따로 · 출처( 수주 줄 )를 같이 저장
+       출처가 있는 줄은 품목을 바꿀 수 없다 ( 연결 ✕ 로 끊으면 일반 줄 ) · 남은 소요보다 많으면 저장 때 경고
      - 입고된 줄( locked )은 품목 변경 · 삭제 불가, 수량은 입고량 아래로 못 줄인다 — 서버가 최종 판단
      - 완료 · 취소 상태는 읽기 전용 + [다시 열기]
      - [발주서] : 저장된 발주를 엑셀 양식( purchase_order.form )으로 출력 — 저장한 내용 기준
@@ -85,6 +87,7 @@
                             <span class="text-xs text-gray-500">입고 예정일 일괄</span>
                             <BaseDatePicker v-model="bulkDue" size="sm" class="w-36" />
                             <BaseButton size="sm" variant="secondary" :disabled="!bulkDue" @click="applyBulkDue">빈 칸에 적용</BaseButton>
+                            <BaseButton size="sm" variant="secondary" @click="openOrderMaterials">+ 수주 자재에서</BaseButton>
                             <BaseButton size="sm" variant="secondary" @click="addLine">+ 품목</BaseButton>
                         </template>
                     </div>
@@ -113,8 +116,14 @@
                                 <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
                                     <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
                                     <td class="px-1.5 py-1">
-                                        <ItemPicker v-model="l.item_idx" :options="items" show-type :disabled="readonly || l.locked" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @update:model-value="v => onItemChange(l, v)" />
+                                        <ItemPicker v-model="l.item_idx" :remote="ITEM_REMOTE" show-type :disabled="readonly || l.locked || !!l.sales_order_line_idx" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @select="row => onItemPicked(l, row)" />
                                         <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
+                                        <!-- 출처 수주 줄 ( 수주 자재에서 담은 줄 ) -->
+                                        <p v-if="l.sales_order_line_idx" class="mt-0.5 flex items-center gap-1 text-[11px] text-blue-700">
+                                            <span class="px-1 rounded bg-blue-50">수주</span>
+                                            <span class="truncate" :title="l.source_label">{{ l.source_label }}</span>
+                                            <button v-if="!readonly" type="button" class="text-gray-400 hover:text-red-500" title="수주 연결 끊기 ( 일반 줄로 )" @click="unlinkSource(l)">✕</button>
+                                        </p>
                                     </td>
                                     <td class="px-1.5 py-1">
                                         <BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="readonly" />
@@ -184,6 +193,9 @@ import { showAlert } from '@core/Utils/message';
 import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor } from '@core/Components/Purchase/purchaseCodes';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
+import OrderMaterialPicker from '@core/Components/Purchase/OrderMaterialPicker.vue';
+import { useModalStore } from '@core/Stores/modalStore';
+import { withSpec } from '@core/Utils/format';
 
 const props = defineProps({
     order:    { type: Object,   default: null },   // 목록 행 ( purchase_order_idx 로 다시 조회 )
@@ -208,6 +220,7 @@ let keySeq = 0;
 const blankLine = () => ({
     _key: ++keySeq, purchase_order_line_idx: null, item_idx: '', item_code: '', item_name: '', spec_unit: '',
     qty: '', unit_price: 0, due_date: '', received_qty: 0, locked: false, min_qty: 0, remark: '',
+    sales_order_line_idx: null, source_label: null,   // 출처 수주 줄 ( 수주 자재에서 )
 });
 
 const form = reactive({
@@ -231,15 +244,17 @@ const colCount       = computed(() => 8 + (isEdit.value ? 1 : 0) + (readonly.val
 
 // ---- 선택지 ----
 const partners = ref([]);
-const items    = ref([]);
 const today    = ref('');
 
 
 
-// 품목을 고르면 단위 · 발주단가를 채운다
-function onItemChange(line, value) {
-    const it = items.value.find(x => Number(x.item_idx) === Number(value));
+// 품목 고르기 : 사용 중 전부( 자재 먼저 · 제품은 배지 ) · 발주단가 함께 ( 서버에서 30개씩 )
+const ITEM_REMOTE = { extra: ['std_buy_price'] };
+
+// 품목을 고르면( 고른 줄 ) 단위 · 발주단가를 채운다
+function onItemPicked(line, it) {
     if (!it) return;
+    line.item_spec  = it.spec;
     line.item_code  = it.item_code;
     line.item_name  = it.item_name;
     line.spec_unit  = it.spec_unit;
@@ -254,6 +269,35 @@ function addLine() {
     l.due_date = bulkDue.value || '';
     form.lines.push(l);
 }
+// ---- 수주 자재에서 ----
+const modalStore = useModalStore();
+function openOrderMaterials() {
+    modalStore.open(OrderMaterialPicker, {
+        purchaseOrderIdx: form.purchase_order_idx,
+        existing: form.lines.filter(l => l.sales_order_line_idx).map(l => `${l.sales_order_line_idx}:${l.item_idx}`),
+        onPick: addFromOrders,
+        modalTitle: '수주 자재에서 발주',
+    }, { size: 'xl' });
+}
+// 고른 수주 자재 → 발주 줄 ( 수주 줄마다 따로 · 수량 = 남은 소요 · 단가 = 발주단가 ) — 빈 줄은 먼저 지운다
+function addFromOrders(rows) {
+    form.lines = form.lines.filter(l => l.item_idx !== '' || l.purchase_order_line_idx);
+    rows.forEach(r => {
+        form.lines.push({
+            ...blankLine(),
+            item_idx: r.item_idx, item_code: r.item_code, item_name: r.item_name, item_spec: r.item_spec, spec_unit: r.spec_unit,
+            qty: r.remain_qty > 0 ? String(r.remain_qty) : '', unit_price: Number(r.std_buy_price ?? 0), due_date: bulkDue.value || '',
+            sales_order_line_idx: r.sales_order_line_idx,
+            source_label: `${r.order_no} #${r.line_no} · ${withSpec(`${r.product_code} ${r.product_name}`, r.product_spec)}`,
+        });
+    });
+    errors.value = {};
+}
+function unlinkSource(l) {
+    l.sales_order_line_idx = null;
+    l.source_label = null;
+}
+
 function removeLine(i) {
     form.lines.splice(i, 1);
     errors.value = {};   // 줄 번호가 밀리므로 줄 오류는 비운다
@@ -307,7 +351,6 @@ onMounted(async () => {
         if (isEdit.value) reqs.push(window.axios.get(route('purchase.order.show', form.purchase_order_idx)));
         const [fd, show] = await Promise.all(reqs);
         partners.value = fd.data.partners ?? [];
-        items.value    = fd.data.items ?? [];
         today.value    = fd.data.today;
 
         if (show) {
@@ -343,6 +386,7 @@ async function save() {
                 unit_price: l.unit_price === '' ? 0 : l.unit_price,
                 due_date:   l.due_date || null,
                 remark:     l.remark || null,
+                sales_order_line_idx: l.sales_order_line_idx || null,
             })),
         };
         const { data } = await window.axios.post(route('purchase.order.save'), payload);

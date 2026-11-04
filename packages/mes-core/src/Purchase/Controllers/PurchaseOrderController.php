@@ -39,7 +39,17 @@ class PurchaseOrderController extends Controller {
 
     private const SORTABLE = ['order_no', 'order_date', 'partner_name', 'next_due_date', 'total_amount'];
 
-    public function __construct(private PurchaseOrderService $orders) {}
+    public function __construct(private PurchaseOrderService $orders, private \MesCore\Purchase\Services\OrderMaterialDemand $demand) {}
+
+    // [+ 수주 자재에서] : 확정 수주의 진행 중 줄 · 수주 자재( 주 자재 ) 소요 · 발주됨 · 남은 · 현재고
+    public function orderMaterials(Request $request) {
+        $v = $request->validate([
+            'keyword'            => 'nullable|string|max:100',
+            'purchase_order_idx' => 'nullable|integer',   // 고치는 발주 — 발주됨에서 뺀다 ( 화면이 센다 )
+            'include_done'       => 'nullable|boolean',
+        ]);
+        return response()->json(['rows' => $this->demand->rows($v['keyword'] ?? null, $v['purchase_order_idx'] ?? null, !empty($v['include_done']))]);
+    }
 
     // 목록 : 기간( 발주일 / 입고 예정일 ) + 검색어( 발주번호 · 발주명 · 품번 · 품명 ) + 구매처 + 상태
     public function list(Request $request) {
@@ -71,7 +81,7 @@ class PurchaseOrderController extends Controller {
     }
 
     public function show(int $orderIdx) {
-        $order = PurchaseOrder::with(['partner', 'lines.item'])->find($orderIdx);
+        $order = PurchaseOrder::with(['partner', 'lines.item', 'lines.sources.salesOrderLine.order', 'lines.sources.salesOrderLine.item'])->find($orderIdx);
         if (!$order) {
             return response()->json(['message' => 'NotFound'], 404);
         }
@@ -84,14 +94,9 @@ class PurchaseOrderController extends Controller {
             ->orderBy('partner_name')
             ->forPicker()->get();
 
-        $items = Item::where('is_use', 'Y')
-            ->orderByRaw("item_type = 'MATERIAL' DESC")
-            ->orderBy('item_code')
-            ->forPicker(['std_buy_price'])->get();
-
+        // 품목 선택지는 보내지 않는다 — 화면의 ItemPicker 가 공용 검색( common.items.search )에서 30개씩
         return response()->json([
             'partners' => $partners,
-            'items'    => $items,
             'today'    => now()->toDateString(),
         ]);
     }
@@ -121,6 +126,7 @@ class PurchaseOrderController extends Controller {
             'lines.*.unit_price'              => 'nullable|numeric|min:0|max:9999999999999',
             'lines.*.due_date'                => 'required|date_format:Y-m-d',
             'lines.*.remark'                  => 'nullable|string|max:200',
+            'lines.*.sales_order_line_idx'    => 'nullable|integer',   // 출처 수주 줄 ( 수주 자재에서 )
         ], [
             'lines.required' => '품목을 하나 이상 넣으세요.',
             'lines.min'      => '품목을 하나 이상 넣으세요.',
@@ -302,7 +308,17 @@ class PurchaseOrderController extends Controller {
                 'locked'                  => $l->hasDownstream(),
                 'min_qty'                 => $l->minQty(),
                 'remark'                  => $l->remark,
-            ])->values()->all(),
+            ] + $this->sourceOf($l))->values()->all(),
+        ];
+    }
+
+    // 줄 출처 ( 수주 자재에서 내린 줄 — 지금은 하나 ) : 화면 표시 "SO-… #n · 제품"
+    private function sourceOf(PurchaseOrderLine $l): array {
+        $src = $l->relationLoaded('sources') ? $l->sources->first() : $l->sources()->with('salesOrderLine.order', 'salesOrderLine.item')->first();
+        $sol = $src?->salesOrderLine;
+        return [
+            'sales_order_line_idx' => $sol?->sales_order_line_idx,
+            'source_label'         => $sol ? "{$sol->order?->order_no} #{$sol->line_no} · {$sol->item?->item_code} {$sol->item?->item_name}" : null,
         ];
     }
 }

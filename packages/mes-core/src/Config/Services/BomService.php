@@ -306,6 +306,126 @@ class BomService {
         $this->logDiff($line->sales_order_line_idx, $own->bom_idx, $before, $this->snapshotLines($own->fresh(), $isNew || $baseChanged), $isNew || $baseChanged);
     }
 
+    /**
+     * 수주에서 고른 자재를 품목 BOM( ① 활성 )에도 등록 — 수주 사본 맞추기( syncOrderLineBom ) 전에 ( docs/대체자재-수주자재-설계.md §8 )
+     *   품목 BOM 없음        → BOM 을 새로 만들고( 활성 ) 고른 자재 줄을 그대로 ( 첫 줄 = 주 자재 )
+     *   품목 BOM 에 이미 있음 → 그대로 ( 소요 등 덮어쓰지 않음 · 수주에서 지운 자재도 품목 BOM 에서는 안 지움 )
+     *   새 자재
+     *     원본 줄( source_bom_line_idx )의 자재를 바꾼 것 → 그 줄의 대체 자재
+     *     새로 더한 줄 → item_bom_target : 품목 BOM 줄 IDX( 그 줄의 대체 ) / 'NEW_LINE'( 새 자재 줄 ) / 없으면 첫 줄의 대체
+     *   대체 자재 : 그 주 자재가 들어간( 또는 들어갈 ) 품목 BOM 줄의 대체
+     *   승인 : 대체 자재만 더하면 그대로 · 자재 줄이 늘면( 구성 변경 ) 승인을 푼다
+     *   → 화면 줄( 새 자재 줄로 들어간 것은 source_bom_line_idx 를 채워 "수정됨" 비교가 맞게 )
+     */
+    public function absorbIntoItemBom(SalesOrderLine $line, string $orderNo, array $rows): array {
+        $itemIdx = (int) $line->item_idx;
+        $base    = $this->activeItemBom($itemIdx);
+        $log     = fn (Bom $bom, array $row) => BomChangeLog::create($row + [
+            'scope' => BomChangeLog::SCOPE_ITEM, 'ref_idx' => $itemIdx, 'bom_idx' => $bom->bom_idx,
+        ]);
+        $from = ['from' => $orderNo];
+
+        // 수주 공정 줄 → 품목 공정 줄 ( 새 자재 줄의 투입 지점 — 품목 라우팅의 줄일 때만 )
+        $orderRouting = $this->orderRoutingLines($line->sales_order_line_idx)->values();
+        $itemRouting  = Routing::where('owner_type', Routing::OWNER_ITEM)->where('item_idx', $itemIdx)->pluck('routing_idx')->all();
+        $itemRoutingLine = function (array $r) use ($orderRouting, $itemRouting) {
+            $seq = (int) ($r['routing_seq'] ?? 0);
+            $src = $seq > 0 ? ($orderRouting[$seq - 1]->source_routing_line_idx ?? null) : null;
+            return $src && RoutingLine::whereKey($src)->whereIn('routing_idx', $itemRouting ?: [0])->exists() ? (int) $src : null;
+        };
+        $lineRow = fn (array $r, int $seq, int $bomIdx) => [
+            'bom_idx' => $bomIdx, 'seq' => $seq, 'child_item_idx' => $r['child_item_idx'], 'routing_line_idx' => $itemRoutingLine($r),
+            'qty' => (string) $r['qty'], 'calc_code' => $r['calc_code'] ?? null,
+            'ext_n01' => isset($r['ext_n01']) && $r['ext_n01'] !== '' ? (string) $r['ext_n01'] : null, 'remark' => $r['remark'] ?? null,
+        ];
+        $subRow = fn (array $s) => [
+            'qty' => (string) $s['qty'], 'calc_code' => $s['calc_code'] ?? null,
+            'ext_n01' => isset($s['ext_n01']) && $s['ext_n01'] !== '' ? (string) $s['ext_n01'] : null, 'remark' => $s['remark'] ?? null,
+        ];
+
+        // ---- 품목 BOM 없음 : 새로 만든다 ----
+        if (!$base) {
+            if (!$rows) {
+                return $rows;
+            }
+            $n = Bom::itemBoms()->where('item_idx', $itemIdx)->count() + 1;
+            while (Bom::where('item_idx', $itemIdx)->where('version', "V{$n}")->exists()) {
+                $n++;
+            }
+            $base = Bom::create([
+                'item_idx' => $itemIdx, 'version' => "V{$n}", 'is_active' => 'Y', 'activated_at' => now(),
+                'remark' => mb_substr("수주 {$orderNo} 에서 자동 생성", 0, 200),
+            ]);
+            $log($base, ['action' => 'CREATE', 'after_json' => $from + ['lines' => collect($rows)->map(fn ($r) => ['child_item_idx' => (int) $r['child_item_idx'], 'qty' => (float) $r['qty']])->values()->all()]]);
+            foreach ($rows as $i => $r) {
+                $bl = BomLine::create($lineRow($r, $i + 1, $base->bom_idx));
+                foreach (array_values($r['substitutes'] ?? []) as $k => $s) {
+                    BomLineSubstitute::create(['bom_line_idx' => $bl->bom_line_idx, 'seq' => $k + 1, 'child_item_idx' => $s['child_item_idx']] + $subRow($s));
+                }
+                $rows[$i]['source_bom_line_idx'] = $bl->bom_line_idx;
+            }
+            return $rows;
+        }
+
+        // ---- 품목 BOM 있음 : 새 자재만 더한다 ----
+        $lines   = $base->lines()->with('substitutes')->orderBy('seq')->get();
+        $byIdx   = $lines->keyBy('bom_line_idx');
+        $lineOf  = [];   // 자재 IDX → 그 자재가 있는 품목 BOM 줄 ( 주 자재 · 대체 자재 )
+        foreach ($lines as $l) {
+            $lineOf[(int) $l->child_item_idx] ??= $l;
+            foreach ($l->substitutes as $s) {
+                $lineOf[(int) $s->child_item_idx] ??= $l;
+            }
+        }
+        $grew = false;
+
+        $addSub = function (BomLine $target, array $s) use (&$lineOf, $log, $base, $from, $subRow) {
+            $cid = (int) $s['child_item_idx'];
+            if (isset($lineOf[$cid])) {
+                return;
+            }
+            BomLineSubstitute::create([
+                'bom_line_idx' => $target->bom_line_idx, 'seq' => (int) $target->substitutes()->max('seq') + 1, 'child_item_idx' => $cid,
+            ] + $subRow($s));
+            $lineOf[$cid] = $target;
+            $log($base, ['action' => 'SUB_ADD', 'child_item_idx' => $cid, 'main_item_idx' => (int) $target->child_item_idx, 'after_json' => $from + ['qty' => (float) $s['qty']]]);
+        };
+
+        foreach ($rows as $i => $r) {
+            $cid = (int) $r['child_item_idx'];
+            if (isset($lineOf[$cid])) {
+                $target = $lineOf[$cid];
+            } else {
+                $src    = !empty($r['source_bom_line_idx']) ? $byIdx->get((int) $r['source_bom_line_idx']) : null;
+                $want   = $r['item_bom_target'] ?? null;
+                if ($src) {
+                    $target = $src;
+                } elseif ($want === 'NEW_LINE') {
+                    $target = BomLine::create($lineRow($r, (int) $base->lines()->max('seq') + 1, $base->bom_idx));
+                    $lineOf[$cid] = $target;
+                    $rows[$i]['source_bom_line_idx'] = $target->bom_line_idx;
+                    $grew = true;
+                    $log($base, ['action' => 'ADD', 'child_item_idx' => $cid, 'after_json' => $from + ['qty' => (float) $r['qty']]]);
+                } else {
+                    $target = ($want && $byIdx->has((int) $want)) ? $byIdx->get((int) $want) : $lines->first();
+                }
+                if (!isset($lineOf[$cid])) {
+                    $addSub($target, $r);
+                }
+            }
+            foreach (array_values($r['substitutes'] ?? []) as $s) {
+                $addSub($target, $s);
+            }
+        }
+
+        // 구성 변경( 자재 줄 추가 ) → 승인 해제 · 대체 자재만이면 그대로
+        if ($grew && $base->isApproved()) {
+            $base->clearApproval();
+            $base->save();
+        }
+        return $rows;
+    }
+
     // 수주 줄들의 자재 구성 열쇠 ( 같은 지시에 담을 수 있는지 — 자재 · 소요 · 계산식 · 투입 공정 순서 · 대체 자재가 같아야 한다 ) [ 줄 IDX => 열쇠 ]
     //   투입 공정은 수주마다 다른 수주 공정 줄이므로 그 줄의 순서( seq )로 본다
     public function orderLineMaterialKeys(array $lineIdxs): array {
@@ -319,6 +439,16 @@ class BomService {
                 $l->substitutes->map(fn ($s) => [(int) $s->child_item_idx, (float) $s->qty, $s->calc_code ?: null, $s->ext_n01 !== null ? (float) $s->ext_n01 : null])->values()->all(),
             ])->values()->all()))])
             ->all();
+    }
+
+    // BOM 에 들어 있는 자재 · 대체 자재 품목 IDX ( 수주 자재는 자재만 — 이미 들어 있던 제품 하위는 그대로 허용할 때 )
+    public function childIdsOf(?Bom $bom): array {
+        if (!$bom) {
+            return [];
+        }
+        $lines = $bom->lines()->with('substitutes')->get();
+        return $lines->pluck('child_item_idx')->merge($lines->flatMap(fn ($l) => $l->substitutes->pluck('child_item_idx')))
+            ->map(fn ($v) => (int) $v)->unique()->values()->all();
     }
 
     // 수주 자재가 원본( 품목 BOM )과 다른가 — 화면의 "수정됨"
@@ -342,6 +472,7 @@ class BomService {
             'child_item_name'     => $l->childItem?->item_name,
             'child_item_spec'     => $l->childItem?->spec,
             'child_item_unit'     => $l->childItem?->spec_unit,
+            'child_item_kind'     => $l->childItem?->item_kind,
             'routing_line_idx'    => $l->routing_line_idx,
             'qty'                 => $l->qty,
             'calc_code'           => $l->calc_code,
@@ -452,6 +583,7 @@ class BomService {
             'child_item_name'         => $s->childItem?->item_name,
             'child_item_spec'         => $s->childItem?->spec,
             'child_item_unit'         => $s->childItem?->spec_unit,
+            'child_item_kind'         => $s->childItem?->item_kind,
             'qty'                     => $s->qty,
             'calc_code'               => $s->calc_code,
             'ext_n01'                 => $s->ext_n01,

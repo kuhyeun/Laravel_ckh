@@ -7,11 +7,13 @@ const escapeHtml = (str) => {
 };
 
 /**
- * SweetAlert2 공통 메시지 함수
+ * SweetAlert2 공통 메시지 함수 — 확인 · 경고 · 입력창만
+ *   화면 알림( Toast )은 SweetAlert 가 아니라 useToast().showFlash ( ToastHost — 여러 개 쌓임 · 확인창과 같이 떠도 사라지지 않음 )
+ *   SweetAlert 는 팝업을 하나만 띄운다( 새 팝업이 앞의 것을 지운다 ) → toast 로 쓰면 쌓이지 않고 확인창과 서로 지운다
  * @param {string} title
  * @param {string} text
  * @param {string} icon - 'info' | 'success' | 'warning' | 'error' | 'question'
- * @param {string} type - 'alert' | 'confirm' | 'prompt' | 'prompt_password' | 'toast'
+ * @param {string} type - 'alert' | 'confirm' | 'prompt' | 'prompt_password'
  * @param {object} options - SweetAlert2 추가 옵션
  * @param {string} className - 커스텀 클래스
  * @returns {Promise}
@@ -36,8 +38,10 @@ export function showAlert(title = '', text = '', icon = 'info', type = 'alert', 
             icon: 'swal2-icon-hide',
         },
         customClass: {
-            confirmButton: 'basic-btn',
-            cancelButton: 'basic-btn'
+            title: 'text-lg',
+            htmlContainer: 'text-base',
+            confirmButton: 'px-[14px] py-[6px]',
+            cancelButton: 'px-[14px] py-[6px]'
         },
         buttonsStyling: true
     };
@@ -56,21 +60,6 @@ export function showAlert(title = '', text = '', icon = 'info', type = 'alert', 
         Object.assign(settings, {
             showCancelButton: true,
             input: 'password',
-        });
-    } else if (type === 'toast') {
-        Object.assign(settings, {
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 30000,
-            timerProgressBar: true,
-            didOpen: (toast) => {
-                toast.addEventListener( "click", function(ev){
-                    Swal.close();
-                });
-
-                toast.style.cursor = 'pointer';
-            }
         });
     } else {
         Object.assign(settings, {

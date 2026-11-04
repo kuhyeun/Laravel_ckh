@@ -123,6 +123,7 @@ class SalesOrderService {
                     } catch (ValidationException $e) {
                         $errors += $e->errors();
                     }
+                    $errors += $this->materialOnlyErrors($row, $old, "lines.{$i}.material_lines");
                 }
             }
         }
@@ -180,7 +181,11 @@ class SalesOrderService {
                 $this->routings->syncOrderLineRouting($line, $order->order_no, $routingLines);
 
                 // 수주 자재 — 공정 다음 ( 투입 지점이 수주 공정 줄을 가리킨다 )
+                //   보낸 자재 중 품목 BOM 에 없는 것은 품목 BOM 에도 등록 ( 없으면 BOM 생성 · 있으면 대체 자재 / 새 자재 줄 ) — 수주 쓰기 권한으로
                 $materialLines = isset($row['material_lines']) ? array_values($row['material_lines']) : null;
+                if ($materialLines !== null) {
+                    $materialLines = $this->boms->absorbIntoItemBom($line, $order->order_no, $materialLines);
+                }
                 $this->boms->syncOrderLineBom($line, $order->order_no, $materialLines);
 
                 $total += $amount;
@@ -196,6 +201,35 @@ class SalesOrderService {
         });
 
         return [$order->fresh(['partner', 'lines.item']), array_values(array_unique($warnings))];
+    }
+
+    /**
+     * 수주 자재 · 대체 자재는 자재( MATERIAL )만 — 화면 고르기도 자재만
+     *   이미 들어 있던 값( 지금 수주 자재 · 품목 BOM 에서 복사해 온 반제품 등 )은 그대로 허용
+     */
+    private function materialOnlyErrors(array $row, ?SalesOrderLine $old, string $prefix): array {
+        $lines = array_values($row['material_lines']);
+        $ids   = collect($lines)->pluck('child_item_idx')->merge(collect($lines)->flatMap(fn ($l) => array_column($l['substitutes'] ?? [], 'child_item_idx')))
+            ->map(fn ($v) => (int) $v)->unique();
+        $types = Item::whereIn('item_idx', $ids)->pluck('item_type', 'item_idx');
+        $kept  = array_flip(array_merge(
+            $old ? $this->boms->childIdsOf($this->boms->orderLineBom($old->sales_order_line_idx)) : [],
+            $this->boms->childIdsOf($this->boms->activeItemBom((int) $row['item_idx']))
+        ));
+        $bad = fn ($id) => ($types[$id] ?? null) !== 'MATERIAL' && !isset($kept[(int) $id]);
+
+        $errors = [];
+        foreach ($lines as $j => $l) {
+            if ($bad($l['child_item_idx'])) {
+                $errors["{$prefix}.{$j}.child_item_idx"] = ['자재만 고를 수 있습니다.'];
+            }
+            foreach (array_values($l['substitutes'] ?? []) as $k => $s) {
+                if ($bad($s['child_item_idx'])) {
+                    $errors["{$prefix}.{$j}.substitutes.{$k}.child_item_idx"] = ['자재만 고를 수 있습니다.'];
+                }
+            }
+        }
+        return $errors;
     }
 
     // SO-YYMMDD-NNN ( 수주일 기준 날짜별 순번 ). 같은 날짜의 마지막 번호를 잠그고 +1

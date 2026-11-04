@@ -95,17 +95,11 @@ class SalesOrderController extends Controller {
             ->orderBy('partner_name')
             ->forPicker()->get();
 
-        $items = Item::where('item_type', 'PRODUCT')->where('is_use', 'Y')
-            ->orderBy('item_code')
-            ->forPicker(['std_sale_price'])->get();
-
+        // 품목 선택지는 보내지 않는다 — 화면의 ItemPicker 가 공용 검색( common.items.search )에서 30개씩
         return response()->json([
             'partners'        => $partners,
-            'items'           => $items,
             'today'           => now()->toDateString(),
             'processes'       => $this->routings->processOptions(),   // 줄 공정 편집기
-            // 줄 자재 편집기 : 자재 · 대체 자재 선택지 ( 사용 중 품목 )
-            'materials'       => Item::where('is_use', 'Y')->orderBy('item_code')->forPicker()->get(),
             'can_create_item' => $permissions->canPage(Auth::user(), 'Config/ItemManage', 'can_write'),
         ]);
     }
@@ -309,7 +303,9 @@ class SalesOrderController extends Controller {
         $rules = BomService::lineRules('lines.*.material_lines');
         unset($rules['lines.*.material_lines.*.routing_line_idx']);
         return ['lines.*.material_lines' => 'nullable|array|max:100', 'lines.*.material_lines.*.routing_seq' => 'nullable|integer|min:1|max:100',
-            'lines.*.material_lines.*.source_bom_line_idx' => 'nullable|integer'] + $rules;
+            'lines.*.material_lines.*.source_bom_line_idx' => 'nullable|integer',
+            // 새로 더한 자재 줄을 품목 BOM 어디에 : 품목 BOM 줄 IDX( 그 줄의 대체 ) · NEW_LINE( 새 자재 줄 ) · 없으면 첫 줄의 대체
+            'lines.*.material_lines.*.item_bom_target'     => ['nullable', 'regex:/^(NEW_LINE|\d+)$/']] + $rules;
     }
 
     // 줄 자재 : 자재 줄( 대체 자재 포함 ) · 품목 BOM 과 다른가 · 잠김( 작업지시 생성 )

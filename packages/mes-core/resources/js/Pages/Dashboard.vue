@@ -29,6 +29,7 @@
 import { ref } from 'vue';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import { showAlert } from '@core/Utils/message.js';
+import { useToast } from '@core/Composables/useToast';
 import GridSample from '@core/Components/Common/GridSample.vue';
 import BasicSelect from '@core/Components/Basic/BasicSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
@@ -110,8 +111,11 @@ const buttonClick2 = async () => {
     const result = await showAlert( 'Confirm', 'Confirm Message', 'question', 'confirm' );
 };
 
-const buttonClick3 = async () => {
-    await showAlert( '', 'Toast Message', 'warning', 'toast' );
+const { showFlash } = useToast();
+
+// 화면 알림은 useToast ( SweetAlert toast 는 쓰지 않는다 — Utils/message.js )
+const buttonClick3 = () => {
+    showFlash( 'Toast Message ⚠' );
 };
 
 </script>

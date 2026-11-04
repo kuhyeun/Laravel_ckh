@@ -203,6 +203,19 @@ html.sidebar-collapsed #app-sidebar {
     background-position: right 12px center;
   }
 
+  /* size 변형 : .base-input 과 같은 높이 · 글자 ( 오른쪽 여백은 화살표 자리 ) */
+  .base-select.sm {
+    height: 30px;
+    padding: 0 28px 0 10px;
+    font-size: 13px;
+    background-position: right 9px center;
+  }
+  .base-select.lg {
+    height: 42px;
+    padding: 0 40px 0 14px;
+    font-size: 15px;
+  }
+
   .base-select:hover {
       border-color: theme('colors.gray.400');
   }

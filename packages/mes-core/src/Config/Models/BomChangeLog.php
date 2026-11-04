@@ -18,6 +18,7 @@ class BomChangeLog extends Model {
     const UPDATED_AT = null;
 
     const SCOPE_ORDER_LINE = 'ORDER_LINE';
+    const SCOPE_ITEM       = 'ITEM';         // 품목 BOM — 수주에서 고른 자재가 등록될 때 ( ref_idx = 품목 IDX · after_json.from = 수주 번호 )
 
     protected $fillable = [
         'scope', 'ref_idx', 'bom_idx', 'action', 'child_item_idx', 'main_item_idx', 'before_json', 'after_json', 'create_account_idx',

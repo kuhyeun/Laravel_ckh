@@ -257,11 +257,18 @@ class ItemController extends Controller {
             'item_code' => 'required|string|max:40',
             'item_name' => 'required|string|max:100',
             'spec'      => 'nullable|string|max:100',
+            'reactivate' => 'nullable|boolean',
         ], [], ItemRules::ATTRIBUTES);
 
+        // 같은 품번 · 규격이 있으면 그것 ( 미사용이어도 — 품번 + 규격은 하나뿐 )
+        //   미사용이면 화면이 "다시 사용으로 바꿔 쓸까요?" 를 묻고 reactivate 로 다시 부른다 → 사용으로 바꿔 돌려준다
         $found = Item::where('item_type', 'MATERIAL')->where('item_code', $v['item_code'])->where('spec_key', Item::specKey($v['spec'] ?? null))->first();
         if ($found) {
-            return response()->json(['found' => true, 'item' => $found->pickerRow()]);
+            if ($found->is_use !== 'Y' && !empty($v['reactivate'])) {
+                $found->update(['is_use' => 'Y']);
+                $this->specs->ensure($found->spec);
+            }
+            return response()->json(['found' => true, 'item' => $found->fresh()->pickerRow()]);
         }
 
         $item = new Item();
@@ -311,14 +318,7 @@ class ItemController extends Controller {
             ->orderBy('routing_code')
             ->get();
 
-        // 주 자재 선택지 : 자재( MATERIAL )만 ( 반제품 등 제품을 하위로 넣는 것은 BOM관리에서 )
-        $materials = Item::forPicker()
-            ->where('item_type', 'MATERIAL')
-            ->where('is_use', 'Y')
-            ->when($validated['item_idx'] ?? null, fn ($q, $itemIdx) => $q->where('item_idx', '!=', $itemIdx))
-            ->orderBy('item_code')
-            ->limit(500)
-            ->get();
+        // 주 자재 선택지는 보내지 않는다 — 화면의 ItemPicker 가 공용 검색에서 자재만 30개씩 ( 저장 검사는 assertMainMaterial )
 
         $bomLineCount = 0;
         $mainMaterial = null;
@@ -377,7 +377,6 @@ class ItemController extends Controller {
                 'base_is_use'      => $base?->is_use,
                 'lines'            => $this->routings->linesPayload($own),
             ] : null,
-            'materials'           => $materials,
             'bom_line_count'      => $bomLineCount,
             'main_material'       => $mainMaterial,
             // 탭 4 : 정책 덮어쓰기 칸 ( 대분류별 표시는 policy_keys_by_type 으로 화면이 거른다 )

@@ -61,7 +61,7 @@
                 <div class="flex-1"></div>
                 <template v-if="editable">
                     <BaseButton variant="secondary" :disabled="!form.partner_idx" @click="togglePicker">+ 수주 줄</BaseButton>
-                    <ItemPicker v-model="addItemIdx" :options="ctx.items" class="w-56" placeholder="+ 품목 ( 수주 없이 )" @update:model-value="addItemLine" />
+                    <ItemPicker v-model="addItemIdx" :remote="{ types: ['PRODUCT'], extra: ['std_sale_price'] }" class="w-56" placeholder="+ 품목 ( 수주 없이 )" @select="addItemLine" />
                 </template>
             </div>
 
@@ -299,10 +299,9 @@ async function addSoLine(p) {
     l.qty = String(+Math.min(p.remaining, available(l)).toFixed(6));
     fillFifo(l);
 }
-async function addItemLine(v) {
-    if (!v) return;
-    const it = ctx.items.find(x => Number(x.item_idx) === Number(v));
-    addItemIdx.value = '';
+// 수주 없이 품목 줄 더하기 ( 고른 줄 — 서버 모드 ItemPicker )
+async function addItemLine(it) {
+    setTimeout(() => { addItemIdx.value = ''; });   // 고르기 칸은 늘 비워 둔다 ( v-model 갱신 뒤에 )
     if (!it) return;
     const l = blankLine({ item_idx: it.item_idx, item_label: withSpec(`${it.item_code} ${it.item_name}`, it.spec), spec_unit: it.spec_unit,
                           unit_price: it.std_sale_price === null || it.std_sale_price === undefined ? '' : String(it.std_sale_price) });

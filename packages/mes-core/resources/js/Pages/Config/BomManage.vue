@@ -101,20 +101,20 @@
                                         <th class="px-2 py-1.5 font-medium">자재 <span class="text-red-400">*</span></th>
                                         <th class="px-2 py-1.5 w-24 font-medium">소요 <span class="text-red-400">*</span></th>
                                         <th class="px-2 py-1.5 w-44 font-medium">투입 지점</th>
-                                        <th class="px-2 py-1.5 w-32 font-medium">계산식</th>
-                                        <th class="px-2 py-1.5 w-24 font-medium">절단(CUT)</th>
+                                        <th v-if="SHOW_CALC" class="px-2 py-1.5 w-32 font-medium">계산식</th>
+                                        <th v-if="SHOW_CALC" class="px-2 py-1.5 w-24 font-medium">절단(CUT)</th>
                                         <th v-if="canWrite" class="px-2 py-1.5 w-10"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     <tr v-if="!form.lines.length">
-                                        <td :colspan="canWrite ? 6 : 5" class="px-2 py-6 text-center text-gray-400">자재를 추가하세요.</td>
+                                        <td :colspan="(canWrite ? 4 : 3) + (SHOW_CALC ? 2 : 0)" class="px-2 py-6 text-center text-gray-400">자재를 추가하세요.</td>
                                     </tr>
                                     <template v-for="(l, i) in form.lines" :key="l._rowKey">
                                     <tr class="border-t align-top">
                                         <td class="px-1.5 py-1">
-                                            <ItemPicker placeholder="자재 선택" v-model="l.child_item_idx" :options="items" :exclude="[selectedItem?.item_idx]" :can-create="canCreateItem" :disabled="!canWrite"
-                                                :current="{ item_code: l.child_item_code, item_name: l.child_item_name, spec: l.child_item_spec }" @created="m => items.push(m)" />
+                                            <ItemPicker placeholder="자재 선택" v-model="l.child_item_idx" :remote="{}" :exclude="[selectedItem?.item_idx]" :can-create="canCreateItem" :disabled="!canWrite"
+                                                :current="{ item_code: l.child_item_code, item_name: l.child_item_name, spec: l.child_item_spec }" />
                                             <p v-if="rowError(i, 'child_item_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'child_item_idx') }}</p>
                                             <!-- 대체 자재 : 이 줄 대신 쓸 수 있는 자재 ( 펼쳐서 편집 ) -->
                                             <button type="button" class="mt-0.5 text-[11px] hover:underline" :class="subHasError(i) ? 'text-red-500' : (l.substitutes.length ? 'text-blue-700' : 'text-gray-400')" @click="l._open = !l._open">
@@ -129,10 +129,10 @@
                                             <BaseSelect v-model="l.routing_line_idx" :options="routingOptions" size="sm" class="w-full" :disabled="!canWrite || !hasRouting" />
                                             <p v-if="rowError(i, 'routing_line_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'routing_line_idx') }}</p>
                                         </td>
-                                        <td class="px-1.5 py-1">
+                                        <td v-if="SHOW_CALC" class="px-1.5 py-1">
                                             <BaseInput v-model="l.calc_code" size="md" class="w-full" placeholder="예: BAR_CUT" :disabled="!canWrite" />
                                         </td>
-                                        <td class="px-1.5 py-1">
+                                        <td v-if="SHOW_CALC" class="px-1.5 py-1">
                                             <BaseInput v-model="l.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" />
                                         </td>
                                         <td v-if="canWrite" class="px-1.5 py-1 text-center">
@@ -141,7 +141,7 @@
                                     </tr>
                                     <!-- 대체 자재 : 소요는 대체 자재 기준 ( 출고 때 주 자재 대신 · 섞어서 낸다 — 자동 채움은 주 자재만 ) -->
                                     <tr v-if="l._open" class="bg-gray-50/70">
-                                        <td :colspan="canWrite ? 6 : 5" class="pl-6 pr-1.5 py-1.5">
+                                        <td :colspan="(canWrite ? 4 : 3) + (SHOW_CALC ? 2 : 0)" class="pl-6 pr-1.5 py-1.5">
                                             <table class="w-full text-xs">
                                                 <tbody>
                                                     <tr v-if="!l.substitutes.length">
@@ -150,9 +150,9 @@
                                                     <tr v-for="(sub, j) in l.substitutes" :key="sub._rowKey" class="align-top">
                                                         <td class="w-6 py-1 text-gray-300">└</td>
                                                         <td class="pr-1.5 py-1">
-                                                            <ItemPicker v-model="sub.child_item_idx" :options="items" :exclude="[selectedItem?.item_idx, l.child_item_idx]" placeholder="대체 자재 선택"
+                                                            <ItemPicker v-model="sub.child_item_idx" :remote="{}" :exclude="[selectedItem?.item_idx, l.child_item_idx]" placeholder="대체 자재 선택"
                                                                 :can-create="canCreateItem" :disabled="!canWrite"
-                                                                :current="{ item_code: sub.child_item_code, item_name: sub.child_item_name, spec: sub.child_item_spec }" @created="m => items.push(m)" />
+                                                                :current="{ item_code: sub.child_item_code, item_name: sub.child_item_name, spec: sub.child_item_spec }" />
                                                             <p v-if="subError(i, j, 'child_item_idx')" class="text-[11px] text-red-500">{{ subError(i, j, 'child_item_idx') }}</p>
                                                         </td>
                                                         <td class="w-24 pr-1.5 py-1">
@@ -160,8 +160,8 @@
                                                             <p v-if="subError(i, j, 'qty')" class="text-[11px] text-red-500">{{ subError(i, j, 'qty') }}</p>
                                                         </td>
                                                         <td class="w-44 pr-1.5 py-1 text-gray-400">투입 지점은 주 자재와 같음</td>
-                                                        <td class="w-32 pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="sm" class="w-full" placeholder="계산식" :disabled="!canWrite" /></td>
-                                                        <td class="w-24 pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="!canWrite" /></td>
+                                                        <td v-if="SHOW_CALC" class="w-32 pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="sm" class="w-full" placeholder="계산식" :disabled="!canWrite" /></td>
+                                                        <td v-if="SHOW_CALC" class="w-24 pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="!canWrite" /></td>
                                                         <td v-if="canWrite" class="w-10 py-1 text-center">
                                                             <button type="button" class="px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
                                                         </td>
@@ -251,6 +251,9 @@ const loading      = ref(false);
 const saving       = ref(false);
 const errors       = ref({});
 
+// 계산식 · 절단(CUT) 칸 : 지금은 숨김 ( 값은 그대로 오가므로 저장해도 지워지지 않는다 — 출고 계산은 비어 있으면 품목 → 정책 → 개당 × 지시 )
+//   다시 쓰려면 true ( 계산식은 자유 입력 대신 등록된 식에서 고르기로 바꿀 것 )
+const SHOW_CALC = false;
 let rowSeq = 0;
 const blankForm = () => ({
     bom_idx: null, item_idx: null, version: '', is_active: 'N',

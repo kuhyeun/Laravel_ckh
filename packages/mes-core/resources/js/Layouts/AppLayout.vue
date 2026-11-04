@@ -12,6 +12,8 @@
             <main class="app-content flex flex-col flex-1 overflow-y-auto p-[12px] bg-white">
                 <slot></slot>
             </main>
+            <!-- 디버깅 : 지금 화면의 페이지 파일 ( 시스템 계정만 ) -->
+            <DevSourceTag class="fixed bottom-1.5 right-2 z-40" :name="page.component ? `Pages/${page.component}.vue` : ''" />
         </div>
         
         <!-- <footer class="app-footer border-t">
@@ -33,6 +35,7 @@ import BottomFrame from '../Components/Layout/BottomFrame.vue';
 import BaseModal from '../Components/Modals/BaseModal.vue';
 import ToastHost from '../Components/Common/ToastHost.vue';
 import SessionWatcher from '../Components/Layout/SessionWatcher.vue';
+import DevSourceTag from '../Components/Common/DevSourceTag.vue';
 
 const page = usePage();
 const menuItems = computed(() => page.props.userMenu ?? []);

@@ -109,11 +109,10 @@
                                     <th class="px-2 py-1.5 w-12">단위</th>
                                     <th class="px-2 py-1.5 w-28 text-right">단가</th>
                                     <th class="px-2 py-1.5 w-28 text-right">금액</th>
-                                    <th class="px-2 py-1.5 w-36">납품일 *</th>
+                                    <th class="px-2 py-1.5 w-32">납품일 *</th>
                                     <th class="px-2 py-1.5 w-24">공정</th>
                                     <th class="px-2 py-1.5 w-24">자재</th>
-                                    <th v-if="isEdit" class="px-2 py-1.5 w-28 text-right">지시 · 생산 / 출하</th>
-                                    <th class="px-2 py-1.5 min-w-[100px] text-left">비고</th>
+                                    <th v-if="isEdit" class="px-2 py-1.5 w-32 text-right">지시 · 생산 / 출하</th>
                                     <th v-if="!readonly" class="px-2 py-1.5 w-8"></th>
                                 </tr>
                             </thead>
@@ -124,7 +123,7 @@
                                 <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
                                     <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
                                     <td class="px-1.5 py-1">
-                                        <ItemPicker v-model="l.item_idx" :options="items" :disabled="readonly || l.locked" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @update:model-value="v => onItemChange(l, v)" />
+                                        <ItemPicker v-model="l.item_idx" :remote="ITEM_REMOTE" :disabled="readonly || l.locked" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @select="row => onItemPicked(l, row)" />
                                         <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                     </td>
                                     <td class="px-1.5 py-1">
@@ -160,9 +159,6 @@
                                         <p>지시 {{ fmt(l.directed_qty) }} · {{ fmt(l.produced_qty) }} / {{ fmt(l.shipped_qty) }}</p>
                                         <!-- 작업지시 ( 50-생산 §4 — 이 줄을 담은 지시 창. 남은 지시 수량이 기본 ) -->
                                         <button v-if="canDirect(l)" type="button" class="text-[11px] text-blue-700 hover:underline" @click="openWorkOrder(l, i)">작업지시</button>
-                                    </td>
-                                    <td class="px-1.5 py-1">
-                                        <BaseInput v-model="l.remark" size="sm" class="w-full" :disabled="readonly" />
                                     </td>
                                     <td v-if="!readonly" class="px-1 py-1 text-center">
                                         <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400" :disabled="l.locked" :title="l.locked ? '생산 · 출하가 시작된 줄은 지울 수 없습니다' : '줄 삭제'" @click="removeLine(i)">✕</button>
@@ -217,6 +213,7 @@ import { showAlert } from '@core/Utils/message';
 import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor } from '@core/Components/Order/orderCodes';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
+import { withSpec } from '@core/Utils/format';
 
 const props = defineProps({
     order:    { type: Object,   default: null },   // 목록 행 ( sales_order_idx 로 다시 조회 )
@@ -270,18 +267,20 @@ const colCount       = computed(() => 10 + (isEdit.value ? 1 : 0) + (readonly.va
 
 // ---- 선택지 ----
 const partners  = ref([]);
-const items     = ref([]);
 const today     = ref('');
 const processes = ref([]);       // 줄 공정 편집기
-const materials = ref([]);       // 줄 자재 편집기 ( 자재 · 대체 자재 선택지 )
 const canCreateItem = ref(false);   // [+ 새 품목 등록] ( 품목관리 쓰기 권한 )
 
 
 
-// 품목을 고르면 단위 · 판매단가를 채우고 품목 공정( ② )을 불러온다
-async function onItemChange(line, value) {
-    const it = items.value.find(x => Number(x.item_idx) === Number(value));
+// 품목 고르기 : 제품 · 사용 중 · 판매단가 함께 ( 서버에서 30개씩 — ItemPicker 서버 모드 )
+const ITEM_REMOTE = { types: ['PRODUCT'], extra: ['std_sale_price'] };
+
+// 품목을 고르면( 고른 줄 ) 단위 · 판매단가를 채우고 품목 공정( ② ) · 품목 BOM 을 불러온다
+async function onItemPicked(line, it) {
     if (!it) return;
+    const value = it.item_idx;
+    line.item_spec  = it.spec;
     line.item_code  = it.item_code;
     line.item_name  = it.item_name;
     line.spec_unit  = it.spec_unit;
@@ -314,7 +313,6 @@ function openMaterial(l, i) {
             initial: linkRouting(l.material_lines, l.routing_lines),
             routingRows: l.routing_lines,
             processes: processes.value,
-            materials: materials.value,
             canCreate: canCreateItem.value,
             itemIdx: l.item_idx,
             readonly: readonly.value,
@@ -361,14 +359,13 @@ function openNewItem() {
                     showAlert('품목 등록', '등록했지만 수주할 수 있는 품목이 아닙니다. ( 제품 대분류의 사용 중 품목만 )', 'info');
                     return;
                 }
-                items.value = [...items.value, item].sort((a, b) => String(a.item_code).localeCompare(String(b.item_code)));
                 let line = form.lines.find(x => x.item_idx === '' || x.item_idx === null);
                 if (!line) {
                     addLine();
                     line = form.lines[form.lines.length - 1];
                 }
                 line.item_idx = item.item_idx;
-                onItemChange(line, item.item_idx);
+                onItemPicked(line, item);
             },
             modalTitle: '품목 등록',
         },
@@ -434,10 +431,8 @@ onMounted(async () => {
         if (isEdit.value) reqs.push(window.axios.get(route('order.sales.show', form.sales_order_idx)));
         const [fd, show] = await Promise.all(reqs);
         partners.value = fd.data.partners ?? [];
-        items.value    = fd.data.items ?? [];
         today.value    = fd.data.today;
         processes.value     = fd.data.processes ?? [];
-        materials.value     = fd.data.materials ?? [];
         canCreateItem.value = fd.data.can_create_item === true && props.canWrite;
 
         if (show) {
@@ -464,6 +459,7 @@ function openWorkOrder(l, i) {
         {
             prefill: {
                 item_idx: l.item_idx,
+                item_label: withSpec(`${l.item_code} ${l.item_name}`, l.item_spec),
                 target_qty: remaining,
                 sources: [{ sales_order_line_idx: l.sales_order_line_idx, order_no: form.order_no, line_no: i + 1,
                             partner_name: form.partner_name, due_date: l.due_date, remaining, qty: remaining }],

@@ -51,6 +51,7 @@ import SpecPicker from '@core/Components/Config/SpecPicker.vue';
 import { ITEM_KINDS } from '@core/Components/Config/itemCodes';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { showAlert } from '@core/Utils/message';
+import { quickMaterial } from '@core/Components/Config/quickMaterial';
 import UnitSelect from '@core/Components/Common/UnitSelect.vue';
 
 const props = defineProps({
@@ -76,8 +77,10 @@ async function save() {
     errors.value = {};
     errorMsg.value = '';
     try {
-        const { data } = await window.axios.post(route('config.item.quickMaterial'), { ...form, spec: form.spec.trim() || null });
-        if (data.found) {
+        // 미사용 자재가 있으면 다시 사용으로 바꿔 쓸지 묻는다 ( 취소하면 이 창에 머문다 )
+        const data = await quickMaterial({ ...form, spec: form.spec.trim() || null });
+        if (data.cancelled) return;
+        if (data.found && !data.reactivated) {
             await showAlert('새 자재 등록', `같은 품번 · 규격의 자재가 이미 있어 그 자재를 고릅니다.\n${data.item.item_name} [${data.item.item_code}]${data.item.spec ? ' · ' + data.item.spec : ''}`, 'info');
         }
         props.onDone?.(data.item, data.found);

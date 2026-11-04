@@ -113,7 +113,7 @@
                                 <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
                                 <td class="px-1.5 py-1">
                                     <p v-if="l.purchase_order_line_idx" class="py-1.5">{{ l.item_code }} {{ l.item_name }}</p>
-                                    <ItemPicker v-else v-model="l.item_idx" :options="items" show-type @update:model-value="v => onItemChange(l, v)" />
+                                    <ItemPicker v-else v-model="l.item_idx" :remote="{}" show-type @select="row => onItemPicked(l, row)" />
                                     <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                 </td>
                                 <td class="px-2 py-1.5 text-gray-600 whitespace-nowrap">{{ l.order_label || '( 직접 )' }}
@@ -190,7 +190,6 @@ const errorMsg = ref('');
 const errors   = ref({});
 
 const partners   = ref([]);
-const items      = ref([]);
 const warehouses = ref([]);
 const lot        = reactive({ enabled: true, source: 'INTERNAL', rules: [] });
 const today      = ref('');
@@ -239,8 +238,8 @@ async function refreshModes() {
     } catch (e) { /* 미리 보기일 뿐 — 저장 때 서버가 정한다 */ }
 }
 
-function onItemChange(line, value) {
-    const it = items.value.find(x => Number(x.item_idx) === Number(value));
+// 품목을 고르면( 고른 줄 — 서버 모드 ItemPicker ) 단위 · 소분류를 채운다
+function onItemPicked(line, it) {
     if (!it) return;
     Object.assign(line, { item_code: it.item_code, item_name: it.item_name, item_kind: it.item_kind, spec_unit: it.spec_unit, spec_value: '' });
     refreshModes();
@@ -291,7 +290,6 @@ onMounted(async () => {
     try {
         const { data } = await window.axios.get(route('purchase.receipt.formData'));
         partners.value   = data.partners ?? [];
-        items.value      = data.items ?? [];
         warehouses.value = data.warehouses ?? [];
         Object.assign(lot, data.lot ?? {});
         form.occurred_at  = data.now;
@@ -301,7 +299,9 @@ onMounted(async () => {
             const line = blankLine({ item_idx: props.preset.item_idx });
             if (props.preset.warehouse_idx && warehouses.value.some(w => w.warehouse_idx === props.preset.warehouse_idx)) line.warehouse_idx = props.preset.warehouse_idx;
             form.lines.push(line);
-            onItemChange(form.lines[0], props.preset.item_idx);
+            // 정해 온 품목 : 고르기 목록을 받아 두지 않으므로 그 품목 줄을 한 번 불러와 채운다
+            const { data: found } = await window.axios.get(route('common.items.search'), { params: { ids: [props.preset.item_idx] } });
+            onItemPicked(form.lines[0], found.rows?.[0]);
         }
     } catch (e) {
         errorMsg.value = '입고 정보를 불러오지 못했습니다.';

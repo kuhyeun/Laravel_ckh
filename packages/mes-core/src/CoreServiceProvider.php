@@ -82,6 +82,13 @@ class CoreServiceProvider extends ServiceProvider {
         // 마이그레이션 등록
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 
+        // 콘솔 명령
+        if ($this->app->runningInConsole()) {
+            $this->commands([
+                \MesCore\Console\ResetTransactionsCommand::class,   // mes:reset-transactions — 업무 데이터 초기화
+            ]);
+        }
+
         // 라우트 등록
         $this->loadRoutes();
 

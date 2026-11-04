@@ -35,6 +35,7 @@ export function toMaterialPayload(materialRows, routingRows) {
         return {
             bom_line_idx: m.bom_line_idx ?? null,   // 기존 줄은 갱신 ( 이력이 같은 줄로 맞춘다 )
             source_bom_line_idx: m.source_bom_line_idx ?? null,
+            item_bom_target: m.item_bom_target ? String(m.item_bom_target) : null,   // 새 자재 줄 → 품목 BOM 어디에 ( 줄 IDX · NEW_LINE )
             child_item_idx: m.child_item_idx === '' ? null : Number(m.child_item_idx),
             routing_seq: pos >= 0 ? pos + 1 : null,
             qty: numOrNull(m.qty),

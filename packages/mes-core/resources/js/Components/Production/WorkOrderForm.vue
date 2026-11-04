@@ -130,7 +130,6 @@ import WorkOrderLinePanel from '@core/Components/Production/WorkOrderLinePanel.v
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import { blankLine, lineFromServer, applyItemDefaults, linePayload, sameRouting } from '@core/Components/Production/workOrderLine';
-import { withSpec } from '@core/Utils/format';
 
 const props = defineProps({
     order:     { type: Object,   default: null },   // { sheet_idx, work_order_idx? } — 있으면 수정 ( work_order_idx 는 처음 고를 줄 )
@@ -152,16 +151,14 @@ const current  = computed(() => lines.value[selected.value] ?? null);
 const sheetEditable = computed(() => props.canWrite && ['WAIT', 'RUN'].includes(sheet.status));
 
 // ---- 선택지 ( 줄 패널과 함께 ) ----
-const ctx = reactive({ items: [], routings: [], processes: [], workers: [], lot: { enabled: true, rules: [] }, issueUrl: null });
+const ctx = reactive({ routings: [], processes: [], workers: [], lot: { enabled: true, rules: [] }, issueUrl: null });
 const managerOptions = computed(() => [{ value: '', label: '—' }, ...ctx.workers.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id }))]);
 const lotRuleMissing = computed(() => ctx.lot.enabled && !ctx.lot.rules.length && !lines.value.some(l => l.lot_no));
 
 const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
 const fmt = (v) => num(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
-const itemLabel = (l) => {
-    const it = ctx.items.find(i => Number(i.item_idx) === Number(l.item_idx));
-    return it ? withSpec(`${it.item_code} ${it.item_name}`, it.spec) : (l.item_idx ? l.savedItem : '');
-};
+// 줄 이름 : 고를 때 · 불러올 때 정한 품목 이름( savedItem ) — 품목 목록을 받아 두지 않는다 ( 서버 모드 ItemPicker )
+const itemLabel = (l) => (l.item_idx ? l.savedItem || `#${l.item_idx}` : '');
 const lineLabel = (l) => `${String(lines.value.indexOf(l) + 1).padStart(2, '0')} ${itemLabel(l)}`;
 
 // ---- 줄 ----
@@ -210,6 +207,7 @@ async function pickSource(l) {
             return;
         }
         line.item_idx   = l.item_idx;
+        line.savedItem  = l.item_label ?? '';
         line.target_qty = String(l.remaining);
         line.sources    = [src];
         if (!empty) lines.value.push(line);
@@ -260,7 +258,7 @@ onMounted(async () => {
         if (isEdit.value) reqs.push(window.axios.get(route('production.workOrder.show', sheet.sheet_idx)));
         const [fd, show] = await Promise.all(reqs);
         Object.assign(ctx, {
-            items: fd.data.items ?? [], routings: fd.data.routings ?? [], processes: fd.data.processes ?? [], workers: fd.data.workers ?? [],
+            routings: fd.data.routings ?? [], processes: fd.data.processes ?? [], workers: fd.data.workers ?? [],
             lot: fd.data.lot ?? { enabled: true, rules: [] }, issueUrl: fd.data.issue_url ?? null,
         });
 
@@ -274,6 +272,7 @@ onMounted(async () => {
             const line = newLine();
             if (props.prefill) {
                 line.item_idx   = props.prefill.item_idx;
+                line.savedItem  = props.prefill.item_label ?? '';
                 line.target_qty = String(props.prefill.target_qty ?? '');
                 await applyItemDefaults(line, line.item_idx, { salesOrderLineIdx: props.prefill.sources?.[0]?.sales_order_line_idx });
                 line.sources   = (props.prefill.sources ?? []).map(s => ({ ...s, qty: String(s.qty) }));

@@ -80,10 +80,9 @@
                 <div class="grid grid-cols-3 gap-x-4 gap-y-2">
                     <div class="col-span-2">
                         <!-- 품번 · 품명 · 규격으로 찾기 · 없으면 새 자재 등록 ( 품번이 같아도 규격이 다르면 다른 자재 ) -->
-                        <ItemPicker v-model="mainMaterial.child_item_idx" :options="materials" placeholder="( 없음 )" allow-empty size="md"
+                        <ItemPicker v-model="mainMaterial.child_item_idx" :remote="{ types: ['MATERIAL'] }" :exclude="[form.item_idx]" placeholder="( 없음 )" allow-empty size="md"
                             :can-create="canWrite" :disabled="!canWrite || bomLocked"
-                            :current="mainMaterial.child_item_name ? { item_code: mainMaterial.child_item_code, item_name: mainMaterial.child_item_name, spec: mainMaterial.child_item_spec } : null"
-                            @created="m => materials.push(m)" />
+                            :current="mainMaterial.child_item_name ? { item_code: mainMaterial.child_item_code, item_name: mainMaterial.child_item_name, spec: mainMaterial.child_item_spec } : null" />
                         <p v-if="errors['main_material.child_item_idx']" class="text-xs text-red-500 mt-0.5">{{ errors['main_material.child_item_idx'][0] }}</p>
                         <!-- 이미 주 자재가 있는데 다른 자재를 고르면 : 교체 / 대체 자재로 추가 ( docs/대체자재-수주자재-설계.md ) -->
                         <div v-if="mainChanged" class="mt-1 flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs text-gray-600">
@@ -436,7 +435,6 @@ const processes    = ref([]);
 const routingLines = reactive([]);      // 품목 라우팅( ② ) 공정 줄 — 편집기가 그 자리에서 고친다
 const baseInfo     = ref(null);         // 지금 틀 { name, is_use } ( 미사용으로 내려간 틀 표시용 )
 const templateLoading = ref(false);
-const materials    = ref([]);
 const bomLineCount = ref(0);
 const mainMaterial = reactive({ bom_line_idx: null, child_item_idx: '', qty: '', calc_code: null, ext_n01: null, substitute_count: 0, mode: 'REPLACE' });
 const originalMain = ref(null);   // 저장된 주 자재 { idx, name } — 다른 자재를 고르면 교체 / 대체를 묻는다
@@ -493,7 +491,6 @@ async function loadFormData() {
         });
         routings.value     = data.routings ?? [];
         processes.value    = data.processes ?? [];
-        materials.value    = data.materials ?? [];
         bomLineCount.value = data.bom_line_count ?? 0;
 
         if (data.main_material) {

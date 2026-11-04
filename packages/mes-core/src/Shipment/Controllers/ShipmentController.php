@@ -135,7 +135,7 @@ class ShipmentController extends Controller {
     public function formData() {
         return response()->json([
             'partners'          => Partner::where('is_customer', 'Y')->where('is_use', 'Y')->orderBy('partner_name')->forPicker()->get(),
-            'items'             => Item::where('item_type', 'PRODUCT')->where('is_use', 'Y')->orderBy('item_code')->forPicker(['std_sale_price'])->get(),
+            // 품목 선택지는 보내지 않는다 — 화면의 ItemPicker 가 공용 검색( common.items.search )에서 30개씩
             'approval_required' => $this->shipments->approvalRequired(),
             'today'             => now()->toDateString(),
             'now'               => now()->format('Y-m-d\TH:i'),

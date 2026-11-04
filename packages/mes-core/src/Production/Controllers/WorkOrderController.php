@@ -127,15 +127,12 @@ class WorkOrderController extends Controller {
 
     // 등록 모달 선택지 : 품목 · 라우팅 · 공정( 설비 후보 포함 ) · LOT 규칙 · 작업자
     public function formData(MenuPermissionService $permissions) {
-        $items = Item::where('item_type', 'PRODUCT')->where('is_use', 'Y')->orderBy('item_code')
-            ->forPicker(['routing_idx', 'pack_qty'])->get();
-
+        // 품목 선택지는 보내지 않는다 — 화면의 ItemPicker 가 공용 검색( common.items.search )에서 30개씩
         $processes = Process::with(['equipments.equipment:equipment_idx,equipment_code,equipment_name,is_use'])
             ->where('is_use', 'Y')->orderByRaw("is_system = 'Y' DESC")->orderBy('process_code')->get()
             ->map(fn (Process $p) => $this->processRow($p))->values();
 
         return response()->json([
-            'items'     => $items,
             'routings'  => Routing::templates()->where('is_use', 'Y')->orderBy('routing_code')->get(['routing_idx', 'routing_code', 'routing_name', 'is_default']),
             'processes' => $processes,
             'lot'       => [

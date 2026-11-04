@@ -5,6 +5,7 @@ use MesCore\Basic\Controllers\CommonCodeController;
 use MesCore\Basic\Controllers\ExcelLayoutController;
 use MesCore\Basic\Controllers\SearchDefaultsController;
 use MesCore\Basic\Controllers\GridSettingController;
+use MesCore\Basic\Controllers\ItemSearchController;
 use MesCore\Auth\Middleware\UserAuth;
 
 // 업무 화면 공용 조회 API ( 로그인만 필요, 메뉴 권한과 무관 )
@@ -12,6 +13,9 @@ use MesCore\Auth\Middleware\UserAuth;
 
 Route::prefix('common')->name('common.')->middleware([UserAuth::class])->group(function() {
     Route::get('/codes', [CommonCodeController::class, 'codes'])->name('codes');
+
+    // 품목 고르기( ItemPicker 서버 모드 ) — 30개씩 · 찾기 · 고른 값 이름
+    Route::get('/items/search', [ItemSearchController::class, 'search'])->name('items.search');
 
     // 공통 검색바( CMP-02 ) 기간 기본값 ( 정책 ui.search_range_* — 오늘 기준 )
     Route::get('/search-defaults', [SearchDefaultsController::class, 'defaults'])->name('searchDefaults');

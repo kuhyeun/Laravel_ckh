@@ -51,7 +51,8 @@
 
                 <div class="col-span-2">
                     <label class="lbl">품목 <span class="text-red-500">*</span></label>
-                    <ItemPicker v-model="line.item_idx" :options="ctx.items" size="md" :disabled="!structEditable" :current="{ item_name: line.savedItem }" @update:model-value="onItemChange" />
+                    <ItemPicker v-model="line.item_idx" :remote="{ types: ['PRODUCT'] }" size="md" :disabled="!structEditable" :current="line.savedItem ? { item_name: line.savedItem } : null"
+                        @select="row => { if (row) line.savedItem = withSpec(`${row.item_code} ${row.item_name}`, row.spec); }" @update:model-value="onItemChange" />
                     <p v-if="errors.item_idx" class="err">{{ errors.item_idx[0] }}</p>
                 </div>
                 <div>
@@ -251,6 +252,7 @@ import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor, processKindLabel, isIfl } from '@core/Components/Production/productionCodes';
 import { blankOp, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import { withSpec } from '@core/Utils/format';
 
 const props = defineProps({
     line:     { type: Object,  required: true },   // 부모의 줄 객체 ( workOrderLine.blankLine )

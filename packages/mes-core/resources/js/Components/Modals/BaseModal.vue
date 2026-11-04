@@ -24,6 +24,8 @@
                         v-bind="modal.props"
                         @close="modalStore.close(modal.id)"
                     />
+                    <!-- 디버깅 : 이 모달의 본체 파일 ( 시스템 계정만 ) -->
+                    <div class="flex justify-end mt-2 -mb-3 -mr-3"><DevSourceTag :name="sourceName(modal.component)" /></div>
                 </div>
             </div>
         </div>
@@ -34,8 +36,19 @@
 import { onMounted, onUnmounted } from 'vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { XMarkIcon, Cog6ToothIcon } from '@heroicons/vue/24/outline';
+import DevSourceTag from '@core/Components/Common/DevSourceTag.vue';
 
 const modalStore = useModalStore();
+
+// 모달 본체의 파일 이름 ( Vue SFC 가 붙이는 __name · 개발 서버는 __file 로 경로까지 )
+const sourceName = (c) => {
+    const file = c?.__file;
+    if (file) {
+        const i = file.indexOf('resources/js/');
+        return i >= 0 ? file.slice(i + 'resources/js/'.length) : file.split('/').pop();
+    }
+    return c?.__name ? `${c.__name}.vue` : '';
+};
 
 const handleOverlayClick = (modal) => {
     if( modal.closeOnClickOutside ) {

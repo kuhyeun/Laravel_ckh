@@ -22,6 +22,7 @@ Route::prefix('purchase')->name('purchase.')->middleware([UserAuth::class])->gro
             Route::get('/list', [PurchaseOrderController::class, 'list'])->name('list');
             Route::get('/show/{orderIdx}', [PurchaseOrderController::class, 'show'])->whereNumber('orderIdx')->name('show');
             Route::get('/formData', [PurchaseOrderController::class, 'formData'])->name('formData');
+            Route::get('/orderMaterials', [PurchaseOrderController::class, 'orderMaterials'])->name('orderMaterials');   // [+ 수주 자재에서]
         });
 
         Route::middleware($write)->group(function() {
