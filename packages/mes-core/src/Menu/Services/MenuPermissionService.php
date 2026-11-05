@@ -34,7 +34,7 @@ class MenuPermissionService {
     private const VERSION_COLUMNS = [
         'system_menu' => [
             'menu_idx', 'menu_code', 'parent_menu_code', 'menu_name', 'menu_depth', 'module_code',
-            'menu_route_name', 'url_path', 'page_component', 'menu_icon', 'is_use', 'is_display', 'is_admin', 'feature_key',
+            'menu_route_name', 'url_path', 'page_component', 'page_options', 'menu_icon', 'is_use', 'is_display', 'is_admin', 'read_only', 'feature_key',
         ],
         // 기능 스위치 값이 바뀌면 메뉴 노출이 달라진다
         'system_config'            => ['system_config_group_key', 'system_config_key', 'system_config_value', 'system_config_default_value'],
@@ -173,7 +173,8 @@ class MenuPermissionService {
                 'system_menu.url_path',
                 'system_menu.menu_icon',
                 'system_menu.menu_depth',
-                'system_menu.is_admin'
+                'system_menu.is_admin',
+                'system_menu.read_only'
             )
             ->where('system_menu.is_use', 'Y')
             ->where('system_menu.is_display', 'Y')
@@ -231,6 +232,14 @@ class MenuPermissionService {
             // 읽기 권한 없는 메뉴는 트리에서 제외 ( 권한 맵에서도 제거 )
             $menus = $menus->filter(fn ($menu) => $permissions[$menu->menu_code]['can_read'])->values();
             $permissions = array_filter($permissions, fn ($p) => $p['can_read']);
+        }
+
+        // 조회 전용 메뉴 : 쓰기 · 삭제는 항상 없음 ( 시스템 계정 포함 — 이력 메뉴는 보기만 )
+        foreach ($menus as $menu) {
+            if (($menu->read_only ?? 'N') === 'Y' && isset($permissions[$menu->menu_code])) {
+                $permissions[$menu->menu_code]['can_write']  = false;
+                $permissions[$menu->menu_code]['can_delete'] = false;
+            }
         }
 
         // 문자열 비교라 자릿수를 맞춘다 ( "2-10" 이 "2-2" 보다 앞에 오지 않도록 )

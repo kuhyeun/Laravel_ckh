@@ -13,6 +13,7 @@ use MesCore\Config\Models\RoutingLine;
 use MesCore\Config\Services\RoutingService;
 use MesCore\Config\Services\BomService;
 use MesCore\Order\Models\SalesOrderLine;
+use MesCore\Production\Models\ProductionPlan;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderMaterial;
 use MesCore\Production\Models\WorkOrderOp;
@@ -153,6 +154,25 @@ class WorkOrderService {
         }
         $source = $sources ? 'ORDER' : (($data['source'] ?? 'MANUAL') === 'STOCK' ? 'STOCK' : 'MANUAL');
 
+        // 출처 생산계획 ( 계획에서 만든 지시 ) : 품목이 같고 · 수주 연결은 그 계획에 담긴 수주 줄 안에서 · 취소된 계획은 안 됨 ( 이미 연결된 지시는 그대로 )
+        $planIdx = !empty($data['production_plan_idx']) ? (int) $data['production_plan_idx'] : null;
+        if ($planIdx && $planIdx !== (int) $wo->production_plan_idx) {
+            $plan = ProductionPlan::find($planIdx);
+            if (!$plan || $plan->status === 'CANCELED') {
+                $errors['production_plan_idx'] = ['생산계획을 찾을 수 없거나 취소된 계획입니다.'];
+            } elseif ((int) $plan->item_idx !== (int) $data['item_idx']) {
+                $errors['production_plan_idx'] = ["{$plan->plan_no} 의 품목이 지시 품목과 다릅니다."];
+            } elseif (!$sources || array_diff(array_map(fn ($s) => (int) $s['sales_order_line_idx'], $sources), $plan->sources()->pluck('sales_order_line_idx')->map(fn ($v) => (int) $v)->all())) {
+                $errors['production_plan_idx'] = ["{$plan->plan_no} 에서 만든 지시는 그 계획에 담긴 수주 줄만 담습니다."];
+            }
+        }
+        if ($planIdx && !isset($errors['production_plan_idx']) && ($plan ??= ProductionPlan::find($planIdx))) {
+            $left = (float) $plan->qty - $plan->directedQty($wo->work_order_idx);
+            if ((float) $data['target_qty'] > $left + 1e-9) {
+                $warnings[] = "{$plan->plan_no} : 계획의 남은 수량( " . $this->num(max(0, $left)) . ' )보다 많이 지시합니다.';   // W_WO_OVER_PLAN
+            }
+        }
+
         if ($errors) {
             throw ValidationException::withMessages($errors);
         }
@@ -198,6 +218,10 @@ class WorkOrderService {
                 'due_date'    => $data['due_date'],
                 'remark'      => $data['remark'] ?? null,
             ]);
+            // 출처 생산계획 : 보낸 값 ( 없으면 그대로 — 수주에서 바로 만든 지시는 비어 있음 )
+            if (array_key_exists('production_plan_idx', $data)) {
+                $wo->production_plan_idx = $data['production_plan_idx'] ?: null;
+            }
             if ($isNew) {
                 $lineNo = (int) WorkOrder::where('sheet_idx', $sheet->sheet_idx)->lockForUpdate()->max('line_no') + 1;
                 $wo->sheet_idx = $sheet->sheet_idx;

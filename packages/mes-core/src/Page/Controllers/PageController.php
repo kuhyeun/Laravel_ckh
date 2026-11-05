@@ -43,6 +43,9 @@ class PageController extends Controller {
 
         return Inertia::render( $menu->page_component, [
             'menuCode' => $menu->menu_code,
+            'readOnly' => ( $menu->read_only ?? 'N' ) === 'Y',   // 조회 전용 메뉴 ( 머리에 표시 — 쓰기 권한은 서버가 이미 끈다 )
+            // 메뉴별 화면 옵션 ( JSON 객체 — 화면이 아는 키만 쓴다 · 잘못된 값은 빈 옵션 )
+            'pageOptions' => is_array( $opts = json_decode( (string) $menu->page_options, true ) ) ? (object) $opts : (object) [],
         ] );
     }
 

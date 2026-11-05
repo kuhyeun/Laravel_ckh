@@ -16,10 +16,11 @@
      - 목록은 body 로 띄운다 ( 표 · 모달의 스크롤 영역에 잘리지 않게 · 겹친 모달보다 위 — z 5000 ) -->
 <template>
     <div ref="root" class="relative">
-        <button ref="trigger" type="button" class="base-input w-full flex items-center gap-1 text-left" :class="[sizeClass, disabled ? 'opacity-60 cursor-not-allowed' : '']" :disabled="disabled"
+        <!-- 고를 수 없을 때 : 배경만 회색( base-input:disabled ) · 고른 값은 읽히게 진하게 ( 흐리게 겹치면 안 보인다 ) · ▾ 숨김 -->
+        <button ref="trigger" type="button" class="base-input w-full flex items-center gap-1 text-left" :class="[sizeClass, disabled ? 'cursor-not-allowed' : '']" :disabled="disabled"
             @click="toggle" @keydown.down.prevent="!open && toggle()">
-            <span class="flex-1 truncate" :class="selected ? '' : 'text-gray-400'" :title="selected ? selectedText : ''">{{ selected ? selectedText : placeholder }}</span>
-            <span class="text-gray-400 text-xs">▾</span>
+            <span class="flex-1 truncate" :class="selected ? (disabled ? 'text-gray-700' : '') : 'text-gray-400'" :title="selected ? selectedText : ''">{{ selected ? selectedText : placeholder }}</span>
+            <span v-if="!disabled" class="text-gray-400 text-xs">▾</span>
         </button>
 
         <Teleport to="body">

@@ -137,6 +137,9 @@
                             <label class="block text-sm font-medium text-gray-600 mb-1">페이지 컴포넌트 ( 실제 Vue 파일 위치 )</label>
                             <BaseInput v-model="form.page_component" class="w-full" placeholder="예: Basic/MenuManage" />
                             <p v-if="errors.page_component" class="text-xs text-red-500 mt-1">{{ errors.page_component[0] }}</p>
+                            <label class="block text-sm font-medium text-gray-600 mt-2 mb-1">화면 옵션 <span class="text-xs font-normal text-gray-400">( JSON — 같은 화면을 메뉴마다 다르게 · 예: {"warehouse_filter": false} )</span></label>
+                            <BaseInput v-model="form.page_options" class="w-full font-mono" placeholder="비우면 기본" />
+                            <p v-if="errors.page_options" class="text-xs text-red-500 mt-1">{{ errors.page_options[0] }}</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-600 mb-1">URL 경로</label>
@@ -154,7 +157,11 @@
                         <div class="flex items-end gap-6">
                             <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N">사용</BaseCheckbox>
                             <BaseCheckbox variant="switch" v-model="form.is_display" true-value="Y" false-value="N">메뉴 표시</BaseCheckbox>
+                            <BaseCheckbox variant="switch" v-model="form.read_only" true-value="Y" false-value="N">조회 전용</BaseCheckbox>
                         </div>
+                        <p v-if="form.read_only === 'Y'" class="md:col-span-2 -mt-2 text-xs text-gray-500">
+                            조회 전용 메뉴는 권한 설정과 상관없이 쓰기 · 삭제가 꺼집니다. 다른 메뉴와 같은 화면( 컴포넌트 )을 이력 메뉴로 쓸 때 켭니다 ( 예: 입고이력 = Purchase/ReceiptManage ).
+                        </p>
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-600 mb-1">비고</label>
                             <textarea
@@ -485,6 +492,8 @@ const blankForm = () => ({
     menu_icon: '',
     is_use: 'Y',
     is_display: 'Y',
+    read_only: 'N',
+    page_options: '',
     remark: ''
 });
 const form = reactive(blankForm());
@@ -540,6 +549,8 @@ function selectMenu(m) {
         menu_icon: m.menu_icon || '',
         is_use: m.is_use || 'Y',
         is_display: m.is_display || 'Y',
+        read_only: m.read_only || 'N',
+        page_options: m.page_options || '',
         remark: m.remark || ''
     });
     loadPerm(m);
@@ -616,6 +627,8 @@ function menuPayload() {
         menu_icon: form.menu_icon || null,
         is_use: form.is_use,
         is_display: form.is_display,
+        read_only: form.read_only,
+        page_options: form.page_options?.trim() || null,
         remark: form.remark || null
     };
 }

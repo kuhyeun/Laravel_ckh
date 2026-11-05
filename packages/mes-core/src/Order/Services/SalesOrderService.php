@@ -204,6 +204,64 @@ class SalesOrderService {
     }
 
     /**
+     * 수주 줄 하나의 공정 · 자재만 저장 ( 생산계획 화면의 [공정] · [자재] — 수주 줄의 것을 같이 고친다 · docs/생산계획-설계.md )
+     *   규칙은 수주 저장과 같다 : 작업지시가 생긴 줄은 잠김 · 라우팅 검사 · 자재 검사 · 품목 BOM 에 없는 자재는 품목 BOM 에도 등록
+     *   $routingLines / $materialLines : null = 그대로
+     * @return string[] 경고
+     */
+    public function saveLineSetup(SalesOrderLine $line, ?array $routingLines, ?array $materialLines): array {
+        $line->loadMissing('order', 'item');
+        $errors   = [];
+        $warnings = [];
+        $label    = $line->item?->item_code ?? '#' . $line->line_no;
+
+        if (!in_array($line->order?->status, SalesOrder::EDITABLE_STATUSES, true) || $line->line_status === 'CANCELED') {
+            throw ValidationException::withMessages(['line' => ['완료 · 취소된 수주 줄은 공정 · 자재를 바꿀 수 없습니다.']]);
+        }
+        $locked = $line->directedQty() > 0;
+
+        if ($routingLines !== null) {
+            if ($locked) {
+                $errors['routing_lines'] = ['작업지시가 생성된 줄의 공정은 바꿀 수 없습니다.'];
+            } else {
+                try {
+                    $own = $this->routings->orderLineRouting($line->sales_order_line_idx);
+                    foreach ($this->routings->assertLines(array_values($routingLines), $own, 'routing_lines', true) as $w) {
+                        $warnings[] = "{$label} : {$w}";
+                    }
+                } catch (ValidationException $e) {
+                    $errors += $e->errors();
+                }
+            }
+        }
+        if ($materialLines !== null) {
+            if ($locked) {
+                $errors['material_lines'] = ['작업지시가 생성된 줄의 자재는 바꿀 수 없습니다.'];
+            } else {
+                try {
+                    $this->boms->assertLines((int) $line->item_idx, array_values($materialLines), 'material_lines');
+                } catch (ValidationException $e) {
+                    $errors += $e->errors();
+                }
+                $errors += $this->materialOnlyErrors(['item_idx' => $line->item_idx, 'material_lines' => $materialLines], $line, 'material_lines');
+            }
+        }
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        DB::transaction(function () use ($line, $routingLines, $materialLines) {
+            $orderNo = $line->order->order_no;
+            if ($routingLines !== null) {
+                $this->routings->syncOrderLineRouting($line, $orderNo, array_values($routingLines));
+            }
+            $materials = $materialLines !== null ? $this->boms->absorbIntoItemBom($line, $orderNo, array_values($materialLines)) : null;
+            $this->boms->syncOrderLineBom($line, $orderNo, $materials);
+        });
+        return array_values(array_unique($warnings));
+    }
+
+    /**
      * 수주 자재 · 대체 자재는 자재( MATERIAL )만 — 화면 고르기도 자재만
      *   이미 들어 있던 값( 지금 수주 자재 · 품목 BOM 에서 복사해 온 반제품 등 )은 그대로 허용
      */

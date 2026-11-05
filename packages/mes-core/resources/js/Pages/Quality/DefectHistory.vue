@@ -5,7 +5,7 @@
      - 기간 기본값 : 추이를 보려고 최근 6개월 ( 다른 목록의 정책 기본값 ±10일과 다르다 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div v-if="truncated" class="flex items-center gap-3 pb-2 shrink-0">
+        <div v-if="truncated" class="flex items-center gap-1 pb-2 shrink-0">
             <span class="text-xs text-amber-700">⚠ {{ maxRows.toLocaleString() }}건까지만 불러왔습니다 — 기간 · 조건을 좁혀 주세요</span>
         </div>
 

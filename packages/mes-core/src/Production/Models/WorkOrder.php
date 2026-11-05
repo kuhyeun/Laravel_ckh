@@ -34,7 +34,7 @@ class WorkOrder extends Model {
 
     protected $fillable = [
         'sheet_idx', 'line_no', 'wo_no', 'source', 'item_idx', 'routing_idx', 'bom_idx', 'lot_idx', 'lot_rule_idx',
-        'target_qty', 'scan_qty', 'start_date', 'due_date', 'status', 'approval_status', 'remark',
+        'target_qty', 'scan_qty', 'start_date', 'due_date', 'status', 'approval_status', 'remark', 'production_plan_idx',
     ];
 
     protected $attributes = [
@@ -84,5 +84,10 @@ class WorkOrder extends Model {
     // 대기( 실적 없음 )만 수량 · 공정 · 품목을 고칠 수 있다
     public function isEditable(): bool {
         return $this->status === 'WAIT';
+    }
+
+    // 출처 생산계획 ( 계획에서 만든 지시 — 수주에서 바로 만든 지시는 없음 )
+    public function plan() {
+        return $this->belongsTo(ProductionPlan::class, 'production_plan_idx', 'production_plan_idx');
     }
 }

@@ -33,17 +33,20 @@ class Menu extends Model {
         'menu_route_name',
         'url_path',
         'page_component',
+        'page_options',
         'menu_icon',
         'is_use',
         'is_display',
         'is_admin',
+        'read_only',
         'create_account_idx',
         'update_account_idx',
         'remark',
     ];
     protected $attributes = [
         'is_use' => 'Y',
-        'is_display' => 'Y'
+        'is_display' => 'Y',
+        'read_only'  => 'N',
     ];
 
     const CREATED_AT = 'create_datetime';
@@ -71,9 +74,13 @@ class Menu extends Model {
             'url_path'         => 'nullable|string|max:150|regex:/^\/[A-Za-z0-9\/_-]*$/|' . $pathUnique,
             // 렌더할 컴포넌트: 'Modules/Order/Pages/OrderList' 형태 ( 경로 탈출 차단 )
             'page_component'   => 'nullable|string|max:150|regex:/^[A-Za-z0-9\/_]+$/',
+            // 화면 옵션 : JSON 객체 ( 같은 화면을 여러 메뉴가 쓸 때 메뉴마다 다르게 — 예 {"warehouse_filter": false} )
+            'page_options'     => 'nullable|string|max:500|json',
             'menu_icon'        => 'nullable|string|max:50',
             'is_use'           => 'sometimes|in:Y,N',
             'is_display'       => 'sometimes|in:Y,N',
+            // 조회 전용 : 같은 화면을 이력 메뉴로 한 번 더 쓸 때 — 쓰기 · 삭제 권한이 항상 꺼진다
+            'read_only'        => 'sometimes|in:Y,N',
             'remark'           => 'nullable|string',
         ];
     }

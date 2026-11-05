@@ -7,7 +7,10 @@
             <h1 class="top-frame-title">{{ page.props.appName }}</h1>
         </div>
         <!-- 화면 제목 = 지금 메뉴 이름 ( 화면마다 두던 제목 줄의 h2 대신 ) — 본문 왼쪽 끝과 같은 x 에 -->
-        <h2 v-if="pageTitle" class="top-page-title text-lg tracking-tight text-gray-800 truncate">{{ pageTitle }}</h2>
+        <h2 v-if="pageTitle" class="top-page-title text-lg tracking-tight text-gray-800 truncate">
+            {{ pageTitle }}
+            <span v-if="page.props.readOnly && page.props.auth?.user?.user_level === 0" class="ml-2 align-middle text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-normal">조회 전용</span>
+        </h2>
         <div class="flex-1"></div>
         <div class="flex items-center">
             <button id="user-info" class="mr-3" @click="openUserInfo">

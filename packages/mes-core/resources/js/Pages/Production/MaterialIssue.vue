@@ -14,7 +14,7 @@
         </template>
     </StockTxnHistory>
     <div v-else class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <div class="flex items-center gap-1">
                 <button v-for="t in TABS" :key="t.key" type="button" class="px-2 py-0.5 rounded font-bold text-lg tracking-tight"
                     :class="tab === t.key ? 'text-gray-800' : 'text-gray-300 hover:text-gray-500'" @click="tab = t.key">{{ t.label }}</button>

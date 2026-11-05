@@ -4,7 +4,7 @@
      - 행 클릭 → 출하 창( ShipmentForm — 대기면 고치기 · 단계 버튼 ) / [+ 출하 등록] / 체크 → [취소] -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" variant="primary" @click="openForm(null)">+ 출하 등록</BaseButton>
             <BaseButton v-if="canDelete" variant="danger" :disabled="!checkedRows.length || busy" @click="cancelChecked">취소</BaseButton>
         </div>

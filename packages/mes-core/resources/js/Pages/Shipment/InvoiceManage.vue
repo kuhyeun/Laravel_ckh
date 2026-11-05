@@ -3,7 +3,7 @@
      - 체크 → [미리보기 · 인쇄] = 모달( InvoicePreview — A4 한 장에 공급받는자 / 공급자 보관용 ) · 행 클릭 = 그 건만 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton variant="primary" :disabled="!checkedRows.length" @click="openPrint(checkedRows.map(r => r.shipment_idx))">미리보기 · 인쇄</BaseButton>
         </div>
 

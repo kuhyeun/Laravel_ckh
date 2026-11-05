@@ -8,7 +8,7 @@
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 탭 줄 : 넘겨준 화면만 ( 출고관리 · 제품출고 ) — 나머지는 줄 없이 검색바부터 -->
-        <div v-if="$slots.head" class="flex items-center gap-3 pb-2 shrink-0">
+        <div v-if="$slots.head" class="flex items-center gap-1 pb-2 shrink-0">
             <slot name="head" />
         </div>
 

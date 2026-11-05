@@ -31,6 +31,8 @@ export const COLORS = {
 
     amber50:  '#fffbeb',
     amber200: '#fde68a',
+    amber300: '#fcd34d',   // 옅은 강조 바탕 ( 예 : 달력 막대 — 어두운 글자 ) · 11-05 예시로 추가
+    amber400: '#fbbf24',
     amber600: '#d97706',
     amber700: '#b45309',
 
@@ -45,9 +47,9 @@ export const COLORS = {
 // 상태 색 ( 스타일 가이드 §7 상태 색 ) — 모듈 *Codes.js 가 이것을 쓴다
 export const STATUS_COLOR = {
     idle:      COLORS.gray500,    // 시작 전 : 대기 · 미확정
-    active:    COLORS.blue600,    // 진행 · 확정
+    active:    COLORS.blue400,    // 진행 · 확정
     done:      COLORS.green600,   // 끝남 : 완료
-    attention: COLORS.amber600,   // 손이 필요함 : 검사대기 · 결재 · 미달
+    attention: COLORS.amber300,   // 손이 필요함 : 검사대기 · 결재 · 미달
     bad:       COLORS.red600,     // 불합격 · 반려 · 지연
     off:       COLORS.gray400,    // 취소 · 미사용
 };

@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use MesCore\Production\Controllers\MaterialIssueController;
 use MesCore\Production\Controllers\OpHistoryController;
 use MesCore\Production\Controllers\OpResultController;
+use MesCore\Production\Controllers\ProductionPlanController;
 use MesCore\Production\Controllers\WorkOrderController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
@@ -12,6 +13,28 @@ use MesCore\Auth\Middleware\MenuAuth;
 //   권한 : 조회 can_read / 등록 · 수정 can_write / 취소 can_delete
 
 Route::prefix('production')->name('production.')->middleware([UserAuth::class])->group(function() {
+
+    // 생산계획 ( Production/ProductionPlan ) — 월 달력 · 목록 · 끌어 옮기기 · [공정] · [자재]( 수주 줄 것을 같이 고침 ) — docs/생산계획-설계.md
+    Route::prefix('plan')->name('plan.')->group(function() {
+        $read   = MenuAuth::class . ':Production/ProductionPlan,can_read';
+        $write  = MenuAuth::class . ':Production/ProductionPlan,can_write';
+        $delete = MenuAuth::class . ':Production/ProductionPlan,can_delete';
+
+        Route::middleware($read)->group(function() {
+            Route::get('/list', [ProductionPlanController::class, 'list'])->name('list');
+            Route::get('/show/{planIdx}', [ProductionPlanController::class, 'show'])->whereNumber('planIdx')->name('show');
+            Route::get('/orderLines', [ProductionPlanController::class, 'orderLines'])->name('orderLines');
+            Route::get('/lineSetup/{lineIdx}', [ProductionPlanController::class, 'lineSetup'])->whereNumber('lineIdx')->name('lineSetup');
+        });
+        Route::middleware($write)->group(function() {
+            Route::post('/save', [ProductionPlanController::class, 'save'])->name('save');
+            Route::post('/move', [ProductionPlanController::class, 'move'])->name('move');
+            Route::post('/saveLineSetup', [ProductionPlanController::class, 'saveLineSetup'])->name('saveLineSetup');
+        });
+        Route::middleware($delete)->group(function() {
+            Route::post('/delete', [ProductionPlanController::class, 'delete'])->name('del');
+        });
+    });
 
     // 작업지시 ( Production/WorkOrderManage ) — 목록 · 조회 · 저장 · 취소는 지시서 단위, 줄 취소는 품목 줄 하나
     Route::prefix('work-order')->name('workOrder.')->group(function() {

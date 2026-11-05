@@ -54,6 +54,9 @@
                     <ItemPicker v-model="line.item_idx" :remote="{ types: ['PRODUCT'] }" size="md" :disabled="!structEditable" :current="line.savedItem ? { item_name: line.savedItem } : null"
                         @select="row => { if (row) line.savedItem = withSpec(`${row.item_code} ${row.item_name}`, row.spec); }" @update:model-value="onItemChange" />
                     <p v-if="errors.item_idx" class="err">{{ errors.item_idx[0] }}</p>
+                    <!-- 출처 생산계획 ( 계획에서 만든 지시 ) -->
+                    <p v-if="line.plan_no" class="mt-0.5 text-[11px] text-blue-700"><span class="px-1 rounded bg-blue-50">계획</span> {{ line.plan_no }}</p>
+                    <p v-if="errors.production_plan_idx" class="err">{{ errors.production_plan_idx[0] }}</p>
                 </div>
                 <div>
                     <label class="lbl">지시 수량 <span class="text-red-500">*</span></label>

@@ -145,7 +145,7 @@ class WorkOrderController extends Controller {
             'today'     => now()->toDateString(),
             // 자재 탭의 [출고] — 자재출고 화면 권한이 있을 때만 그 화면 주소
             'issue_url' => Auth::user() && $permissions->canPage(Auth::user(), 'Production/MaterialIssue', 'can_read')
-                ? Menu::where('page_component', 'Production/MaterialIssue')->value('url_path') : null,
+                ? Menu::where('page_component', 'Production/MaterialIssue')->orderByRaw("read_only = 'N' DESC")->value('url_path') : null,
         ]);
     }
 
@@ -223,6 +223,7 @@ class WorkOrderController extends Controller {
             'lines.*.sources'                        => 'nullable|array|max:100',
             'lines.*.sources.*.sales_order_line_idx' => 'required|integer',
             'lines.*.sources.*.qty'                  => 'required|numeric|gt:0|max:999999999999',
+            'lines.*.production_plan_idx'            => 'nullable|integer',   // 출처 생산계획 ( 계획에서 만든 지시 )
         ], [
             'lines.required'           => '품목 줄을 하나 이상 넣으세요.',
             'lines.min'                => '품목 줄을 하나 이상 넣으세요.',
@@ -399,6 +400,8 @@ class WorkOrderController extends Controller {
             'work_order_idx' => $w->work_order_idx,
             'wo_no'          => $w->wo_no,
             'source'         => $w->source,
+            'production_plan_idx' => $w->production_plan_idx,
+            'plan_no'        => $w->production_plan_idx ? \MesCore\Production\Models\ProductionPlan::whereKey($w->production_plan_idx)->value('plan_no') : null,
             'item_idx'       => $w->item_idx,
             'item_code'      => $w->item?->item_code,
             'item_name'      => $w->item?->item_name,

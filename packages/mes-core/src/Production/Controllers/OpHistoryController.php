@@ -238,7 +238,7 @@ class OpHistoryController extends Controller {
     public function formData(MenuPermissionService $permissions) {
         return response()->json([
             'op_result_url' => Auth::user() && $permissions->canPage(Auth::user(), 'Production/OpResult', 'can_read')
-                ? Menu::where('page_component', 'Production/OpResult')->value('url_path') : null,
+                ? Menu::where('page_component', 'Production/OpResult')->orderByRaw("read_only = 'N' DESC")->value('url_path') : null,
             'processes'  => Process::where('is_use', 'Y')->orderBy('process_code')->get(['process_idx', 'process_code', 'process_name', 'process_type', 'is_system', 'system_key'])
                 ->filter(fn (Process $p) => $p->isQtyProcess())
                 ->map(fn (Process $p) => ['value' => $p->process_idx, 'label' => $p->process_name])->values(),

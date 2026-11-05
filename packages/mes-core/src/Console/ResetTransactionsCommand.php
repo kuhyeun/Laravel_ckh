@@ -28,8 +28,8 @@ class ResetTransactionsCommand extends Command {
         // 수주 · 발주
         'sales_order', 'sales_order_line',
         'purchase_order', 'purchase_order_line', 'purchase_order_line_source',
-        // 작업지시
-        'work_order', 'work_order_source', 'work_order_op', 'work_order_op_run', 'work_order_material', 'work_order_sheet', 'wo_stock',
+        // 생산계획 · 작업지시
+        'production_plan', 'production_plan_source', 'work_order', 'work_order_source', 'work_order_op', 'work_order_op_run', 'work_order_material', 'work_order_sheet', 'wo_stock',
         // 재고 · LOT
         'stock_txn', 'stock_txn_line', 'stock_ledger', 'stock_balance', 'lot', 'lot_seq',
         // 출하

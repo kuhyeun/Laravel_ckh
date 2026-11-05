@@ -5,7 +5,7 @@
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 헤더 -->
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openCreate">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0 || deleting" @click="deleteChecked">
                 삭제

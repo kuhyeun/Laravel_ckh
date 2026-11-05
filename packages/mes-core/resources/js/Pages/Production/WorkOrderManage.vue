@@ -5,7 +5,7 @@
      - 체크( 지시서 ) → [취소] : 모든 줄이 대기인 지시서만 ( 줄 하나 취소는 지시서 창의 [줄 취소] ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="!checkedRows.length || busy" @click="cancelChecked">취소</BaseButton>
         </div>

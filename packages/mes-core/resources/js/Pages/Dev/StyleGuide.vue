@@ -4,7 +4,7 @@
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 버튼 줄 -->
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <code class="text-xs text-gray-400 hidden md:inline">규칙 : packages/mes-core/docs/style-guide.md</code>
         </div>
 
@@ -20,7 +20,7 @@
                 <SectionHead title="화면 틀 — 3단" note="버튼 줄 → 검색바 → 본문 ( 제목은 상단 ). 본문만 늘어나고 넘치면 본문 안에서 스크롤 ( md §1 ~ §3 )" />
                 <ShowcaseCard title="목록 + 모달 ( 가장 흔한 화면 )" :code="code.layout">
                     <div class="w-full h-[440px] flex flex-col border border-dashed border-gray-300 p-3 bg-white">
-                        <div class="flex items-center gap-3 pb-2 shrink-0">
+                        <div class="flex items-center gap-1 pb-2 shrink-0">
                             <BaseButton variant="primary" @click="openDemoModal('lg')">+ 등록</BaseButton>
                             <BaseButton variant="danger" :disabled="!checked.length" @click="showFlash(`${checked.length}건을 미사용 처리했습니다. ( 예시 )`)">삭제</BaseButton>
                         </div>
@@ -242,6 +242,29 @@
                 </div>
             </section>
 
+            <!-- 6-1. 월 달력 ( MonthCalendar ) -->
+            <section id="calendar" class="scroll-mt-4">
+                <SectionHead title="월 달력" note="MonthCalendar — 기간 막대 · 끌어 날짜 옮기기 · 체크 · 빈 날짜 누르기 ( 생산계획 ) · 그 달 1일 ~ 마지막 날이 든 주 ( md §5-2 )" />
+                <ShowcaseCard title="기간 막대 — 막대를 끌어 보세요 ( 예시 · 저장 안 함 )" :code="code.calendar">
+                    <div class="w-full flex flex-col gap-2">
+                        <div class="flex items-center gap-2">
+                            <BaseButton variant="secondary" @click="cal.month = shiftOf(cal.month, -1)">◀</BaseButton>
+                            <span class="w-28 text-center font-semibold">{{ monthLabelOf(cal.month) }}</span>
+                            <BaseButton variant="secondary" @click="cal.month = shiftOf(cal.month, 1)">▶</BaseButton>
+                            <span class="text-xs text-gray-400">고른 막대 {{ cal.checked.size }}</span>
+                        </div>
+                        <MonthCalendar class="h-[420px] border border-gray-200" :month="cal.month" :items="cal.items"
+                            :bar-style="it => ({ background: it.done ? STATUS_COLOR.done : COLORS.blue300, color: it.done ? COLORS.white : COLORS.gray800 })"
+                            :bar-text="it => it.text" :bar-title="it => `${it.text}\n${it.start_date} ~ ${it.end_date}`"
+                            :movable="it => !it.done" :selectable="() => true" :checked="cal.checked" day-clickable
+                            @item-click="it => showFlash(`${it.text} 을 눌렀습니다. ( 예시 — 화면은 수정 창을 연다 )`)"
+                            @day-click="d => showFlash(`${d} 를 눌렀습니다. ( 예시 — 화면은 그 날로 등록 )`)"
+                            @move="(it, start, end) => { Object.assign(it, { start_date: start, end_date: end }); showFlash(`${it.text} : ${start} ~ ${end} ( 예시 )`); }"
+                            @toggle="it => cal.checked.has(it.id) ? cal.checked.delete(it.id) : cal.checked.add(it.id)" />
+                    </div>
+                </ShowcaseCard>
+            </section>
+
             <!-- 7. 부품 ( 예전 UI Kit ) -->
             <section id="parts" class="scroll-mt-4">
                 <SectionHead title="부품" note="Select · Input · Checkbox · Button — props 는 docs/screens/01-공통컴포넌트.md" />
@@ -286,6 +309,8 @@ import DataGrid from '@core/Components/Common/DataGrid.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
+import MonthCalendar from '@core/Components/Common/MonthCalendar.vue';
+import { thisMonth, addDays, monthLabel as monthLabelOf, shiftMonth as shiftOf } from '@core/Utils/calendar';
 import StyleGuideDemoForm from '@core/Components/Dev/StyleGuideDemoForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
@@ -307,6 +332,7 @@ const SECTIONS = [
     { id: 'palette',  label: '색 팔레트' },
     { id: 'format',   label: '숫자 · 날짜' },
     { id: 'picker',   label: '날짜 선택' },
+    { id: 'calendar', label: '월 달력' },
     { id: 'parts',    label: '부품' },
 ];
 
@@ -319,6 +345,19 @@ SectionHead.props = ['title', 'note'];
 
 const modalStore = useModalStore();
 const { showFlash } = useToast();
+
+// ---- 6-1. 월 달력 ( 예시 — 이번 달 기준으로 막대 몇 개 · 끌면 화면 안에서만 옮긴다 ) ----
+const calBase = `${thisMonth()}-01`;
+const cal = reactive({
+    month: thisMonth(),
+    checked: new Set(),
+    items: [
+        { id: 1, text: '예시 제품 A 150 EA · A사 외 1', start_date: addDays(calBase, 2),  end_date: addDays(calBase, 4) },
+        { id: 2, text: '예시 제품 B 80 EA · B사',      start_date: addDays(calBase, 3),  end_date: addDays(calBase, 9) },
+        { id: 3, text: '예시 제품 C 40 EA · 지시 완료',  start_date: addDays(calBase, 12), end_date: addDays(calBase, 13), done: true },
+        { id: 4, text: '예시 제품 D 200 EA · C사',     start_date: addDays(calBase, 20), end_date: addDays(calBase, 26) },
+    ],
+});
 
 // ---- 1. 화면 틀 ( 예시 데이터 · 서버 대신 여기서 거르고 자른다 ) ----
 const KINDS = { RAW: '원자재', FINISHED: '완제품' };
@@ -445,7 +484,7 @@ const code = {
     layout: `<template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- ① 버튼 줄 ( 화면 제목은 상단 TopFrame 이 메뉴 이름으로 띄운다 — 여기에 두지 않는다 ) -->
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" variant="danger" :disabled="!checkedRows.length" @click="deleteChecked">삭제</BaseButton>
         </div>
@@ -605,6 +644,25 @@ dash(null)            // —   ( 해당 없음 — 실제 0 과 구분 )
 // 그리드 숫자 열
 { header: '수량', name: 'qty', width: 110, align: 'right', formatter: ({ row }) => fmtQty(row.qty, row.unit) }`,
 
+    calendar: `<!-- 높이는 부모가 ( 안에서 스크롤 · 요일 머리 고정 ) · 막대 모양 · 끌 수 있는지 · 고를 수 있는지는 화면이 함수로 -->
+<MonthCalendar class="flex-1 min-h-0 border border-gray-200"
+    :month="month" :items="plans" item-key="production_plan_idx" :loading="loading"
+    :bar-style="p => planBarStyle(p.display_status)" :bar-text="barText" :bar-title="barTitle"
+    :movable="p => canWrite && p.status !== 'CANCELED'" :selectable="selectable" :checked="checked" :day-clickable="canWrite"
+    @item-click="openForm" @day-click="date => openForm(null, date)" @move="onMove" @toggle="toggleCheck" />
+
+import MonthCalendar from '@core/Components/Common/MonthCalendar.vue';
+import { monthRange, monthLabel, shiftMonth, thisMonth } from '@core/Utils/calendar';
+const month = ref(thisMonth());                         // 'YYYY-MM'
+const { from, to } = monthRange(month.value);           // 조회 기간 = 달력에 그려지는 범위 ( 4 ~ 6주 )
+
+// 놓으면 move( item, start, end ) — 기간은 그대로 · 저장 · 되돌림은 화면이 ( 컴포넌트는 item 을 고치지 않는다 )
+async function onMove(p, start, end) {
+    const before = { start: p.start_date, end: p.end_date };
+    Object.assign(p, { start_date: start, end_date: end });          // 바로 옮겨 보이고
+    try { await axios.post(route('production.plan.move'), { … }); }
+    catch (e) { Object.assign(p, { start_date: before.start, end_date: before.end }); }   // 실패하면 되돌린다
+}`,
     picker: `import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 
 <!-- 값은 지금과 같은 문자열 : "2026-10-29" / "2026-10-29T15:00" -->

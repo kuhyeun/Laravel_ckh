@@ -11,7 +11,7 @@
      - 라벨 ( feature.barcode ) : [라벨] 칸 = 그 LOT 에 발행된 장수 · [라벨 미발행] 거르기 · LOT 이력 창의 [라벨 발행] ( 자재식별표 · 현품표 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="perms.can_receipt" variant="primary" @click="openReceipt(null)">+ 입고</BaseButton>
         </div>
 
@@ -22,7 +22,7 @@
             :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.warehouse_idx" :options="warehouseFilter" class="w-44" />
+            <BaseSelect v-if="showWarehouseFilter" v-model="search.warehouse_idx" :options="warehouseFilter" class="w-44" />
             <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.with_zero" /> 0 포함</label>
             <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="item" false-value="lot" v-model="search.group" @change="loadFirstPage" /> 품목별 합계</label>
             <label v-if="label.enabled && !byItem" class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.no_label" /> 라벨 미발행</label>
@@ -57,6 +57,7 @@
 </template>
 
 <script setup>
+import { usePage } from '@inertiajs/vue3';
 import { ref, reactive, computed, watch } from 'vue';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
@@ -107,6 +108,8 @@ watch(searchFields, (list) => {   // 품목별로 바꿨는데 LOT 조건이 골
 const warehouses = ref([]);
 const label      = useLabelAccess();   // 라벨 칸 · 거르기 · 발행 버튼
 const perms      = reactive({ can_move: false, can_adjust: false, can_issue: false, can_receipt: false });   // 재고현황에서 열 수 있는 처리
+// 창고 거르기 : 메뉴 화면 옵션 warehouse_filter = false 면 숨김 ( 재고관리 — 창고별은 창고별 재고관리 메뉴에서 )
+const showWarehouseFilter = usePage().props.pageOptions?.warehouse_filter !== false;
 const warehouseFilter = computed(() => [{ value: '', label: '창고 전체' }, ...warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label }))]);
 
 // 제품은 공급처 LOT · 구매처가 없다 ( 생산 입고 )
@@ -256,10 +259,12 @@ function openProcess(type, row, reloadHistory = null) {
     try {
         const { data } = await window.axios.get(route(R.warehouses));
         warehouses.value = data.warehouses ?? [];
-        perms.can_move   = data.can_move === true;
-        perms.can_adjust = data.can_adjust === true;
-        perms.can_issue   = data.can_issue === true;
-        perms.can_receipt = data.can_receipt === true;
+        // 조회 전용 메뉴( 창고별 재고 등 )에서는 다른 메뉴 권한이 있어도 처리 버튼을 열지 않는다
+        const ro = usePage().props.readOnly === true;
+        perms.can_move    = !ro && data.can_move === true;
+        perms.can_adjust  = !ro && data.can_adjust === true;
+        perms.can_issue   = !ro && data.can_issue === true;
+        perms.can_receipt = !ro && data.can_receipt === true;
     } catch (e) {
         warehouses.value = [];
     }

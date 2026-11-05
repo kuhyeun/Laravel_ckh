@@ -210,6 +210,9 @@ class PolicyService {
     public function entityFields(array $keys, string $scopeType, ?int $scopeIdx): array {
         $overrides = $this->load()['overrides'];
 
+        // 선행 설정이 꺼진 정책은 빼고 돌려준다 ( 마스터 화면에서 칸이 숨는다 — 예: 입고검사 사용 = N → 입고검사 칸 )
+        $keys = array_values(array_filter($keys, fn ($k) => $this->dependencySatisfied($k)));
+
         return array_map(function (string $key) use ($overrides, $scopeType, $scopeIdx) {
             $def = $this->definition($key);
             if (!in_array($scopeType, $def['allowed_scopes'], true)) {
@@ -242,6 +245,10 @@ class PolicyService {
         $changed = 0;
         foreach ($keys as $key) {
             if (!array_key_exists($key, $values)) {
+                continue;
+            }
+            // 선행 설정이 꺼진 정책은 건드리지 않는다 ( 화면에 칸이 없어 비운 값이 오므로 — 덮어쓴 값은 남겨 두고, 다시 켜면 그대로 )
+            if (!$this->dependencySatisfied($key)) {
                 continue;
             }
             $value = $values[$key];

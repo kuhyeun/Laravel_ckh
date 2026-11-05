@@ -4,7 +4,7 @@
      - 체크 → [재인쇄] ( 같은 번호로 다시 — 쓰기 ) · [폐기] ( 사유 필수 · 지우지 않고 상태만 — 삭제 ) / 행 클릭 = 그 건 재인쇄 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" variant="primary" :disabled="!printable.length" @click="openPrint(printable.map(r => r.label_idx))">
                 재인쇄{{ printable.length ? ` ( ${printable.length} )` : '' }}
             </BaseButton>

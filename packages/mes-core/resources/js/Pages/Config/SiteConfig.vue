@@ -5,7 +5,7 @@
      - 저장은 바뀐 칸만 · 빈 칸 = 기본값 / 이미지는 고르면 바로 올라간다 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <span v-if="dirtyCount" class="text-xs text-amber-600">바뀐 칸 {{ dirtyCount }}개</span>
             <BaseButton v-if="canWrite" variant="primary" :disabled="saving || !dirtyCount" @click="save">저장</BaseButton>
         </div>

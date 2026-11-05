@@ -18,6 +18,7 @@ export const blankLine = (extra = {}) => ({
     bom: null,              // 품목을 새로 고를 때 받은 BOM 미리보기
     savedMaterials: [],     // 저장된 줄의 자재 사본
     savedItem: '',          // 저장된 품목 이름 ( 지금은 고를 수 없는 품목일 때 표시 )
+    production_plan_idx: null, plan_no: '',   // 출처 생산계획 ( 계획에서 만든 지시 )
     ...extra,
 });
 
@@ -28,6 +29,7 @@ export const lineFromServer = (o) => blankLine({
     lot_rule_idx: o.lot_rule_idx ?? '', routing_idx: o.routing_idx ?? '',
     ops: toOps(o.ops), sources: o.sources.map(s => ({ ...s, qty: String(s.qty_in) })),
     savedMaterials: o.materials ?? [], savedItem: o.item_spec ? `${o.item_code} ${o.item_name} · ${o.item_spec}` : `${o.item_code} ${o.item_name}`,
+    production_plan_idx: o.production_plan_idx ?? null, plan_no: o.plan_no ?? '',
 });
 
 // 품목을 고르면 : 품목 공정( ② ) · 사용 중 BOM · 회당 상승 기본값 ( 다른 품목의 수주 줄은 뺀다 )
@@ -73,4 +75,5 @@ export const linePayload = (l) => ({
         due_date: o.due_date || null, insp_first: o.insp_first, insp_middle: o.insp_middle, insp_last: o.insp_last,
     })),
     sources: l.sources.map(s => ({ sales_order_line_idx: s.sales_order_line_idx, qty: s.qty === '' ? null : s.qty })),
+    production_plan_idx: l.production_plan_idx ?? null,
 });

@@ -5,7 +5,8 @@
      - 줄 목록 · 줄 탭 내용은 모달 높이 안에서 각자 스크롤 ( 지시서 칸 · 아래 버튼은 고정 )
      - 저장 : 지시서 + 줄 전부 한 번에 ( 하나라도 틀리면 전부 취소 ) · 생산 LOT 은 줄마다 서버가 발급
      - 취소 : [줄 취소] 대기 줄 하나 / [지시서 취소] 모든 줄이 대기일 때 전부 ( 저장 안 한 줄은 ✕ 로 지움 )
-     - 수주에서 열면( prefill ) 그 수주 줄을 담은 줄 하나짜리 지시서 -->
+     - 수주에서 열면( prefill ) 그 수주 줄을 담은 줄 하나짜리 지시서
+     - 생산계획에서 열면( prefill.lines ) 계획마다 줄 하나 ( 출처 계획 · 그 계획의 수주 줄 · 남은 계획 수량 ) · 착수 = 가장 이른 시작일 · 기한 = 가장 늦은 완료 예정일 -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <div v-if="errorMsg" class="mb-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</div>
@@ -133,7 +134,7 @@ import { blankLine, lineFromServer, applyItemDefaults, linePayload, sameRouting 
 
 const props = defineProps({
     order:     { type: Object,   default: null },   // { sheet_idx, work_order_idx? } — 있으면 수정 ( work_order_idx 는 처음 고를 줄 )
-    prefill:   { type: Object,   default: null },   // 수주에서 열 때 { item_idx, target_qty, sources: [...] } → 줄 하나
+    prefill:   { type: Object,   default: null },   // 수주에서 { item_idx, target_qty, sources: [...] } → 줄 하나 / 생산계획에서 { lines: [ { …, production_plan_idx, plan_no, start_date, end_date } ], start_date, due_date } → 계획마다 줄
     canWrite:  { type: Boolean,  default: false },
     canDelete: { type: Boolean,  default: false },
     onSaved:   { type: Function, default: null },   // ( 저장된 지시서, 경고 )
@@ -269,16 +270,27 @@ onMounted(async () => {
         } else {
             sheet.start_date = fd.data.today;
             sheet.due_date   = fd.data.today;
-            const line = newLine();
-            if (props.prefill) {
-                line.item_idx   = props.prefill.item_idx;
-                line.savedItem  = props.prefill.item_label ?? '';
-                line.target_qty = String(props.prefill.target_qty ?? '');
-                await applyItemDefaults(line, line.item_idx, { salesOrderLineIdx: props.prefill.sources?.[0]?.sales_order_line_idx });
-                line.sources   = (props.prefill.sources ?? []).map(s => ({ ...s, qty: String(s.qty) }));
+            // 수주에서 = 줄 하나 / 생산계획에서 = 계획마다 줄 ( prefill.lines )
+            const pre = props.prefill?.lines ?? (props.prefill ? [props.prefill] : []);
+            const built = [];
+            for (const p of pre) {
+                const line = newLine();
+                line.item_idx   = p.item_idx;
+                line.savedItem  = p.item_label ?? '';
+                line.target_qty = String(p.target_qty ?? '');
+                await applyItemDefaults(line, line.item_idx, { salesOrderLineIdx: p.sources?.[0]?.sales_order_line_idx });
+                line.sources    = (p.sources ?? []).map(s => ({ ...s, qty: String(s.qty) }));
+                line.production_plan_idx = p.production_plan_idx ?? null;
+                line.plan_no    = p.plan_no ?? '';
+                built.push(line);
+            }
+            if (props.prefill?.lines) {
+                sheet.start_date = props.prefill.start_date ?? sheet.start_date;
+                sheet.due_date   = props.prefill.due_date ?? sheet.due_date;
+            } else if (props.prefill) {
                 sheet.due_date = props.prefill.sources?.[0]?.due_date ?? sheet.due_date;
             }
-            lines.value = [line];
+            lines.value = built.length ? built : [newLine()];
         }
     } catch (e) {
         errorMsg.value = e.response?.status === 404 ? '작업지시서를 찾을 수 없습니다.' : (e.response?.status === 403 ? '작업지시 권한이 없습니다.' : '작업지시서 정보를 불러오지 못했습니다.');

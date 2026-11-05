@@ -5,7 +5,7 @@
      - 행 클릭 → 입고 상세( 줄 상태 · 검사 · 줄 취소 ) / [+ 입고 등록] → 등록 창 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div class="flex items-center gap-3 pb-2 shrink-0">
+        <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openForm">+ 입고 등록</BaseButton>
         </div>
 
