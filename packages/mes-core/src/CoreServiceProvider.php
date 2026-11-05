@@ -72,6 +72,8 @@ class CoreServiceProvider extends ServiceProvider {
             $service->register('work_order', 'Production/WorkOrderManage', WorkOrder::class);
             // 출하 줄 ( 출고검사 성적서 ) — 출고검사 · 출하관리 어느 쪽 권한으로도
             $service->register('shipment_line', ['Quality/ShippingInspection', 'Shipment/ShipmentManage'], \MesCore\Shipment\Models\ShipmentLine::class);
+            // 클레임 품목 줄 ( 사진 · 고객 문서 ) — 클레임관리 권한
+            $service->register('claim_line', 'Shipment/ClaimManage', \MesCore\Shipment\Models\ClaimLine::class);
             return $service;
         });
     }

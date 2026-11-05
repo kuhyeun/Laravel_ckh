@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use MesCore\Shipment\Controllers\ShipmentController;
 use MesCore\Shipment\Controllers\ShipmentHistoryController;
 use MesCore\Shipment\Controllers\InvoiceController;
+use MesCore\Shipment\Controllers\ClaimController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -35,6 +36,19 @@ Route::prefix('shipment')->name('shipment.')->middleware([UserAuth::class])->gro
             Route::post('/reject', [ShipmentController::class, 'reject'])->name('reject');
             Route::post('/cancel', [ShipmentController::class, 'cancel'])->name('cancel');
         });
+    });
+
+    // 클레임관리 ( Shipment/ClaimManage — 메뉴 출하관리 > 클레임관리 7004 ) — 출하 완료 건 품목 줄의 클레임 이력 ( 기록만 )
+    Route::prefix('claim')->name('claim.')->group(function() {
+        $auth = fn (string $act) => MenuAuth::class . ":Shipment/ClaimManage,{$act}";
+        Route::middleware($auth('can_read'))->group(function() {
+            Route::get('/list', [ClaimController::class, 'list'])->name('list');
+            Route::get('/formData', [ClaimController::class, 'formData'])->name('formData');
+            Route::get('/shipments', [ClaimController::class, 'shipments'])->name('shipments');
+            Route::get('/show', [ClaimController::class, 'show'])->name('show');
+        });
+        Route::post('/save', [ClaimController::class, 'save'])->middleware($auth('can_write'))->name('save');
+        Route::post('/delete', [ClaimController::class, 'delete'])->middleware($auth('can_delete'))->name('del');
     });
 
     // 출하이력관리 ( Shipment/ShipmentHistory — 메뉴 출하관리 > 출하이력관리 7002 ) — 조회만
