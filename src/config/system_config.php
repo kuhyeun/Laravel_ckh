@@ -135,6 +135,9 @@ return [
                                    'merge' => [ 'strategy' => 'EXEMPT_THEN_PRIORITY', 'exempt_value' => 'NONE', 'exempt_scope' => 'ITEM', 'priority_scope' => 'PARTNER' ],
                                    'depends_on' => [ 'quality.incoming_use', 'Y' ] ],
         'incoming_confirm_required' => [ 'name' => '입고 확인 필수', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'visible' => false ],
+        // 켜면 외주 입고는 검사대기 → 외주관리 > 품질검사에서 합격 · 불합격 → 합격분만 외주 공정 실적 / 끄면 입고 등록 = 바로 실적 ( 11-05 )
+        'subcon_inspection' => [ 'name' => '외주 검사 사용', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
+                                 'remark' => '켜면 외주 입고 후 품질검사( 외주관리 > 품질검사 )를 해야 입고가 완료됩니다. 불합격 수량은 실적에 들어가지 않습니다' ],
         'shipping_inspection' => [ 'name' => '출하검사 사용', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'scopes' => 'TENANT,ITEM' ],
     ],
 

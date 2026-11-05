@@ -88,7 +88,7 @@ onUnmounted(() => {
     .size-sm { max-width: 400px; }
     .size-md { max-width: 600px; }
     .size-lg { max-width: 800px; }
-    .size-xl { max-width: 1140px; }
+    .size-xl { max-width: 1240px; }
 
     .modal-overlay {
         animation: fadeIn 0.25s ease;

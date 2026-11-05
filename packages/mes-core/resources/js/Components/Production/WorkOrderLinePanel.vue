@@ -116,7 +116,7 @@
                 <div class="border rounded overflow-x-auto">
                     <table class="w-full min-w-[832px] table-fixed text-xs">
                         <colgroup>
-                            <col class="w-36"><col><col class="w-28"><col class="w-24"><col class="w-28"><col class="w-44"><col class="w-8">
+                            <col class="w-36"><col><col class="w-28"><col class="w-20"><col class="w-28"><col class="w-60"><col class="w-8">
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr><th class="px-2 py-1.5 text-left">수주</th><th class="px-2 py-1.5 text-left">고객사</th><th class="px-2 py-1.5">납품일</th><th class="px-2 py-1.5 text-right">남은 지시</th><th class="px-2 py-1.5 text-right">담을 수량</th><th class="px-2 py-1.5 text-left">추가</th><th></th></tr>

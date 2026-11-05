@@ -59,6 +59,7 @@ export const CHART = {
     blue:   '#2a78d6',
     orange: '#eb6834',
     green:  '#1baf7a',
+    violet: '#8a5cd6',   // 4번째 범주 ( 외주 검사 )
     faded:  '#c9d9ee',   // 고르지 않은 막대
     ink:    '#0b0b0b',   // 축 · 제목 글자
 };

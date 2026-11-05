@@ -100,7 +100,8 @@
                                             <!-- 검사 공정 : 검사 창 ( 완료 뒤에도 기록을 본다 · 취소도 그 창에서 ) -->
                                             <BaseButton v-if="o.is_inspection && line.quality_on" size="sm" :variant="o.status === 'DONE' ? 'secondary' : 'primary'" @click="openInspection(o)">검사</BaseButton>
                                             <template v-else-if="canWrite && o.status !== 'DONE' && line.status !== 'DONE'">
-                                                <BaseButton v-if="o.is_qty" size="sm" variant="secondary" :disabled="!!o.block" @click="openPanel(o, 'run')">실적 입력</BaseButton>
+                                                <BaseButton v-if="o.is_qty && !o.is_subcon" size="sm" variant="secondary" :disabled="!!o.block" @click="openPanel(o, 'run')">실적 입력</BaseButton>
+                                                <span v-if="o.is_subcon" class="text-xs text-gray-400" title="외주관리 > 외주 출고 · 입고로 처리합니다">외주 입고로</span>
                                                 <BaseButton v-if="o.is_rm_out && line.materials.length" size="sm" variant="secondary" @click="openIssue">출고</BaseButton>
                                                 <BaseButton size="sm" variant="primary" class="ml-1" :disabled="!o.is_qty && !!o.block" @click="openPanel(o, 'done')">{{ o.is_qty ? '공정 완료' : '완료' }}</BaseButton>
                                             </template>

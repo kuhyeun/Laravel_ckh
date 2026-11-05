@@ -24,7 +24,7 @@ class DefectHistoryController extends Controller {
             'from'          => 'nullable|date_format:Y-m-d',
             'to'            => 'nullable|date_format:Y-m-d|after_or_equal:from',
             'keyword'       => 'nullable|string|max:100',
-            'insp_type'     => ['nullable', Rule::in(['INCOMING', 'PROCESS', 'SHIPPING'])],
+            'insp_type'     => ['nullable', Rule::in(['INCOMING', 'PROCESS', 'SHIPPING', 'SUBCON'])],
             'defect_type'   => 'nullable|string|max:30',
             'with_canceled' => 'nullable|in:0,1',
         ], [], ['from' => '시작일', 'to' => '종료일']);
@@ -88,7 +88,7 @@ class DefectHistoryController extends Controller {
                 'reason'           => $r->reason,
                 'inspector'        => $r->inspector_name ?: $r->inspector_id,
                 'ref_no'           => match ($r->insp_type) {
-                    'PROCESS'  => $r->wo_no,
+                    'PROCESS', 'SUBCON' => $r->wo_no,   // 외주 검사 불량도 지시 공정에 붙는다
                     'SHIPPING' => $r->shipment_no ? "{$r->shipment_no} - {$r->shipment_line_no}" : null,
                     default    => $r->txn_no,
                 },

@@ -18,7 +18,8 @@ class Process extends Model {
 
     const TYPES            = ['PRODUCTION', 'INSPECTION', 'EQUIPMENT', 'SUBCON'];
     const TYPE_INSPECTION  = 'INSPECTION';
-    const TYPE_EQUIPMENT   = 'EQUIPMENT';   // 설비생산 : 사용 가능 설비 1개 이상 필수
+    const TYPE_EQUIPMENT   = 'EQUIPMENT';
+    const TYPE_SUBCON      = 'SUBCON';      // 외주 : 실적은 외주 입고로만 ( 외주관리 4005 )   // 설비생산 : 사용 가능 설비 1개 이상 필수
     const INSPECTION_KINDS = ['NORMAL', 'IFL'];
 
     // 시스템 공정 system_key ( ProcessSeeder ) — 원자재출고 : 완료할 때 지시 자재가 다 출고됐는지 본다 / 포장 : 수량을 쌓는다
@@ -66,6 +67,10 @@ class Process extends Model {
             return false;
         }
         return !$this->isSystem() || $this->system_key === self::SYS_PACK;
+    }
+
+    public function isSubcon(): bool {
+        return $this->process_type === self::TYPE_SUBCON;
     }
 
     public function isInspection(): bool {

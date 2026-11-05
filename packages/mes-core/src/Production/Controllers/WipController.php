@@ -36,7 +36,7 @@ class WipController extends Controller {
             ->leftJoin('process as tp', 'tp.process_idx', '=', 'top.process_idx')
             ->leftJoin('account_member as u', 'u.account_idx', '=', 't.operator_idx')
             ->select([
-                't.wip_txn_idx', 't.work_order_idx', 't.kind', 't.is_reversal', 't.qty', 't.occurred_at', 't.run_idx',
+                't.wip_txn_idx', 't.work_order_idx', 't.kind', 't.is_reversal', 't.qty', 't.occurred_at', 't.run_idx', 't.subcon_issue_idx',
                 'wo.wo_no', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit',
                 'op.seq', 'p.process_name', 'top.seq as to_seq', 'tp.process_name as to_process_name',
                 DB::raw("COALESCE(NULLIF(u.user_name, ''), u.user_id) as operator_name"),
@@ -45,7 +45,8 @@ class WipController extends Controller {
         if (!empty($v['to']))   $q->where('t.occurred_at', '<', date('Y-m-d', strtotime($v['to'] . ' +1 day')));
         if (!$v['include_reversal']) {
             // 취소된 실적은 원래 줄 · 반대 줄 모두 숨김
-            $q->whereNotIn('t.run_idx', DB::table('wip_txn')->where('is_reversal', 'Y')->whereNotNull('run_idx')->select('run_idx'));
+            $q->where(fn ($w) => $w->whereNull('t.run_idx')->orWhereNotIn('t.run_idx', DB::table('wip_txn')->where('is_reversal', 'Y')->whereNotNull('run_idx')->select('run_idx')))
+              ->where(fn ($w) => $w->whereNull('t.subcon_issue_idx')->orWhereNotIn('t.subcon_issue_idx', DB::table('wip_txn')->where('is_reversal', 'Y')->whereNotNull('subcon_issue_idx')->select('subcon_issue_idx')));
         }
         $q->orderBy('t.occurred_at')->orderBy('t.wip_txn_idx');   // 먼저 일어난 것부터 위에서 아래로 ( 같은 실적이면 투입 − → 생산 + 순 — 11-05 )
 
@@ -61,7 +62,7 @@ class WipController extends Controller {
             'spec_unit'      => $r->spec_unit,
             'op_label'       => $this->opLabel($r->seq, $r->process_name),
             'kind'           => $r->kind,
-            'kind_label'     => (WipService::KINDS[$r->kind] ?? $r->kind) . ($r->is_reversal === 'Y' ? ' 취소' : ''),
+            'kind_label'     => ($r->subcon_issue_idx ? '외주 출고' : (WipService::KINDS[$r->kind] ?? $r->kind)) . ($r->is_reversal === 'Y' ? ' 취소' : ''),
             'to_label'       => $r->to_seq ? $this->opLabel($r->to_seq, $r->to_process_name) : null,
             'is_reversal'    => $r->is_reversal === 'Y',
             'qty'            => (float) $r->qty,

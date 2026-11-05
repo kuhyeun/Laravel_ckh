@@ -62,8 +62,8 @@ class OpResultService {
      * @param array{equipment_idx:?int, operator_idx:int, qty:string|float, worked_at:string, remark:?string, warehouse_idx:?int} $data
      * @return array{0: WorkOrderOpRun, 1: string[]}
      */
-    public function addRun(WorkOrderOp $op, array $data): array {
-        return DB::transaction(function () use ($op, $data) {
+    public function addRun(WorkOrderOp $op, array $data, bool $viaSubcon = false): array {
+        return DB::transaction(function () use ($op, $data, $viaSubcon) {
             [$wo, $ops, $op] = $this->lockLine($op);
             $warnings = [];
 
@@ -72,6 +72,10 @@ class OpResultService {
             }
             if (!$op->isQtyOp()) {
                 throw ValidationException::withMessages(['qty' => ["{$this->opName($op)} 은 수량을 쌓지 않는 공정입니다. [완료]만 누르세요."]]);
+            }
+            // 외주 공정 : 외주 입고( 합격분 )로만 실적이 쌓인다 ( SubconService )
+            if ($op->isSubconOp() && !$viaSubcon) {
+                throw ValidationException::withMessages(['qty' => ["{$this->opName($op)} 은 외주 공정입니다. 외주관리 > 외주 출고 · 입고로 처리하세요."]]);   // E_OP_SUBCON
             }
             if ($why = $this->workBlock($ops, $op)) {
                 throw ValidationException::withMessages(['qty' => [$why]]);   // E_OP_ORDER
@@ -129,12 +133,15 @@ class OpResultService {
     }
 
     // 실적 취소 — 공정 완료 전, 뒤 수량 공정 실적보다 작아지지 않을 때 ( 지우지 않고 표시 )
-    public function cancelRun(WorkOrderOpRun $run): void {
-        DB::transaction(function () use ($run) {
+    public function cancelRun(WorkOrderOpRun $run, bool $viaSubcon = false): void {
+        DB::transaction(function () use ($run, $viaSubcon) {
             [$wo, $ops, $op] = $this->lockLine($run->op);
             $run = WorkOrderOpRun::whereKey($run->run_idx)->lockForUpdate()->first();
             if ($run->is_canceled === 'Y') {
                 throw ValidationException::withMessages(['run_idx' => ['이미 취소된 실적입니다.']]);
+            }
+            if (!$viaSubcon && DB::table('subcon_receipt')->where('run_idx', $run->run_idx)->where('status', 'DONE')->exists()) {
+                throw ValidationException::withMessages(['run_idx' => ['외주 입고로 들어온 실적입니다. 외주관리 > 외주 입고에서 입고를 취소하세요.']]);
             }
             if ($op->status === 'DONE') {
                 throw ValidationException::withMessages(['run_idx' => ["{$this->opName($op)} 이 완료되어 실적을 취소할 수 없습니다. 완료를 먼저 취소하세요."]]);

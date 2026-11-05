@@ -92,6 +92,7 @@ const INSP = {
     INCOMING: { label: '입고', color: CHART.blue },
     PROCESS:  { label: '공정', color: CHART.orange },
     SHIPPING: { label: '출고', color: CHART.green },
+    SUBCON:   { label: '외주', color: CHART.violet },
 };
 const ONE_SERIES = CHART.blue;   // 한 계열 차트
 const INK = { primary: CHART.ink, muted: COLORS.gray500, grid: COLORS.gray200 };

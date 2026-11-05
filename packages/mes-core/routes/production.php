@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use MesCore\Production\Controllers\MaterialIssueController;
 use MesCore\Production\Controllers\OpHistoryController;
 use MesCore\Production\Controllers\WipController;
+use MesCore\Production\Controllers\SubconController;
 use MesCore\Production\Controllers\OpResultController;
 use MesCore\Production\Controllers\ProductionPlanController;
 use MesCore\Production\Controllers\ProductionScheduleController;
@@ -94,6 +95,46 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::post('/cancelRun', [OpResultController::class, 'cancelRun'])->name('cancelRun');
             Route::post('/cancelComplete', [OpResultController::class, 'cancelComplete'])->name('cancelComplete');
             Route::post('/cancelLineDone', [OpResultController::class, 'cancelLineDone'])->name('cancelLineDone');
+        });
+    });
+
+    // 외주관리 ( 4005 — 외주 출고 · 입고 · 품질검사 · 이력 ) — 화면마다 그 메뉴 권한 ( 같은 기능을 화면별 이름으로 )
+    Route::prefix('subcon')->name('subcon.')->group(function() {
+        $auth = fn (string $page, string $act) => MenuAuth::class . ":Production/{$page},{$act}";
+
+        Route::prefix('issue')->name('issue.')->group(function() use ($auth) {
+            Route::middleware($auth('SubconIssue', 'can_read'))->group(function() {
+                Route::get('/formData', [SubconController::class, 'formData'])->name('formData');
+                Route::get('/candidates', [SubconController::class, 'candidates'])->name('candidates');
+                Route::get('/issues', [SubconController::class, 'issues'])->name('issues');
+            });
+            Route::post('/save', [SubconController::class, 'issue'])->middleware($auth('SubconIssue', 'can_write'))->name('save');
+            Route::post('/cancel', [SubconController::class, 'cancelIssue'])->middleware($auth('SubconIssue', 'can_delete'))->name('cancel');
+        });
+
+        Route::prefix('receipt')->name('receipt.')->group(function() use ($auth) {
+            Route::middleware($auth('SubconReceipt', 'can_read'))->group(function() {
+                Route::get('/formData', [SubconController::class, 'formData'])->name('formData');
+                Route::get('/issues', [SubconController::class, 'issues'])->name('issues');
+                Route::get('/receipts', [SubconController::class, 'receipts'])->name('receipts');
+                Route::get('/inspection/{receiptIdx}', [SubconController::class, 'inspection'])->whereNumber('receiptIdx')->name('inspection');
+            });
+            Route::post('/save', [SubconController::class, 'receive'])->middleware($auth('SubconReceipt', 'can_write'))->name('save');
+            Route::post('/cancel', [SubconController::class, 'cancelReceipt'])->middleware($auth('SubconReceipt', 'can_delete'))->name('cancel');
+        });
+
+        Route::prefix('inspection')->name('inspection.')->group(function() use ($auth) {
+            Route::middleware($auth('SubconInspection', 'can_read'))->group(function() {
+                Route::get('/formData', [SubconController::class, 'formData'])->name('formData');
+                Route::get('/receipts', [SubconController::class, 'receipts'])->name('receipts');
+                Route::get('/show/{receiptIdx}', [SubconController::class, 'inspection'])->whereNumber('receiptIdx')->name('show');
+            });
+            Route::post('/save/{receiptIdx}', [SubconController::class, 'inspect'])->whereNumber('receiptIdx')->middleware($auth('SubconInspection', 'can_write'))->name('save');
+        });
+
+        Route::prefix('history')->name('history.')->middleware($auth('SubconHistory', 'can_read'))->group(function() {
+            Route::get('/formData', [SubconController::class, 'formData'])->name('formData');
+            Route::get('/list', [SubconController::class, 'history'])->name('list');
         });
     });
 

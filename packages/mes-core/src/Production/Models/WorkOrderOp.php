@@ -51,6 +51,11 @@ class WorkOrderOp extends Model {
         return (bool) $this->process?->isInspection();
     }
 
+    // 외주 공정 — 외주 출고 · 입고로만 수량이 쌓인다 ( 공정실적에서 직접 입력 불가 )
+    public function isSubconOp(): bool {
+        return (bool) $this->process?->isSubcon();
+    }
+
     public function isIflOp(): bool {
         return (bool) $this->process?->isIfl();
     }
