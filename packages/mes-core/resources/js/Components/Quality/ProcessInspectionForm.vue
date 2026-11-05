@@ -47,7 +47,7 @@
                     </div>
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">검사자 <span class="text-red-500">*</span></label>
-                        <BaseSelect v-model="stageForm.inspector_idx" :options="inspectorOptions" class="w-full" />
+                        <BaseSelect v-model="stageForm.inspector_idx" :options="inspectorOptions" placeholder="검사자 선택" class="w-full" />
                     </div>
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">검사일시 <span class="text-red-500">*</span></label>
@@ -98,7 +98,7 @@
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">검사자 <span class="text-red-500">*</span></label>
-                    <BaseSelect v-model="form.inspector_idx" :options="inspectorOptions" class="w-full" />
+                    <BaseSelect v-model="form.inspector_idx" :options="inspectorOptions" placeholder="검사자 선택" class="w-full" />
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">검사일시 <span class="text-red-500">*</span></label>
@@ -258,7 +258,7 @@ async function load() {
         me = data.me; now = data.now;
         Object.assign(form, {
             pass_qty: String(data.op.base_qty), fail_qty: '0', defect_type_code: '', reason: '', remark: '',
-            inspector_idx: me, inspected_at: now, warehouse_idx: form.warehouse_idx || (warehouses.value[0]?.warehouse_idx ?? ''),
+            inspector_idx: me ?? '', inspected_at: now, warehouse_idx: form.warehouse_idx || (warehouses.value[0]?.warehouse_idx ?? ''),
         });
         stageForm.stage = '';
     } catch (e) {
@@ -270,7 +270,7 @@ async function load() {
 }
 
 function openStage(stage) {
-    Object.assign(stageForm, { stage, result: '', fail_qty: '', defect_type_code: '', reason: '', remark: '', inspector_idx: me, inspected_at: now });
+    Object.assign(stageForm, { stage, result: '', fail_qty: '', defect_type_code: '', reason: '', remark: '', inspector_idx: me ?? '', inspected_at: now });
 }
 
 async function run(fn, fallback) {

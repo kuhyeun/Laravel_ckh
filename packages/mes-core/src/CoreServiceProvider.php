@@ -46,6 +46,9 @@ class CoreServiceProvider extends ServiceProvider {
             __DIR__ . '/../config/mes.php', 'mes'
         );
 
+        // 로그 채널 ( 날짜별 폴더 — sql · error · app ) — 설정을 읽기 전에
+        \MesCore\Support\Logging\MesLogging::registerChannels();
+
         // 정책 서비스 : 요청 안에서 한 인스턴스 ( 정의 · 값을 한 번만 읽는다 )
         $this->app->singleton(PolicyService::class);
 
@@ -78,6 +81,9 @@ class CoreServiceProvider extends ServiceProvider {
         $this->publishes([
             __DIR__ . '/../config/mes.php' => config_path('mes.php'),
         ], 'mes-core-config');
+
+        // 쿼리 로그 · 쿼리 오류 ( sql.log )
+        \MesCore\Support\Logging\MesLogging::boot($this->app);
 
         // 마이그레이션 등록
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');

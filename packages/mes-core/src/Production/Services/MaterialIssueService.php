@@ -559,10 +559,22 @@ class MaterialIssueService {
                 DB::table('wo_stock')->where(['work_order_idx' => $wo->work_order_idx, 'item_idx' => $itemIdx, 'lot_idx' => $h->lot_idx])
                     ->update(['consumed_qty' => DB::raw('consumed_qty + qty'), 'qty' => 0]);
             }
-            $issued = (float) $rows->sum('issued_qty');
-            if ($issued <= self::EPS) {
-                $it = $rows->first()->childItem;
-                $warnings[] = "{$it?->item_code} {$it?->item_name} 은 아직 출고되지 않았습니다. 자재출고에서 내면 그때 바로 사용처리합니다.";
+        }
+
+        // 경고 : 주 자재 기준으로만 ( 대체 자재 출고는 주 자재 환산에 포함 — 대체 자재를 안 냈다고 알리지 않는다 · 11-05 )
+        //   주 + 대체 모두 안 나감 → 미출고 / 조금 나감 → 남은 소요 ( 주 자재 기준 · 대체 환산 포함 )
+        $mainIdxs = $materials->filter(fn (WorkOrderMaterial $m) => $m->substitute_of_idx === null)->pluck('work_order_material_idx')->all();
+        if ($mainIdxs) {
+            foreach ($this->plan($wo->fresh()) as $r) {
+                if (!empty($r['substitute_of_idx']) || !in_array($r['work_order_material_idx'], $mainIdxs) || $r['need_qty'] <= self::EPS) {
+                    continue;
+                }
+                $name = trim("{$r['item_code']} {$r['item_name']}");
+                $unit = $r['result_kind'] === 'SPEC_COUNT' ? '개' : ($r['spec_unit'] ? " {$r['spec_unit']}" : '');
+                $subs = !empty($r['substitute_count']) ? ' ( 대체 자재 포함 )' : '';
+                $warnings[] = $r['issued_qty'] <= self::EPS
+                    ? "{$name} 은 아직 출고되지 않았습니다{$subs}. 자재출고에서 내면 그때 바로 사용처리합니다."
+                    : "{$name} 출고가 {$this->num($r['need_qty'])}{$unit} 모자랍니다{$subs}. 더 내면 그때 바로 사용처리합니다.";
             }
         }
         return $warnings;

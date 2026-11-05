@@ -7,6 +7,7 @@ use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Basic\Models\SystemCode;
+use MesCore\Config\Models\Equipment;
 use MesCore\Config\Models\Warehouse;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderOp;
@@ -152,14 +153,15 @@ class OpResultController extends Controller {
         ]]);
     }
 
-    // 선택지 : 작업자( 사용자 ) · 창고 · 미달 사유 · 나
+    // 선택지 : 작업자( 사용자 ) · 창고 · 설비( 사용 중 전부 — 공정 후보는 화면이 위로 ) · 미달 사유 · 나
     public function formData() {
         return response()->json([
-            'users'     => User::where('is_use', 'Y')->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
+            'users'     => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
             'warehouses'=> Warehouse::options(),
+            'equipments'=> Equipment::where('is_use', 'Y')->orderBy('equipment_name')->get(['equipment_idx', 'equipment_name']),
             'reasons'   => SystemCode::where('system_code_group_key', OpResultService::SHORT_GROUP)->where('is_use', 'Y')->orderBy('sort_order')
                 ->get(['system_code_key', 'system_code_name']),
-            'me'        => Auth::id(),
+            'me'        => User::pickableMe(),
             'now'       => now()->format('Y-m-d\TH:i'),
         ]);
     }
@@ -169,7 +171,7 @@ class OpResultController extends Controller {
             'work_order_op_idx' => 'required|integer',
             'qty'               => 'required|numeric|gt:0|max:999999999999',
             'equipment_idx'     => 'nullable|integer',
-            'operator_idx'      => 'required|integer|exists:account_member,account_idx',
+            'operator_idx'      => ['required', 'integer', User::pickableRule()],
             'worked_at'         => 'required|date',
             'remark'            => 'nullable|string|max:200',
             'warehouse_idx'     => 'nullable|integer',

@@ -141,7 +141,7 @@ class WorkOrderController extends Controller {
                     'lot_rule_idx' => $r->lot_rule_idx, 'lot_rule_name' => $r->lot_rule_name, 'rule_type' => $r->rule_type,
                 ])->values(),
             ],
-            'workers'   => User::where('is_use', 'Y')->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
+            'workers'   => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
             'today'     => now()->toDateString(),
             // 자재 탭의 [출고] — 자재출고 화면 권한이 있을 때만 그 화면 주소
             'issue_url' => Auth::user() && $permissions->canPage(Auth::user(), 'Production/MaterialIssue', 'can_read')
@@ -199,7 +199,7 @@ class WorkOrderController extends Controller {
         $data = $request->validate([
             'start_date'                             => 'required|date_format:Y-m-d',
             'due_date'                               => 'required|date_format:Y-m-d',
-            'manager_idx'                            => 'nullable|integer|exists:account_member,account_idx',
+            'manager_idx'                            => ['nullable', 'integer', User::pickableRule()],
             'remark'                                 => 'nullable|string|max:2000',
             'lines'                                  => 'required|array|min:1|max:50',
             'lines.*.work_order_idx'                 => 'nullable|integer',
@@ -214,7 +214,7 @@ class WorkOrderController extends Controller {
             'lines.*.ops.*.process_idx'              => 'required|integer',
             'lines.*.ops.*.routing_line_idx'         => 'nullable|integer',
             'lines.*.ops.*.equipment_idx'            => 'nullable|integer',
-            'lines.*.ops.*.worker_idx'               => 'nullable|integer',
+            'lines.*.ops.*.worker_idx'               => ['nullable', 'integer', User::pickableRule()],
             'lines.*.ops.*.due_date'                 => 'nullable|date_format:Y-m-d',
             'lines.*.ops.*.insp_first'               => 'nullable|in:Y,N',
             'lines.*.ops.*.insp_middle'              => 'nullable|in:Y,N',

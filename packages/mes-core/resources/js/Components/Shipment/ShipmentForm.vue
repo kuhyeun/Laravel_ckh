@@ -171,7 +171,6 @@
             </template>
             <BaseButton v-if="label.can_shipment && form.shipment_idx && form.status !== 'CANCELED' && !dirty" variant="secondary" @click="openLabel">출하 라벨</BaseButton>
             <BaseButton v-if="form.status === 'DONE'" variant="secondary" @click="openInvoice">거래명세서</BaseButton>
-            <BaseButton variant="secondary" @click="$emit('close')">{{ editable ? '취소' : '닫기' }}</BaseButton>
             <BaseButton v-if="editable" variant="primary" :disabled="busy || loading" @click="save">{{ busy ? '저장 중…' : (form.shipment_idx ? '저장' : '등록') }}</BaseButton>
         </div>
     </div>

@@ -5,6 +5,7 @@ use MesCore\Production\Controllers\MaterialIssueController;
 use MesCore\Production\Controllers\OpHistoryController;
 use MesCore\Production\Controllers\OpResultController;
 use MesCore\Production\Controllers\ProductionPlanController;
+use MesCore\Production\Controllers\ProductionScheduleController;
 use MesCore\Production\Controllers\WorkOrderController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
@@ -13,6 +14,10 @@ use MesCore\Auth\Middleware\MenuAuth;
 //   권한 : 조회 can_read / 등록 · 수정 can_write / 취소 can_delete
 
 Route::prefix('production')->name('production.')->middleware([UserAuth::class])->group(function() {
+
+    // 생산일정 ( Production/ProductionSchedule ) — 조회 전용 간트
+    Route::middleware(MenuAuth::class . ':Production/ProductionSchedule,can_read')
+        ->get('/schedule/list', [ProductionScheduleController::class, 'list'])->name('schedule.list');
 
     // 생산계획 ( Production/ProductionPlan ) — 월 달력 · 목록 · 끌어 옮기기 · [공정] · [자재]( 수주 줄 것을 같이 고침 ) — docs/생산계획-설계.md
     Route::prefix('plan')->name('plan.')->group(function() {

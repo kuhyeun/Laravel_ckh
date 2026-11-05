@@ -70,10 +70,14 @@ class InvoiceController extends Controller {
     }
 
     // 인쇄 데이터 : 체크한 출하( 완료 )마다 한 장 + 공급자 직인 · 로고( data URI — 사이트설정 )
+    //   merge=1 : 같은 고객사는 한 문서로 ( InvoiceService::merge — 인쇄만 )
     public function sheets(Request $request) {
-        $v = $request->validate(['ids' => 'required|array|min:1|max:200', 'ids.*' => 'integer']);
+        $v = $request->validate(['ids' => 'required|array|min:1|max:200', 'ids.*' => 'integer', 'merge' => 'nullable|boolean']);
         $docs = Shipment::whereIn('shipment_idx', $v['ids'])->where('status', 'DONE')->orderBy('shipped_at')->orderBy('shipment_idx')->get()
-            ->map(fn (Shipment $s) => $this->invoices->build($s))->values();
+            ->map(fn (Shipment $s) => $this->invoices->build($s))->values()->all();
+        if ($request->boolean('merge')) {
+            $docs = $this->invoices->merge($docs);
+        }
         return response()->json(['docs' => $docs, 'images' => ['seal' => $this->site->imageDataUri('seal'), 'logo' => $this->site->imageDataUri('logo')]]);
     }
 }

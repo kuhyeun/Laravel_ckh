@@ -1,6 +1,7 @@
 <!-- 거래명세서 ( 7003 ) / 출하관리 > 거래명세서 — docs/screens/60-출하.md §9 · 스타일 가이드 적용
      - 출하 완료 건 목록 ( 공급가액 · 세액 · 합계 — 정책 invoice.vat · invoice.rounding ) · 출하 1건 = 1장
-     - 체크 → [미리보기 · 인쇄] = 모달( InvoicePreview — A4 한 장에 공급받는자 / 공급자 보관용 ) · 행 클릭 = 그 건만 -->
+     - 체크 → [미리보기 · 인쇄] = 모달( InvoicePreview — A4 한 장에 공급받는자 / 공급자 보관용 ) · 행 클릭 = 그 건만
+       모달의 [같은 고객사 합치기] : 고객사가 같은 출하를 한 문서로 ( 인쇄만 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-1 pb-2 shrink-0">

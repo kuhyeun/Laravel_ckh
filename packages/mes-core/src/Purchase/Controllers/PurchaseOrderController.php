@@ -10,6 +10,8 @@ use MesCore\Config\Models\Partner;
 use MesCore\Purchase\Models\PurchaseOrder;
 use MesCore\Purchase\Models\PurchaseOrderLine;
 use MesCore\Purchase\Services\PurchaseOrderService;
+use MesCore\Purchase\Services\PurchaseOrderSheetService;
+use MesCore\Config\Services\SiteConfigService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -86,6 +88,15 @@ class PurchaseOrderController extends Controller {
             return response()->json(['message' => 'NotFound'], 404);
         }
         return response()->json(['order' => $this->toForm($order)]);
+    }
+
+    // 발주서 인쇄 데이터 : 체크한 발주마다 한 부 + 발주처 직인 · 로고( data URI — 사이트설정 ) — 화면 PurchaseOrderPreview
+    public function sheets(Request $request, PurchaseOrderSheetService $sheets, SiteConfigService $site) {
+        $v = $request->validate(['ids' => 'required|array|min:1|max:200', 'ids.*' => 'integer']);
+        $docs = PurchaseOrder::with(['partner', 'lines.item'])->whereIn('purchase_order_idx', $v['ids'])
+            ->orderBy('order_date')->orderBy('purchase_order_idx')->get()
+            ->map(fn (PurchaseOrder $o) => $sheets->build($o))->values();
+        return response()->json(['docs' => $docs, 'images' => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')]]);
     }
 
     // 등록 · 수정 모달용 : 구매처( 구매처 구분 · 사용 중 ) + 품목( 사용 중 — 자재 먼저 )

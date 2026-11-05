@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MesCore\Basic\Models\SystemCode;
 use MesCore\Basic\Services\PolicyService;
-use MesCore\Config\Models\ProcessEquipment;
+use MesCore\Config\Models\Equipment;
 use MesCore\Config\Models\Warehouse;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Production\Models\WorkOrder;
@@ -75,9 +75,10 @@ class OpResultService {
             if ($why = $this->workBlock($ops, $op)) {
                 throw ValidationException::withMessages(['qty' => [$why]]);   // E_OP_ORDER
             }
+            // 설비 : 사용 중인 설비면 된다 ( 공정 후보가 아니어도 — 11-05 · 후보는 화면에서 위에 )
             if (!empty($data['equipment_idx'])
-                && !ProcessEquipment::where('process_idx', $op->process_idx)->where('equipment_idx', $data['equipment_idx'])->exists()) {
-                throw ValidationException::withMessages(['equipment_idx' => ['그 공정의 설비 후보가 아닙니다.']]);   // E_OP_EQUIP
+                && !Equipment::whereKey($data['equipment_idx'])->where('is_use', 'Y')->exists()) {
+                throw ValidationException::withMessages(['equipment_idx' => ['사용 중인 설비가 아닙니다.']]);   // E_OP_EQUIP
             }
 
             // 기준 : 이후 수량 공정은 앞 수량 공정의 실적까지만 ( 차단 ) / 첫 수량 공정은 지시 수량 초과 경고
@@ -298,7 +299,8 @@ class OpResultService {
         return collect($this->materials->plan($wo))
             ->filter(fn ($m) => empty($m['substitute_of_idx']))
             ->filter(fn ($m) => $m['need_qty'] > self::EPS || $m['issued_qty'] <= self::EPS)
-            ->map(fn ($m) => $m['issued_qty'] <= self::EPS ? "{$m['item_code']} 미출고" : "{$m['item_code']} 남음 {$this->num($m['need_qty'])}" . ($m['result_kind'] === 'SPEC_COUNT' ? '개' : ($m['spec_unit'] ? " {$m['spec_unit']}" : '')))
+            ->map(fn ($m) => ($m['issued_qty'] <= self::EPS ? "{$m['item_code']} 미출고" : "{$m['item_code']} 남음 {$this->num($m['need_qty'])}" . ($m['result_kind'] === 'SPEC_COUNT' ? '개' : ($m['spec_unit'] ? " {$m['spec_unit']}" : '')))
+                . (!empty($m['substitute_count']) ? ' ( 대체 자재 포함 )' : ''))
             ->values()->all();
     }
 

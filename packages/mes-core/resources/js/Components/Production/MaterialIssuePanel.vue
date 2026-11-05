@@ -1,5 +1,5 @@
 <!-- 작업지시 하나의 자재출고 패널 — docs/screens/50-생산.md §12
-     - 자재 줄마다 계산 소요( ⓘ 계산 과정 ) · 규격 묶음 · 후보 LOT( 선입선출 ) 채움 → [출고]
+     - 자재 줄마다 계산 소요( ⓘ 계산 과정 ) · 규격 묶음 · 후보 LOT( 선입선출 ) 채움 → 자재 목록 아래 오른쪽 [출고]( 출고일시 · 비고 같이 )
      - 아래 : 이 지시의 출고 이력 — 체크 → [출고 취소] ( 보유분 안에서만 )
      - 쓰는 곳 : 자재출고 화면( Production/MaterialIssue ) · 공정실적 화면의 [출고] ( Production/OpResult — 그 화면 권한으로 부르는 주소 )
                · 재고관리 LOT 창의 [출고] ( preferBalanceIdx — 그 LOT 을 먼저 채운다 )
@@ -28,13 +28,7 @@
                 <span class="text-sm text-gray-600">{{ order.item_code }} {{ order.item_name }} · 지시 {{ fmt(order.target_qty) }} {{ order.spec_unit }}</span>
                 <span v-if="order.lot_no" class="text-xs text-gray-400">LOT {{ order.lot_no }}</span>
                 <div class="flex-1"></div>
-                <template v-if="canIssue">
-                    <label class="text-xs text-gray-500">출고일시</label>
-                    <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="sm" class="w-44" />
-                    <BaseInput v-model="form.remark" size="sm" class="w-40" placeholder="비고" maxlength="200" />
-                </template>
                 <BaseButton size="sm" variant="secondary" :disabled="planLoading" @click="loadPlan">계산 다시</BaseButton>
-                <BaseButton v-if="canIssue" variant="primary" :disabled="saving || planLoading || !fillTotal" @click="save">출고</BaseButton>
             </div>
             <p v-if="errorText" class="px-3 py-1 text-xs text-red-500 bg-red-50 shrink-0">{{ errorText }}</p>
 
@@ -118,6 +112,15 @@
                 </div>
             </div>
 
+            <!-- 출고 실행 : 자재 목록 바로 아래 오른쪽 ( 11-05 — 위에 있으면 헷갈림 ) -->
+            <div v-if="canIssue" class="shrink-0 flex items-center justify-end gap-2 px-3 py-2 border-t border-gray-200 bg-gray-50/70">
+                <span class="mr-auto text-xs text-gray-500">{{ fillTotal ? `이번 출고 ${materials.filter(m => filled(m) > 1e-9).length} 자재` : '출고할 수량을 채우세요' }}</span>
+                <label class="text-xs text-gray-500">출고일시</label>
+                <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="sm" class="w-44" />
+                <BaseInput v-model="form.remark" size="sm" class="w-40" placeholder="비고" maxlength="200" />
+                <BaseButton variant="primary" :disabled="saving || planLoading || !fillTotal" @click="save">출고</BaseButton>
+            </div>
+
             <!-- 출고 이력 -->
             <div class="shrink-0 border-t border-gray-200 max-h-56 flex flex-col">
                 <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50/70">
@@ -143,7 +146,7 @@
                             <tr v-if="!history.length"><td colspan="9" class="px-2 py-2 text-center text-gray-400">출고 이력이 없습니다.</td></tr>
                             <tr v-for="h in history" :key="h.stock_txn_line_idx" class="border-t border-gray-100" :class="h.status === 'CANCELED' ? 'text-gray-400 line-through' : ''">
                                 <td class="text-center"><input v-if="canCancel && isOpen && h.status === 'DONE'" type="checkbox" class="row-check" :value="h.stock_txn_line_idx" v-model="checked" /></td>
-                                <td class="px-1 py-0.5">{{ h.txn_no }}</td>
+                                <td class="px-1 py-[3px]">{{ h.txn_no }}</td>
                                 <td class="px-1">{{ h.occurred_at.replace('T', ' ') }}</td>
                                 <td class="px-1 truncate" :title="`${h.item_code} ${h.item_name}`">{{ h.item_code }} {{ h.item_name }}</td>
                                 <td class="px-1 truncate" :title="h.lot_no">{{ h.lot_no }}</td>

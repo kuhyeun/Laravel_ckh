@@ -242,7 +242,7 @@ class OpHistoryController extends Controller {
             'processes'  => Process::where('is_use', 'Y')->orderBy('process_code')->get(['process_idx', 'process_code', 'process_name', 'process_type', 'is_system', 'system_key'])
                 ->filter(fn (Process $p) => $p->isQtyProcess())
                 ->map(fn (Process $p) => ['value' => $p->process_idx, 'label' => $p->process_name])->values(),
-            'operators'  => User::orderBy('user_name')->get(['account_idx', 'user_id', 'user_name'])
+            'operators'  => User::where('user_level', '!=', User::SYSTEM_LEVEL)->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name'])
                 ->map(fn ($u) => ['value' => $u->account_idx, 'label' => $u->user_name ?: $u->user_id])->values(),
             'equipments' => Equipment::where('is_use', 'Y')->orderBy('equipment_name')->get(['equipment_idx', 'equipment_name'])
                 ->map(fn ($e) => ['value' => $e->equipment_idx, 'label' => $e->equipment_name])->values(),

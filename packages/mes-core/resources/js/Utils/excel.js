@@ -91,6 +91,14 @@ function buildList(wb, layout, rows, gridColumns, context) {
         cell.border = { bottom: { style: 'thin', color: { argb: 'FF999999' } } };
     });
     cols.forEach((c, i) => { if (c.numFmt) ws.getColumn(i + 1).numFmt = c.numFmt; });
+    // 소수 자리를 "있으면만" 보이는 서식( "#,##0.######" )은 정수에 끝 점이 붙는다( "50." — 엑셀 규칙 ) → 정수 칸은 소수 부분을 뺀 서식으로 ( 11-05 )
+    cols.forEach((c, i) => {
+        const intFmt = integerFormat(c.numFmt);
+        if (!intFmt) return;
+        ws.getColumn(i + 1).eachCell({ includeEmpty: false }, (cell, rowNo) => {
+            if (rowNo > 1 && typeof cell.value === 'number' && Number.isInteger(cell.value)) cell.numFmt = intFmt;
+        });
+    });
     if (cols.length) {
         ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: cols.length } };
     }
@@ -172,6 +180,12 @@ function excelDate(dateOnly) {
     return dateOnly
         ? new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
         : new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()));
+}
+
+// "#,##0.######" → "#,##0" ( 선택 소수 자리 # 만 있는 서식 — 0 이 있는 "0.00" 같은 고정 자리는 그대로 둔다 )
+function integerFormat(fmt) {
+    if (!fmt || !/\.#+(?![0#])/.test(fmt) || /\.[#]*0/.test(fmt)) return null;
+    return fmt.replace(/\.#+/, '');
 }
 
 // 숫자로 보이는 문자열( "1500.000" )은 숫자로 — 엑셀에서 합계 · 서식이 먹도록

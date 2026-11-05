@@ -44,7 +44,7 @@
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">검사자 <span class="text-red-500">*</span></label>
-                    <BaseSelect v-model="form.inspector_idx" :options="inspectorOptions" class="w-full" :disabled="!canWrite" />
+                    <BaseSelect v-model="form.inspector_idx" :options="inspectorOptions" placeholder="검사자 선택" class="w-full" :disabled="!canWrite" />
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">검사일시 <span class="text-red-500">*</span></label>
@@ -159,7 +159,7 @@ async function load() {
         inspectors.value = data.inspectors ?? [];
         Object.assign(form, {
             pass_qty: String(data.line.qty), fail_qty: '0', defect_type_code: '', reason: '', remark: '',
-            inspector_idx: data.me, inspected_at: data.now,
+            inspector_idx: data.me ?? '', inspected_at: data.now,
         });
     } catch (e) {
         line.value     = null;

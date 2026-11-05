@@ -28,6 +28,21 @@ return [
     |   product  : 만드는 제품 품목 ( item.ext_n01 ~ n03 )
     | 업체가 다른 칸을 쓰면 여기만 고친다. 시스템 변수( ORDER_QTY · SPEC · SETUP … )는 쓸 수 없다
     */
+    /*
+    |--------------------------------------------------------------------------
+    | 로그 ( 날짜별 폴더 — storage/logs/{YYYY-MM-DD}/ sql.log · error.log · app.log — Support/Logging/MesLogging )
+    |--------------------------------------------------------------------------
+    | sql            : 실행한 쿼리를 sql.log 에 ( 값을 채운 SQL · 걸린 시간 ) — 실패한 쿼리는 이 값과 상관없이 늘 남긴다
+    | days           : 보관 일수 ( 지난 날짜 폴더는 새 날 폴더를 만들 때 지운다 · 0 = 지우지 않음 )
+    | sql_skip_tables: 남기지 않을 테이블 ( 요청마다 도는 캐시 · 세션 — 양만 많고 쓸모가 적다 )
+    */
+    'log' => [
+        'sql'             => env('MES_SQL_LOG', true),
+        'days'            => (int) env('MES_LOG_DAYS', 30),
+        'sql_skip_tables' => ['cache', 'cache_locks', 'sessions', 'jobs', 'job_batches', 'failed_jobs'],
+        'sql_max_length'  => 5000,
+    ],
+
     'calc_vars' => [
         'CUT'  => [['line', 'ext_n01']],        // 절단 길이 — BOM 줄
         'KERF' => [['material', 'ext_n02']],    // 톱날 손실 — 자재 품목

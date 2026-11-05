@@ -3,6 +3,7 @@
      - 목록 : 서버 페이징 · 서버 정렬. 한 행 = 발주 한 건, ▸ 로 품목 줄 펼침
      - 행 클릭( 줄 포함 ) → 수정 모달( PurchaseOrderForm ) / [+ 등록] → 빈 모달
      - 체크 → [마감] : 확정 · 미확정 → 완료 / [삭제] : 입고가 없으면 지우고, 있으면 취소
+     - 체크 → [미리보기 · 인쇄] : 발주서( PurchaseOrderPreview — A4 한 건 한 부 )
      - 입고 열 : 입고 끝난 줄 수 / 전체 줄 수 ( 줄에서는 입고 수량 )
      - 엑셀 : 줄 단위로 펼쳐서 검색 조건 전체( export=1 ) -->
 <template>
@@ -12,6 +13,7 @@
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!checkedRows.length || busy" @click="closeChecked">마감</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="!checkedRows.length || busy" @click="deleteChecked">삭제</BaseButton>
+            <BaseButton size="sm" variant="secondary" :disabled="!checkedRows.length" @click="openPrint">미리보기 · 인쇄</BaseButton>
         </div>
 
         <!-- 검색바 ( CMP-02 ) -->
@@ -72,6 +74,7 @@ import SearchBar from '@core/Components/Common/SearchBar.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import PurchaseOrderPreview from '@core/Components/Purchase/PurchaseOrderPreview.vue';
 import PurchaseOrderForm from '@core/Components/Purchase/PurchaseOrderForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
@@ -261,6 +264,11 @@ function openModal(row) {
         },
         { size: 'xl', closeOnClickOutside: false }
     );
+}
+
+// ---- 발주서 미리보기 · 인쇄 ( 체크한 발주 ) ----
+function openPrint() {
+    modalStore.open(PurchaseOrderPreview, { modalTitle: '발주서', ids: checkedRows.value.map(r => r.purchase_order_idx) }, { size: 'xl' });
 }
 
 // ---- 마감 · 삭제 ----

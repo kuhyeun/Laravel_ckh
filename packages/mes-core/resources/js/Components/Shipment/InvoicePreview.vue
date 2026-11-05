@@ -1,11 +1,16 @@
 <!-- 거래명세서 미리보기 · 인쇄 ( 7003 ) — 모달 본체. docs/screens/60-출하.md §9
      - 출하( 완료 ) 1건 = 문서 1개 · 문서마다 11줄씩 장을 나눈다 ( 합계는 장마다 같은 문서 합계 )
+     - [같은 고객사 합치기] ( 2건 이상일 때 ) : 고객사마다 문서 1개 — 줄 이어 붙임 · 거래일자 = 가장 늦은 출하일 ( 서버 merge=1 · 인쇄만 )
      - [인쇄] = 브라우저 인쇄( 종이 · PDF ) : 인쇄용 사본을 body 바로 아래에 두고, 인쇄할 때는 그것만 보이게 한다
        ( html.invoice-printing 이 붙어 있는 동안만 — 이 모달이 열려 있을 때 ) -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <div class="flex items-center gap-3 pb-3 shrink-0">
             <span class="text-gray-500">{{ docs.length }} 건 · {{ pages.length }} 장</span>
+            <!-- 같은 고객사 합치기 ( 출하를 2건 이상 골랐을 때 — 11-05 ) : 인쇄만, 저장하지 않는다 -->
+            <label v-if="ids.length > 1" class="inline-flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer select-none">
+                <input v-model="merge" type="checkbox" class="row-check" :disabled="loading" @change="load" /> 같은 고객사 합치기
+            </label>
             <span v-if="missingSupplier" class="text-amber-700 text-xs">⚠ 공급자( 회사 정보 )가 비어 있습니다 — 기준정보관리 → 사이트설정</span>
             <span v-if="errorMsg" class="text-red-500 text-xs">{{ errorMsg }}</span>
             <div class="flex-1"></div>
@@ -47,6 +52,7 @@ const docs     = ref([]);
 const loading  = ref(true);
 const errorMsg = ref('');
 const images   = ref({});   // 공급자 직인 · 로고 ( 사이트설정 )
+const merge    = ref(false);   // 같은 고객사 → 한 문서
 
 // 장 나누기 : 문서마다 11줄씩 — 빈 줄은 null 로 채워 칸을 그린다
 const pages = computed(() => docs.value.flatMap(doc => {
@@ -58,11 +64,12 @@ const missingSupplier = computed(() => docs.value.length && !docs.value[0].suppl
 
 function print() { window.print(); }
 
-onMounted(async () => {
-    document.documentElement.classList.add('invoice-printing');
+async function load() {
+    loading.value = true;
+    errorMsg.value = '';
     try {
         if (!props.ids.length) throw new Error('none');
-        const { data } = await window.axios.get(route('shipment.invoice.sheets'), { params: { ids: props.ids } });
+        const { data } = await window.axios.get(route('shipment.invoice.sheets'), { params: { ids: props.ids, merge: merge.value ? 1 : undefined } });
         docs.value = data.docs ?? [];
         images.value = data.images ?? {};
         if (!docs.value.length) errorMsg.value = '출력할 출하 완료 건이 없습니다.';
@@ -71,6 +78,11 @@ onMounted(async () => {
     } finally {
         loading.value = false;
     }
+}
+
+onMounted(() => {
+    document.documentElement.classList.add('invoice-printing');
+    load();
 });
 onBeforeUnmount(() => document.documentElement.classList.remove('invoice-printing'));
 </script>

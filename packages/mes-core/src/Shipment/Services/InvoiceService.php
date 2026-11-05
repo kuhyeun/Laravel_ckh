@@ -46,6 +46,8 @@ class InvoiceService {
 
         return [
             'shipment_idx' => $s->shipment_idx,
+            'partner_idx'  => $s->partner_idx,
+            'shipment_nos' => [$s->shipment_no],
             'shipment_no'  => $s->shipment_no,
             'date'         => ($s->shipped_at ?? $s->plan_date)?->toDateString(),
             'remark'       => $s->remark,
@@ -70,6 +72,30 @@ class InvoiceService {
             'tax'          => $tax,
             'total'        => $supply + $tax,
         ];
+    }
+
+    /**
+     * 같은 고객사 합치기 ( 11-05 ) — 인쇄 때만 · 저장하지 않는다 ( 출하가 원본 )
+     *   고객사마다 한 문서 : 줄 = 출하 순서대로 이어 붙임 · 거래일자 = 가장 늦은 출하일 · 비고 = 출하 비고를 " / " 로
+     *   금액은 줄마다 계산한 것을 더한다 ( 따로 출력할 때와 같은 값 )
+     * @param array[] $docs build() 결과 ( 출하 순서 )
+     */
+    public function merge(array $docs): array {
+        return collect($docs)->groupBy('partner_idx')->map(function ($group) {
+            $first = $group->first();
+            $lines = $group->flatMap(fn ($d) => $d['lines'])->values()->map(fn ($l, $i) => ['no' => $i + 1] + $l)->all();
+            return array_merge($first, [
+                'shipment_idx' => null,
+                'shipment_no'  => $group->count() > 1 ? "{$first['shipment_no']} 외 " . ($group->count() - 1) . '건' : $first['shipment_no'],
+                'shipment_nos' => $group->pluck('shipment_no')->all(),
+                'date'         => $group->pluck('date')->filter()->max(),
+                'remark'       => $group->pluck('remark')->filter()->unique()->implode(' / '),
+                'lines'        => $lines,
+                'supply'       => $group->sum('supply'),
+                'tax'          => $group->sum('tax'),
+                'total'        => $group->sum('total'),
+            ]);
+        })->values()->all();
     }
 
     // 합계만 ( 목록용 )

@@ -121,31 +121,32 @@
 
                             <!-- 실적 입력 -->
                             <div v-if="panel === 'run'" class="px-3 py-3 border-b bg-blue-50/40 flex items-end gap-3 flex-wrap">
-                                <div>
-                                    <label class="lbl">수량 <span class="text-red-500">*</span></label>
-                                    <BaseInput v-model="runForm.qty" type="number" min="0" class="w-28 text-right" />
-                                </div>
-                                <div v-if="selectedOp.equipments.length">
-                                    <label class="lbl">설비</label>
-                                    <BaseSelect v-model="runForm.equipment_idx" :options="equipOptions" class="w-40" />
-                                </div>
-                                <div>
-                                    <label class="lbl">작업자 <span class="text-red-500">*</span></label>
-                                    <BaseSelect v-model="runForm.operator_idx" :options="userOptions" class="w-36" />
-                                </div>
+                                <!-- 순서 : 작업 일시 · 설비 · 작업자 · 수량 · ( 입고 창고 ) · 비고 ( 11-05 ) -->
                                 <div>
                                     <label class="lbl">작업 일시 <span class="text-red-500">*</span></label>
                                     <BaseDatePicker v-model="runForm.worked_at" mode="datetime" class="w-48" />
+                                </div>
+                                <div>
+                                    <label class="lbl">설비</label>
+                                    <BaseSelect v-model="runForm.equipment_idx" :options="equipOptions" class="w-44" />
+                                </div>
+                                <div>
+                                    <label class="lbl">작업자 <span class="text-red-500">*</span></label>
+                                    <BaseSelect v-model="runForm.operator_idx" :options="userOptions" placeholder="작업자 선택" class="w-36" />
+                                </div>
+                                <div>
+                                    <label class="lbl">수량 <span class="text-red-500">*</span></label>
+                                    <BaseInput v-model="runForm.qty" type="number" min="0" class="w-28 text-right" />
                                 </div>
                                 <div v-if="selectedOp.receives_on_run">
                                     <label class="lbl">입고 창고 <span class="text-red-500">*</span></label>
                                     <WarehouseSelect v-model="runForm.warehouse_idx" :options="warehouses" class="w-44" placeholder="창고" />
                                 </div>
-                                <div class="flex-1 min-w-[140px]">
+                                <div>
                                     <label class="lbl">비고</label>
-                                    <BaseInput v-model="runForm.remark" class="w-full" maxlength="200" />
+                                    <BaseInput v-model="runForm.remark" class="w-40" maxlength="200" />
                                 </div>
-                                <div class="flex gap-1">
+                                <div class="ml-auto flex gap-1">
                                     <BaseButton size="sm" variant="secondary" @click="panel = ''">닫기</BaseButton>
                                     <BaseButton size="sm" variant="primary" :disabled="busy" @click="addRun">저장</BaseButton>
                                 </div>
@@ -185,7 +186,7 @@
                             <div v-if="selectedOp.is_qty" class="overflow-x-auto">
                                 <table class="w-full min-w-[760px] table-fixed text-xs">
                                     <colgroup>
-                                        <col class="w-36"><col class="w-32"><col class="w-40"><col class="w-28"><col><col class="w-14">
+                                        <col class="w-36"><col class="w-40"><col class="w-48"><col class="w-28"><col><col class="w-14">
                                     </colgroup>
                                     <thead class="text-gray-500"><tr><th class="px-3 py-1.5 text-left">작업 일시</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">수량</th><th class="px-2 py-1.5 text-left">비고</th><th></th></tr></thead>
                                     <tbody>
@@ -322,13 +323,21 @@ const ISSUE_ROUTES = {
 // ---- 선택지 ----
 const users      = ref([]);
 const warehouses = ref([]);
+const equipments = ref([]);   // 사용 중 설비 전부 ( formData )
 const reasons    = ref([]);
 const me         = ref(null);
 // 작업 일시 기본값 = 입력 창을 연 지금 ( datetime-local 형식 )
 const localNow = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const userOptions      = computed(() => users.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 const reasonOptions    = computed(() => reasons.value.map(r => ({ value: r.system_code_key, label: r.system_code_name })));
-const equipOptions     = computed(() => [{ value: '', label: '( 미지정 )' }, ...(selectedOp.value?.equipments ?? []).map(e => ({ value: e.equipment_idx, label: e.equipment_name }))]);
+// 설비 : 이 공정의 후보 먼저 · 그 밖의 사용 중 설비 ( 후보가 아니어도 고를 수 있다 — 11-05 )
+const equipOptions     = computed(() => {
+    const cand = selectedOp.value?.equipments ?? [];
+    const ids  = new Set(cand.map(e => Number(e.equipment_idx)));
+    return [{ value: '', label: '( 미지정 )' },
+        ...cand.map(e => ({ value: e.equipment_idx, label: e.equipment_name })),
+        ...equipments.value.filter(e => !ids.has(Number(e.equipment_idx))).map(e => ({ value: e.equipment_idx, label: cand.length ? `${e.equipment_name} ( 다른 공정 )` : e.equipment_name }))];
+});
 
 const runForm  = reactive({ qty: '', equipment_idx: '', operator_idx: '', worked_at: '', remark: '', warehouse_idx: '' });
 const doneForm = reactive({ short_reason: '', warehouse_idx: '' });
@@ -520,7 +529,7 @@ async function openIssue() {
 onMounted(async () => {
     try {
         const { data } = await window.axios.get(route('production.opResult.formData'));
-        users.value = data.users ?? []; warehouses.value = data.warehouses ?? []; reasons.value = data.reasons ?? [];
+        users.value = data.users ?? []; warehouses.value = data.warehouses ?? []; equipments.value = data.equipments ?? []; reasons.value = data.reasons ?? [];
         me.value = data.me;
     } catch (e) {
         showFlash('선택지를 불러오지 못했습니다.', true);

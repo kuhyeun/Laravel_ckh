@@ -52,6 +52,24 @@ class User extends Authenticatable {
         });
     }
 
+    // 사람 고르기 목록( 작업자 · 검사자 · 담당자 … )에 나오는 계정 — 사용 중 + 시스템 계정( 레벨 0 ) 제외 ( 11-05 — 어느 메뉴에서든 )
+    public const SYSTEM_LEVEL = 0;
+
+    public function scopePickable($query) {
+        return $query->where('is_use', 'Y')->where('user_level', '!=', self::SYSTEM_LEVEL);
+    }
+
+    // 고르기 기본값용 "나" — 시스템 계정이면 null ( 목록에 없으니 기본값도 비운다 )
+    public static function pickableMe(): ?int {
+        $u = \Illuminate\Support\Facades\Auth::user();
+        return $u && (int) $u->user_level !== self::SYSTEM_LEVEL ? (int) $u->account_idx : null;
+    }
+
+    // 저장 검사 : 고를 수 있는 계정만 ( exists 대신 )
+    public static function pickableRule(): \Illuminate\Validation\Rules\Exists {
+        return \Illuminate\Validation\Rule::exists('account_member', 'account_idx')->where('is_use', 'Y')->whereNot('user_level', self::SYSTEM_LEVEL);
+    }
+
     public function username(): string {
         return 'user_id';
     }

@@ -22,6 +22,7 @@ Route::prefix('purchase')->name('purchase.')->middleware([UserAuth::class])->gro
             Route::get('/list', [PurchaseOrderController::class, 'list'])->name('list');
             Route::get('/show/{orderIdx}', [PurchaseOrderController::class, 'show'])->whereNumber('orderIdx')->name('show');
             Route::get('/formData', [PurchaseOrderController::class, 'formData'])->name('formData');
+            Route::get('/sheets', [PurchaseOrderController::class, 'sheets'])->name('sheets');   // [미리보기 · 인쇄]
             Route::get('/orderMaterials', [PurchaseOrderController::class, 'orderMaterials'])->name('orderMaterials');   // [+ 수주 자재에서]
         });
 

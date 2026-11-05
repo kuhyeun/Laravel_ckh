@@ -7,7 +7,7 @@
        출처가 있는 줄은 품목을 바꿀 수 없다 ( 연결 ✕ 로 끊으면 일반 줄 ) · 남은 소요보다 많으면 저장 때 경고
      - 입고된 줄( locked )은 품목 변경 · 삭제 불가, 수량은 입고량 아래로 못 줄인다 — 서버가 최종 판단
      - 완료 · 취소 상태는 읽기 전용 + [다시 열기]
-     - [발주서] : 저장된 발주를 엑셀 양식( purchase_order.form )으로 출력 — 저장한 내용 기준
+     - [발주서] : 저장된 발주를 미리보기 · 인쇄 모달( PurchaseOrderPreview — A4 )로 — 저장한 내용 기준 ( 11-05 엑셀 → 인쇄 )
      - 첨부 탭 : 저장한 뒤 첨부 ( AttachFiles ) -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
@@ -184,7 +184,7 @@
         <!-- 액션 -->
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
             <!-- 발주서 : 저장된 내용 기준 ( 고친 뒤에는 [수정] 후 다시 열어 출력 ) -->
-            <ExcelExportButton v-if="isEdit && saved" class="mr-auto" layout="purchase_order.form" label="발주서" :rows="saved.lines" :context="printContext" :filename="`발주서_${saved.order_no}`" />
+            <BaseButton v-if="isEdit && saved" class="mr-auto" variant="secondary" size="sm" @click="openSheet">발주서</BaseButton>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ readonly ? '닫기' : '취소' }}</BaseButton>
             <BaseButton v-if="!readonly" variant="primary" size="sm" :disabled="saving || loading" @click="save">
                 {{ isEdit ? '수정' : '등록' }}
@@ -200,7 +200,7 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
-import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
+import PurchaseOrderPreview from '@core/Components/Purchase/PurchaseOrderPreview.vue';
 import { showAlert } from '@core/Utils/message';
 import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor } from '@core/Components/Purchase/purchaseCodes';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
@@ -332,14 +332,10 @@ const saving   = ref(false);
 const lineError = (i, f) => errors.value[`lines.${i}.${f}`]?.[0] ?? '';
 
 const saved = ref(null);   // 불러온( 저장된 ) 발주 — 발주서 출력용
-const printContext = computed(() => saved.value ? {
-    order_no:     saved.value.order_no,
-    order_date:   saved.value.order_date,
-    partner_name: saved.value.partner_name,
-    order_name:   saved.value.order_name ?? '',
-    remark:       saved.value.remark ?? '',
-    total_amount: saved.value.total_amount,
-} : {});
+// 발주서 미리보기 · 인쇄 ( 저장된 내용 기준 )
+function openSheet() {
+    modalStore.open(PurchaseOrderPreview, { modalTitle: `발주서 [ ${saved.value.order_no} ]`, ids: [saved.value.purchase_order_idx] }, { size: 'xl' });
+}
 
 function fillForm(o) {
     saved.value = o;

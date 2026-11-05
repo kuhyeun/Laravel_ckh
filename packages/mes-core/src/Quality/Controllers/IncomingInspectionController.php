@@ -136,9 +136,9 @@ class IncomingInspectionController extends Controller {
                 'defect_type'    => app(\MesCore\Quality\Services\DefectService::class)->typeName($inspection->defects->first()?->defect_type_code),
                 'remark'         => $inspection->remark,
             ] : null,
-            'inspectors' => User::where('is_use', 'Y')->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
+            'inspectors' => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
             'now'        => now()->format('Y-m-d\TH:i'),
-            'me'         => Auth::id(),
+            'me'         => User::pickableMe(),
         ]);
     }
 
@@ -151,7 +151,7 @@ class IncomingInspectionController extends Controller {
             'fail_qty'      => 'nullable|numeric|min:0|max:999999999999',
             'defect_type_code' => 'nullable|string|max:30',
             'reason'        => 'nullable|string|max:200',
-            'inspector_idx' => 'required|integer|exists:account_member,account_idx',
+            'inspector_idx' => ['required', 'integer', User::pickableRule()],
             'inspected_at'  => 'required|date_format:Y-m-d\TH:i',
             'remark'        => 'nullable|string|max:2000',
         ], [], [
