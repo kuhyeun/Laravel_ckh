@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use MesCore\Production\Controllers\MaterialIssueController;
 use MesCore\Production\Controllers\OpHistoryController;
+use MesCore\Production\Controllers\WipController;
 use MesCore\Production\Controllers\OpResultController;
 use MesCore\Production\Controllers\ProductionPlanController;
 use MesCore\Production\Controllers\ProductionScheduleController;
@@ -94,6 +95,12 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::post('/cancelComplete', [OpResultController::class, 'cancelComplete'])->name('cancelComplete');
             Route::post('/cancelLineDone', [OpResultController::class, 'cancelLineDone'])->name('cancelLineDone');
         });
+    });
+
+    // 재공관리 ( Production/WipManage — 메뉴 자재관리 > 재공관리 3010 ) — 조회만 · 공정 사이 반제품 ( WipService )
+    Route::prefix('wip')->name('wip.')->middleware(MenuAuth::class . ':Production/WipManage,can_read')->group(function() {
+        Route::get('/history', [WipController::class, 'history'])->name('history');
+        Route::get('/formData', [WipController::class, 'formData'])->name('formData');
     });
 
     // 생산실적현황 ( Production/OpHistory — 메뉴 생산관리 > 생산실적현황 4003 ) — 조회만

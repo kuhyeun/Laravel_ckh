@@ -53,6 +53,7 @@ class OpResultService {
         private MaterialIssueService $materials,
         private WorkOrderSheetService $sheets,
         private PolicyService $policy,
+        private WipService $wip,
     ) {}
 
     // ---- 실적 ----
@@ -110,6 +111,8 @@ class OpResultService {
                 'remark'            => $data['remark'] ?? null,
             ]);
 
+            $this->wip->recordRun($wo, $ops, $op, $run);   // 재공 이력 : 이 공정 + · 앞 수량 공정 −
+
             if ($receive) {
                 $line = $this->receive($wo, $qty, $wh, $workedAt, "생산 입고 {$wo->wo_no} · {$this->opName($op)} 실적");
                 $run->stock_txn_line_idx = $line->stock_txn_line_idx;
@@ -150,6 +153,7 @@ class OpResultService {
             }
 
             $run->fill(['is_canceled' => 'Y', 'canceled_by' => Auth::id(), 'canceled_at' => now()])->save();
+            $this->wip->reverseRun($run);   // 재공 이력 : 반대 줄
             $op->qty = $this->str($this->runSum($op));
             $op->save();
             $this->afterChange($wo, $ops);
