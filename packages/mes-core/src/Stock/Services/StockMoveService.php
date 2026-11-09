@@ -58,6 +58,7 @@ class StockMoveService {
                 'status'      => 'DONE',
                 'remark'      => $data['remark'] ?? null,
             ]);
+            $qty  = $this->str((float) $data['qty']);   // 입력 그대로 쓰면 '+5' · '1e3' 이 '-+5' 처럼 깨졌다
             $line = StockTxnLine::create([
                 'stock_txn_idx'    => $txn->stock_txn_idx,
                 'line_no'          => 1,
@@ -65,17 +66,17 @@ class StockMoveService {
                 'lot_idx'          => $bal->lot_idx,
                 'warehouse_idx'    => $bal->warehouse_idx,
                 'to_warehouse_idx' => $to->warehouse_idx,
-                'qty'              => (string) $data['qty'],
+                'qty'              => $qty,
                 'line_status'      => 'DONE',
-                'pass_qty'         => (string) $data['qty'],
+                'pass_qty'         => $qty,
                 'done_at'          => $occurredAt,
                 'remark'           => $data['remark'] ?? null,
             ]);
 
             $key = ['stock_txn_idx' => $txn->stock_txn_idx, 'stock_txn_line_idx' => $line->stock_txn_line_idx,
                     'item_idx' => $bal->item_idx, 'lot_idx' => $bal->lot_idx, 'txn_type' => self::TXN_TYPE];
-            $this->stock->post($key + ['warehouse_idx' => $bal->warehouse_idx], '-' . $data['qty'], $occurredAt);
-            $this->stock->post($key + ['warehouse_idx' => $to->warehouse_idx], (string) $data['qty'], $occurredAt);
+            $this->stock->post($key + ['warehouse_idx' => $bal->warehouse_idx], '-' . $qty, $occurredAt);
+            $this->stock->post($key + ['warehouse_idx' => $to->warehouse_idx], $qty, $occurredAt);
 
             return $txn;
         });
@@ -110,5 +111,9 @@ class StockMoveService {
 
     private function num(float $v): string {
         return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
+    }
+
+    private function str(float $v): string {
+        return rtrim(rtrim(number_format($v, 6, '.', ''), '0'), '.') ?: '0';
     }
 }

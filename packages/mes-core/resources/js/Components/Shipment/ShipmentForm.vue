@@ -184,6 +184,7 @@ import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { showAlert } from '@core/Utils/message';
 import { failMsg } from '@core/Composables/useFlash';
+import { useToast } from '@core/Composables/useToast';
 import { fmtNum, withSpec } from '@core/Utils/format';
 import { stageLabel, stageColor, inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
 import InvoicePreview from '@core/Components/Shipment/InvoicePreview.vue';
@@ -209,6 +210,7 @@ const emit = defineEmits(['close']);
 const loading  = ref(true);
 const busy     = ref(false);
 const errorMsg = ref('');
+const { showFlash } = useToast();
 const errors   = ref({});
 const dirty    = ref(false);
 const ctx      = reactive({ partners: [], items: [], approval_required: false, today: '', now: '' });
@@ -384,6 +386,7 @@ async function run(fn, done) {
             const shown = /^(partner_idx|plan_date|lines|lines\.\d+\..+)$/;
             const other = Object.entries(errors.value).filter(([k]) => !shown.test(k)).flatMap(([, v]) => v);
             errorMsg.value = other.join('\n') || (Object.keys(errors.value).some(k => k.startsWith('lines.')) ? '줄의 빨간 글을 확인하세요.' : '');
+            if (errors.value.status?.length) showFlash(errors.value.status.join('\n'), true);   // 상태로 막힌 이유( 예 : 취소된 수주 )는 알림으로도
         } else {
             errorMsg.value = failMsg(e);
         }

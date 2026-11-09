@@ -14,6 +14,7 @@ use MesCore\Shipment\Models\ShipmentLine;
 use MesCore\Shipment\Services\ShipmentService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 // 출하관리 ( 7001 · SHP-01 · SHP-02 ) — docs/screens/60-출하.md
@@ -230,10 +231,13 @@ class ShipmentController extends Controller {
         $v = $request->validate(['shipment_idxs' => 'required|array|min:1|max:100', 'shipment_idxs.*' => 'integer']);
         $n = 0;
         $scrapped = 0;   // 폐기한 라벨 장수 — 화면이 "붙어 있는 라벨을 떼세요" 를 알린다
-        foreach (Shipment::whereIn('shipment_idx', $v['shipment_idxs'])->get() as $s) {
-            $scrapped += $this->shipments->cancel($s);
-            $n++;
-        }
+        // 하나라도 막히면 전부 되돌린다 ( 입고 취소와 같게 — 전에는 앞 건만 취소된 채 화면엔 실패로 보였다 )
+        DB::transaction(function () use ($v, &$n, &$scrapped) {
+            foreach (Shipment::whereIn('shipment_idx', $v['shipment_idxs'])->orderBy('shipment_idx')->get() as $s) {
+                $scrapped += $this->shipments->cancel($s);
+                $n++;
+            }
+        });
         return response()->json(['message' => 'Success', 'canceled' => $n, 'labels_scrapped' => $scrapped]);
     }
 

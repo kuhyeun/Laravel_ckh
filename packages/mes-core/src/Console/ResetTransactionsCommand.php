@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
  *   php artisan mes:reset-transactions           무엇을 몇 건 지울지 보여 주기만 ( 시험 실행 )
  *   php artisan mes:reset-transactions --force   실제로 지운다 ( 되돌릴 수 없음 · production 에서는 거부 )
  *
- *   비움( TRUNCATE — 번호도 1부터 ) : 수주 · 발주 · 작업지시 · 재고 · LOT · 출하 · 검사 · 라벨 발행 · 변경 이력
+ *   비움( TRUNCATE — 번호도 1부터 ) : 수주 · 발주 · 작업지시 · 재공 · 외주 · 재고 · LOT · 출하 · 클레임 · 검사 · 라벨 발행 · 변경 이력
  *   일부만 : 라우팅 · BOM 은 수주 줄 사본( ORDER_LINE )만 / 첨부는 업무 전표에 붙은 것만( 파일도 )
  *   남김 : 계정 · 권한 · 메뉴 · 정책 · 코드 · 계산식 · 그리드 설정 · 품목 · 거래처 · 공정 · 설비 · 창고 · 라우팅 틀 / 품목 · 품목 BOM · 검사 기준 · 리드타임 · LOT 규칙 · 라벨 양식
  */
@@ -30,10 +30,14 @@ class ResetTransactionsCommand extends Command {
         'purchase_order', 'purchase_order_line', 'purchase_order_line_source',
         // 생산계획 · 작업지시
         'production_plan', 'production_plan_source', 'work_order', 'work_order_source', 'work_order_op', 'work_order_op_run', 'work_order_material', 'work_order_sheet', 'wo_stock',
+        // 재공 · 외주
+        'wip_txn', 'subcon_issue', 'subcon_receipt',
         // 재고 · LOT
         'stock_txn', 'stock_txn_line', 'stock_ledger', 'stock_balance', 'lot', 'lot_seq',
         // 출하
         'shipment', 'shipment_line', 'shipment_pick',
+        // 클레임
+        'claim', 'claim_line',
         // 검사 · 불량
         'inspection', 'defect',
         // 라벨 발행
@@ -44,7 +48,7 @@ class ResetTransactionsCommand extends Command {
 
     // 업무 전표에 붙은 첨부의 ref_type ( CoreServiceProvider 의 AttachmentService 등록 — 기준정보 item · partner 는 남긴다 )
     //   업체 모듈이 업무 전표 첨부를 더 붙이면 여기에도 더한다
-    private const TX_ATTACH_REFS = ['sales_order', 'purchase_order', 'receipt_line', 'work_order', 'shipment_line'];
+    private const TX_ATTACH_REFS = ['sales_order', 'purchase_order', 'receipt_line', 'work_order', 'shipment_line', 'claim_line'];
 
     public function handle(): int {
         $force = (bool) $this->option('force');

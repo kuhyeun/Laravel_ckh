@@ -204,6 +204,14 @@ class WorkOrderService {
         $beforeOps = $wo->exists ? WorkOrderOp::where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get() : null;
 
         $saved = DB::transaction(function () use ($wo, $sheet, $data, $item, $rule, $ops, $routingLines, $sources, $source, $bom, $issued, $beforeOps) {
+            // 고치는 지시는 행을 잠근 뒤 다시 확인 ( 자재출고도 같은 행을 잠근다 — 위 검사와 저장 사이에 출고 · 상태 변경이 끼면 막는다 )
+            //   끼었는데 그대로 저장하면 자재 줄을 다시 만들면서 출고 기록이 지워진 줄을 가리켰다
+            if ($wo->exists) {
+                $locked = WorkOrder::whereKey($wo->work_order_idx)->lockForUpdate()->first();
+                if (!$locked || $locked->status !== $wo->status || $this->hasIssue($wo->work_order_idx) !== $issued) {
+                    throw ValidationException::withMessages(['status' => ['그 사이 다른 사람이 이 작업지시를 바꿨거나 자재를 출고했습니다. 다시 열어 저장하세요.']]);
+                }
+            }
             $isNew    = !$wo->exists;
             $newLot   = $isNew || (int) $wo->item_idx !== (int) $item->item_idx || ($rule && (int) $wo->lot_rule_idx !== (int) $rule->lot_rule_idx);
 
@@ -249,14 +257,20 @@ class WorkOrderService {
 
     // 대기 지시만 취소 — LOT 은 남는다( 미사용 ). 진행 중이면 3단계의 미달 종료로
     public function cancel(WorkOrder $wo): void {
-        if ($wo->status !== 'WAIT') {
-            throw ValidationException::withMessages(['status' => ["{$wo->wo_no} 는 " . WorkOrder::STATUSES[$wo->status] . ' 상태라 취소할 수 없습니다. ( 대기만 )']]);
-        }
-        if ($this->hasIssue($wo->work_order_idx)) {
-            throw ValidationException::withMessages(['status' => ["{$wo->wo_no} 는 출고된 자재가 있습니다. 자재출고에서 출고를 먼저 취소하세요."]]);
-        }
-        $wo->status = 'CANCELED';
-        $wo->save();
+        // 지시 행을 잠근 뒤 다시 읽어 판단 ( 자재출고도 같은 행을 잠근다 — 취소하는 순간 출고가 끼어들어 보유 자재가 남은 채 취소되지 않게 )
+        DB::transaction(function () use ($wo) {
+            $locked = WorkOrder::whereKey($wo->work_order_idx)->lockForUpdate()->first();
+            if (!$locked || $locked->status !== 'WAIT') {
+                $label = $locked ? WorkOrder::STATUSES[$locked->status] : '없는';
+                throw ValidationException::withMessages(['status' => ["{$wo->wo_no} 는 {$label} 상태라 취소할 수 없습니다. ( 대기만 )"]]);
+            }
+            if ($this->hasIssue($locked->work_order_idx)) {
+                throw ValidationException::withMessages(['status' => ["{$wo->wo_no} 는 출고된 자재가 있습니다. 자재출고에서 출고를 먼저 취소하세요."]]);
+            }
+            $locked->status = 'CANCELED';
+            $locked->save();
+            $wo->setRawAttributes($locked->getAttributes(), true);
+        });
     }
 
     // 수주 줄의 남은 지시 수량 = 줄 수량 − 그 줄을 담은 지시들( 취소 제외 · 지금 고치는 지시 제외 )의 담은 수량

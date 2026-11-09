@@ -233,14 +233,22 @@ class ReceiptService {
     // 줄 취소 — 검사대기는 그냥, 입고완료는 되돌린 뒤. LOT 은 남는다( 번호 재사용 없음 )
     //   그 LOT 의 라벨은 폐기 ( 검사대기 줄도 라벨을 뽑았을 수 있다 ) → 폐기한 라벨 장수
     public function cancelLine(StockTxnLine $line): int {
-        if ($line->line_status === 'CANCELED') {
+        // 줄을 잠근 뒤 다시 읽어 판단 ( 입고검사도 같은 줄을 잠근다 — 전에는 취소하는 순간 검사가 완료되면 낡은 '검사대기' 로 보고 덮어써
+        //   원장 + · 발주 입고 수량은 남은 채 줄만 취소가 됐다 ) — 부르는 쪽이 트랜잭션을 연다 ( ReceiptController::cancel )
+        $line = StockTxnLine::whereKey($line->stock_txn_line_idx)->lockForUpdate()->first();
+        if (!$line || $line->line_status === 'CANCELED') {
             throw ValidationException::withMessages(['line' => ['이미 취소된 줄입니다.']]);
         }
 
         if ($line->line_status === 'DONE') {
             $this->unconfirm($line);
-            Inspection::where('ref_type', 'stock_txn_line')->where('ref_idx', $line->stock_txn_line_idx)
-                ->where('is_canceled', 'N')->update(['is_canceled' => 'Y']);
+            $ids = Inspection::where('ref_type', 'stock_txn_line')->where('ref_idx', $line->stock_txn_line_idx)
+                ->where('is_canceled', 'N')->pluck('inspection_idx');
+            if ($ids->isNotEmpty()) {
+                Inspection::whereIn('inspection_idx', $ids)->update(['is_canceled' => 'Y']);
+                // 그 검사의 불량도 취소 표시 ( 검사취소와 같게 — 전에는 취소한 입고의 불량이 불량이력에 계속 잡혔다 )
+                DB::table('defect')->whereIn('inspection_idx', $ids)->update(['is_canceled' => 'Y']);
+            }
         }
 
         $line->fill(['line_status' => 'CANCELED'])->save();

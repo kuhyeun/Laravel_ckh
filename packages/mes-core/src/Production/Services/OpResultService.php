@@ -146,11 +146,15 @@ class OpResultService {
             if ($op->status === 'DONE') {
                 throw ValidationException::withMessages(['run_idx' => ["{$this->opName($op)} 이 완료되어 실적을 취소할 수 없습니다. 완료를 먼저 취소하세요."]]);
             }
+            // 뒤 공정이 이미 가져간 수량보다 작아지면 막는다 ( 넘는 몫까지만 취소 — 예 : 이 공정 15 · 뒤 공정 10 → 5 까지 )
+            //   뒤 공정 = 바로 다음 수량 공정 또는 검사 공정 ( 검사 공정도 앞 수량을 기준으로 삼는다 — 전에는 건너뛰어 검사 합격보다 작아질 수 있었다 )
             $after = (float) $op->qty - (float) $run->qty;
-            $next  = $this->nextQtyOp($ops, $op);
-            if ($next && (float) $next->qty > $after + self::EPS) {
+            $next  = $this->nextBaseOp($ops, $op);
+            $used  = $next ? $this->usedFromPrev($next) : 0.0;
+            if ($next && $used > $after + self::EPS) {
+                $max = max(0, (float) $op->qty - $used);
                 throw ValidationException::withMessages(['run_idx' => [
-                    "취소하면 {$this->num($after)} 이 되어 뒤 공정( {$this->opName($next)} ) 실적 {$this->num((float) $next->qty)} 보다 작아집니다. 뒤 공정부터 취소하세요.",
+                    "뒤 공정( {$this->opName($next)} )이 {$this->num($used)} 을 이미 받아 갔습니다. 이 공정은 {$this->num($max)} 까지만 취소할 수 있습니다. ( 이 실적 {$this->num((float) $run->qty)} ) 뒤 공정부터 취소하세요.",
                 ]]);   // E_OP_CANCEL_BELOW
             }
 
@@ -531,8 +535,22 @@ class OpResultService {
         DB::table('defect')->whereIn('inspection_idx', $ids)->update(['is_canceled' => 'Y']);
     }
 
-    private function nextQtyOp(Collection $ops, WorkOrderOp $op): ?WorkOrderOp {
-        return $ops->first(fn (WorkOrderOp $o) => $o->seq > $op->seq && $o->isQtyOp());
+    // 이 공정을 기준으로 삼는 바로 뒤 공정 ( 수량 공정 또는 검사 공정 — prevQtyOp 의 반대 )
+    private function nextBaseOp(Collection $ops, WorkOrderOp $op): ?WorkOrderOp {
+        return $ops->first(fn (WorkOrderOp $o) => $o->seq > $op->seq && ($o->isQtyOp() || $o->isInspectionOp()));
+    }
+
+    // 뒤 공정이 앞 공정에서 받아 간 수량 — 수량 공정 = 실적 / 검사 공정 = 완료면 합격 + 불합격( 검사한 수량 ), 아니면 0
+    private function usedFromPrev(WorkOrderOp $next): float {
+        if (!$next->isInspectionOp()) {
+            return (float) $next->qty;
+        }
+        if ($next->status !== 'DONE') {
+            return 0.0;
+        }
+        $fail = (float) DB::table('defect')->where('work_order_op_idx', $next->work_order_op_idx)
+            ->where('insp_type', 'PROCESS')->where('is_canceled', 'N')->sum('qty');
+        return (float) $next->qty + $fail;
     }
 
     private function str(float $v): string {

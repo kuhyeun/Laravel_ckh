@@ -333,9 +333,17 @@ class ShipmentService {
         $warnings = array_filter([$this->stock->checkBackdate($at, 'shipped_at')]);
 
         DB::transaction(function () use ($s, $at) {
-            $s = Shipment::with(['lines.picks.lot', 'lines.salesOrderLine'])->whereKey($s->shipment_idx)->lockForUpdate()->first();
+            $s = Shipment::with(['lines.picks.lot', 'lines.salesOrderLine.order'])->whereKey($s->shipment_idx)->lockForUpdate()->first();
             if ($s->status !== 'WAIT') {
                 throw ValidationException::withMessages(['status' => [Shipment::STATUSES[$s->status] . ' 건은 출하처리할 수 없습니다.']]);
+            }
+            // 수주가 취소됐으면 막는다 ( 출하대기를 만든 뒤 수주 · 수주 줄이 취소될 수 있다 — 전에는 그대로 재고가 나가고 출하 수량이 늘었다 )
+            $canceled = $s->lines->filter(fn ($l) => $l->salesOrderLine && ($l->salesOrderLine->line_status === 'CANCELED' || $l->salesOrderLine->order?->status === 'CANCELED'));
+            if ($canceled->isNotEmpty()) {
+                $nos = $canceled->map(fn ($l) => $l->salesOrderLine->order?->order_no)->filter()->unique()->implode(', ');
+                throw ValidationException::withMessages(['status' => [
+                    "취소된 수주( {$nos} )의 품목이 있어 출하처리할 수 없습니다. 수주를 다시 확인하거나, 이 출하대기를 취소하세요.",
+                ]]);   // E_SHIP_SO_CANCELED
             }
             $stage = $this->stage($s);
             if ($stage !== 'READY') {

@@ -122,6 +122,8 @@ class PurchaseOrderService {
         foreach ($existing as $idx => $old) {
             if (!in_array($idx, $keep, true) && $old->hasDownstream()) {
                 $errors['lines'] = ["입고가 시작된 줄( {$old->item?->item_code} )은 지울 수 없습니다. 수량을 줄이세요."];
+            } elseif (!in_array($idx, $keep, true) && $old->hasReference()) {
+                $errors['lines'] = ["입고 기록( 검사대기 · 취소 포함 )이 있는 줄( {$old->item?->item_code} )은 지울 수 없습니다."];
             }
         }
 
@@ -210,7 +212,8 @@ class PurchaseOrderService {
     public function delete(PurchaseOrder $order): string {
         $order->loadMissing('lines');
 
-        if ($order->hasDownstream()) {
+        // 아래 단계가 붙었거나 다른 표가 줄을 가리키면( 취소분 포함 ) 지우지 않고 취소
+        if ($order->hasDownstream() || $order->lines->contains(fn ($l) => $l->hasReference())) {
             $order->status = 'CANCELED';
             $order->save();
             return 'canceled';

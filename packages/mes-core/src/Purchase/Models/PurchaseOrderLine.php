@@ -80,6 +80,12 @@ class PurchaseOrderLine extends Model {
         return (float) $this->received_qty > 0;
     }
 
+    // 다른 표가 이 줄을 가리키는가 ( 취소된 입고 · 검사대기 입고 포함 ) — 가리키면 지우지 않고 취소한다
+    //   입고 줄( stock_txn_line )은 restrictOnDelete 라, 지우면 문구 없이 500 이 났다
+    public function hasReference(): bool {
+        return \MesCore\Stock\Models\StockTxnLine::where('purchase_order_line_idx', $this->purchase_order_line_idx)->exists();
+    }
+
     public function minQty(): float {
         return (float) $this->received_qty;
     }
