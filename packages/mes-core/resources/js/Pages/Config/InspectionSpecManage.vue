@@ -223,6 +223,7 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import UnitSelect from '@core/Components/Common/UnitSelect.vue';
 
@@ -384,11 +385,14 @@ function onTypeFilter(v) {
 
 const emptyStr = (v) => (v === null || v === undefined ? '' : v);
 
+const selectLatest = useLatest();   // 기준서를 빠르게 바꿀 때 마지막 것만 반영
 async function selectSpec(s) {
+    const isLatest = selectLatest.begin();
     loading.value = true;
     errors.value = {};
     try {
         const { data } = await window.axios.get(route('config.inspection_spec.show', s.inspection_spec_idx));
+        if (!isLatest()) return;
         const p = data.spec;
         Object.assign(form, {
             inspection_spec_idx: p.inspection_spec_idx,
@@ -412,13 +416,15 @@ async function selectSpec(s) {
         });
         lastAutoName = '';
     } catch (e) {
-        showFlash('기준서를 불러오지 못했습니다', true);
+        if (isLatest()) showFlash('기준서를 불러오지 못했습니다', true);
     } finally {
-        loading.value = false;
+        if (isLatest()) loading.value = false;
     }
 }
 
 function newSpec() {
+    selectLatest.cancel();   // 불러오던 기준서가 신규 폼을 덮지 않게
+    loading.value = false;
     errors.value = {};
     lastAutoName = '';
     Object.assign(form, blankForm());

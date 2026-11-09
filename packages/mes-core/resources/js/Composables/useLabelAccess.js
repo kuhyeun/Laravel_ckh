@@ -7,25 +7,29 @@ import { route } from 'ziggy-js';
 import { usePage } from '@inertiajs/vue3';
 
 const state = reactive({ enabled: false, can_lot: false, can_shipment: false });
+const OFF = { enabled: false, can_lot: false, can_shipment: false };
 let pending = null;
+let seq = 0;   // 페이지마다 새 번호 — 앞 페이지의 늦은 응답이 지금 페이지 값을 덮지 않게 ( 덮이면 조회 전용 화면에 발행 버튼이 나왔다 )
 
 export function useLabelAccess() {
     if (!pending) {
+        const my = ++seq;
+        const apply = (v) => { if (my === seq) Object.assign(state, v); };
         pending = (async () => {
             try {
                 if (!route().has('label.access')) return;
                 if (usePage().props?.readOnly) {
-                    Object.assign(state, { enabled: false, can_lot: false, can_shipment: false });
+                    apply(OFF);
                     return;
                 }
                 const { data } = await window.axios.get(route('label.access'));
-                Object.assign(state, { enabled: !!data.enabled, can_lot: !!data.can_lot, can_shipment: !!data.can_shipment });
+                apply({ enabled: !!data.enabled, can_lot: !!data.can_lot, can_shipment: !!data.can_shipment });
             } catch (e) {
-                Object.assign(state, { enabled: false, can_lot: false, can_shipment: false });
+                apply(OFF);
             }
         })();
         // 다음 페이지에서 다시 묻는다 ( 권한 · 스위치가 바뀌었을 수 있다 )
-        document.addEventListener('inertia:navigate', () => { pending = null; }, { once: true });
+        document.addEventListener('inertia:navigate', () => { pending = null; seq++; }, { once: true });
     }
     return state;
 }

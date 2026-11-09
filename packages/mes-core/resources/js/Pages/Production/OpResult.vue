@@ -257,6 +257,7 @@ import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.v
 import ProcessInspectionForm from '@core/Components/Quality/ProcessInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
 
 defineOptions({ layout: AppLayout });
@@ -389,28 +390,33 @@ function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage();
 // ---- 상세 ----
 async function select(woIdx) {
     activeWo.value = woIdx;
+    if (line.value?.work_order_idx !== woIdx) line.value = null;   // 다른 줄이면 앞 줄 상세를 내린다 ( 불러오는 동안 앞 지시에 실적을 넣지 않게 )
     selectedIdx.value = null;
     panel.value = '';
     issueOpen.value = false;
     await loadDetail(woIdx);
 }
+const detailLatest = useLatest();   // 줄을 빠르게 바꿀 때 앞 줄의 늦은 응답이 상세를 덮지 않게 ( 덮이면 칠한 줄과 다른 지시에 실적이 들어갔다 )
 async function loadDetail(woIdx = line.value?.work_order_idx) {
     if (!woIdx) return;
+    const isLatest = detailLatest.begin();
     detailLoading.value = true;
     errorText.value = '';
     try {
         const { data } = await window.axios.get(route('production.opResult.show', woIdx));
+        if (!isLatest() || (activeWo.value !== null && activeWo.value !== woIdx)) return;   // 그 사이 다른 줄을 골랐다
         line.value = data.line;
         // 고른 공정이 없으면 진행 중인 첫 공정
         if (!line.value.ops.some(o => o.work_order_op_idx === selectedIdx.value)) {
             selectedIdx.value = (line.value.ops.find(o => o.status !== 'DONE') ?? line.value.ops[0])?.work_order_op_idx ?? null;
         }
     } catch (e) {
+        if (!isLatest()) return;
         line.value = null;
         activeWo.value = null;
         showFlash(e.response?.status === 404 ? '품목 줄을 찾을 수 없습니다.' : '품목 줄을 불러오지 못했습니다.', true);
     } finally {
-        detailLoading.value = false;
+        if (isLatest()) detailLoading.value = false;
     }
 }
 async function refresh() {

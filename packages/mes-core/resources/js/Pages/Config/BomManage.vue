@@ -257,6 +257,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 import { withSpec } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
@@ -324,7 +325,9 @@ async function loadItems() {
     }
 }
 
+const selectLatest = useLatest();   // 품목 · 버전을 빠르게 바꿀 때 마지막 것만 반영 ( 앞 품목 BOM 이 뒤 품목 폼을 덮지 않게 )
 async function selectItem(it) {
+    const isLatest = selectLatest.begin();
     selectedItem.value = it;
     errors.value = {};
     Object.assign(form, blankForm());
@@ -336,23 +339,25 @@ async function selectItem(it) {
             window.axios.get(route('config.bom.versions', it.item_idx)),
             window.axios.get(route('config.bom.routingLines', it.item_idx)),
         ]);
+        if (!isLatest()) return;
         versions.value     = vRes.data.versions ?? [];
         routingLines.value = rRes.data.routingLines ?? [];
 
         // 활성 버전이 있으면 그것을, 없으면 첫 버전을 연다
         const target = versions.value.find(v => v.is_active === 'Y') ?? versions.value[0];
-        if (target) await loadBom(target.bom_idx);
+        if (target) await loadBom(target.bom_idx, isLatest);
     } catch (e) {
-        showFlash('BOM 정보를 불러오지 못했습니다', true);
+        if (isLatest()) showFlash('BOM 정보를 불러오지 못했습니다', true);
     } finally {
-        loading.value = false;
+        if (isLatest()) loading.value = false;
     }
 }
 
-async function loadBom(bomIdx) {
+async function loadBom(bomIdx, isLatest = selectLatest.begin()) {
     errors.value = {};
     try {
         const { data } = await window.axios.get(route('config.bom.show', bomIdx));
+        if (!isLatest()) return;
         const b = data.bom;
         routingLines.value = data.routingLines ?? routingLines.value;
         Object.assign(form, {
@@ -364,7 +369,7 @@ async function loadBom(bomIdx) {
             })),
         });
     } catch (e) {
-        showFlash('BOM 을 불러오지 못했습니다', true);
+        if (isLatest()) showFlash('BOM 을 불러오지 못했습니다', true);
     }
 }
 

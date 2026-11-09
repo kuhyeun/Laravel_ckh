@@ -20,7 +20,7 @@
                         </h3>
                         <div class="flex gap-1.5">
                             <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="newGroup">신규</BaseButton>
-                            <BaseButton v-if="canWrite" size="sm" variant="primary" @click="saveGroup">저장</BaseButton>
+                            <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="saving" @click="saveGroup">저장</BaseButton>
                             <BaseButton v-if="canDelete && groupForm.system_code_group_idx" size="sm" variant="danger" @click="deleteGroup">삭제</BaseButton>
                         </div>
                     </div>
@@ -79,13 +79,14 @@
                         <GridSettingButton :grid="gridRef" />
                         <ExcelExportButton :rows="codes" :columns="codeColumns" :grid="gridRef" filename="공통코드" />
                         <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="newCode">신규</BaseButton>
-                        <BaseButton v-if="canWrite" size="sm" variant="primary" @click="saveCode">저장</BaseButton>
+                        <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="saving || codesLoading" @click="saveCode">저장</BaseButton>
                         <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0" @click="deleteCode">삭제</BaseButton>
                     </div>
                 </div>
                 <div class="flex-1 min-h-0">
                     <DataGrid
                         ref="gridRef"
+                        :loading="codesLoading"
                         setting-key="main"
                         class="h-full"
                         :data="codes"
@@ -113,6 +114,7 @@ import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import { clearCommonCodeCache } from '@core/Composables/useCommonCode';
 import { ToggleRenderer } from '@core/Composables/gridClass';
 import { useToast } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 
 defineOptions({ layout: AppLayout });
 
@@ -155,6 +157,9 @@ const groups = ref([]);
 const codes  = ref([]);
 const selectedGroupKey = ref(null);   // 하단 좌측 필터 ( 토글 )
 const checkedCount     = ref(0);     // 그리드 체크박스 선택 개수 → 삭제 버튼 활성화 기준
+const codesLoading     = ref(false);
+const saving           = ref(false);   // 그룹 · 코드 저장 연타 방지
+const codesLatest      = useLatest();  // 그룹을 빠르게 바꿀 때 앞 그룹의 늦은 응답이 목록을 덮지 않게 ( 덮이면 다른 그룹 코드에 신규 행이 섞였다 )
 
 // DataGrid 컴포넌트 ref → TUI Grid 인스턴스 접근용
 const gridRef = ref(null);
@@ -193,13 +198,18 @@ async function loadGroups() {
     }
 }
 async function loadCodes() {
+    const isLatest = codesLatest.begin();
+    codesLoading.value = true;
     try {
         const params = selectedGroupKey.value ? { group_key: selectedGroupKey.value } : {};
         const { data } = await window.axios.get(route('basic.code.codes'), { params });
+        if (!isLatest()) return;
         codes.value = data.codes ?? [];
         checkedCount.value = 0;   // 데이터 리셋 → 체크 해제됨
     } catch (e) {
-        showFlash('코드 목록을 불러오지 못했습니다', true);
+        if (isLatest()) showFlash('코드 목록을 불러오지 못했습니다', true);
+    } finally {
+        if (isLatest()) codesLoading.value = false;
     }
 }
 
@@ -250,7 +260,9 @@ const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
 // ---- 그룹 액션 ----
 async function saveGroup() {
+    if (saving.value) return;
     groupErrors.value = {};
+    saving.value = true;
     try {
         const { data } = await window.axios.post(route('basic.code.group.save'), { ...groupForm });
         const saved = data.group;
@@ -273,6 +285,8 @@ async function saveGroup() {
         } else {
             showFlash('그룹 저장에 실패했습니다', true);
         }
+    } finally {
+        saving.value = false;
     }
 }
 async function deleteGroup() {
@@ -305,7 +319,7 @@ const CODE_FIELDS = ['system_code_idx', 'system_code_group_key', 'system_code_ke
 
 async function saveCode() {
     const g = grid();
-    if (!g) return;
+    if (!g || saving.value || codesLoading.value) return;
 
     // 편집 중인 셀 값 확정 ( 입력 후 바로 저장 버튼을 누른 경우 )
     //   인자 없는 finishEditing 은 에디터 제거를 예약만 하고, 값은 다음 렌더에서 반영되므로 한 틱 대기
@@ -339,6 +353,7 @@ async function saveCode() {
         return;
     }
 
+    saving.value = true;
     try {
         const { data } = await window.axios.post(route('basic.code.saveMany'), {
             rows: rows.map(r => Object.fromEntries(CODE_FIELDS.map(f => [f, r[f] ?? null]))),
@@ -359,6 +374,8 @@ async function saveCode() {
         } else {
             showFlash('코드 저장에 실패했습니다', true);
         }
+    } finally {
+        saving.value = false;
     }
 }
 async function deleteCode() {

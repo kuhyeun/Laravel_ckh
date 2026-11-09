@@ -17,8 +17,7 @@ Route::prefix('user')->name('user.')->group(function() {
         Route::get('/login', [UserController::class, 'showLoginForm'])->name('login');
         Route::post('/login', [UserController::class, 'processLogin'])->name('login.process');
 
-        Route::get('/register', [UserController::class, 'showRegistrationForm'])->name('register');
-        Route::post('/register', [UserController::class, 'processRegistration'])->name('register.process');
+        // 회원가입은 없다 ( 11-09 — 계정은 사용자관리에서 관리자가 만든다 · 열어 두면 외부인이 가입해 공통 API 를 쓸 수 있었다 )
     });
 
     // 로그인된 사용자 접근

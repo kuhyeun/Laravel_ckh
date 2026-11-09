@@ -57,12 +57,12 @@
                             size="sm"
                             class="w-48"
                             :options="templateOptions"
-                            :disabled="!canWrite || saving"
+                            :disabled="!canWrite || saving || permLoading"
                         />
-                        <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!selectedUser || saving" @click="applyTemplate">템플릿 적용</BaseButton>
+                        <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!selectedUser || saving || permLoading" @click="applyTemplate">템플릿 적용</BaseButton>
                         <BaseButton
                             v-if="canWrite" size="sm" variant="primary"
-                            :disabled="!selectedUser || saving || previewing"
+                            :disabled="!selectedUser || saving || previewing || permLoading"
                             :title="previewing ? '미리보기 중입니다. [템플릿 적용] 후 저장하세요.' : ''"
                             @click="save"
                         >권한 저장</BaseButton>
@@ -133,6 +133,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import { useToast } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 
 defineOptions({ layout: AppLayout });
 
@@ -148,6 +149,8 @@ const users        = ref([]);
 const selectedUser = ref(null);
 const perm         = ref([]);   // [{ menu_idx, menu_name, menu_depth, is_admin, cap_*, can_* }]
 const saving       = ref(false);
+const permLoading  = ref(false);   // 고른 사용자의 권한을 불러오는 중 — 그동안 저장 · 적용을 막는다 ( 앞 사용자 권한이 뒤 사용자로 저장되지 않게 )
+const permLatest   = useLatest();  // 사용자 · 템플릿을 빠르게 바꿀 때 마지막 것만 반영
 
 // ---- 권한 템플릿 ----
 const templates   = ref([]);
@@ -210,13 +213,18 @@ function orderTree(rows) {
 async function selectUser(u) {
     selectedUser.value = u;
     previewing.value = false;
+    const isLatest = permLatest.begin();
+    permLoading.value = true;
     try {
         const { data } = await window.axios.get(route('basic.memauth.menus', u.account_idx));
+        if (!isLatest()) return;
         templateSel.value = data.permission_template_idx ? String(data.permission_template_idx) : '';
         u.permission_template_idx = data.permission_template_idx;
         applyPerm(orderTree(data.menus ?? []));
     } catch (e) {
-        showFlash('메뉴 권한을 불러오지 못했습니다', true);
+        if (isLatest()) showFlash('메뉴 권한을 불러오지 못했습니다', true);
+    } finally {
+        if (isLatest()) permLoading.value = false;
     }
 }
 
@@ -234,14 +242,19 @@ async function onTemplateChange(value) {
         return;
     }
 
+    const isLatest = permLatest.begin();
+    permLoading.value = true;
     try {
         const { data } = await window.axios.get(route('basic.memauth.menus', selectedUser.value.account_idx), {
             params: { preview: 1, preview_template_idx: value === '' ? null : Number(value) },
         });
+        if (!isLatest()) return;
         applyPerm(orderTree(data.menus ?? []));
         previewing.value = true;
     } catch (e) {
-        showFlash('템플릿 권한을 불러오지 못했습니다', true);
+        if (isLatest()) showFlash('템플릿 권한을 불러오지 못했습니다', true);
+    } finally {
+        if (isLatest()) permLoading.value = false;
     }
 }
 
@@ -291,7 +304,7 @@ function toggleColumn(field) {
 }
 
 async function save() {
-    if (!selectedUser.value) return;
+    if (!selectedUser.value || saving.value || permLoading.value) return;
     saving.value = true;
     try {
         await window.axios.post(route('basic.memauth.save'), {
@@ -316,7 +329,7 @@ async function save() {
 
 // 템플릿 적용 → 템플릿 권한 그대로 사용 ( 개인 지정 초기화 )
 async function applyTemplate() {
-    if (!selectedUser.value) return;
+    if (!selectedUser.value || saving.value || permLoading.value) return;
     const name = templateOptions.value.find(o => o.value === templateSel.value)?.label;
 
     const confirm = await showAlert( '확인', `'${name}' 을(를) 적용합니다.\n이 사용자의 개인 지정 권한은 초기화됩니다`, 'question', 'confirm' );
@@ -325,6 +338,7 @@ async function applyTemplate() {
         return;
     };
 
+    saving.value = true;   // 연타 방지 ( 전에는 끝날 때 끄기만 하고 켜지 않았다 )
     try {
         await window.axios.post(route('basic.memauth.template.apply'), {
             account_idx: selectedUser.value.account_idx,

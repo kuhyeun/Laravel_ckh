@@ -111,6 +111,7 @@ import { showAlert } from '@core/Utils/message';
 import { failMsg } from '@core/Composables/useFlash';
 import { fmtNum, fmtQty } from '@core/Utils/format';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
+import { useLatest } from '@core/Composables/useLatest';
 
 const props = defineProps({
     woIdx:     { type: Number, required: true },
@@ -140,11 +141,17 @@ const num  = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? 
 const over = (l) => num(l.fill) > l.returnable + 1e-9;
 const fillTotal = computed(() => lots.value.reduce((s, l) => s + num(l.fill), 0));
 
+const latest   = useLatest();   // 지시를 빠르게 바꿀 때 앞 지시의 늦은 응답이 반납 목록을 덮지 않게
+const loadedWo = ref(null);     // 지금 목록이 어느 지시 것인지 — 고른 지시와 같을 때만 반납
 async function load() {
+    const isLatest = latest.begin();
     loading.value = true;
     errorText.value = '';
+    loadedWo.value = null;
     try {
         const { data } = await window.axios.get(route(props.routes.returnPlan, props.woIdx));
+        if (!isLatest()) return;
+        loadedWo.value = props.woIdx;
         warehouses.value = data.warehouses ?? [];
         const firstWh = warehouses.value[0]?.warehouse_idx ?? '';
         lots.value = (data.lots ?? []).map(l => reactive({ ...l, mode: 'RETURN', fill: '', warehouse_idx: l.warehouse_idx ?? firstWh }));
@@ -152,9 +159,9 @@ async function load() {
         checked.value = [];
         form.occurred_at = data.now;
     } catch (e) {
-        errorText.value = failMsg(e);
+        if (isLatest()) errorText.value = failMsg(e);
     } finally {
-        loading.value = false;
+        if (isLatest()) loading.value = false;
     }
 }
 
@@ -162,7 +169,7 @@ async function save() {
     const lines = lots.value.filter(l => num(l.fill) > 0).map(l => ({
         item_idx: l.item_idx, lot_idx: l.lot_idx, qty: String(l.fill), warehouse_idx: l.warehouse_idx === '' ? null : Number(l.warehouse_idx), mode: l.mode,
     }));
-    if (!lines.length) return;
+    if (!lines.length || loading.value || loadedWo.value !== props.woIdx) return;
     if (lots.value.some(over)) {
         errorText.value = '반납 가능 수량보다 많이 반납할 수 없습니다. ( 빨간 칸 )';
         return;

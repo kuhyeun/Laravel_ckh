@@ -75,6 +75,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 import { useToast } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 import { useLabelAccess } from '@core/Composables/useLabelAccess';
 import LabelIssueForm from '@core/Components/Label/LabelIssueForm.vue';
 import { COLORS } from '@core/Utils/colors';
@@ -153,17 +154,20 @@ function params(extra = {}) {
     return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null));
 }
 
+const latest = useLatest();   // LOT ↔ 품목별을 빠르게 바꿀 때 앞 응답이 목록을 덮지 않게
 async function load() {
+    const isLatest = latest.begin();
     loading.value = true;
     try {
         const { data } = await window.axios.get(route(R.list), { params: params({ page: paging.page, perPage: paging.perPage }) });
+        if (!isLatest()) return;
         rows.value   = data.rows ?? [];
         paging.total = data.total ?? 0;
         paging.page  = data.page ?? 1;
     } catch (e) {
-        showFlash('재고를 불러오지 못했습니다.', true);
+        if (isLatest()) showFlash('재고를 불러오지 못했습니다.', true);
     } finally {
-        loading.value = false;
+        if (isLatest()) loading.value = false;
     }
 }
 function loadFirstPage() { paging.page = 1; sort.key = ''; load(); }

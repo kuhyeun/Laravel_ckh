@@ -17,7 +17,7 @@ class MemberController extends Controller {
     // 자기 권한보다 낮은 계정만 표시 및 본인 계정은 숨김처리
     public function list() {
         $myIdx   = Auth::user()->account_idx;
-        $myLevel = Auth::user()->user_level;
+        $myLevel = (int) Auth::user()->user_level;
 
         $members = User::select(
                 'account_idx',
@@ -29,7 +29,7 @@ class MemberController extends Controller {
                 'create_datetime',
                 'update_datetime'
             )
-            ->where('user_level', '>=', $myLevel)
+            ->where('user_level', $myLevel === User::SYSTEM_LEVEL ? '>=' : '>', $myLevel)   // 나보다 하위만 ( 시스템 계정은 전부 )
             ->where('account_idx', '!=', $myIdx)
             ->orderBy('account_idx')
             ->get();
@@ -40,27 +40,27 @@ class MemberController extends Controller {
     // 등록/수정 ( account_idx 있으면 수정, 없으면 신규 )
     public function save(Request $request) {
         $idx     = $request->input('account_idx');
-        $myLevel = Auth::user()->user_level;
+        $myLevel = (int) Auth::user()->user_level;
 
         // validate() 는 try 밖 → ValidationException 이 422 로 응답
         $validated = $request->validate([
             'user_id'    => ['required', 'string', 'max:50', Rule::unique('account_member', 'user_id')->ignore($idx, 'account_idx')],
             'user_name'  => ['required', 'string', 'max:50'],
             // user_type 은 저장 시 모델에서 user_level 로 자동 결정 ( 입력 불필요 )
-            // 내 레벨보다 상위(작은 수)는 부여 불가
-            'user_level' => ['required', 'integer', 'min:' . $myLevel],
+            // 내 레벨과 같거나 상위( 작은 수 )는 부여 불가 ( 시스템 계정은 같은 레벨까지 )
+            'user_level' => ['required', 'integer', 'min:' . $this->minAssignable($myLevel)],
             'is_use'     => ['required', 'boolean'],
             // 신규는 비밀번호 필수, 수정은 비우면 유지
             'user_pw'    => [$idx ? 'nullable' : 'required', 'string', 'min:8'],
-        ]);
+        ], ['user_level.min' => '나보다 하위 권한 레벨만 지정할 수 있습니다.']);
 
         try {
             $user = $idx ? User::find($idx) : new User();
             if ($idx && !$user) {
                 return response()->json(['message' => 'NotFound'], 404);
             }
-            // 기존 대상이 내 레벨보다 상위면 편집 불가
-            if ($idx && $user->user_level < $myLevel) {
+            // 기존 대상이 나와 같거나 상위면 편집 불가 ( 같은 레벨 관리자끼리 비밀번호 변경 · 삭제 방지 )
+            if ($idx && !$this->canManage($user, $myLevel)) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
 
@@ -87,18 +87,18 @@ class MemberController extends Controller {
 
     // 삭제
     public function delete(Request $request) {
-        $myLevel = Auth::user()->user_level;
+        $myLevel = (int) Auth::user()->user_level;
 
         try {
             $user = User::find($request->input('account_idx'));
             if (!$user) {
                 return response()->json(['message' => 'NotFound'], 404);
             }
-            // 자기 자신 / 상위 권한자는 삭제 불가
+            // 자기 자신 / 같거나 상위 권한자는 삭제 불가
             if ($user->account_idx === Auth::id()) {
                 return response()->json(['message' => 'SelfDelete'], 409);
             }
-            if ($user->user_level < $myLevel) {
+            if (!$this->canManage($user, $myLevel)) {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
 
@@ -118,7 +118,7 @@ class MemberController extends Controller {
             'account_idxs.*' => ['integer'],
         ]);
 
-        $myLevel = Auth::user()->user_level;
+        $myLevel = (int) Auth::user()->user_level;
         $users   = User::whereIn('account_idx', array_unique($validated['account_idxs']))->get();
 
         if ($users->isEmpty()) {
@@ -129,7 +129,7 @@ class MemberController extends Controller {
             return response()->json(['message' => 'SelfDelete'], 409);
         }
         // 상위 권한자 포함 → 차단 ( 대상 아이디 반환 )
-        $forbidden = $users->filter(fn ($u) => $u->user_level < $myLevel);
+        $forbidden = $users->filter(fn ($u) => !$this->canManage($u, $myLevel));
         if ($forbidden->isNotEmpty()) {
             return response()->json([
                 'message'  => 'Forbidden',
@@ -148,5 +148,14 @@ class MemberController extends Controller {
             Log::error('사용자 선택 삭제 실패 : ' . $e->getMessage());
             return response()->json(['message' => 'Failed'], 500);
         }
+    }
+
+    // 관리할 수 있는 대상 : 나보다 하위 레벨( 큰 수 ) — 시스템 계정( 레벨 0 )만 같은 레벨까지
+    private function canManage(User $target, int $myLevel): bool {
+        return $myLevel === User::SYSTEM_LEVEL ? $target->user_level >= $myLevel : $target->user_level > $myLevel;
+    }
+
+    private function minAssignable(int $myLevel): int {
+        return $myLevel === User::SYSTEM_LEVEL ? $myLevel : $myLevel + 1;
     }
 }

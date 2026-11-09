@@ -173,6 +173,7 @@ import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import { showAlert } from '@core/Utils/message';
 import { qtyText } from '@core/Components/Stock/stockCodes';
 import MaterialReturnPanel from '@core/Components/Production/MaterialReturnPanel.vue';
+import { useLatest } from '@core/Composables/useLatest';
 
 const props = defineProps({
     woIdx:     { type: Number, required: true },
@@ -233,7 +234,9 @@ const covered = (m) => filled(m) + materials.value
 
 function toggleTrace(g) { g._trace = !g._trace; }
 
+const planLatest = useLatest();   // 지시를 빠르게 바꿀 때 앞 지시의 늦은 응답이 화면을 덮지 않게 ( 덮이면 앞 지시 자재를 뒤 지시로 출고했다 )
 async function loadPlan() {
+    const isLatest = planLatest.begin();
     planLoading.value = true;
     errorText.value = '';
     try {
@@ -241,6 +244,7 @@ async function loadPlan() {
             window.axios.get(route(props.routes.plan, props.woIdx)),
             window.axios.get(route(props.routes.history, props.woIdx)),
         ]);
+        if (!isLatest()) return;
         order.value     = data.order;
         if (!['WAIT', 'RUN'].includes(data.order.status)) mode.value = 'return';
         materials.value = (data.materials ?? []).map(m => reactive({
@@ -254,10 +258,11 @@ async function loadPlan() {
         checked.value   = [];
         form.occurred_at = data.now;
     } catch (e) {
+        if (!isLatest()) return;
         order.value = null;
         emit('flash', e.response?.status === 403 ? '권한이 없습니다.' : '출고 정보를 불러오지 못했습니다.', true);
     } finally {
-        planLoading.value = false;
+        if (isLatest()) planLoading.value = false;
     }
 }
 
@@ -292,7 +297,7 @@ async function save() {
             }
         }
     }
-    if (!lines.length) return;
+    if (!lines.length || planLoading.value || order.value?.work_order_idx !== props.woIdx) return;   // 화면의 지시 = 고른 지시일 때만
     if (materials.value.some(m => m.groups.some(g => g.lots.some(over)))) {
         errorText.value = 'LOT 잔고보다 많이 낼 수 없습니다. ( 빨간 칸 )';
         return;

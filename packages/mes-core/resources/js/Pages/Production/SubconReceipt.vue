@@ -54,6 +54,7 @@ import SubconReceiptForm from '@core/Components/Production/SubconReceiptForm.vue
 import SubconInspectionForm from '@core/Components/Production/SubconInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 import { showAlert } from '@core/Utils/message';
 import { fmtQty, itemLabel } from '@core/Utils/format';
 import { COLORS } from '@core/Utils/colors';
@@ -121,19 +122,22 @@ const params = () => {
     return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined));
 };
 
+const latest = useLatest();   // 탭을 빠르게 바꿀 때 다른 탭의 늦은 응답이 목록을 덮지 않게 ( 덮이면 출고 대상 탭에 내역 행이 남아 잘못된 창이 열렸다 )
 async function load() {
+    const isLatest = latest.begin();
     loading.value = true; checked.value = [];
     try {
         const name = tab.value === 'open' ? 'production.subcon.receipt.issues' : 'production.subcon.receipt.receipts';
         const { data } = await window.axios.get(route(name), { params: { ...params(), _t: Date.now() } });   // 늘 새로 ( 캐시 안 씀 )
+        if (!isLatest()) return;
         rows.value = (data.rows ?? []).map(r => r.status === 'CANCELED' ? { ...r, _attributes: { className: { row: ['row-canceled'] }, checkDisabled: true } } : r);
     } catch (e) {
-        showFlash(failMsg(e), true);
+        if (isLatest()) showFlash(failMsg(e), true);
     } finally {
-        loading.value = false;
+        if (isLatest()) loading.value = false;
     }
 }
-function changeTab(key) { tab.value = key; load(); }
+function changeTab(key) { tab.value = key; rows.value = []; load(); }
 
 function onRow(row) {
     if (tab.value === 'open') {

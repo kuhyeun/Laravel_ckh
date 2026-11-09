@@ -51,6 +51,7 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import SubconIssueForm from '@core/Components/Production/SubconIssueForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 import { showAlert } from '@core/Utils/message';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 import { COLORS } from '@core/Utils/colors';
@@ -115,24 +116,28 @@ const params = () => {
     return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined));
 };
 
+const latest = useLatest();   // 탭을 빠르게 바꿀 때 다른 탭의 늦은 응답이 목록을 덮지 않게 ( 덮이면 출고 대상 탭에 내역 행이 남아 잘못된 창이 열렸다 )
 async function load() {
+    const isLatest = latest.begin();
     loading.value = true; checked.value = [];
     try {
         const name = tab.value === 'targets' ? 'production.subcon.issue.candidates' : 'production.subcon.issue.issues';
         const { data } = await window.axios.get(route(name), { params: { ...params(), _t: Date.now() } });   // 늘 새로 ( 캐시 안 씀 )
+        if (!isLatest()) return;
         rows.value = (data.rows ?? []).map(r => r.is_canceled ? { ...r, _attributes: { className: { row: ['row-canceled'] }, checkDisabled: true } } : r);
     } catch (e) {
-        showFlash(failMsg(e), true);
+        if (isLatest()) showFlash(failMsg(e), true);
     } finally {
-        loading.value = false;
+        if (isLatest()) loading.value = false;
     }
 }
-function changeTab(key) { tab.value = key; load(); }
+function changeTab(key) { tab.value = key; rows.value = []; load(); }
 
 function onRow(row) {
     if (tab.value !== 'targets') return;
     if (!canWrite.value) { showFlash('출고 권한이 없습니다.', true); return; }
-    if (row.available_qty <= 0) { showFlash(row.base_qty <= 0 ? '앞 공정 실적이 없어 출고할 수 없습니다.' : '출고할 수 있는 수량이 남지 않았습니다.', true); return; }
+    // 수량이 없는 행( 다른 탭 행 포함 )은 열지 않는다
+    if (!(row.available_qty > 0)) { showFlash(row.base_qty <= 0 ? '앞 공정 실적이 없어 출고할 수 없습니다.' : '출고할 수 있는 수량이 남지 않았습니다.', true); return; }
     modalStore.open(SubconIssueForm, {
         modalTitle: `외주 출고 [ ${row.wo_no} · ${row.process_name} ]`,
         target: row, partners: partners.value, now: ctx.now,

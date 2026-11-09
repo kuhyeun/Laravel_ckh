@@ -103,6 +103,7 @@ import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
 import { toLinePayload, totalCycleOf } from '@core/Components/Config/routingLines';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 
 defineOptions({ layout: AppLayout });
 
@@ -155,11 +156,14 @@ async function loadRoutings() {
     }
 }
 
+const selectLatest = useLatest();   // 라우팅을 빠르게 바꿀 때 마지막 것만 반영
 async function selectRouting(r) {
+    const isLatest = selectLatest.begin();
     loading.value = true;
     errors.value = {};
     try {
         const { data } = await window.axios.get(route('config.routing.show', r.routing_idx));
+        if (!isLatest()) return;
         const p = data.routing;
         Object.assign(form, {
             routing_idx: p.routing_idx,
@@ -171,13 +175,15 @@ async function selectRouting(r) {
             lines: p.lines ?? [],
         });
     } catch (e) {
-        showFlash('라우팅을 불러오지 못했습니다', true);
+        if (isLatest()) showFlash('라우팅을 불러오지 못했습니다', true);
     } finally {
-        loading.value = false;
+        if (isLatest()) loading.value = false;
     }
 }
 
 function newRouting() {
+    selectLatest.cancel();   // 불러오던 라우팅이 신규 폼을 덮지 않게
+    loading.value = false;
     errors.value = {};
     Object.assign(form, blankForm());
 }

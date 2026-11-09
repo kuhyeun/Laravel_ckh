@@ -38,10 +38,18 @@ class User extends Authenticatable {
     protected function casts(): array {
         return [
             'user_pw' => 'hashed',
-            'is_use' => 'boolean',
             'create_datetime' => 'datetime',
             'update_datetime' => 'datetime',
         ];
+    }
+
+    // is_use : DB 는 enum( 'Y','N' ) — 화면 · API 는 true / false 로 주고받는다 ( 'boolean' 캐스트는 'N' 을 true 로 읽어 쓰지 않는다 )
+    //   쿼리( where )는 그대로 'Y' / 'N' 으로 쓴다
+    protected function isUse(): \Illuminate\Database\Eloquent\Casts\Attribute {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::make(
+            get: fn ($v) => $v === 'Y',
+            set: fn ($v) => ($v === 'Y' || $v === true || $v === 1 || $v === '1') ? 'Y' : 'N',
+        );
     }
 
     // 저장 시 권한 레벨로 user_type 자동 결정 ( 0,1 → admin / 그 외 → user )

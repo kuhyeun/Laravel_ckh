@@ -66,7 +66,7 @@ const isEdit = computed(() => !!props.member?.account_idx);
 
 // 로그인 사용자 레벨 ( 공유 prop )
 const page    = usePage();
-const myLevel = computed(() => page.props.auth?.user?.user_level ?? 99);
+const myLevel = computed(() => Number(page.props.auth?.user?.user_level ?? 99));
 
 const ALL_LEVELS = [
     { value: 0,  label: '시스템관리자 (0)' },
@@ -74,8 +74,8 @@ const ALL_LEVELS = [
     { value: 10, label: '중간관리자 (10)' },
     { value: 99, label: '사용자 (99)' },
 ];
-// 본인 레벨 이상( 숫자 ≥ 내 레벨 = 내 권한 이하 )만 부여 가능
-const levelOptions = computed(() => ALL_LEVELS.filter(o => o.value >= myLevel.value));
+// 나보다 하위 레벨( 숫자 > 내 레벨 )만 부여 가능 — 시스템관리자( 0 )만 같은 레벨까지 ( 서버 MemberController::minAssignable 과 같게 )
+const levelOptions = computed(() => ALL_LEVELS.filter(o => myLevel.value === 0 ? o.value >= 0 : o.value > myLevel.value));
 
 const form = reactive({
     account_idx: props.member?.account_idx ?? null,
