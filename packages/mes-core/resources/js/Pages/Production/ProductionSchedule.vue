@@ -1,6 +1,6 @@
 <!-- 생산일정관리 ( 4004 ) / 생산관리 > 생산일정관리 — 조회 전용 간트 ( 서버 production.schedule.list )
      - 작업지시 공정( work_order_op ) 하나 = 막대 · 행 = 설비( 기본 ) 또는 공정
-     - 기간은 서버가 계산 : 시작 = 첫 공정은 지시 착수일 · 다음 공정은 앞 공정의 끝 / 끝 = 공정 기한 ( 없으면 지시 생산 기한 )
+     - 기간 = 실제로 한 날 ( 11-09 ) : 실적 공정 = 첫 실적일 ~ 마지막 실적일 / 완료만 하는 공정 = 시작일 ~ 완료일 · 대기 공정은 그리지 않음
      - [주 / 월] 보기 · ◀ ▶ 기간 이동 · [오늘] · [설비별 / 공정별]
      - **조회 전용** ( 11-05 사용자 결정 ) — 끌기 · 저장 없음. 날짜 · 설비를 바꾸려면 작업지시에서
      - 막대 : 상태 색만 ( 진행 띠 · 기한 넘김 표시는 쓰지 않는다 ) · 누르면 작업지시서( 보기 — 작업지시 조회 권한이 있을 때 ) -->
@@ -38,7 +38,7 @@
         <!-- 범례 -->
         <div class="flex items-center gap-3 pt-1.5 text-[11px] text-gray-500 shrink-0">
             <span v-for="s in OP_STATUSES" :key="s.value" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm" :style="{ background: s.bar }"></span>{{ s.label }}</span>
-            <span class="ml-2 text-gray-400">막대에 마우스를 올리면 자세히{{ canViewWo ? ' · 누르면 작업지시서' : '' }} · 기간 = 착수일( 앞 공정 끝 ) ~ 공정 기한</span>
+            <span class="ml-2 text-gray-400">막대에 마우스를 올리면 자세히{{ canViewWo ? ' · 누르면 작업지시서' : '' }} · 기간 = 실적을 등록한 날 ( 첫 실적 ~ 마지막 실적 · 대기 공정은 안 보임 )</span>
         </div>
     </div>
 </template>

@@ -13,8 +13,10 @@ use MesCore\Production\Models\WorkOrder;
 
 // 생산일정관리 ( Production/ProductionSchedule ) — 조회 전용 간트 ( 11-05 사용자 결정 — 끌기 · 저장 없음 )
 //   막대 = 작업지시 공정( work_order_op ) · 행 = 설비 / 공정
-//   기간 ( 공정 시작일 칸이 없으므로 계산 ) :
-//     시작 = 첫 공정은 지시 착수일 · 다음 공정은 앞 공정의 끝 / 끝 = 공정 기한 ( 없으면 지시 생산 기한 ) · 시작이 끝보다 늦으면 끝에 맞춤
+//   기간 = 실제로 한 날 ( 11-09 사용자 결정 — 전에는 착수일 · 기한으로 계산한 계획 기간 )
+//     실적을 쌓는 공정( 수량 · 외주 ) : 취소 안 한 실적의 첫 등록일 ~ 마지막 등록일 ( 진행 중이어도 마지막 실적일까지 )
+//     완료만 하는 공정( 원자재출고 · 검사 · 시스템 ) : 시작일 ~ 완료일 ( 진행 중이면 시작일 )
+//     실적도 시작도 없는 공정( 대기 )은 그리지 않는다
 class ProductionScheduleController extends Controller {
     use SearchesKeyword;
 
@@ -32,12 +34,15 @@ class ProductionScheduleController extends Controller {
             throw ValidationException::withMessages(['to' => ['종료일이 시작일보다 앞입니다.']]);
         }
 
-        // 기간에 걸칠 수 있는 지시 ( 착수 ≤ 끝 · 기한 또는 공정 기한 ≥ 시작 ) — 취소 제외
+        // 기간에 실제로 한 일이 걸칠 수 있는 지시 — 취소 제외 ( 정확한 기간은 아래에서 다시 본다 )
+        $fromAt = $v['from'] . ' 00:00:00';
+        $toAt   = $v['to'] . ' 23:59:59';
         $query = WorkOrder::with(['item:item_idx,item_code,item_name,spec,spec_unit', 'ops' => fn ($q) => $q->orderBy('seq')])
             ->where('status', '!=', 'CANCELED')
-            ->where('start_date', '<=', $v['to'])
-            ->where(fn ($q) => $q->where('due_date', '>=', $v['from'])
-                ->orWhereHas('ops', fn ($o) => $o->where('due_date', '>=', $v['from'])));
+            ->whereHas('ops', fn ($o) => $o
+                ->where(fn ($s) => $s->where('started_at', '<=', $toAt)
+                    ->where(fn ($d) => $d->whereNull('done_at')->orWhere('done_at', '>=', $fromAt)))
+                ->orWhereHas('runs', fn ($r) => $r->whereBetween('worked_at', [$fromAt, $toAt])));
         $this->applyKeyword($query, $v['keyword'] ?? null, [
             'wo_no'     => fn ($q, $kw) => $q->where('wo_no', 'like', $kw),
             'item_code' => fn ($q, $kw) => $q->whereHas('item', fn ($i) => $i->where('item_code', 'like', $kw)),
@@ -46,17 +51,28 @@ class ProductionScheduleController extends Controller {
         ]);
         $wos = $query->orderBy('start_date')->limit(self::LIMIT)->get();
 
+        // 공정별 실적 기간 ( 취소 제외 · 한 번에 )
+        $spans = DB::table('work_order_op_run')->where('is_canceled', 'N')
+            ->whereIn('work_order_op_idx', $wos->flatMap(fn ($wo) => $wo->ops->pluck('work_order_op_idx'))->all() ?: [0])
+            ->groupBy('work_order_op_idx')
+            ->selectRaw('work_order_op_idx, DATE(MIN(worked_at)) AS first_day, DATE(MAX(worked_at)) AS last_day')
+            ->get()->keyBy('work_order_op_idx');
+
         $ops = [];
         foreach ($wos as $wo) {
-            $prevEnd = null;
             foreach ($wo->ops as $op) {
-                $end   = $op->due_date?->toDateString() ?? $wo->due_date?->toDateString();
-                $start = $prevEnd ?? $wo->start_date?->toDateString();
-                if ($end && $start && $start > $end) {
-                    $start = $end;
+                if ($span = $spans[$op->work_order_op_idx] ?? null) {
+                    [$start, $end] = [$span->first_day, $span->last_day];
+                } elseif ($op->started_at) {
+                    $start = $op->started_at->toDateString();
+                    $end   = ($op->done_at ?? $op->started_at)->toDateString();
+                } else {
+                    continue;   // 대기 — 그리지 않음
                 }
-                $prevEnd = $end ?? $prevEnd;
-                if (!$start || !$end || $end < $v['from'] || $start > $v['to']) {
+                if ($end < $start) {
+                    $end = $start;
+                }
+                if ($end < $v['from'] || $start > $v['to']) {
                     continue;
                 }
                 if (!empty($v['process_idx']) && (int) $op->process_idx !== (int) $v['process_idx']) {

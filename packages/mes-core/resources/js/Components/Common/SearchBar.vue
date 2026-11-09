@@ -12,7 +12,7 @@
 <template>
     <div class="flex flex-wrap items-center gap-2 px-3 py-2 mb-3 border border-gray-200 bg-gray-50/70 shrink-0">
         <template v-if="dateBases.length">
-            <BaseSelect v-if="dateBases.length > 1" v-model="model.date_basis" :options="dateBases" class="w-24" />
+            <BaseSelect v-if="dateBases.length > 1" v-model="model.date_basis" :options="dateBases" class="w-32" />
             <span v-else class="text-xs text-gray-500">{{ dateBases[0].label }}</span>
             <BaseDatePicker v-model="model.from" class="w-36" />
             <span class="text-gray-400">~</span>
