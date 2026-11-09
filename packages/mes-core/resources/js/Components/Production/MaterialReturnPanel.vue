@@ -6,12 +6,12 @@
 <template>
     <div class="flex flex-col min-h-0">
         <div class="px-3 py-2 bg-gray-50/70 shrink-0 flex items-center gap-3 flex-wrap">
-            <span class="text-xs text-gray-500">쓰고 남은 자재를 그대로 창고로 돌려놓습니다. 사용처리된 몫을 반납하면 이 지시의 사용 수량이 줄어듭니다.</span>
+            <span class="text-xs text-gray-500">쓰고 남은 자재를 그대로 창고로 돌려놓습니다.</span>
             <div class="flex-1"></div>
             <template v-if="canWrite">
                 <label class="text-xs text-gray-500">반납일시</label>
                 <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="sm" class="w-44" />
-                <BaseInput v-model="form.remark" size="sm" class="w-40" placeholder="비고" maxlength="200" />
+                <BaseInput v-model="form.remark" size="sm" class="w-40" placeholder="반납 사유( 메모 )" maxlength="200" />
                 <BaseButton variant="primary" :disabled="saving || loading || !fillTotal" @click="save">반납</BaseButton>
             </template>
         </div>
@@ -122,7 +122,7 @@ const emit = defineEmits(['changed', 'flash']);
 
 // 처리 : 이번에는 그대로 반납만 — 잔재 재입고( 새 LOT · 규격 입력 · 바코드 ) · 폐기는 재고-수불 §8 ( 자리만 )
 const MODES = [
-    { value: 'RETURN',   label: '그대로 반납' },
+    { value: 'RETURN',   label: '반납' },
     { value: 'LEFTOVER', label: '잔재 재입고 ( 준비 중 )', disabled: true },
     { value: 'SCRAP',    label: '폐기 ( 준비 중 )', disabled: true },
 ];

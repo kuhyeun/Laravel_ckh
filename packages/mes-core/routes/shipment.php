@@ -6,6 +6,7 @@ use MesCore\Shipment\Controllers\ShipmentHistoryController;
 use MesCore\Shipment\Controllers\InvoiceController;
 use MesCore\Shipment\Controllers\ClaimController;
 use MesCore\Shipment\Controllers\ShipmentTagController;
+use MesCore\Shipment\Controllers\LotTraceController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -37,6 +38,16 @@ Route::prefix('shipment')->name('shipment.')->middleware([UserAuth::class])->gro
             Route::post('/reject', [ShipmentController::class, 'reject'])->name('reject');
             Route::post('/cancel', [ShipmentController::class, 'cancel'])->name('cancel');
         });
+    });
+
+    // LOT 관리 ( Shipment/LotTrace — 메뉴 출하관리 > LOT 관리 7006 ) — LOT 추적 · 조회 전용
+    Route::prefix('lot-trace')->name('lotTrace.')->middleware(MenuAuth::class . ':Shipment/LotTrace,can_read')->group(function() {
+        Route::get('/formData', [LotTraceController::class, 'formData'])->name('formData');
+        Route::get('/materials', [LotTraceController::class, 'materials'])->name('materials');
+        Route::get('/products', [LotTraceController::class, 'products'])->name('products');
+        Route::get('/graph', [LotTraceController::class, 'graph'])->name('graph');
+        Route::get('/history', [LotTraceController::class, 'history'])->name('history');
+        Route::get('/ops', [LotTraceController::class, 'ops'])->name('ops');
     });
 
     // 현품표 ( Shipment/ShipmentTag — 메뉴 출하관리 > 현품표 7005 ) — 출하 완료 품목 라벨 미리보기 · 인쇄 ( 없으면 발행 → 쓰기 권한 )

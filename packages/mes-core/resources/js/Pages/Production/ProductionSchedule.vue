@@ -65,7 +65,7 @@ const today = todayYmd();
 
 // ---- 상태 ( 지시 공정 — 대기 · 진행 · 완료 ) · 막대 색 ----
 const OP_STATUSES = [
-    { value: 'WAIT', label: '대기', bar: COLORS.blue300,      text: COLORS.gray800 },
+    { value: 'WAIT', label: '대기', bar: STATUS_COLOR.idle,   text: COLORS.white },
     { value: 'RUN',  label: '진행', bar: STATUS_COLOR.active, text: COLORS.white },
     { value: 'DONE', label: '완료', bar: STATUS_COLOR.done,   text: COLORS.white },
 ];

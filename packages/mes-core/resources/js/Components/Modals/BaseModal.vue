@@ -89,6 +89,8 @@ onUnmounted(() => {
     .size-md { max-width: 600px; }
     .size-lg { max-width: 800px; }
     .size-xl { max-width: 1240px; }
+    /* 거의 전체 화면 ( LOT 추적 흐름도 등 — 높이 고정 · 안쪽이 나눠 쓴다 ) */
+    .size-full { max-width: 96vw; height: 88vh; }
 
     .modal-overlay {
         animation: fadeIn 0.25s ease;
