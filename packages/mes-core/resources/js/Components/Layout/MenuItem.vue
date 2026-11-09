@@ -130,15 +130,17 @@ watch(currentUrl, () => {
 
 const itemHref = computed(() => props.menuItem.url_path || null);
 
+let openTimer = null;   // 펼친 뒤 'none' 으로 바꾸는 타이머 — 그 사이 접으면 취소 ( 코드 검사 B-8 — 안 그러면 접은 메뉴가 다시 펼쳐졌다 )
 const toggle = async () => {
+    clearTimeout(openTimer);
     if (!expanded.value) {
         expanded.value = true;
         await nextTick();
         const height = subMenuRef.value?.scrollHeight ?? 0;
         subMenuMaxHeight.value = height + 'px';
         // 트랜지션 후 none으로 변경하여 자식 메뉴 확장 허용
-        setTimeout(() => {
-            subMenuMaxHeight.value = 'none';
+        openTimer = setTimeout(() => {
+            if (expanded.value) subMenuMaxHeight.value = 'none';
         }, 300);
     } else {
         // 닫을 때: 현재 높이를 설정한 뒤 0으로 전환해야 트랜지션 작동

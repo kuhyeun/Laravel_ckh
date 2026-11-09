@@ -75,7 +75,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
-import { itemLabel } from '@core/Utils/format';
+import { itemLabel, fmtNum } from '@core/Utils/format';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -113,14 +113,13 @@ const SEARCH_FIELDS = [
 const blankFilters = () => ({ issue_status: '', include_done: 'N' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ date_basis: 'start_date', from: '', to: '', keyword: '', ...blankFilters() });
 
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 
 const columns = [
     { header: '지시번호', name: 'wo_no', width: 120, sortable: true, className: 'cursor-pointer' },
     { header: '품목', name: 'item_code', minWidth: 120, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true, dash: true },
-    { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmt(row.target_qty), hidden: true },
+    { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmtNum(row.target_qty), hidden: true },
     { header: '착수', name: 'start_date', width: 90, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '출고', name: 'issued_count', width: 60, align: 'center', className: 'cursor-pointer',
       formatter: ({ row }) => !row.materials_count ? '-' : row.issued_count ? `${row.issued_count}/${row.materials_count}` : `<span style="color:${COLORS.gray400}">미출고</span>` },

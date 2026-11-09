@@ -20,6 +20,7 @@ use MesCore\Stock\Models\StockTxnLine;
  *   취소 : 두 행 역분개. 받은 창고에 그만큼 남아 있어야 한다
  */
 class StockMoveService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const TXN_TYPE  = 'MOVE';
     public const NO_PREFIX = 'MV';
@@ -107,13 +108,5 @@ class StockMoveService {
             $line->fill(['line_status' => 'CANCELED'])->save();
             $txn->fill(['status' => 'CANCELED'])->save();
         });
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
-    }
-
-    private function str(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ''), '0'), '.') ?: '0';
     }
 }

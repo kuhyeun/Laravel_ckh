@@ -18,6 +18,7 @@ use MesCore\Shipment\Services\ShipmentService;
  *   검사 취소 : 출하 전만 — 검사 기록 · 불량은 취소 표시, 줄은 다시 검사대기
  */
 class ShippingInspectionService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const REF_TYPE = 'shipment_line';
 
@@ -111,9 +112,5 @@ class ShippingInspectionService {
         return Inspection::with(['defects', 'inspector:account_idx,user_id,user_name'])
             ->where('ref_type', self::REF_TYPE)->where('ref_idx', $line->shipment_line_idx)
             ->where('is_canceled', 'N')->latest('inspection_idx')->first();
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
     }
 }

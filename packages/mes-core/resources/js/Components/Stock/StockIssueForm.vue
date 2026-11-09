@@ -42,7 +42,7 @@
                         <label class="block text-gray-500 font-medium mb-1">수량 <span class="text-red-500">*</span></label>
                         <BaseInput v-model="misc.qty" type="number" min="0" class="w-full text-right" />
                         <p v-if="errors.qty" class="text-xs text-red-500 mt-0.5">{{ errors.qty[0] }}</p>
-                        <p v-else-if="misc.qty !== ''" class="text-[11px] mt-0.5 text-gray-400">출고 후 {{ fmt(Number(b.qty) - Number(misc.qty || 0)) }}</p>
+                        <p v-else-if="misc.qty !== ''" class="text-[11px] mt-0.5 text-gray-400">출고 후 {{ fmtNum(Number(b.qty) - Number(misc.qty || 0)) }}</p>
                     </div>
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">출고일시 <span class="text-red-500">*</span></label>
@@ -80,6 +80,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
 import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 import { useFlash } from '@core/Composables/useFlash';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     balanceIdx: { type: Number,   required: true },
@@ -111,7 +112,6 @@ const openOrders = ref([]);
 const allOrders  = ref([]);
 const misc = reactive({ qty: '', occurred_at: '', work_order_idx: '', remark: '' });
 
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 
 onMounted(async () => {
     try {

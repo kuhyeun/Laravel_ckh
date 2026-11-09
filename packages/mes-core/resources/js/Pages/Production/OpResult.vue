@@ -56,10 +56,10 @@
                 <template v-else>
                     <div class="px-3 py-2 bg-gray-50/70 shrink-0 flex items-center gap-3 flex-wrap">
                         <span class="text-sm font-semibold">{{ line.wo_no }}</span>
-                        <span class="text-sm text-gray-600">{{ line.item_label }} · 지시 {{ fmt(line.target_qty) }} {{ line.spec_unit }}</span>
+                        <span class="text-sm text-gray-600">{{ line.item_label }} · 지시 {{ fmtNum(line.target_qty) }} {{ line.spec_unit }}</span>
                         <span v-if="line.lot_no" class="text-xs text-gray-400">LOT {{ line.lot_no }}</span>
                         <span v-if="line.due_date" class="text-xs text-gray-400">기한 {{ line.due_date }}</span>
-                        <span v-if="line.received_qty" class="text-xs text-blue-700">입고 {{ fmt(line.received_qty) }} {{ line.spec_unit }}</span>
+                        <span v-if="line.received_qty" class="text-xs text-blue-700">입고 {{ fmtNum(line.received_qty) }} {{ line.spec_unit }}</span>
                         <span class="text-sm font-semibold" :style="{ color: woStatusColor(line.status) }">{{ woStatusLabel(line.status) }}</span>
                         <div class="flex-1"></div>
                         <BaseButton v-if="canDelete && line.status === 'DONE'" size="sm" variant="danger" :disabled="busy" @click="cancelLineDone">완료 취소 ( 제품 입고 되돌림 )</BaseButton>
@@ -89,11 +89,11 @@
                                         @click="pickOp(o)">
                                         <td class="px-2 py-1.5 text-center text-gray-500">{{ String(o.seq).padStart(3, '0') }}</td>
                                         <td class="px-2 py-1.5 truncate" :title="o.name">{{ o.name }} <span class="text-xs text-gray-400">{{ o.is_qty ? '' : (o.is_inspection && line.quality_on ? '( 검사 )' : '( 완료만 )') }}</span></td>
-                                        <td class="px-2 py-1.5 text-right text-gray-500">{{ o.base_qty === null ? '—' : fmt(o.base_qty) }}</td>
-                                        <td class="px-2 py-1.5 text-right font-semibold">{{ o.is_qty || (o.is_inspection && o.status === 'DONE') ? fmt(o.qty) : '—' }}</td>
+                                        <td class="px-2 py-1.5 text-right text-gray-500">{{ o.base_qty === null ? '—' : fmtNum(o.base_qty) }}</td>
+                                        <td class="px-2 py-1.5 text-right font-semibold">{{ o.is_qty || (o.is_inspection && o.status === 'DONE') ? fmtNum(o.qty) : '—' }}</td>
                                         <td class="px-2 py-1.5 text-center font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</td>
                                         <td class="px-2 py-1.5 text-xs">
-                                            <span v-if="o.short_qty" class="text-amber-700">미달 {{ fmt(o.short_qty) }} · {{ o.short_reason }}</span>
+                                            <span v-if="o.short_qty" class="text-amber-700">미달 {{ fmtNum(o.short_qty) }} · {{ o.short_reason }}</span>
                                             <span v-else-if="o.block" class="text-gray-400">{{ o.block }}</span>
                                         </td>
                                         <td class="px-2 py-1 text-right whitespace-nowrap" @click.stop>
@@ -152,8 +152,8 @@
                                     <BaseButton size="sm" variant="primary" :disabled="busy" @click="addRun">저장</BaseButton>
                                 </div>
                                 <p class="w-full text-xs text-gray-500">
-                                    <template v-if="selectedOp.is_first_qty">지시 수량 {{ fmt(selectedOp.base_qty) }} · 지금 {{ fmt(selectedOp.qty) }} ( 넘으면 초과 생산 경고 )</template>
-                                    <template v-else>앞 공정 실적 {{ fmt(selectedOp.base_qty) }} 까지 · 더 넣을 수 있는 수량 <b>{{ fmt(Math.max(0, selectedOp.base_qty - selectedOp.qty)) }}</b></template>
+                                    <template v-if="selectedOp.is_first_qty">지시 수량 {{ fmtNum(selectedOp.base_qty) }} · 지금 {{ fmtNum(selectedOp.qty) }} ( 넘으면 초과 생산 경고 )</template>
+                                    <template v-else>앞 공정 실적 {{ fmtNum(selectedOp.base_qty) }} 까지 · 더 넣을 수 있는 수량 <b>{{ fmtNum(Math.max(0, selectedOp.base_qty - selectedOp.qty)) }}</b></template>
                                     · 작업자를 바꾸면 대리 입력으로 남습니다
                                     <template v-if="selectedOp.receives_on_run"> · <span class="text-blue-700">마지막 공정이라 저장하면 이 수량만큼 바로 제품을 입고합니다</span></template>
                                 </p>
@@ -162,10 +162,10 @@
                             <!-- 완료 -->
                             <div v-if="panel === 'done'" class="px-3 py-3 border-b bg-blue-50/40 flex items-end gap-3 flex-wrap">
                                 <p class="w-full text-sm">
-                                    <template v-if="selectedOp.is_qty">실적 {{ fmt(selectedOp.qty) }} / 기준 {{ fmt(selectedOp.base_qty) }} 으로 완료합니다.</template>
+                                    <template v-if="selectedOp.is_qty">실적 {{ fmtNum(selectedOp.qty) }} / 기준 {{ fmtNum(selectedOp.base_qty) }} 으로 완료합니다.</template>
                                     <template v-else>{{ selectedOp.name }} 을 완료합니다.</template>
                                     <span v-if="selectedOp.is_rm_out" class="ml-1 text-gray-500">덜 나간 자재가 있으면 한 번 더 묻습니다.</span>
-                                    <span v-if="needReason" class="ml-1 text-amber-700">{{ fmt(selectedOp.base_qty - selectedOp.qty) }} 미달 — 사유를 고르세요.</span>
+                                    <span v-if="needReason" class="ml-1 text-amber-700">{{ fmtNum(selectedOp.base_qty - selectedOp.qty) }} 미달 — 사유를 고르세요.</span>
                                     <span v-if="selectedOp.needs_warehouse" class="ml-1 text-blue-700">마지막 공정이라 남은 수량을 제품 입고하고 줄을 완료합니다.</span>
                                     <span v-else-if="selectedOp.is_last_open" class="ml-1 text-blue-700">마지막 공정이라 줄을 완료합니다. ( 입고는 실적 때 했습니다 )</span>
                                 </p>
@@ -196,7 +196,7 @@
                                             <td class="px-3 py-1.5">{{ r.worked_at }}</td>
                                             <td class="px-2 py-1.5 truncate" :title="r.equipment_name ?? ''">{{ r.equipment_name ?? '—' }}</td>
                                             <td class="px-2 py-1.5">{{ r.operator }} <span v-if="r.is_proxy" class="text-gray-400">( 입력 : {{ r.creator }} )</span></td>
-                                            <td class="px-2 py-1.5 text-right font-semibold">{{ fmt(r.qty) }}<span v-if="r.received" class="ml-1 px-1 rounded bg-blue-50 text-blue-700 font-normal">입고</span></td>
+                                            <td class="px-2 py-1.5 text-right font-semibold">{{ fmtNum(r.qty) }}<span v-if="r.received" class="ml-1 px-1 rounded bg-blue-50 text-blue-700 font-normal">입고</span></td>
                                             <td class="px-2 py-1.5 text-gray-500 truncate" :title="r.remark">{{ r.remark }}</td>
                                             <td class="px-2 py-1 text-right"><button v-if="canDelete && selectedOp.status !== 'DONE'" type="button" class="text-gray-400 hover:text-red-500" :disabled="busy" @click="cancelRun(r)">취소</button></td>
                                         </tr>
@@ -220,10 +220,10 @@
                                     <tr v-for="(m, i) in line.materials" :key="i" class="border-t">
                                         <td class="px-2 py-1">{{ m.item_label }}</td>
                                         <td class="px-2 py-1 text-gray-500">{{ m.input_op }}</td>
-                                        <td class="px-2 py-1 text-right" :class="m.issued ? '' : 'text-gray-400'">{{ m.issued ? fmt(m.issued) : '미출고' }}</td>
-                                        <td class="px-2 py-1 text-right text-gray-500">{{ fmt(m.consumed) }}</td>
-                                        <td class="px-2 py-1 text-right text-gray-500">{{ fmt(m.returned) }}</td>
-                                        <td class="px-2 py-1 text-right font-semibold">{{ fmt(m.held) }}</td>
+                                        <td class="px-2 py-1 text-right" :class="m.issued ? '' : 'text-gray-400'">{{ m.issued ? fmtNum(m.issued) : '미출고' }}</td>
+                                        <td class="px-2 py-1 text-right text-gray-500">{{ fmtNum(m.consumed) }}</td>
+                                        <td class="px-2 py-1 text-right text-gray-500">{{ fmtNum(m.returned) }}</td>
+                                        <td class="px-2 py-1 text-right font-semibold">{{ fmtNum(m.held) }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -259,6 +259,7 @@ import { useModalStore } from '@core/Stores/modalStore';
 import { useToast } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
+import { fmtNum } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -285,7 +286,6 @@ const SEARCH_FIELDS = [
 const blankFilters = () => ({ status: 'OPEN' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ keyword: '', ...blankFilters() });
 
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
 const columns = [
@@ -293,7 +293,7 @@ const columns = [
     { header: '품목', name: 'item_label', minWidth: 120, className: 'cursor-pointer', escapeHTML: true },
     { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
     { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
-    { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmt(row.target_qty) },
+    { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmtNum(row.target_qty) },
     { header: '공정', name: 'ops_count', width: 50, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => `${row.done_ops_count}/${row.ops_count}` },
     { header: '상태', name: 'status', width: 50, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => `<span style="color:${woStatusColor(value)};font-weight:600">${woStatusLabel(value)}</span>` },
@@ -453,7 +453,7 @@ async function addRun() {
             warehouse_idx: selectedOp.value.receives_on_run && runForm.warehouse_idx !== '' ? Number(runForm.warehouse_idx) : null,
         });
         if (selectedOp.value.receives_on_run && runForm.warehouse_idx !== '') rememberWarehouse(runForm.warehouse_idx);
-        showFlash(okMsg(`${selectedOp.value.name} 실적 ${fmt(runForm.qty)} 을 넣었습니다.${selectedOp.value.receives_on_run ? ' ( 제품 입고 )' : ''}`, data.warnings));
+        showFlash(okMsg(`${selectedOp.value.name} 실적 ${fmtNum(runForm.qty)} 을 넣었습니다.${selectedOp.value.receives_on_run ? ' ( 제품 입고 )' : ''}`, data.warnings));
         runForm.qty = ''; runForm.remark = '';
         await refresh();
     } catch (e) {
@@ -507,7 +507,7 @@ async function confirmAnd(title, text, fn, done) {
     }
 }
 
-const cancelRun = (r) => confirmAnd('실적 취소', `${r.worked_at} · ${r.operator} · ${fmt(r.qty)} 실적을 취소합니다.${r.received ? '\n이 실적으로 입고한 제품도 재고에서 되돌립니다.' : ''}`,
+const cancelRun = (r) => confirmAnd('실적 취소', `${r.worked_at} · ${r.operator} · ${fmtNum(r.qty)} 실적을 취소합니다.${r.received ? '\n이 실적으로 입고한 제품도 재고에서 되돌립니다.' : ''}`,
     () => window.axios.post(route('production.opResult.cancelRun'), { run_idx: r.run_idx }), '실적을 취소했습니다.');
 
 const cancelComplete = (o) => confirmAnd('완료 취소', `${o.name} 의 완료를 취소합니다.${o.short_qty ? '\n미달 사유도 지워집니다.' : ''}`,

@@ -67,8 +67,8 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
-import { itemLabel } from '@core/Utils/format';
-import { ditto, escapeHtml } from '@core/Utils/gridTree';
+import { itemLabel, fmtNum } from '@core/Utils/format';
+import { ditto, escapeHtml, pick, mergeSingleLine, pickedText as pickedTextOf } from '@core/Utils/gridTree';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
@@ -81,6 +81,8 @@ import { showAlert } from '@core/Utils/message';
 import { STATUS_FILTER_OPTIONS, orderStatusLabel, orderStatusColor, lineStatusLabel } from '@core/Components/Purchase/purchaseCodes';
 import { COLORS } from '@core/Utils/colors';
 import { useToast } from '@core/Composables/useToast';
+import { useListAction } from '@core/Composables/useListAction';
+import { todayYmd } from '@core/Utils/calendar';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -121,14 +123,9 @@ const gridOptions = {
     treeColumnOptions: { name: 'order_no', useIcon: false, useCascadingCheckbox: false },
 };
 
-const num    = (v) => (v === null || v === undefined || v === '') ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
-// 줄이 하나인 주문은 한 행으로 합친다 ( _single — 스타일 가이드 §5 트리 ) : 품목 · 수량 · 금액 같은 줄 값 칸은 줄 값, 머리 값 칸 · 상태는 그대로
-const lineLike = (row) => row.is_line || row._single;
-const pick   = (head, line) => ({ row }) => lineLike(row) ? line(row) : head(row);
-const todayStr = () => {   // 현지 날짜 ( toISOString 은 UTC 라 오전에 하루 밀린다 )
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
+const num    = (v) => (v === null || v === undefined || v === '') ? '' : fmtNum(v);
+// 줄이 하나인 주문은 한 행으로 합친다 ( _single — 스타일 가이드 §5 트리 ) : 품목 · 수량 · 금액 같은 줄 값 칸은 줄 값, 머리 값 칸 · 상태는 그대로 ( Utils/gridTree )
+const todayStr = todayYmd;   // 현지 날짜 ( Utils/calendar )
 
 // 사용자가 입력한 글자가 들어가는 열은 escapeHTML ( formatter 결과도 글자 그대로 )
 const columns = [
@@ -166,7 +163,7 @@ const columns = [
 
 const rows        = ref([]);
 const loading     = ref(false);
-const busy        = ref(false);
+const { busy, run } = useListAction(load, { notFound: '발주를 찾을 수 없습니다.' });   // 마감 · 삭제 뒤 다시 읽기 · 실패 문구 ( Composables/useListAction )
 const checkedRows = ref([]);
 const paging      = reactive({ page: 1, perPage: 50, total: 0 });
 const sort        = reactive({ key: '', dir: '' });
@@ -182,13 +179,7 @@ function params(extra = {}) {
 }
 
 // 줄은 체크 대상이 아니다 ( 머리 단위로 마감 · 삭제 )
-const toGridRows = (list) => list.map(r => {
-    if ((r._children ?? []).length === 1) {
-        const { _children, ...head } = r;
-        return { ..._children[0], ...head, item_code: _children[0].item_code, item_name: _children[0].item_name, is_line: false, _single: true };
-    }
-    return { ...r, _children: (r._children ?? []).map(c => ({ ...c, _attributes: { checkDisabled: true } })) };
-});
+const toGridRows = (list) => mergeSingleLine(list, { prefer: 'head', lockChildren: true });
 
 async function load() {
     loading.value = true;
@@ -272,10 +263,7 @@ function openPrint() {
 }
 
 // ---- 마감 · 삭제 ----
-function pickedText(list) {
-    const names = list.slice(0, 3).map(r => r.order_no).join(', ');
-    return `${list.length}건( ${names}${list.length > 3 ? ` 외 ${list.length - 3}건` : ''} )`;
-}
+const pickedText = (list) => pickedTextOf(list, 'order_no');
 
 async function closeChecked() {
     const target = checkedRows.value.filter(r => ['DRAFT', 'CONFIRMED'].includes(r.status));
@@ -317,21 +305,6 @@ async function deleteChecked() {
     });
 }
 
-async function run(fn) {
-    busy.value = true;
-    try {
-        await fn();
-        await load();
-    } catch (e) {
-        const status = e.response?.status;
-        if (status === 403)      showFlash('권한이 없습니다.', true);
-        else if (status === 422) showFlash(Object.values(e.response.data.errors ?? {}).flat().join(' / '), true);
-        else if (status === 404) { showFlash('발주를 찾을 수 없습니다.', true); load(); }
-        else                     showFlash('처리에 실패했습니다.', true);
-    } finally {
-        busy.value = false;
-    }
-}
 
 // 구매처 거르기 목록 ( 첫 조회는 SearchBar 가 기본 기간을 채운 뒤 search 로 )
 onMounted(async () => {

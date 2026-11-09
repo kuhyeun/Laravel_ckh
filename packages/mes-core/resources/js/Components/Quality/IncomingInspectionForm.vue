@@ -109,6 +109,7 @@ import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import { showAlert } from '@core/Utils/message';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { INSP_RESULTS, inspModeLabel, qtyText } from '@core/Components/Stock/stockCodes';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     lineIdx:  { type: Number,   required: true },
@@ -132,7 +133,7 @@ const { options } = useCommonCode(['DEFECT_TYPE']);
 const inspectorOptions = computed(() => inspectors.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 
 const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
-const fmt = (v) => num(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
+const fmt = (v) => fmtNum(num(v));   // 빈 칸 · 글자는 0 ( 입력 칸용 ) — 모양은 공용 fmtNum
 const sum   = computed(() => num(form.pass_qty) + num(form.fail_qty));
 const sumOk = computed(() => line.value && Math.abs(sum.value - num(line.value.qty)) < 0.000001);
 

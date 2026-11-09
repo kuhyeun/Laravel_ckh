@@ -66,7 +66,7 @@
                             <td class="px-2 py-1.5">{{ l.order_no || '( 직접 )' }}</td>
                             <td class="px-2 py-1.5 text-center">{{ inspModeLabel(l.insp_mode) }}</td>
                             <td class="px-2 py-1.5 text-right">
-                                <template v-if="l.line_status === 'DONE'">{{ fmt(l.pass_qty) }}<span v-if="l.fail_qty > 0" class="text-red-500 font-semibold"> ( {{ fmt(l.fail_qty) }} )</span></template>
+                                <template v-if="l.line_status === 'DONE'">{{ fmtNum(l.pass_qty) }}<span v-if="l.fail_qty > 0" class="text-red-500 font-semibold"> ( {{ fmtNum(l.fail_qty) }} )</span></template>
                             </td>
                             <td class="px-2 py-1.5 text-center font-semibold" :style="{ color: receiptStatusColor(l.line_status) }">{{ receiptStatusLabel(l.line_status) }}</td>
                             <td class="px-2 py-1.5 text-center">
@@ -104,6 +104,7 @@ import { useLabelAccess } from '@core/Composables/useLabelAccess';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { receiptStatusLabel, receiptStatusColor, inspModeLabel, qtyText } from '@core/Components/Stock/stockCodes';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     txnIdx:   { type: Number,   required: true },
@@ -125,7 +126,6 @@ const checkedLots = computed(() => (rc.value?._children ?? [])
     .filter(l => checked.value.includes(l.stock_txn_line_idx) && l.lot_idx)
     .map(l => ({ id: l.lot_idx, qty: Number(l.qty) })));
 
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 
 async function load() {
     loading.value = true;

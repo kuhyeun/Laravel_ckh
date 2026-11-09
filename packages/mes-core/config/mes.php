@@ -37,7 +37,8 @@ return [
     | sql_skip_tables: 남기지 않을 테이블 ( 요청마다 도는 캐시 · 세션 — 양만 많고 쓸모가 적다 )
     */
     'log' => [
-        'sql'             => env('MES_SQL_LOG', true),
+        // 기본 : 운영( APP_ENV=production )은 끔 · 그 밖은 켬 — 업체가 MES_SQL_LOG 로 바꾼다 ( 비밀번호 해시 · 토큰은 켜도 *** 로 가린다 )
+        'sql'             => env('MES_SQL_LOG', env('APP_ENV', 'production') !== 'production'),
         'days'            => (int) env('MES_LOG_DAYS', 30),
         'sql_skip_tables' => ['cache', 'cache_locks', 'sessions', 'jobs', 'job_batches', 'failed_jobs'],
         'sql_max_length'  => 5000,

@@ -19,6 +19,7 @@ use MesCore\Stock\Models\StockTxnLine;
  *   취소 : 역분개 ( 재고가 돌아온다 )
  */
 class StockMiscOutService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const TXN_TYPE  = 'OUT_MISC';
     public const NO_PREFIX = 'MO';
@@ -96,11 +97,4 @@ class StockMiscOutService {
     }
 
     // decimal 은 문자열로 ( 지수 표기 없이 )
-    private function str(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ''), '0'), '.');
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
-    }
 }

@@ -27,6 +27,7 @@ use MesCore\Quality\Services\DefectService;
  *   취소 : 출고 = 입고가 없을 때 / 입고 = 실적 취소( 뒤 공정이 쓰지 않았을 때 ) + 검사 · 불량 취소 표시
  */
 class SubconService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const RECEIPT_STATUSES = ['WAIT' => '검사대기', 'DONE' => '입고 완료', 'CANCELED' => '취소'];
     public const INSP_REF_TYPE = 'subcon_receipt';
@@ -252,17 +253,6 @@ class SubconService {
     }
 
     private function nextNo(string $table, string $col, string $prefix, Carbon $date): string {
-        $head = $prefix . '-' . $date->format('ymd') . '-';
-        $last = DB::table($table)->where($col, 'like', $head . '%')->lockForUpdate()->orderByDesc($col)->value($col);
-        $seq  = $last ? ((int) substr($last, strlen($head))) + 1 : 1;
-        return $head . str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
-    }
-
-    private function str(float $v): string {
-        return number_format($v, 6, '.', '');
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
+        return \MesCore\Support\DocNumber::next($prefix . '-' . $date->format('ymd') . '-', $table, $col);
     }
 }

@@ -131,6 +131,7 @@ import WorkOrderLinePanel from '@core/Components/Production/WorkOrderLinePanel.v
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import { blankLine, lineFromServer, applyItemDefaults, linePayload, sameRouting } from '@core/Components/Production/workOrderLine';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     order:     { type: Object,   default: null },   // { sheet_idx, work_order_idx? } — 있으면 수정 ( work_order_idx 는 처음 고를 줄 )
@@ -157,7 +158,7 @@ const managerOptions = computed(() => [{ value: '', label: '—' }, ...ctx.worke
 const lotRuleMissing = computed(() => ctx.lot.enabled && !ctx.lot.rules.length && !lines.value.some(l => l.lot_no));
 
 const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
-const fmt = (v) => num(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
+const fmt = (v) => fmtNum(num(v));   // 빈 칸 · 글자는 0 ( 입력 칸용 ) — 모양은 공용 fmtNum
 // 줄 이름 : 고를 때 · 불러올 때 정한 품목 이름( savedItem ) — 품목 목록을 받아 두지 않는다 ( 서버 모드 ItemPicker )
 const itemLabel = (l) => (l.item_idx ? l.savedItem || `#${l.item_idx}` : '');
 const lineLabel = (l) => `${String(lines.value.indexOf(l) + 1).padStart(2, '0')} ${itemLabel(l)}`;

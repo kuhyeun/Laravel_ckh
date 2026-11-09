@@ -19,6 +19,7 @@ use MesCore\Stock\Models\StockTxnLine;
  *   취소 : 역분개. 되돌린 결과가 음수가 되면 막는다 ( 그 사이 출고됨 )
  */
 class StockAdjustService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const TXN_TYPE     = 'ADJUST';
     public const NO_PREFIX    = 'AJ';
@@ -121,11 +122,4 @@ class StockAdjustService {
     }
 
     // decimal 은 문자열로 ( 지수 표기 없이 )
-    private function str(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ''), '0'), '.');
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
-    }
 }

@@ -58,7 +58,7 @@ import { ref, reactive, computed } from 'vue';
 import { usePage, router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
-import { itemLabel } from '@core/Utils/format';
+import { itemLabel, fmtNum } from '@core/Utils/format';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -88,7 +88,6 @@ const STATUS_OPTIONS = [
 const blankFilters = () => ({ status: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', ...blankFilters() });
 
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const statusCell = ({ value }) => value === 'CANCELED' ? `<span style="color:${COLORS.gray400}">취소</span>` : `<span style="color:${COLORS.green600};font-weight:600">완료</span>`;
 
 const common = [
@@ -122,9 +121,9 @@ const CONFIG = {
             { header: '조정번호', name: 'txn_no', width: 115, sortable: true },
             { ...common[0], header: '조정일시' }, common[1], common[2], common[3],
             { header: '창고', name: 'warehouse_name', width: 90, escapeHTML: true },
-            { header: '장부 → 조정 후', name: 'book_qty', width: 105, align: 'right', formatter: ({ row }) => `${fmt(row.book_qty)} → ${fmt(row.qty)}` },
+            { header: '장부 → 조정 후', name: 'book_qty', width: 105, align: 'right', formatter: ({ row }) => `${fmtNum(row.book_qty)} → ${fmtNum(row.qty)}` },
             { header: '증감', name: 'delta', width: 65, align: 'right',
-              formatter: ({ value }) => `<span style="color:${value < 0 ? COLORS.red600 : COLORS.blue700}">${value > 0 ? '+' : ''}${fmt(value)}</span>` },
+              formatter: ({ value }) => `<span style="color:${value < 0 ? COLORS.red600 : COLORS.blue700}">${value > 0 ? '+' : ''}${fmtNum(value)}</span>` },
             { header: '사유', name: 'reason', width: 70, align: 'center', escapeHTML: true },
             { header: '상세', name: 'remark', minWidth: 90, escapeHTML: true },
             { header: '조정자', name: 'user_name', width: 70, escapeHTML: true },

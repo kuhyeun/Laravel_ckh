@@ -30,6 +30,7 @@ class MenuController extends Controller {
         try {
             $menu = Menu::createUserMenu( $request );
 
+            $this->bump();
             return response()->json([
                 'message' => 'Success',
                 'menu' => $menu
@@ -50,6 +51,7 @@ class MenuController extends Controller {
         try {
             $menu = Menu::createAdminMenu( $request );
 
+            $this->bump();
             return response()->json([
                 'message' => 'Success',
                 'menu' => $menu
@@ -107,6 +109,7 @@ class MenuController extends Controller {
                 }
             } );
 
+            $this->bump();
             return response()->json([
                 'message' => 'Success',
                 'menu' => $menu
@@ -134,6 +137,7 @@ class MenuController extends Controller {
             // menu_option / account_menu_permission 은 FK cascade 로 함께 삭제됨
             $menu->delete();
 
+            $this->bump();
             return response()->json([ 'message' => 'Success' ], 200 );
         } catch( \Throwable $e ) {
             Log::error( '메뉴 삭제 실패 : '. $e->getMessage() );
@@ -190,6 +194,7 @@ class MenuController extends Controller {
             });
 
             // 참고: 메뉴 권한 캐시는 테이블 변경 감지( 버전 키 )로 자동 무효화 → 다음 요청부터 즉시 반영됨.
+            $this->bump();
             return response()->json([ 'message' => 'Success' ], 200 );
         } catch( \Throwable $e ) {
             Log::error( '메뉴 권한 저장 실패 : '. $e->getMessage() );
@@ -231,11 +236,17 @@ class MenuController extends Controller {
                 }
             } );
 
+            $this->bump();
             return response()->json([ 'message' => 'Success' ], 200 );
         } catch( \Throwable $e ) {
             Log::error( '메뉴 순서 저장 실패 : '. $e->getMessage() );
 
             return response()->json([ 'message' => 'Failed' ], 500 );
         }
+    }
+
+    // 메뉴 · 레벨 옵션을 바꾸면 권한 캐시 서명을 지운다 ( MenuPermissionService — 다음 요청부터 새 사이드바 · 권한 )
+    private function bump(): void {
+        app(\MesCore\Menu\Services\MenuPermissionService::class)->bumpVersion();
     }
 }

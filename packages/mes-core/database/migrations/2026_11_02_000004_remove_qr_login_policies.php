@@ -13,6 +13,8 @@ return new class extends Migration {
     public function up(): void {
         DB::table('system_config_override')->where('system_config_group_key', 'auth')->whereIn('system_config_key', self::KEYS)->delete();
         DB::table('system_config')->where('system_config_group_key', 'auth')->whereIn('system_config_key', self::KEYS)->delete();
+        // 정책 캐시도 비운다 ( 코드 검사 B-10 — 안 비우면 cache:clear 전까지 지운 정책이 설정 화면에 남았다 )
+        app(\MesCore\Basic\Services\PolicyService::class)->flush();
     }
 
     public function down(): void {

@@ -32,6 +32,7 @@ use MesCore\Stock\Services\StockService;
  *   줄 취소 : 그 LOT 에 발행된 라벨도 폐기( 사유 '입고 취소' ) — 붙어 있는 라벨을 찍으면 폐기 알림
  */
 class ReceiptService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const TXN_TYPE  = 'IN_PURCHASE';
     public const NO_PREFIX = 'RC';
@@ -320,9 +321,5 @@ class ReceiptService {
             $order->status = 'CONFIRMED';   // 입고 취소로 다시 남은 수량이 생김
             $order->save();
         }
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
     }
 }

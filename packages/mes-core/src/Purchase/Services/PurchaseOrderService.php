@@ -20,6 +20,7 @@ use MesCore\Purchase\Models\PurchaseOrderLineSource;
  *     아래 단계 = 입고 ( 입고된 줄은 품목 변경 · 삭제 불가, 수량은 입고량 아래로 못 줄임 )
  */
 class PurchaseOrderService {
+    use \MesCore\Support\FormatsQty, \MesCore\Support\OrderHeaderActions;   // str() · num() ( 코드 검사 C-1 )
 
     public const NO_PREFIX = 'PO-';
 
@@ -196,53 +197,18 @@ class PurchaseOrderService {
 
     // PO-YYMMDD-NNN ( 발주일 기준 날짜별 순번 ). 같은 날짜의 마지막 번호를 잠그고 +1
     public function nextOrderNo(string $orderDate): string {
-        $prefix = self::NO_PREFIX . date('ymd', strtotime($orderDate)) . '-';
-        $last   = PurchaseOrder::where('order_no', 'like', $prefix . '%')
-            ->lockForUpdate()
-            ->orderByDesc('order_no')
-            ->value('order_no');
-        $seq = $last ? ((int) substr($last, strlen($prefix))) + 1 : 1;
-
-        return $prefix . str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
+        return \MesCore\Support\DocNumber::next(self::NO_PREFIX . date('ymd', strtotime($orderDate)) . '-', 'purchase_order', 'order_no');
     }
 
     /**
      * @return string 'deleted' | 'canceled'
      */
     public function delete(PurchaseOrder $order): string {
-        $order->loadMissing('lines');
-
-        // 아래 단계가 붙었거나 다른 표가 줄을 가리키면( 취소분 포함 ) 지우지 않고 취소
-        if ($order->hasDownstream() || $order->lines->contains(fn ($l) => $l->hasReference())) {
-            $order->status = 'CANCELED';
-            $order->save();
-            return 'canceled';
-        }
-
-        DB::transaction(function () use ($order) {
-            Attachment::where('ref_type', 'purchase_order')->where('ref_idx', $order->purchase_order_idx)->get()
-                ->each(fn (Attachment $a) => $this->attachments->delete($a));
-            $order->delete();   // 줄은 FK cascade
-        });
-        return 'deleted';
+        return $this->deleteOrCancel($order, 'purchase_order');   // Support/OrderHeaderActions
     }
 
     // 상태 바꾸기 ( 목록의 [마감] · 수정 화면의 [다시 열기] )
     public function changeStatus(PurchaseOrder $order, string $to): void {
-        $allowed = [
-            'CLOSED'    => ['CONFIRMED', 'DRAFT'],
-            'CONFIRMED' => ['CLOSED', 'CANCELED'],
-        ];
-        if (!in_array($order->status, $allowed[$to] ?? [], true)) {
-            throw ValidationException::withMessages([
-                'status' => [PurchaseOrder::STATUSES[$order->status] . ' 상태에서는 ' . PurchaseOrder::STATUSES[$to] . '(으)로 바꿀 수 없습니다.'],
-            ]);
-        }
-        $order->status = $to;
-        $order->save();
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
+        $this->changeHeaderStatus($order, $to);   // Support/OrderHeaderActions
     }
 }

@@ -41,6 +41,7 @@ use MesCore\Stock\Services\StockService;
  *   상태   : 품목 줄 대기 → 진행 → 완료, 지시서 상태는 WorkOrderSheetService::refreshStatus
  */
 class OpResultService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const TXN_TYPE    = 'IN_PRODUCTION';
     public const NO_PREFIX   = 'PD';
@@ -363,6 +364,12 @@ class OpResultService {
             'short_qty'    => null,
             'short_reason' => null,
         ])->save();
+        // 대기로 돌아가면 시작할 때 사용처리한 자재를 보유로 되돌린다 ( 다시 시작하면 startOp 가 다시 사용처리 · 코드 검사 B-1 )
+        if ($op->status === 'WAIT') {
+            $op->started_at = null;
+            $op->save();
+            $this->materials->releaseForOp(WorkOrder::find($op->work_order_idx), $op);
+        }
     }
 
     // 줄 완료 — 아직 입고 안 한 수량( 마지막 수량 공정 실적 − 이미 입고, 수량 공정이 없으면 지시 수량 )을 제품 LOT 으로. 0 이면 입고 없이 완료
@@ -551,13 +558,5 @@ class OpResultService {
         $fail = (float) DB::table('defect')->where('work_order_op_idx', $next->work_order_op_idx)
             ->where('insp_type', 'PROCESS')->where('is_canceled', 'N')->sum('qty');
         return (float) $next->qty + $fail;
-    }
-
-    private function str(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ''), '0'), '.') ?: '0';
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.') ?: '0';
     }
 }

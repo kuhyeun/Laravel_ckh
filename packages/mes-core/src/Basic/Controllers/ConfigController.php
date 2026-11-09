@@ -99,7 +99,12 @@ class ConfigController extends Controller {
             $changed = DB::transaction(function () use ($items, $policy) {
                 $n = 0;
                 foreach ($items as $item) {
-                    $n += $policy->set($item['group'] . '.' . $item['key'], $item['value'] ?? null) ? 1 : 0;
+                    $key = $item['group'] . '.' . $item['key'];
+                    // 화면에 안 보이는 항목은 저장도 막는다 ( 목록과 같은 조건 — 11-09 코드 검사 A-5 · SiteConfigController 와 같게 )
+                    if (!$policy->definition($key)['is_visible']) {
+                        throw new PolicyException('이 화면에서 바꿀 수 없는 항목입니다.');
+                    }
+                    $n += $policy->set($key, $item['value'] ?? null) ? 1 : 0;
                 }
                 return $n;
             });

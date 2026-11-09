@@ -28,8 +28,8 @@
                         <td class="px-2 py-1.5">{{ r.txn_type_label }}</td>
                         <td class="px-2 py-1.5">{{ r.txn_no }}</td>
                         <td class="px-2 py-1.5">{{ r.warehouse_name }}</td>
-                        <td class="px-2 py-1.5 text-right" :class="r.qty_delta < 0 ? 'text-red-600' : 'text-blue-700'">{{ r.qty_delta > 0 ? '+' : '' }}{{ fmt(r.qty_delta) }}</td>
-                        <td class="px-2 py-1.5 text-right font-semibold">{{ fmt(r.running) }}</td>
+                        <td class="px-2 py-1.5 text-right" :class="r.qty_delta < 0 ? 'text-red-600' : 'text-blue-700'">{{ r.qty_delta > 0 ? '+' : '' }}{{ fmtNum(r.qty_delta) }}</td>
+                        <td class="px-2 py-1.5 text-right font-semibold">{{ fmtNum(r.running) }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -53,6 +53,7 @@ import { ref, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     itemIdx:      { type: Number, required: true },
@@ -81,7 +82,6 @@ const loading   = ref(true);
 const error     = ref('');
 const rows      = ref([]);
 const truncated = ref(false);
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 
 onMounted(load);
 

@@ -13,10 +13,48 @@ class MenuPermissionService {
     // 버전 기반 무효화라 TTL 은 이전 버전 캐시 키를 청소하는 안전망 역할일 뿐
     private const CACHE_TTL = 86400;
 
+    // 변경 감지 서명( 아래 menuVersion )을 캐시에 둔다 ( 11-09 코드 검사 3-4 )
+    //   전에는 요청마다 권한 테이블 6개를 집계했다 → 이제 저장할 때 bumpVersion() 으로 지우고, 그 사이엔 캐시 한 번 읽기
+    //   DB 를 직접 고친 경우( 시더 · tinker ) 를 위해 VERSION_TTL 이 지나면 다시 집계한다 ( 늦어도 그만큼 뒤 반영 )
+    private const VERSION_KEY = 'mes_menu_perm_version';
+    private const VERSION_TTL = 600;
+
+    // 요청 단위 메모 ( 한 요청에서 Inertia 공유 · MenuAuth · Gate · canPage 가 여러 번 불러도 캐시 표를 다시 읽지 않는다 )
+    private static array $payloadMemo = [];
+    private static array $pageCodesMemo = [];
+    private static ?int $memoRequest = null;
+
     public function getForUser(User $user): array {
-        return Cache::remember($this->cacheKey($user), self::CACHE_TTL, function () use ($user) {
+        $this->syncRequestMemo();
+        $key = $this->cacheKey($user);
+        return self::$payloadMemo[$key] ??= Cache::remember($key, self::CACHE_TTL, function () use ($user) {
             return $this->buildPayload($user);
         });
+    }
+
+    // 화면( page_component ) → 그 화면을 쓰는 메뉴 코드 ( MenuAuth · canPage — 전에는 부를 때마다 메뉴 표를 찾았다 )
+    public function pageCodes(string $pageComponent): array {
+        $this->syncRequestMemo();
+        return self::$pageCodesMemo[$pageComponent] ??= Cache::remember(
+            'mes_menu_page_codes_' . md5($pageComponent) . '_v' . $this->menuVersion(), self::CACHE_TTL,
+            fn () => Menu::where('page_component', $pageComponent)->pluck('menu_code')->map(fn ($c) => (string) $c)->all()
+        );
+    }
+
+    // 권한 · 메뉴 · 레벨 옵션 · 템플릿 · 기능 스위치를 저장한 뒤 부른다 → 다음 요청부터 새로 계산
+    public function bumpVersion(): void {
+        Cache::forget(self::VERSION_KEY);
+        $this->resetVersionMemo();
+    }
+
+    // 요청이 바뀌면 메모를 비운다 ( 콘솔은 요청 경계가 없어 메모하지 않는다 )
+    private function syncRequestMemo(): void {
+        $requestId = app()->runningInConsole() ? -1 : spl_object_id(request());
+        if (self::$memoRequest !== $requestId || $requestId === -1) {
+            self::$payloadMemo   = [];
+            self::$pageCodesMemo = [];
+            self::$memoRequest   = $requestId;
+        }
     }
 
     // 메뉴/옵션/권한이 바뀌면 버전이 달라져 캐시 키가 바뀜 → 자동 재빌드.
@@ -58,6 +96,24 @@ class MenuPermissionService {
             return self::$versionMemo;
         }
 
+        // 테이블 서명은 캐시( 저장 때 bumpVersion 으로 지움 · VERSION_TTL 안전망 ) — 콘솔은 늘 새로 ( 시더 · 배치가 바로 보게 )
+        $tables = app()->runningInConsole()
+            ? $this->tableSignature()
+            : Cache::remember(self::VERSION_KEY, self::VERSION_TTL, fn () => $this->tableSignature());
+
+        // 활성 모듈/디버그 변경도 감지 ( config 만 바꿔도 사이드바 자동 갱신 ) — 설정값이라 늘 새로
+        $version = md5($tables . '|' . json_encode(config('mes.modules', [])) . '|' . (config('app.debug') ? '1' : '0'));
+
+        if ($requestId !== null) {
+            self::$versionMemo        = $version;
+            self::$versionMemoRequest = $requestId;
+        }
+
+        return $version;
+    }
+
+    // 테이블별 행 수 + 행 내용 체크섬
+    private function tableSignature(): string {
         $sigs = [];
         foreach (self::VERSION_COLUMNS as $table => $columns) {
             // NULL 을 구분값으로 치환 ( CONCAT_WS 는 NULL 을 건너뛰어 ( a,NULL,b ) 와 ( a,b,NULL ) 이 같아짐 )
@@ -68,25 +124,15 @@ class MenuPermissionService {
 
             $sigs[] = $table . ':' . $row->c . ':' . $row->h;
         }
-
-        // 활성 모듈/디버그 변경도 감지 ( config 만 바꿔도 사이드바 자동 갱신 )
-        $sigs[] = json_encode(config('mes.modules', []));
-        $sigs[] = config('app.debug') ? '1' : '0';
-
-        $version = md5(implode('|', $sigs));
-
-        if ($requestId !== null) {
-            self::$versionMemo        = $version;
-            self::$versionMemoRequest = $requestId;
-        }
-
-        return $version;
+        return implode('|', $sigs);
     }
 
     // 같은 요청 안에서 권한을 바꾼 뒤 바로 다시 계산해야 할 때 메모 초기화
     public function resetVersionMemo(): void {
         self::$versionMemo        = null;
         self::$versionMemoRequest = null;
+        self::$payloadMemo        = [];
+        self::$pageCodesMemo      = [];
     }
 
     public function can(User $user, string $menuCode, string $action): bool {
@@ -108,12 +154,16 @@ class MenuPermissionService {
     // 화면( page_component ) 기준 권한 — 라우트 미들웨어가 아닌 곳( 여러 화면이 같이 쓰는 API )에서 쓴다
     //   여럿을 주면 하나라도 되면 통과 ( 예: 입고검사는 입고관리 · 입고검사 어느 쪽 권한으로도 )
     public function canPage(User $user, string|array $pageComponents, string $action): bool {
-        $codes = Menu::whereIn('page_component', (array) $pageComponents)->pluck('menu_code');
-        return $codes->contains(fn ($code) => $this->can($user, (string) $code, $action));
+        foreach ((array) $pageComponents as $page) {
+            foreach ($this->pageCodes($page) as $code) {
+                if ($this->can($user, $code, $action)) return true;
+            }
+        }
+        return false;
     }
 
     public function forgetForUser(User $user): void {
-        $this->resetVersionMemo();
+        $this->bumpVersion();
         Cache::forget($this->cacheKey($user));
     }
 

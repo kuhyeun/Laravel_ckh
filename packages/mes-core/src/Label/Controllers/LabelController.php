@@ -82,7 +82,8 @@ class LabelController extends Controller {
         return response()->json(['labels' => $this->labels->sheets($idxs)]);
     }
 
-    // 재인쇄용 데이터 ( 발행이력 )
+    // 재인쇄용 데이터 ( 발행이력 ) — 미리보기라 조회 권한 ( 11-09 코드 검사 A-6 확인 )
+    //   실제 [인쇄] 는 printed() 가 대상별 발행 권한을 보고 기록한 뒤에만 인쇄 창을 연다 ( 막히면 인쇄하지 않는다 — LabelPreview::print )
     public function sheets(Request $request) {
         $v = $request->validate(['label_idxs' => 'required|array|min:1|max:200', 'label_idxs.*' => 'integer']);
         $this->guardHistory('can_read');

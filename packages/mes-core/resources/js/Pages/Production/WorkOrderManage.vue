@@ -69,6 +69,7 @@ import { showAlert } from '@core/Utils/message';
 import { WO_SOURCES, WO_STATUS_FILTER, woSourceLabel, woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import { COLORS } from '@core/Utils/colors';
 import { useToast } from '@core/Composables/useToast';
+import { fmtNum } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
@@ -96,7 +97,6 @@ const SEARCH_FIELDS = [
 const blankFilters = () => ({ source: '', status: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ date_basis: 'start_date', from: '', to: '', keyword: '', ...blankFilters() });
 
-const num = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 // 지시서 행 아래 품목 줄 ( 줄이 하나인 지시서는 펼침 없이 그 줄 값을 지시서 행에 )
@@ -111,7 +111,7 @@ const columns = [
     { header: '품목', name: 'item_label', minWidth: 200, className: 'cursor-pointer', escapeHTML: true },
     { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
     { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
-    { header: '수량', name: 'target_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.target_qty === undefined || row.target_qty === null ? '' : `${num(row.target_qty)} ${row.spec_unit ?? ''}` },
+    { header: '수량', name: 'target_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.target_qty === undefined || row.target_qty === null ? '' : `${fmtNum(row.target_qty)} ${row.spec_unit ?? ''}` },
     { header: 'LOT', name: 'lot_no', width: 160, className: 'cursor-pointer', escapeHTML: true },
     { header: '착수 예정', name: 'start_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.start_date ?? '') },
     { header: '생산 기한', name: 'due_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer',

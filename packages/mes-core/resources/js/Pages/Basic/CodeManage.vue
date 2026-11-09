@@ -392,7 +392,7 @@ async function deleteCode() {
         return;
     };
 
-    const cfm = await showAlert( '삭제', `선택한 ${rows.length}건을 삭제하시겠습니까?`, 'question', 'confirm' );
+    const cfm = await showAlert( '삭제', `선택한 ${rows.length}건을 미사용으로 내립니다.\n( 과거 데이터에 남도록 지우지 않습니다 · 다시 쓰려면 사용 여부를 켜세요 )`, 'question', 'confirm' );
 
     if( !cfm.isConfirmed ) return;
 
@@ -404,7 +404,7 @@ async function deleteCode() {
         });
         clearCommonCodeCache();
         await loadCodes();
-        showFlash(`${data.deleted ?? saved.length}건이 삭제되었습니다`);
+        showFlash(`${data.deleted ?? saved.length}건을 미사용으로 내렸습니다`);
     } catch (e) {
         if (e.response?.status === 404) {
             showFlash('이미 삭제된 코드입니다', true);

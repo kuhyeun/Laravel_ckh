@@ -38,6 +38,7 @@ let defaultsPromise = null;
 </script>
 
 <script setup>
+import { ymd } from '@core/Utils/calendar';
 import { computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import { useDelayedBusy } from '@core/Composables/useDelayedBusy';
@@ -114,7 +115,6 @@ async function reset() {
 // 빠른 기간 ( 이번 주 = 월 ~ 일 )
 function quick(key) {
     const base = today ? new Date(today + 'T00:00:00') : new Date();
-    const fmt  = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     let from = new Date(base), to = new Date(base);
     if (key === 'week') {
         const dow = (base.getDay() + 6) % 7;   // 월 = 0
@@ -124,8 +124,8 @@ function quick(key) {
         from = new Date(base.getFullYear(), base.getMonth(), 1);
         to   = new Date(base.getFullYear(), base.getMonth() + 1, 0);
     }
-    model.value.from = fmt(from);
-    model.value.to   = fmt(to);
+    model.value.from = ymd(from);   // 공용 날짜 글자 ( Utils/calendar )
+    model.value.to   = ymd(to);
     emitSearch();
 }
 

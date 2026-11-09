@@ -26,7 +26,7 @@
                     <label class="block text-gray-500 font-medium mb-1">수량 <span class="text-red-500">*</span></label>
                     <BaseInput v-model="form.qty" type="number" min="0" class="w-full text-right" />
                     <p v-if="errors.qty" class="text-xs text-red-500 mt-0.5">{{ errors.qty[0] }}</p>
-                    <button v-else type="button" class="text-[11px] text-blue-700 hover:underline mt-0.5" @click="form.qty = String(b.qty)">전부 ( {{ fmt(b.qty) }} )</button>
+                    <button v-else type="button" class="text-[11px] text-blue-700 hover:underline mt-0.5" @click="form.qty = String(b.qty)">전부 ( {{ fmtNum(b.qty) }} )</button>
                 </div>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">이동일시 <span class="text-red-500">*</span></label>
@@ -56,6 +56,7 @@ import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { qtyText } from '@core/Components/Stock/stockCodes';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     balanceIdx: { type: Number,   required: true },
@@ -71,7 +72,6 @@ const b          = ref(null);
 const warehouses = ref([]);
 const form = reactive({ to_warehouse_idx: '', qty: '', occurred_at: '', remark: '' });
 
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const toOptions = computed(() => warehouses.value
     .filter(w => w.warehouse_idx !== b.value?.warehouse_idx)
     .map(w => ({ value: w.warehouse_idx, label: w.label })));

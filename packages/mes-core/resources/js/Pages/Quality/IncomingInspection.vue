@@ -49,7 +49,7 @@ import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
-import { itemLabel } from '@core/Utils/format';
+import { itemLabel, fmtNum } from '@core/Utils/format';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -84,7 +84,6 @@ const SEARCH_FIELDS = [
 const blankFilters = () => ({ status: 'WAIT' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', ...blankFilters() });
 
-const num = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 
 const columns = [
     { header: '입고번호', name: 'txn_no', width: 130, sortable: true, className: 'cursor-pointer' },
@@ -100,7 +99,7 @@ const columns = [
       formatter: ({ row }) => qtyText(row.qty, row.spec_unit) },
     { header: '검사', name: 'insp_mode', width: 70, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => inspModeLabel(value) },
     { header: '결과', name: 'pass_qty', width: 120, align: 'center', className: 'cursor-pointer',
-      formatter: ({ row }) => row.line_status === 'DONE' ? `합격 ${num(row.pass_qty)}${row.fail_qty > 0 ? ` · <span style="color:${COLORS.red600}">불합격 ${num(row.fail_qty)}</span>` : ''}` : '' },
+      formatter: ({ row }) => row.line_status === 'DONE' ? `합격 ${fmtNum(row.pass_qty)}${row.fail_qty > 0 ? ` · <span style="color:${COLORS.red600}">불합격 ${fmtNum(row.fail_qty)}</span>` : ''}` : '' },
     { header: '상태', name: 'line_status', width: 80, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => `<span style="color:${receiptStatusColor(value)};font-weight:600">${value === 'DONE' ? '검사완료' : receiptStatusLabel(value)}</span>` },
 ];

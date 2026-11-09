@@ -117,11 +117,7 @@ class StockService {
 
     // 전표 번호 XX-YYMMDD-NNN ( 발생일 기준 날짜별 순번 ). 같은 날짜의 마지막 번호를 잠그고 +1 — 트랜잭션 안에서
     public function nextTxnNo(string $prefix, Carbon $date): string {
-        $head = $prefix . '-' . $date->format('ymd') . '-';
-        $last = StockTxn::where('txn_no', 'like', $head . '%')->lockForUpdate()->orderByDesc('txn_no')->value('txn_no');
-        $seq  = $last ? ((int) substr($last, strlen($head))) + 1 : 1;
-
-        return $head . str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
+        return \MesCore\Support\DocNumber::next($prefix . '-' . $date->format('ymd') . '-', 'stock_txn', 'txn_no');
     }
 
     private function negate(string $qty): string {

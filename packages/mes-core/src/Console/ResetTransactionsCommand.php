@@ -34,6 +34,8 @@ class ResetTransactionsCommand extends Command {
         'wip_txn', 'subcon_issue', 'subcon_receipt',
         // 재고 · LOT
         'stock_txn', 'stock_txn_line', 'stock_ledger', 'stock_balance', 'lot', 'lot_seq',
+        // 문서 번호 순번 ( Support/DocNumber )
+        'doc_seq',
         // 출하
         'shipment', 'shipment_line', 'shipment_pick',
         // 클레임

@@ -213,7 +213,8 @@ class LabelService {
                     'printed_at'  => $now,
                     'printed_by'  => Auth::id() ?? 0,
                 ]);
-                $b->update(['print_total' => $b->print_total + $b->label_count, 'last_printed_at' => $now]);
+                // DB 에서 더한다 ( 읽은 값 + 장수 로 쓰면 연타 · 동시 인쇄 때 누계가 빠졌다 — 코드 검사 B-5 )
+                BarcodeLabel::whereKey($b->label_idx)->increment('print_total', (int) $b->label_count, ['last_printed_at' => $now]);
             }
         });
 

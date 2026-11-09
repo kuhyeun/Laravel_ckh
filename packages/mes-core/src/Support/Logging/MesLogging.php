@@ -75,6 +75,7 @@ class MesLogging {
             }
             $v = $bindings[$i++];
             return match (true) {
+                self::isSecret($v)                   => "'***'",   // 비밀번호 해시 · 로그인 유지 토큰은 남기지 않는다 ( 11-09 코드 검사 A-2 )
                 $v === null                          => 'NULL',
                 is_bool($v)                          => $v ? '1' : '0',
                 is_int($v) || is_float($v)           => (string) $v,
@@ -83,5 +84,13 @@ class MesLogging {
             };
         }, $sql);
         return mb_strlen($out) > $max ? mb_substr($out, 0, $max) . ' …( 잘림 )' : $out;
+    }
+
+    // 로그에 남기면 안 되는 값 — bcrypt · argon 해시( 비밀번호 ) · 60자 무작위 토큰( remember_token )
+    private static function isSecret($v): bool {
+        if (!is_string($v)) {
+            return false;
+        }
+        return (bool) preg_match('/^\$(2[aby]|argon2(i|id))\$/', $v) || (strlen($v) === 60 && ctype_alnum($v));
     }
 }

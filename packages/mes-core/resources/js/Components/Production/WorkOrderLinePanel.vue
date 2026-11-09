@@ -263,7 +263,7 @@ import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor, processKindLabel, isIfl } from '@core/Components/Production/productionCodes';
 import { blankOp, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
-import { withSpec } from '@core/Utils/format';
+import { withSpec, fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     line:     { type: Object,  required: true },   // 부모의 줄 객체 ( workOrderLine.blankLine )
@@ -315,7 +315,7 @@ const procOf = (o) => props.ctx.processes.find(p => Number(p.process_idx) === Nu
 const equipOptions = (o) => [{ value: '', label: '( 미지정 )' }, ...(procOf(o)?.equipments ?? []).map(e => ({ value: e.equipment_idx, label: e.equipment_name + (e.is_default === 'Y' ? ' · 기본' : '') }))];
 
 const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
-const fmt = (v) => num(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
+const fmt = (v) => fmtNum(num(v));   // 빈 칸 · 글자는 0 ( 입력 칸용 ) — 모양은 공용 fmtNum
 
 // ---- 자재 ( 새로 고른 품목이면 BOM 미리보기, 아니면 저장된 사본 ) ----
 const materials = computed(() => props.line.bom ? props.line.bom.lines.map(l => ({ ...l })) : props.line.savedMaterials);

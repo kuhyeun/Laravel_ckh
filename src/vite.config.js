@@ -25,7 +25,8 @@ export default defineConfig(({ mode }) => {
                 '@': path.resolve(__dirname, 'resources/js'),
                 '@core': coreJsPath,
                 '@core-css': path.resolve(corePath, 'css'),
-                'vue': 'vue/dist/vue.esm-bundler.js',
+                // 'vue' 는 기본 런타임 빌드 ( 문자열 template 을 쓰는 곳이 없다 — 템플릿 컴파일러 약 14KB 를 뺀다 · 코드 검사 D-4 )
+                'vue': path.resolve(nodeModulesPath, 'vue'),
                 // packages/ 내부에서 import하는 npm 모듈을 src/node_modules에서 찾도록
                 'tui-grid': path.resolve(nodeModulesPath, 'tui-grid'),
                 'tui-grid/dist/tui-grid.css': path.resolve(nodeModulesPath, 'tui-grid/dist/tui-grid.css'),

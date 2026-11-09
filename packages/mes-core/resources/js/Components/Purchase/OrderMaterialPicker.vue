@@ -53,17 +53,17 @@
                         </td>
                         <td class="px-2 py-1 whitespace-nowrap">{{ r.order_no }} <span class="text-gray-400">#{{ r.line_no }}</span></td>
                         <td class="px-2 py-1 truncate" :title="r.partner_name">{{ r.partner_name }}</td>
-                        <td class="px-2 py-1 truncate" :title="`${r.product_name} [${r.product_code}]`">{{ r.product_name }} <span class="text-gray-400">[{{ r.product_code }}]</span> · {{ fmt(r.order_qty) }}</td>
+                        <td class="px-2 py-1 truncate" :title="`${r.product_name} [${r.product_code}]`">{{ r.product_name }} <span class="text-gray-400">[{{ r.product_code }}]</span> · {{ fmtNum(r.order_qty) }}</td>
                         <td class="px-2 py-1 text-center">{{ r.due_date }}</td>
                         <td class="px-2 py-1">
                             {{ r.item_name }} <span class="text-gray-400">[{{ r.item_code }}]</span>
                             <span v-if="r.item_spec" class="ml-1 px-1 rounded bg-gray-100 text-gray-600">{{ r.item_spec }}</span>
                             <span v-if="inForm(r)" class="ml-1 text-[11px]">( 담음 )</span>
                         </td>
-                        <td class="px-2 py-1 text-right">{{ fmt(r.need_qty) }} <span class="text-gray-400">{{ r.spec_unit }}</span></td>
-                        <td class="px-2 py-1 text-right">{{ fmt(r.ordered_qty) }}</td>
-                        <td class="px-2 py-1 text-right font-semibold" :class="r.remain_qty > 0 ? 'text-blue-700' : 'text-gray-400'">{{ fmt(r.remain_qty) }}</td>
-                        <td class="px-2 py-1 text-right" :class="r.stock_qty < r.remain_qty ? 'text-amber-600' : 'text-gray-500'">{{ fmt(r.stock_qty) }}</td>
+                        <td class="px-2 py-1 text-right">{{ fmtNum(r.need_qty) }} <span class="text-gray-400">{{ r.spec_unit }}</span></td>
+                        <td class="px-2 py-1 text-right">{{ fmtNum(r.ordered_qty) }}</td>
+                        <td class="px-2 py-1 text-right font-semibold" :class="r.remain_qty > 0 ? 'text-blue-700' : 'text-gray-400'">{{ fmtNum(r.remain_qty) }}</td>
+                        <td class="px-2 py-1 text-right" :class="r.stock_qty < r.remain_qty ? 'text-amber-600' : 'text-gray-500'">{{ fmtNum(r.stock_qty) }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -82,6 +82,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     purchaseOrderIdx: { type: [Number, String], default: null },   // 고치는 발주 ( 발주됨에서 뺀다 )
@@ -101,7 +102,6 @@ const keyOf  = (r) => `${r.sales_order_line_idx}:${r.item_idx}`;
 const inForm = (r) => props.existing.includes(keyOf(r));
 const pickable = computed(() => rows.value.filter(r => !inForm(r)));
 const allPicked = computed(() => pickable.value.length > 0 && pickable.value.every(r => picked.has(keyOf(r))));
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 
 function toggle(r) {
     if (inForm(r)) return;

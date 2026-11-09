@@ -227,7 +227,7 @@ import { showAlert } from '@core/Utils/message';
 import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor } from '@core/Components/Order/orderCodes';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
-import { withSpec } from '@core/Utils/format';
+import { withSpec, fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     order:    { type: Object,   default: null },   // 목록 행 ( sales_order_idx 로 다시 조회 )
@@ -404,7 +404,7 @@ function applyBulkDue() {
 }
 
 const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
-const fmt = (v) => num(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
+const fmt = (v) => fmtNum(num(v));   // 빈 칸 · 글자는 0 ( 입력 칸용 ) — 모양은 공용 fmtNum
 const lineAmount  = (l) => Math.round(num(l.qty) * num(l.unit_price));
 const totalAmount = computed(() => form.lines.reduce((s, l) => s + lineAmount(l), 0));
 

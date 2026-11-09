@@ -56,7 +56,7 @@ import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
 import { itemLabel } from '@core/Utils/format';
-import { ditto, escapeHtml, fillHead } from '@core/Utils/gridTree';
+import { ditto, escapeHtml, fillHead, lineLike, pick, mergeSingleLine } from '@core/Utils/gridTree';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
@@ -96,13 +96,7 @@ const partnerFilterOptions = computed(() => [{ value: '', label: '구매처 전�
 const gridOptions = { treeColumnOptions: { name: 'txn_no', useIcon: false, useCascadingCheckbox: false } };
 
 // 줄이 하나인 입고는 한 행으로 합친다 ( 머리 + 그 줄 — _single ) : 줄 값 칸은 줄 값으로, 머리 값 칸은 그대로
-const lineLike = (row) => row.is_line || row._single;
-const pick = (head, line) => ({ row }) => lineLike(row) ? line(row) : head(row);
-const toGridRows = (list) => (list ?? []).map(r => {
-    if ((r._children ?? []).length !== 1) return r;
-    const { _children, ...head } = r;
-    return { ...head, ..._children[0], is_line: false, _single: true };
-});
+const toGridRows = (list) => mergeSingleLine(list, { prefer: 'line' });   // Utils/gridTree
 const num  = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const failText = (v) => v === null || v === undefined ? '-' : (v > 0 ? `<span style="color:${COLORS.red600}">${num(v)}</span>` : '0');
 const blank = () => '';

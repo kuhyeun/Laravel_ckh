@@ -23,6 +23,7 @@ use MesCore\Production\Models\WorkOrderOpRun;
  *   ( 지시 × 공정 ) 의 합계가 그 공정에 남은 반제품 — 화면은 이력만 ( 11-05 )
  */
 class WipService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const KINDS = ['MAKE' => '생산', 'FEED' => '다음 공정 투입'];
 
@@ -117,9 +118,5 @@ class WipService {
         $by  = Auth::id() ?? 0;
         $now = now();
         DB::table('wip_txn')->insert(array_map(fn ($r) => $r + ['create_account_idx' => $by, 'create_datetime' => $now], $rows));
-    }
-
-    private function str(float $v): string {
-        return number_format($v, 6, '.', '');
     }
 }

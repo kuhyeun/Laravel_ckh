@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Session;
 use Illuminate\Http\RedirectResponse;
 use MesCore\Basic\Models\SystemConfig;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
 
 class UserController extends Controller {
@@ -58,11 +57,7 @@ class UserController extends Controller {
 
     // 로그아웃
     public function logout( Request $request ): RedirectResponse {
-        $user = Auth::user();
-        if ($user) {
-            Cache::forget($user->getMenuCacheKey());
-        }
-
+        // 권한 캐시는 버전 키라 지울 것이 없다 ( 전의 Cache::forget 은 키가 달라 아무것도 지우지 못했다 — 코드 검사 D-3 )
         Auth::logout();
 
         $request->session()->invalidate();

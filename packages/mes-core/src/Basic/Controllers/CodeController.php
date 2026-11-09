@@ -6,6 +6,7 @@ use MesCore\Http\Controller;
 use MesCore\Basic\Models\SystemCode;
 use MesCore\Basic\Models\SystemCodeGroup;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -180,9 +181,9 @@ class CodeController extends Controller {
         }
     }
 
-    // 선택 삭제 ( 그리드 체크박스 ). 한 트랜잭션으로 처리 → 일부만 삭제되는 상황 없음
+    // 선택 [삭제] = 미사용으로 내린다 ( ADR 0019 · 11-09 코드 검사 B-6 — 지우면 그 코드를 쓴 과거 전표의 이름이 깨졌다 )
+    //   새 입력 고르기에서는 빠지고 목록 · 과거 데이터에는 남는다 · 다시 쓰려면 사용 여부를 켠다
     //   이미 없는 코드는 건너뛰고, 하나도 없으면 404
-    //   ※ 업무 테이블이 코드를 참조하기 시작하면 사용 중 코드는 삭제 차단 → 미사용( is_use = N )으로 내리도록 할 것 ( ADR 0019 )
     public function deleteCodes(Request $request) {
         $validated = $request->validate([
             'system_code_idxs'   => 'required|array|min:1',
@@ -191,7 +192,10 @@ class CodeController extends Controller {
 
         try {
             $deleted = DB::transaction(function () use ($validated) {
-                return SystemCode::whereIn('system_code_idx', array_unique($validated['system_code_idxs']))->delete();
+                $ids = array_unique($validated['system_code_idxs']);
+                $found = SystemCode::whereIn('system_code_idx', $ids)->count();
+                SystemCode::whereIn('system_code_idx', $ids)->update(['is_use' => 'N', 'update_account_idx' => Auth::id()]);
+                return $found;
             });
 
             if ($deleted === 0) {

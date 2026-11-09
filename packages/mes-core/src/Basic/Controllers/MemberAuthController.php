@@ -136,6 +136,7 @@ class MemberAuthController extends Controller {
                 AccountMenuPermission::where('account_idx', $user->account_idx)->delete();
             });
 
+            $this->menuPermissionService->bumpVersion();   // 권한 캐시 서명 지움 → 다음 요청부터 새 권한
             return response()->json(['message' => 'Success'], 200);
         } catch (\Throwable $e) {
             Log::error('권한 템플릿 적용 실패 : ' . $e->getMessage());
@@ -193,6 +194,7 @@ class MemberAuthController extends Controller {
                 }
             });
 
+            $this->menuPermissionService->bumpVersion();   // 권한 캐시 서명 지움 → 다음 요청부터 새 권한
             return response()->json(['message' => 'Success'], 200);
         } catch (\Throwable $e) {
             Log::error('사용자 권한 저장 실패 : ' . $e->getMessage());

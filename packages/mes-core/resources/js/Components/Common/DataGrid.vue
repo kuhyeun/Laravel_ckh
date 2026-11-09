@@ -108,10 +108,11 @@ const baseColumns = () => {
     return tree ? cols.map(c => c.name === tree ? { ...c, lockHide: true } : c) : cols;
 };
 
+let savedSetting = null;   // 마지막으로 읽거나 저장한 열 설정 — 열( props.columns )이 바뀌어도 다시 입힌다
 async function loadSetting() {
     try {
         const { data } = await window.axios.get(route('common.gridSetting.show'), { params: settingParams() });
-        return data.columns ?? null;
+        return savedSetting = data.columns ?? null;
     } catch (e) {
         return null;   // 못 읽으면 기본 구성
     }
@@ -131,10 +132,12 @@ function openSettings() {
         columns: settable(),
         onApply: async (list) => {
             await saveSetting(list);
+            savedSetting = list;
             applyColumns(applyGridSetting(baseColumns(), list));
         },
         onReset: async () => {
             await window.axios.post(route('common.gridSetting.reset'), settingParams());
+            savedSetting = null;
             applyColumns(applyGridSetting(baseColumns(), null));
         },
     }, { size: 'lg' });
@@ -250,6 +253,12 @@ onMounted(async () => {
 
     paintActive();
     emit('grid-mounted', grid);
+});
+
+// 외부 columns 변경 → 열 다시 그림 ( 저장된 열 설정 그대로 · 코드 검사 B-7 — 전에는 :key 로 다시 만들어야만 바뀌었다 )
+watch(() => props.columns, () => {
+    if (!gridInstance.value) return;
+    applyColumns(applyGridSetting(baseColumns(), savedSetting));
 });
 
 // 외부 data 변경 → 그리드 갱신 ( 체크가 풀리므로 선택도 비었다고 알린다 )

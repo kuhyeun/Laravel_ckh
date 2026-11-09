@@ -139,7 +139,7 @@
                     <BaseButton v-if="canWrite && form.routing_idx" size="sm" variant="secondary" :disabled="templateLoading" @click="reloadTemplate">틀에서 다시 불러오기</BaseButton>
                 </template>
             </RoutingLinesEditor>
-            <p class="mt-2 text-xs text-gray-400">1개 생산 표준시간 = 개당 시간 합계 <b class="text-gray-600">{{ fmt(cycleTime) }}</b> 초</p>
+            <p class="mt-2 text-xs text-gray-400">1개 생산 표준시간 = 개당 시간 합계 <b class="text-gray-600">{{ fmtNum(cycleTime) }}</b> 초</p>
         </div>
 
         <!-- 탭 2 · 재고 · 발주 -->
@@ -177,10 +177,10 @@
                 </p>
                 <p class="mt-2 pt-2 border-t border-gray-200">
                     <span class="text-gray-400 mr-1">현재 입력값으로 계산</span>
-                    필요 <b>{{ fmt(PREVIEW_NEED) }}</b>
-                    → 최소 {{ fmt(num(form.moq)) }} 적용 <b>{{ fmt(previewMoq) }}</b>
-                    → 배수 {{ num(form.unit_round) > 0 ? fmt(num(form.unit_round)) + ' 단위 올림' : '없음' }}
-                    → 지시 <b class="text-blue-700">{{ fmt(previewOrder) }}</b>
+                    필요 <b>{{ fmtNum(PREVIEW_NEED) }}</b>
+                    → 최소 {{ fmtNum(num(form.moq)) }} 적용 <b>{{ fmtNum(previewMoq) }}</b>
+                    → 배수 {{ num(form.unit_round) > 0 ? fmtNum(num(form.unit_round)) + ' 단위 올림' : '없음' }}
+                    → 지시 <b class="text-blue-700">{{ fmtNum(previewOrder) }}</b>
                 </p>
             </div>
 
@@ -303,7 +303,7 @@
             <section>
                 <div class="mb-2 text-xs font-semibold text-gray-500 border-b pb-1">1개 생산 표준시간</div>
                 <p class="text-gray-700">
-                    <b>{{ fmt(cycleTime) }}</b> 초
+                    <b>{{ fmtNum(cycleTime) }}</b> 초
                     <span class="ml-1 text-xs text-gray-400">
                         {{ routingLines.length ? '공정 탭의 공정 개당 시간 합계' : '공정이 없습니다' }} · 읽기 전용
                     </span>
@@ -344,6 +344,7 @@ import SpecPicker from '@core/Components/Config/SpecPicker.vue';
 import { toLinePayload, totalCycleOf } from '@core/Components/Config/routingLines';
 import { showAlert } from '@core/Utils/message';
 import UnitSelect from '@core/Components/Common/UnitSelect.vue';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     item:     { type: Object,   default: null },   // 있으면 수정, 없으면 등록
@@ -577,7 +578,6 @@ function onTypeChange(type) {
 // ---- 지시 수량 미리보기 ----
 const PREVIEW_NEED = 1400;
 const num = (v) => (v === '' || v === null || isNaN(Number(v))) ? 0 : Number(v);
-const fmt = (v) => Number(v).toLocaleString();
 const previewMoq   = computed(() => Math.max(PREVIEW_NEED, num(form.moq)));
 const previewOrder = computed(() => {
     const round = num(form.unit_round);

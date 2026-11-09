@@ -159,7 +159,7 @@ async function deleteChecked() {
 
     const names = rows.slice(0, 3).map(r => r.user_name || r.user_id).join(', ');
     const more  = rows.length > 3 ? ` 외 ${rows.length - 3}명` : '';
-    const result = await showAlert('사용자 삭제', `선택한 ${rows.length}명( ${names}${more} )을 삭제하시겠습니까?`, 'warning', 'confirm');
+    const result = await showAlert('사용자 삭제', `선택한 ${rows.length}명( ${names}${more} )을 미사용으로 내립니다.\n로그인 · 작업자 고르기에서 빠지고, 과거 기록에는 이름이 남습니다.`, 'warning', 'confirm');
     if (!result.isConfirmed) return;
 
     deleting.value = true;
@@ -168,7 +168,7 @@ async function deleteChecked() {
             account_idxs: rows.map(r => r.account_idx),
         });
         await loadMembers();
-        showFlash(`${data.deleted ?? rows.length}명이 삭제되었습니다.`);
+        showFlash(`${data.deleted ?? rows.length}명을 미사용으로 내렸습니다.`);
     } catch (e) {
         const status = e.response?.status;
         if (status === 409)      showFlash('자기 자신은 삭제할 수 없습니다. 선택을 확인하세요.', true);

@@ -17,6 +17,7 @@ use MesCore\Stock\Models\StockTxnLine;
  *   Phase 1 은 SIMPLE 만 ( quality.mode.incoming )
  */
 class IncomingInspectionService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const REF_TYPE = 'stock_txn_line';
 
@@ -101,9 +102,5 @@ class IncomingInspectionService {
         return Inspection::with(['defects', 'inspector:account_idx,user_id,user_name'])
             ->where('ref_type', self::REF_TYPE)->where('ref_idx', $line->stock_txn_line_idx)
             ->where('is_canceled', 'N')->latest('inspection_idx')->first();
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
     }
 }

@@ -25,7 +25,7 @@
             <template v-else>
             <div class="px-3 py-2 bg-gray-50/70 shrink-0 flex items-center gap-3 flex-wrap">
                 <span class="text-sm font-semibold">{{ order.wo_no }}</span>
-                <span class="text-sm text-gray-600">{{ order.item_code }} {{ order.item_name }} · 지시 {{ fmt(order.target_qty) }} {{ order.spec_unit }}</span>
+                <span class="text-sm text-gray-600">{{ order.item_code }} {{ order.item_name }} · 지시 {{ fmtNum(order.target_qty) }} {{ order.spec_unit }}</span>
                 <span v-if="order.lot_no" class="text-xs text-gray-400">LOT {{ order.lot_no }}</span>
                 <div class="flex-1"></div>
                 <BaseButton size="sm" variant="secondary" :disabled="planLoading" @click="loadPlan">계산 다시</BaseButton>
@@ -39,17 +39,17 @@
                     <!-- 자재 머리 -->
                     <div class="flex items-center gap-2 px-2 py-1.5 cursor-pointer select-none" :class="m.substitute_of_idx ? 'bg-white' : 'bg-gray-50'" @click="m._open = !m._open">
                         <span class="text-gray-400 text-xs w-3">{{ m._open ? '▾' : '▸' }}</span>
-                        <span v-if="m.substitute_of_idx" class="text-[10px] px-1 rounded bg-gray-100 text-gray-600" :title="`${m.main_item_code} 대신 낼 수 있습니다 · 대체 1 = 주 자재 ${fmt(m.ratio_to_main)}`">대체 · {{ m.main_item_code }} 대신</span>
+                        <span v-if="m.substitute_of_idx" class="text-[10px] px-1 rounded bg-gray-100 text-gray-600" :title="`${m.main_item_code} 대신 낼 수 있습니다 · 대체 1 = 주 자재 ${fmtNum(m.ratio_to_main)}`">대체 · {{ m.main_item_code }} 대신</span>
                         <span class="text-sm font-semibold">{{ m.item_code }}</span>
                         <span class="text-sm text-gray-600 truncate">{{ m.item_name }}</span>
                         <span class="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700" :title="m.calc_name">{{ m.calc_code }}</span>
                         <span v-if="m.op_label" class="text-xs text-gray-400">투입 {{ m.op_label }}</span>
                         <div class="flex-1"></div>
                         <span class="text-xs text-gray-500">
-                            계산 <b class="text-gray-800">{{ m.calc_qty === null ? '—' : fmt(m.calc_qty) }}</b>
-                            · 출고 {{ fmt(m.issued_qty) }}<span v-if="m.substitute_issued_equiv > 1e-9" class="text-gray-400" title="대체 자재 출고를 주 자재 기준으로 바꾼 몫"> ( 대체 환산 {{ fmt(m.substitute_issued_equiv) }} 포함 )</span>
-                            · 보유 {{ fmt(m.held_qty) }}
-                            · 남음 <b :class="m.need_qty > 0 ? 'text-blue-700' : 'text-green-600'">{{ fmt(m.need_qty) }}</b>
+                            계산 <b class="text-gray-800">{{ m.calc_qty === null ? '—' : fmtNum(m.calc_qty) }}</b>
+                            · 출고 {{ fmtNum(m.issued_qty) }}<span v-if="m.substitute_issued_equiv > 1e-9" class="text-gray-400" title="대체 자재 출고를 주 자재 기준으로 바꾼 몫"> ( 대체 환산 {{ fmtNum(m.substitute_issued_equiv) }} 포함 )</span>
+                            · 보유 {{ fmtNum(m.held_qty) }}
+                            · 남음 <b :class="m.need_qty > 0 ? 'text-blue-700' : 'text-green-600'">{{ fmtNum(m.need_qty) }}</b>
                             {{ unitOf(m) }}<template v-if="m.substitute_of_idx"> ( 주 자재 남음을 이 자재 기준으로 )</template>
                         </span>
                         <button v-if="!m.uses_spec && m.groups[0]?.trace" type="button" class="text-gray-400 hover:text-blue-600 text-sm" title="계산 과정" @click.stop="toggleTrace(m.groups[0])">ⓘ</button>
@@ -61,10 +61,10 @@
 
                         <div v-for="g in m.groups" :key="g.key" class="mt-1">
                             <div v-if="m.uses_spec" class="flex items-center gap-2 text-xs py-1" :class="g.excluded ? 'text-gray-400' : 'text-gray-700'">
-                                <span class="font-semibold">규격 {{ g.spec === null ? '없음' : fmt(g.spec) }}</span>
-                                <span>재고 {{ fmt(g.stock) }}</span>
+                                <span class="font-semibold">규격 {{ g.spec === null ? '없음' : fmtNum(g.spec) }}</span>
+                                <span>재고 {{ fmtNum(g.stock) }}</span>
                                 <span v-if="g.excluded">· {{ g.reason }} — 후보 제외</span>
-                                <span v-else>· 계산 <b>{{ fmt(g.value) }}</b> {{ unitOf(m) }}</span>
+                                <span v-else>· 계산 <b>{{ fmtNum(g.value) }}</b> {{ unitOf(m) }}</span>
                                 <span v-if="g.key === m.default_key" class="px-1 rounded bg-green-50 text-green-700">기본</span>
                                 <button v-if="g.trace && g.spec !== null" type="button" class="text-gray-400 hover:text-blue-600" title="계산 과정" @click="toggleTrace(g)">ⓘ</button>
                             </div>
@@ -87,7 +87,7 @@
                                             </td>
                                             <td class="px-1 truncate" :title="l.warehouse_name">{{ l.warehouse_name }}</td>
                                             <td class="px-1 text-center text-gray-500">{{ l.in_at }}</td>
-                                            <td class="px-1 text-right">{{ fmt(l.qty) }}</td>
+                                            <td class="px-1 text-right">{{ fmtNum(l.qty) }}</td>
                                             <td class="px-1 py-0.5">
                                                 <BaseInput v-model="l.fill" type="number" min="0" size="sm" class="w-full text-right"
                                                     :class="over(l) ? '!border-red-400 !text-red-600' : ''" :disabled="!canIssue" />
@@ -100,13 +100,13 @@
 
                         <!-- 대체 카드 : 이번 채움이 주 자재 몇 개분인지 -->
                         <p v-if="m.substitute_of_idx" class="text-right text-xs mt-1 text-gray-500">
-                            이번 출고 <b>{{ fmt(filled(m)) }}</b> {{ unitOf(m) }} · 주 자재 {{ fmt(filled(m) * m.ratio_to_main) }} 몫
+                            이번 출고 <b>{{ fmtNum(filled(m)) }}</b> {{ unitOf(m) }} · 주 자재 {{ fmtNum(filled(m) * m.ratio_to_main) }} 몫
                         </p>
                         <!-- 주 자재 카드 : 대체 자재 채움을 환산해 함께 본다 -->
                         <p v-else class="text-right text-xs mt-1" :class="covered(m) > m.need_qty + 1e-9 ? 'text-amber-600' : 'text-gray-500'">
-                            이번 출고 <b>{{ fmt(filled(m)) }}</b> {{ unitOf(m) }}<span v-if="covered(m) - filled(m) > 1e-9" class="text-gray-400"> + 대체 환산 {{ fmt(covered(m) - filled(m)) }}</span>
-                            <span v-if="m.need_qty - covered(m) > 1e-9" class="text-red-500"> · 부족 {{ fmt(m.need_qty - covered(m)) }}</span>
-                            <span v-else-if="covered(m) > m.need_qty + 1e-9"> · 남은 소요보다 {{ fmt(covered(m) - m.need_qty) }} 많음</span>
+                            이번 출고 <b>{{ fmtNum(filled(m)) }}</b> {{ unitOf(m) }}<span v-if="covered(m) - filled(m) > 1e-9" class="text-gray-400"> + 대체 환산 {{ fmtNum(covered(m) - filled(m)) }}</span>
+                            <span v-if="m.need_qty - covered(m) > 1e-9" class="text-red-500"> · 부족 {{ fmtNum(m.need_qty - covered(m)) }}</span>
+                            <span v-else-if="covered(m) > m.need_qty + 1e-9"> · 남은 소요보다 {{ fmtNum(covered(m) - m.need_qty) }} 많음</span>
                         </p>
                     </div>
                 </div>
@@ -151,7 +151,7 @@
                                 <td class="px-1 truncate" :title="`${h.item_code} ${h.item_name}`">{{ h.item_code }} {{ h.item_name }}</td>
                                 <td class="px-1 truncate" :title="h.lot_no">{{ h.lot_no }}</td>
                                 <td class="px-1 truncate" :title="h.warehouse_name">{{ h.warehouse_name }}</td>
-                                <td class="px-1 text-right">{{ qtyText(h.qty, h.spec_unit, h.spec_value) }}<span v-if="h.consumed_qty" class="text-gray-400"> ( 사용 {{ fmt(h.consumed_qty) }} )</span></td>
+                                <td class="px-1 text-right">{{ qtyText(h.qty, h.spec_unit, h.spec_value) }}<span v-if="h.consumed_qty" class="text-gray-400"> ( 사용 {{ fmtNum(h.consumed_qty) }} )</span></td>
                                 <td class="px-1 text-center">{{ h.status === 'CANCELED' ? '취소' : '출고' }}</td>
                                 <td class="px-1">{{ h.user_name }}</td>
                             </tr>
@@ -174,6 +174,7 @@ import { showAlert } from '@core/Utils/message';
 import { qtyText } from '@core/Components/Stock/stockCodes';
 import MaterialReturnPanel from '@core/Components/Production/MaterialReturnPanel.vue';
 import { useLatest } from '@core/Composables/useLatest';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     woIdx:     { type: Number, required: true },
@@ -188,17 +189,16 @@ const props = defineProps({
 });
 const emit = defineEmits(['changed', 'flash']);
 
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const unitOf = (m) => m.result_kind === 'SPEC_COUNT' ? '개' : (m.spec_unit ?? '');
 
 // 계산 과정 ( 설계 §9 ⓘ ) — 식 · 대입 · 결과 · 변수마다 출처
 const TracePanel = (p) => h('div', { class: 'my-1 px-2 py-1.5 rounded bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700 space-y-0.5' }, [
     h('div', p.trace.expr),
     h('div', p.trace.subst),
-    h('div', { class: 'font-semibold' }, `= ${p.trace.value === null ? '—' : fmt(p.trace.value)} ${p.unit}` + (p.trace.value !== null && p.trace.raw !== p.trace.value ? `  ( 계산값 ${fmt(p.trace.raw)} )` : '')),
+    h('div', { class: 'font-semibold' }, `= ${p.trace.value === null ? '—' : fmtNum(p.trace.value)} ${p.unit}` + (p.trace.value !== null && p.trace.raw !== p.trace.value ? `  ( 계산값 ${fmtNum(p.trace.raw)} )` : '')),
     h('table', { class: 'mt-1 font-sans' }, p.trace.vars.map(v => h('tr', [
         h('td', { class: 'pr-3 font-mono' }, v.name),
-        h('td', { class: 'pr-3 text-right' }, v.value === null ? '( 없음 )' : fmt(v.value)),
+        h('td', { class: 'pr-3 text-right' }, v.value === null ? '( 없음 )' : fmtNum(v.value)),
         h('td', { class: 'text-slate-500' }, v.source),
     ]))),
 ]);

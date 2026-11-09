@@ -80,7 +80,7 @@
                 <td class="wrap"><div>{{ l?.item_code }}</div></td>
                 <td class="wrap"><div>{{ l ? withSpec(l.item_name, l.item_spec) : '' }}</div></td>
                 <td class="c">{{ l?.unit }}</td>
-                <td class="r">{{ l ? num(l.qty) : '' }}</td>
+                <td class="r">{{ l ? fmtNum(l.qty) : '' }}</td>
                 <td class="r">{{ l ? won(l.unit_price) : '' }}</td>
                 <td class="r">{{ l ? won(l.amount) : '' }}</td>
                 <td class="c">{{ l?.due_date }}</td>
@@ -113,7 +113,6 @@ defineProps({
 });
 
 const won = (v) => fmtNum(v, 0);
-const num = (v) => fmtNum(v);
 </script>
 
 <style scoped>

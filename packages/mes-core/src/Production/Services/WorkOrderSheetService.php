@@ -144,9 +144,6 @@ class WorkOrderSheetService {
 
     // WO-YYMMDD-NNN ( 지시한 날 기준 )
     public function nextNo(Carbon $date): string {
-        $head = self::NO_PREFIX . '-' . $date->format('ymd') . '-';
-        $last = WorkOrderSheet::where('sheet_no', 'like', $head . '%')->lockForUpdate()->orderByDesc('sheet_no')->value('sheet_no');
-        $seq  = $last ? ((int) substr($last, strlen($head))) + 1 : 1;
-        return $head . str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
+        return \MesCore\Support\DocNumber::next(self::NO_PREFIX . '-' . $date->format('ymd') . '-', 'work_order_sheet', 'sheet_no');
     }
 }

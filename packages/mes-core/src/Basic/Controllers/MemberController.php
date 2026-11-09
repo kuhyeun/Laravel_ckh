@@ -102,7 +102,10 @@ class MemberController extends Controller {
                 return response()->json(['message' => 'Forbidden'], 403);
             }
 
-            $user->delete();
+            // 지우지 않고 미사용으로 ( ADR 0019 · 코드 검사 B-6 — 작업자 · 검사자로 남은 과거 기록의 이름이 깨지지 않게 · 로그인 · 고르기에서 빠진다 )
+            $user->is_use = false;
+            $user->update_account_idx = Auth::id();
+            $user->save();
 
             return response()->json(['message' => 'Success'], 200);
         } catch (\Throwable $e) {
@@ -139,8 +142,8 @@ class MemberController extends Controller {
 
         try {
             DB::transaction(function () use ($users) {
-                // 개인 메뉴 권한( account_menu_permission )은 FK cascade 로 함께 삭제
-                User::whereIn('account_idx', $users->pluck('account_idx'))->delete();
+                // 지우지 않고 미사용으로 ( ADR 0019 · 코드 검사 B-6 )
+                User::whereIn('account_idx', $users->pluck('account_idx'))->update(['is_use' => 'N', 'update_account_idx' => Auth::id()]);
             });
 
             return response()->json(['message' => 'Success', 'deleted' => $users->count()], 200);

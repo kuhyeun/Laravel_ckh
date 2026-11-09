@@ -34,6 +34,7 @@ use MesCore\Stock\Services\StockService;
  *   취소   : 대기 = 상태만 / 완료 = 건 전체 역분개 · 수주 출하 − · 상태 되돌림
  */
 class ShipmentService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const TXN_TYPE  = 'OUT_SHIPMENT';
     public const NO_PREFIX = 'SH';
@@ -480,17 +481,6 @@ class ShipmentService {
 
     // 출하번호 SH-YYMMDD-NNN ( 등록일 기준 )
     private function nextNo(Carbon $date): string {
-        $head = self::NO_PREFIX . '-' . $date->format('ymd') . '-';
-        $last = Shipment::where('shipment_no', 'like', $head . '%')->lockForUpdate()->orderByDesc('shipment_no')->value('shipment_no');
-        $seq  = $last ? ((int) substr($last, strlen($head))) + 1 : 1;
-        return $head . str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
-    }
-
-    private function str(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ''), '0'), '.') ?: '0';
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.') ?: '0';
+        return \MesCore\Support\DocNumber::next(self::NO_PREFIX . '-' . $date->format('ymd') . '-', 'shipment', 'shipment_no');
     }
 }

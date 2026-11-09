@@ -77,5 +77,11 @@ class DailyFolderHandler extends AbstractProcessingHandler {
                 @rmdir($dir);
             }
         }
+        // 날짜 폴더를 못 써서 대신 남긴 파일( logs/YYYY-MM-DD-이름.log )도 같은 기한으로 ( 코드 검사 B-9 — 전에는 계속 쌓였다 )
+        foreach (glob(rtrim($this->root, '/\\') . DIRECTORY_SEPARATOR . '*.log') ?: [] as $f) {
+            if (preg_match('/^(\d{4}-\d{2}-\d{2})-.+\.log$/', basename($f), $m) && $m[1] < $limit) {
+                @unlink($f);
+            }
+        }
     }
 }

@@ -6,7 +6,7 @@ use MesCore\Auth\Middleware\UserAuth;
 
 // 바코드 라벨 ( config('mes.modules') 의 Label · feature.barcode ) — 1D 바코드( Code128 )만
 //   권한은 컨트롤러가 본다 : 발행 · 인쇄 = 그 대상을 여는 화면의 쓰기 권한 ( LOT = 입고관리 · 재고관리 · 제품재고 / 출하 줄 = 출하관리 )
-//   발행이력 = Label/LabelHistory ( 조회 can_read · 재인쇄 can_write · 폐기 can_delete )
+//   발행이력 = Label/LabelHistory ( 조회 · 미리보기 can_read · 재인쇄 = 인쇄 기록( printed ) 이 대상별 발행 권한 · 폐기 can_delete )
 
 Route::prefix('label')->name('label.')->middleware([UserAuth::class])->group(function() {
     Route::get('/access', [LabelController::class, 'access'])->name('access');

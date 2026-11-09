@@ -117,7 +117,11 @@ function listValue(col, row, index, rows, gridColumns, context) {
     } else if (col.display) {
         const gc = gridColumns.find(g => g.name === col.field);
         // 빈 칸 "-" 열( gridColumns _dash )은 엑셀에서는 빈 칸 그대로
-        if (gc?.formatter && !(gc._dash && (v === null || v === undefined || v === ''))) v = stripHtml(gc.formatter({ value: v, row, column: gc }));
+        // escapeHTML 열은 formatter 결과가 글자 그대로라 태그를 벗기지 않는다 ( 'a<b>c' 같은 글자가 잘리지 않게 )
+        if (gc?.formatter && !(gc._dash && (v === null || v === undefined || v === ''))) {
+            const out = gc.formatter({ value: v, row, column: gc });
+            v = gc.escapeHTML ? (out ?? '') : stripHtml(out);
+        }
     }
     return normalize(v, !!col.numFmt);
 }
@@ -197,11 +201,11 @@ function normalize(v, numeric) {
     return v;
 }
 
+// 태그를 벗긴 글자 — DOMParser 문서는 화면과 떨어져 있어 <img onerror> 같은 것이 실행되지 않는다 ( 11-09 코드 검사 A-3 )
+//   전에는 현재 문서의 div.innerHTML 에 넣어, 품명에 스크립트가 들어 있으면 [엑셀] 을 누를 때 실행됐다
 function stripHtml(html) {
     if (html === null || html === undefined) return '';
-    const el = document.createElement('div');
-    el.innerHTML = String(html);
-    return el.textContent ?? '';
+    return new DOMParser().parseFromString(String(html), 'text/html').body.textContent ?? '';
 }
 
 function colNumber(letters) {

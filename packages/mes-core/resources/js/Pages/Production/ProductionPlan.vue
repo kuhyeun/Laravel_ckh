@@ -69,9 +69,9 @@
                         <td class="px-2 py-1 truncate" :title="sourceText(p)">{{ p.order_summary }}</td>
                         <td class="px-2 py-1 truncate" :title="sourceText(p)">{{ p.partner_summary }}</td>
                         <td class="px-2 py-1 truncate" :title="`${p.item_code} ${p.item_name}`">{{ p.item_name }} <span class="text-gray-400">[{{ p.item_code }}]</span></td>
-                        <td class="px-2 py-1 text-right">{{ fmt(p.qty) }} <span class="text-gray-400">{{ p.spec_unit }}</span></td>
-                        <td class="px-2 py-1 text-right">{{ fmt(p.directed_qty) }}</td>
-                        <td class="px-2 py-1 text-right font-semibold" :class="p.remain_qty > 0 ? 'text-blue-700' : 'text-gray-400'">{{ fmt(p.remain_qty) }}</td>
+                        <td class="px-2 py-1 text-right">{{ fmtNum(p.qty) }} <span class="text-gray-400">{{ p.spec_unit }}</span></td>
+                        <td class="px-2 py-1 text-right">{{ fmtNum(p.directed_qty) }}</td>
+                        <td class="px-2 py-1 text-right font-semibold" :class="p.remain_qty > 0 ? 'text-blue-700' : 'text-gray-400'">{{ fmtNum(p.remain_qty) }}</td>
                         <td class="px-2 py-1 text-center font-semibold" :style="{ color: planStatusColor(p.display_status) }">{{ planStatusLabel(p.display_status) }}</td>
                     </tr>
                 </tbody>
@@ -101,7 +101,7 @@ import { PLAN_STATUSES, PLAN_STATUS_FILTER, planStatusLabel, planStatusColor, pl
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
-import { withSpec } from '@core/Utils/format';
+import { withSpec, fmtNum } from '@core/Utils/format';
 import { monthRange, monthLabel as labelOf, shiftMonth as shiftOf, thisMonth } from '@core/Utils/calendar';
 
 defineOptions({ layout: AppLayout });
@@ -155,10 +155,9 @@ async function load() {
 }
 // 처음 조회는 검색바가 한 번 쏜다 ( auto-search )
 
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
-const barText    = (p) => `${p.item_name} ${fmt(p.qty)}${p.spec_unit ? ' ' + p.spec_unit : ''} · ${p.partner_summary || p.order_summary}`;
-const sourceText = (p) => (p.sources ?? []).map(x => `${x.order_no} #${x.line_no} ${x.partner_name ?? ''} ${fmt(x.qty)}`).join('\n');
-const barTitle   = (p) => `${p.plan_no} · ${planStatusLabel(p.display_status)}\n${p.start_date} ~ ${p.end_date}\n${withSpec(`${p.item_code} ${p.item_name}`, p.item_spec)}\n계획 ${fmt(p.qty)} · 지시 ${fmt(p.directed_qty)} · 남은 ${fmt(p.remain_qty)}\n${sourceText(p)}${p.remark ? '\n' + p.remark : ''}`;
+const barText    = (p) => `${p.item_name} ${fmtNum(p.qty)}${p.spec_unit ? ' ' + p.spec_unit : ''} · ${p.partner_summary || p.order_summary}`;
+const sourceText = (p) => (p.sources ?? []).map(x => `${x.order_no} #${x.line_no} ${x.partner_name ?? ''} ${fmtNum(x.qty)}`).join('\n');
+const barTitle   = (p) => `${p.plan_no} · ${planStatusLabel(p.display_status)}\n${p.start_date} ~ ${p.end_date}\n${withSpec(`${p.item_code} ${p.item_name}`, p.item_spec)}\n계획 ${fmtNum(p.qty)} · 지시 ${fmtNum(p.directed_qty)} · 남은 ${fmtNum(p.remain_qty)}\n${sourceText(p)}${p.remark ? '\n' + p.remark : ''}`;
 
 // ---- 고르기 ( 작업지시 · 삭제 ) ----
 const checked    = reactive(new Set());

@@ -23,6 +23,7 @@ use MesCore\Quality\Models\Inspection;
  *   불량 = 발생 공정( work_order_op ) · 품목 = 만드는 제품 · LOT = 지시 LOT
  */
 class ProcessInspectionService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public const REF_TYPE = 'work_order_op';
     public const STAGE_TYPES = ['FIRST' => 'IFL_FIRST', 'MIDDLE' => 'IFL_MIDDLE', 'LAST' => 'IFL_LAST'];
@@ -210,9 +211,5 @@ class ProcessInspectionService {
             throw ValidationException::withMessages(['inspected_at' => ['아직 오지 않은 시각입니다.']]);
         }
         return $at;
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.') ?: '0';
     }
 }

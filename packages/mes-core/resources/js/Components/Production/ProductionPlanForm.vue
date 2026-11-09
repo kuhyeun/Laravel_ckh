@@ -39,8 +39,8 @@
             <section class="mt-4">
                 <div class="flex items-center gap-2 mb-1.5">
                     <span class="text-xs font-semibold text-gray-500">수주 줄 <span class="text-red-500">*</span></span>
-                    <span class="text-xs text-gray-400">( {{ form.sources.length }} ) · 계획 수량 <b class="text-gray-700">{{ fmt(totalQty) }}</b> {{ unit }}</span>
-                    <span v-if="directed > 0" class="text-xs text-gray-400">· 지시됨 {{ fmt(directed) }} ( 담긴 줄은 바꿀 수 없고 수량만 )</span>
+                    <span class="text-xs text-gray-400">( {{ form.sources.length }} ) · 계획 수량 <b class="text-gray-700">{{ fmtNum(totalQty) }}</b> {{ unit }}</span>
+                    <span v-if="directed > 0" class="text-xs text-gray-400">· 지시됨 {{ fmtNum(directed) }} ( 담긴 줄은 바꿀 수 없고 수량만 )</span>
                     <div class="flex-1"></div>
                     <BaseButton v-if="!readonly && canChangeLines" size="sm" variant="secondary" @click="togglePicker">{{ picking ? '접기' : '+ 수주 줄 담기' }}</BaseButton>
                 </div>
@@ -66,12 +66,12 @@
                                 <td class="px-2 py-1 leading-[30px] whitespace-nowrap">{{ s.order_no }} <span class="text-gray-400">#{{ s.line_no }}</span></td>
                                 <td class="px-2 py-1 leading-[30px] truncate" :title="s.partner_name">{{ s.partner_name }}</td>
                                 <td class="px-2 py-1 leading-[30px] text-center">{{ s.due_date }}</td>
-                                <td class="px-2 py-1 leading-[30px] text-right text-gray-500">{{ fmt(s.order_qty) }}</td>
+                                <td class="px-2 py-1 leading-[30px] text-right text-gray-500">{{ fmtNum(s.order_qty) }}</td>
                                 <td class="px-1.5 py-1">
                                     <BaseInput v-model="s.qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="readonly" />
                                     <p v-if="srcErr(i)" class="text-[11px] text-red-500">{{ srcErr(i) }}</p>
                                 </td>
-                                <td class="px-2 py-1 leading-[30px] text-right text-gray-500">{{ fmt(s.directed_qty) }}</td>
+                                <td class="px-2 py-1 leading-[30px] text-right text-gray-500">{{ fmtNum(s.directed_qty) }}</td>
                                 <td v-if="!readonly && canChangeLines" class="px-1 py-1 leading-[30px] text-center">
                                     <button type="button" class="px-1.5 text-gray-400 hover:text-red-500" title="빼기" @click="removeSource(i)">✕</button>
                                 </td>
@@ -107,9 +107,9 @@
                                     <td class="px-2 py-1 truncate" :title="l.partner_name">{{ l.partner_name }}</td>
                                     <td class="px-2 py-1 truncate">{{ l.item_name }} <span class="text-gray-400">[{{ l.item_code }}]</span><span v-if="l._why" class="ml-1 text-[11px] text-amber-600">( {{ l._why }} )</span></td>
                                     <td class="px-2 py-1 text-center">{{ l.due_date }}</td>
-                                    <td class="px-2 py-1 text-right">{{ fmt(l.order_qty) }}</td>
-                                    <td class="px-2 py-1 text-right text-gray-500">{{ fmt(l.planned_qty) }}</td>
-                                    <td class="px-2 py-1 text-right font-semibold" :class="l._why ? '' : 'text-blue-700'">{{ fmt(l.remain_qty) }}</td>
+                                    <td class="px-2 py-1 text-right">{{ fmtNum(l.order_qty) }}</td>
+                                    <td class="px-2 py-1 text-right text-gray-500">{{ fmtNum(l.planned_qty) }}</td>
+                                    <td class="px-2 py-1 text-right font-semibold" :class="l._why ? '' : 'text-blue-700'">{{ fmtNum(l.remain_qty) }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -154,7 +154,7 @@ import { toLinePayload } from '@core/Components/Config/routingLines';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
-import { withSpec } from '@core/Utils/format';
+import { withSpec, fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     plan:       { type: Object,   default: null },    // 목록 · 달력의 계획 ( 다시 조회 )
@@ -188,7 +188,6 @@ const errors   = ref({});
 const errorMsg = ref('');
 const srcErr   = (i) => errors.value[`sources.${i}.qty`]?.[0] ?? '';
 
-const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
 
 // 시작일을 바꾸면 완료 예정일이 앞이면 같이 ( 기간 유지는 달력 끌기에서 )
 function onStartChange(v) {

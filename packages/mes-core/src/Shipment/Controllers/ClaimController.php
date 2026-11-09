@@ -17,6 +17,7 @@ use Illuminate\Validation\ValidationException;
 //   수량 : 그 출하 줄의 클레임 합( 다른 클레임 포함 )이 출하 수량을 넘을 수 없다
 //   줄 빼기 · 삭제 : 첨부가 남은 줄은 막는다 ( 첨부를 먼저 지운다 )
 class ClaimController extends Controller {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
     use SearchesKeyword, RespondsWithList;
 
     private const EPS = 0.000001;
@@ -244,12 +245,6 @@ class ClaimController extends Controller {
     }
 
     private function nextNo(Carbon $date): string {
-        $head = 'CL-' . $date->format('ymd') . '-';
-        $last = DB::table('claim')->where('claim_no', 'like', $head . '%')->lockForUpdate()->orderByDesc('claim_no')->value('claim_no');
-        return $head . str_pad((string) ($last ? ((int) substr($last, strlen($head))) + 1 : 1), 3, '0', STR_PAD_LEFT);
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
+        return \MesCore\Support\DocNumber::next('CL-' . $date->format('ymd') . '-', 'claim', 'claim_no');
     }
 }

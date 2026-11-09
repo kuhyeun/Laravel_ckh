@@ -265,6 +265,8 @@ class PolicyService {
     public function flush(): void {
         Cache::forget($this->cacheKey());
         $this->memo = null;
+        // 기능 스위치가 메뉴 노출을 바꾼다 → 권한 캐시 서명도 지운다 ( MenuPermissionService::bumpVersion )
+        app(\MesCore\Menu\Services\MenuPermissionService::class)->bumpVersion();
     }
 
     // ---- 내부 ----

@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\DB;
  *   배지 : 공정 불량( defect PROCESS · SUBCON — 지시 공정 )만
  */
 class LotTraceController extends Controller {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
     use RespondsWithList, SearchesKeyword;
 
     const MAX_DEPTH = 10;
@@ -439,9 +440,5 @@ class LotTraceController extends Controller {
 
     private function woStatus(string $s): string {
         return ['WAIT' => '대기', 'RUN' => '진행', 'DONE' => '완료', 'CANCELED' => '취소'][$s] ?? $s;
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
     }
 }

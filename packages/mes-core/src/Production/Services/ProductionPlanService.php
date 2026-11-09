@@ -16,6 +16,7 @@ use MesCore\Production\Models\ProductionPlanSource;
  *   같은 수주 줄의 계획 합이 수주 수량을 넘으면 경고 · 작업지시가 생긴 계획은 담긴 수주 줄을 바꿀 수 없고 지시 수량 아래로 줄일 수 없다
  */
 class ProductionPlanService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     public function __construct(private RoutingService $routings, private BomService $boms) {}
 
@@ -180,13 +181,6 @@ class ProductionPlanService {
 
     // PP-YYMMDD-NNN ( 등록일 기준 날짜별 순번 )
     public function nextPlanNo(string $date): string {
-        $prefix = ProductionPlan::NO_PREFIX . date('ymd', strtotime($date)) . '-';
-        $last   = ProductionPlan::where('plan_no', 'like', $prefix . '%')->lockForUpdate()->orderByDesc('plan_no')->value('plan_no');
-        $seq    = $last ? ((int) substr($last, strlen($prefix))) + 1 : 1;
-        return $prefix . str_pad((string) $seq, 3, '0', STR_PAD_LEFT);
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
+        return \MesCore\Support\DocNumber::next(ProductionPlan::NO_PREFIX . date('ymd', strtotime($date)) . '-', 'production_plan', 'plan_no');
     }
 }

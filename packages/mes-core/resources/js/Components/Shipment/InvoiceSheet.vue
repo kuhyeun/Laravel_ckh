@@ -64,7 +64,7 @@
                         <td class="c">{{ (page.no - 1) * rowsPerPage + i + 1 }}</td>
                         <td class="c">{{ l?.item_name }}</td>
                         <td class="c">{{ l?.item_code }}</td>
-                        <td class="c">{{ l ? num(l.qty) : '' }}</td>
+                        <td class="c">{{ l ? fmtNum(l.qty) : '' }}</td>
                         <td class="r">{{ l ? won(l.unit_price) : '' }}</td>
                         <td class="r">{{ l ? won(l.supply) : '' }}</td>
                         <td class="r">{{ l ? won(l.tax) : '' }}</td>
@@ -109,7 +109,6 @@ const COPIES = [
 ];
 
 const won = (v) => fmtNum(v, 0);
-const num = (v) => fmtNum(v);
 const vatLabel = (v) => ({ INCLUDED: '( VAT포함 )', EXEMPT: '( 면세 )' }[v] ?? '( VAT포함 )');
 </script>
 

@@ -40,6 +40,7 @@ use MesCore\Stock\Services\LotService;
  *     자재 구성이 다른 수주 줄은 한 지시에 못 담는다 ( 공정 순서와 같은 규칙 )
  */
 class WorkOrderService {
+    use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     // 화면( toForm )이 쓰는 관계
     public const FORM_RELATIONS = ['item', 'lot', 'ops.process', 'materials.childItem', 'materials.substitutes.childItem', 'sources.salesOrderLine.order', 'sources.creator'];
@@ -450,13 +451,5 @@ class WorkOrderService {
 
     private function yes($v): bool {
         return $v === 'Y' || $v === true || $v === 1 || $v === '1';
-    }
-
-    private function str(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ''), '0'), '.') ?: '0';
-    }
-
-    private function num(float $v): string {
-        return rtrim(rtrim(number_format($v, 6, '.', ','), '0'), '.');
     }
 }

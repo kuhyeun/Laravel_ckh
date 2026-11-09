@@ -196,6 +196,7 @@ import { inspModeLabel } from '@core/Components/Stock/stockCodes';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
+import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     onSaved: { type: Function, default: null },   // 저장 후 ( { stock_txn_idx, txn_no, status }, 경고 )
@@ -223,7 +224,7 @@ const selectedRule     = computed(() => lot.rules.find(r => Number(r.lot_rule_id
 const lotRuleMissing   = computed(() => lot.enabled && lot.source === 'INTERNAL' && !lot.rules.length);
 
 const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
-const fmt = (v) => num(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
+const fmt = (v) => fmtNum(num(v));   // 빈 칸 · 글자는 0 ( 입력 칸용 ) — 모양은 공용 fmtNum
 const lineError = (i, f) => errors.value[`lines.${i}.${f}`]?.[0] ?? '';
 
 function defaultWarehouse() {

@@ -24,7 +24,7 @@
                 </span>
             </button>
             <!-- <Link :href="route('user.dashboard')" class="mr-3 text-gray-700  hover:text-blue-500">DashBoard</Link> -->
-            <a :href="route('user.logout')" class="text-gray-700 hover:text-blue-500">로그아웃</a>
+            <button type="button" class="text-gray-700 hover:text-blue-500" @click="logout">로그아웃</button>
         </div>
     </div>
 </template>
@@ -39,6 +39,12 @@ import { Link, usePage } from '@inertiajs/vue3';
 import { BellIcon } from '@heroicons/vue/24/outline';
 import { Bars3BottomLeftIcon, InformationCircleIcon } from '@heroicons/vue/24/solid';
 import GridModal from '@core/Components/Modals/ModalGridList.vue';
+
+// 로그아웃은 POST ( 11-09 코드 검사 A-4 — GET 이면 다른 사이트의 링크 · 이미지 하나로 강제 로그아웃됐다 ) · axios 가 XSRF 토큰을 붙인다
+async function logout() {
+    try { await window.axios.post(route('user.logout')); } catch (e) { /* 이미 끊긴 세션이어도 로그인으로 */ }
+    window.location.href = route('user.login');
+}
 import UserDetail from '@core/Components/Modals/UserDetails.vue';
 
 const uiStore = useUiStore();

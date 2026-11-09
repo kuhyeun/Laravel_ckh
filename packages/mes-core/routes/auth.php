@@ -23,6 +23,6 @@ Route::prefix('user')->name('user.')->group(function() {
     // 로그인된 사용자 접근
     Route::middleware([UserAuth::class])->group(function() {
         Route::get('/dashboard', [UserController::class, 'dashboard'])->name('dashboard');
-        Route::get('/logout', [UserController::class, 'logout'])->name('logout');
+        Route::post('/logout', [UserController::class, 'logout'])->name('logout');   // POST ( GET 이면 링크 하나로 강제 로그아웃 )
     });
 });
