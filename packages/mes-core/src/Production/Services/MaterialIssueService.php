@@ -381,6 +381,14 @@ class MaterialIssueService {
             ->orderBy('i.item_code')->orderBy('l.lot_no')
             ->get(['s.item_idx', 's.lot_idx', 's.issued_qty', 's.consumed_qty', 's.returned_qty', 's.qty', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'l.lot_no', 'l.spec_value']);
 
+        // ( 품목, LOT ) 마다 마지막으로 낸 창고 — 한 번에 ( 전에는 LOT 마다 한 쿼리 )
+        $lastWh = [];
+        foreach (StockTxnLine::where('work_order_idx', $wo->work_order_idx)->where('line_status', 'DONE')
+            ->whereHas('txn', fn ($q) => $q->where('txn_type', self::TXN_TYPE))
+            ->orderBy('stock_txn_line_idx')->get(['item_idx', 'lot_idx', 'warehouse_idx']) as $l) {
+            $lastWh["{$l->item_idx}:{$l->lot_idx}"] = $l->warehouse_idx;   // 뒤의 것이 덮는다 = 마지막
+        }
+
         return $rows->map(fn ($r) => [
             'key'          => "{$r->item_idx}:{$r->lot_idx}",
             'item_idx'     => (int) $r->item_idx,
@@ -397,9 +405,7 @@ class MaterialIssueService {
             'held'         => (float) $r->qty,
             'returned'     => (float) $r->returned_qty,
             'returnable'   => max(0, (float) $r->issued_qty - (float) $r->returned_qty),
-            'warehouse_idx'=> StockTxnLine::where('work_order_idx', $wo->work_order_idx)->where('item_idx', $r->item_idx)->where('lot_idx', $r->lot_idx)
-                ->where('line_status', 'DONE')->whereHas('txn', fn ($q) => $q->where('txn_type', self::TXN_TYPE))
-                ->orderByDesc('stock_txn_line_idx')->value('warehouse_idx'),
+            'warehouse_idx'=> $lastWh["{$r->item_idx}:{$r->lot_idx}"] ?? null,
         ])->values()->all();
     }
 

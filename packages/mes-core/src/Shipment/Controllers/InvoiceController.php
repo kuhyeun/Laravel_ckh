@@ -73,8 +73,10 @@ class InvoiceController extends Controller {
     //   merge=1 : 같은 고객사는 한 문서로 ( InvoiceService::merge — 인쇄만 )
     public function sheets(Request $request) {
         $v = $request->validate(['ids' => 'required|array|min:1|max:200', 'ids.*' => 'integer', 'merge' => 'nullable|boolean']);
-        $docs = Shipment::whereIn('shipment_idx', $v['ids'])->where('status', 'DONE')->orderBy('shipped_at')->orderBy('shipment_idx')->get()
-            ->map(fn (Shipment $s) => $this->invoices->build($s))->values()->all();
+        // 관계 · 사업장을 한꺼번에 읽는다 ( 전에는 출하마다 따로 읽어 200 건이면 1,000 쿼리쯤 됐다 )
+        $ships = Shipment::with(InvoiceService::RELATIONS)->whereIn('shipment_idx', $v['ids'])->where('status', 'DONE')->orderBy('shipped_at')->orderBy('shipment_idx')->get();
+        $sites = $this->invoices->firstSites($ships->pluck('partner_idx')->all());
+        $docs  = $ships->map(fn (Shipment $s) => $this->invoices->build($s, $sites))->values()->all();
         if ($request->boolean('merge')) {
             $docs = $this->invoices->merge($docs);
         }

@@ -76,10 +76,22 @@ class ProcessInspectionController extends Controller {
             'lot_no'    => fn ($q, $kw) => $q->whereHas('workOrder.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
         ]);
 
-        $users = User::pluck('user_name', 'account_idx');
-        return $this->listResponse($request, $query, self::SORTABLE, 'ops', function (WorkOrderOp $o) use ($users) {
-            [$wo, $ops] = $this->inspections->context($o);
-            $done = $o->status === 'DONE' ? $this->summary($o) : null;
+        // 그 페이지 행에 필요한 것을 한꺼번에 읽어 둔다 ( 전에는 행마다 지시 · 공정 · 검사 기록을 따로 읽어 200 행이면 1,000 쿼리가 넘었다 )
+        $wos = $opsByWo = $summaries = $latest = $users = collect();
+        $prepare = function ($rows) use (&$wos, &$opsByWo, &$summaries, &$latest, &$users) {
+            $woIds = $rows->pluck('work_order_idx')->unique()->values()->all();
+            $opIds = $rows->pluck('work_order_op_idx')->all();
+            $wos     = WorkOrder::with(['item', 'lot'])->whereIn('work_order_idx', $woIds)->get()->keyBy('work_order_idx');
+            $opsByWo = WorkOrderOp::with('process')->whereIn('work_order_idx', $woIds)->orderBy('seq')->get()->groupBy('work_order_idx');
+            $summaries = Inspection::where('ref_type', ProcessInspectionService::REF_TYPE)->whereIn('ref_idx', $opIds)
+                ->where('insp_type', 'PROCESS')->where('is_canceled', 'N')->orderBy('inspection_idx')->get()->keyBy('ref_idx');   // 같은 공정이면 마지막 것이 남는다
+            $latest  = collect($this->inspections->stageLatestMany($rows->filter(fn (WorkOrderOp $o) => $o->status !== 'DONE' && $o->isIflOp())->pluck('work_order_op_idx')->all()));
+            $users   = User::whereIn('account_idx', $summaries->pluck('inspector_idx')->filter()->unique())->pluck('user_name', 'account_idx');
+        };
+        return $this->listResponse($request, $query, self::SORTABLE, 'ops', function (WorkOrderOp $o) use (&$wos, &$opsByWo, &$summaries, &$latest, &$users) {
+            $wo   = $wos[$o->work_order_idx];
+            $ops  = $opsByWo[$o->work_order_idx] ?? collect();
+            $done = $o->status === 'DONE' ? ($summaries[$o->work_order_op_idx] ?? null) : null;
             return [
                 'work_order_op_idx' => $o->work_order_op_idx,
                 'work_order_idx'    => $o->work_order_idx,
@@ -99,9 +111,9 @@ class ProcessInspectionController extends Controller {
                 'status'            => $o->status,
                 'inspected_at'      => $done?->inspected_at?->format('Y-m-d H:i'),
                 'inspector_name'    => $done ? ($users[$done->inspector_idx] ?? '') : '',
-                'block'             => $o->status === 'DONE' ? null : $this->inspections->completeBlock($wo, $ops, $o),
+                'block'             => $o->status === 'DONE' ? null : $this->inspections->completeBlock($wo, $ops, $o, $o->isIflOp() ? ($latest[$o->work_order_op_idx] ?? []) : null),
             ];
-        });
+        }, $prepare);
     }
 
     // 검사 창
@@ -225,11 +237,6 @@ class ProcessInspectionController extends Controller {
     // ---- 내부 ----
 
     // 종합 검사 기록 ( 완료된 검사 공정 )
-    private function summary(WorkOrderOp $op): ?Inspection {
-        return Inspection::where('ref_type', ProcessInspectionService::REF_TYPE)->where('ref_idx', $op->work_order_op_idx)
-            ->where('insp_type', 'PROCESS')->where('is_canceled', 'N')->latest('inspection_idx')->first();
-    }
-
     private function kindLabel(WorkOrderOp $op): string {
         return $op->isIflOp() ? implode(' · ', array_map(fn ($s) => ProcessInspectionService::STAGE_NAMES[$s], $op->iflStages())) : '일반';
     }

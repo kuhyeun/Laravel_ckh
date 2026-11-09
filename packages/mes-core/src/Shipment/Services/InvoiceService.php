@@ -22,10 +22,20 @@ class InvoiceService {
 
     public function __construct(private PolicyService $policy) {}
 
-    // 명세서 한 장의 데이터
-    public function build(Shipment $s): array {
-        $s->loadMissing(['partner', 'lines.item', 'lines.salesOrderLine.order']);
-        $site  = PartnerSite::where('partner_idx', $s->partner_idx)->orderBy('sort_order')->orderBy('site_idx')->first();
+    // 명세서에 필요한 관계 ( 여러 장을 뽑을 때 부르는 쪽이 with() 로 미리 읽는다 )
+    public const RELATIONS = ['partner', 'lines.item', 'lines.salesOrderLine.order'];
+
+    /** 거래처별 첫 사업장 — 여러 장을 한 번에 ( @return array<int, PartnerSite> ) */
+    public function firstSites(array $partnerIdxs): array {
+        return PartnerSite::whereIn('partner_idx', array_unique($partnerIdxs))->orderBy('sort_order')->orderBy('site_idx')->get()
+            ->groupBy('partner_idx')->map(fn ($g) => $g->first())->all();
+    }
+
+    // 명세서 한 장의 데이터 — $sites : firstSites() 결과 ( 여러 장이면 미리 읽어 넘긴다 · 없으면 여기서 읽는다 )
+    public function build(Shipment $s, ?array $sites = null): array {
+        $s->loadMissing(self::RELATIONS);
+        $site  = $sites !== null ? ($sites[$s->partner_idx] ?? null)
+            : PartnerSite::where('partner_idx', $s->partner_idx)->orderBy('sort_order')->orderBy('site_idx')->first();
         $lines = $s->lines->values()->map(function (ShipmentLine $l, int $i) {
             [$supply, $tax] = $this->amounts((float) $l->qty, (float) ($l->unit_price ?? 0));
             $so = $l->salesOrderLine;

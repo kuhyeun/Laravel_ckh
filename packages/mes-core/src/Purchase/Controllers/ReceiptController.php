@@ -123,7 +123,9 @@ class ReceiptController extends Controller {
             ->where('line_status', 'OPEN')
             ->whereHas('order', fn ($q) => $q->where('partner_idx', $v['partner_idx'])->where('status', 'CONFIRMED'))
             ->orderBy('due_date')->orderBy('purchase_order_line_idx')
-            ->get()
+            ->get();
+        $waiting = $this->receipts->waitingByLine($lines->pluck('purchase_order_line_idx')->all());   // 한 번에 ( 전에는 줄마다 )
+        $lines = $lines
             ->map(fn (PurchaseOrderLine $l) => [
                 'purchase_order_line_idx' => $l->purchase_order_line_idx,
                 'order_no'                => $l->order->order_no,
@@ -139,7 +141,7 @@ class ReceiptController extends Controller {
                 'spec_unit'               => $l->item?->spec_unit,
                 'qty'                     => (float) $l->qty,
                 'received_qty'            => (float) $l->received_qty,
-                'remaining'               => $this->receipts->remainingQty($l),
+                'remaining'               => $this->receipts->remainingQty($l, $waiting[$l->purchase_order_line_idx] ?? 0.0),
             ])
             ->filter(fn ($l) => $l['remaining'] > 0)
             ->values();

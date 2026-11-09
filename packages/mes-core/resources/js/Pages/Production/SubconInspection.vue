@@ -3,22 +3,22 @@
      - 시스템설정 > 품질 "외주 검사 사용" 이 꺼져 있으면 입고가 바로 완료되어 검사대기가 생기지 않는다 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <SearchBar v-model="search" :date-bases="DATE_BASES" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="load">
+        <SearchBar v-model="search" :date-bases="DATE_BASES" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="loadFirstPage">
             <PartnerSelect v-model="search.partner_idx" :options="partners" all-label="외주처 전체" class="w-40" />
             <BaseSelect v-model="search.status" :options="STATUS_OPTIONS" class="w-32" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 min-h-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
-                <span class="text-sm font-semibold text-gray-600">외주 입고 검사 · <span class="text-xs text-gray-400">{{ rows.length.toLocaleString() }} 건 · 행을 누르면 검사</span></span>
+                <span class="text-sm font-semibold text-gray-600">외주 입고 검사 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건 · 행을 누르면 검사</span></span>
                 <div class="flex items-center gap-1.5">
                     <GridSettingButton :grid="grid" />
-                    <ExcelExportButton :rows="rows" :columns="columns" :grid="grid" filename="외주검사" />
+                    <ExcelExportButton :rows="exportRows" :columns="columns" :grid="grid" filename="외주검사" />
                 </div>
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :loading="loading" setting-key="list" class="flex-1" :data="rows" :columns="columns"
-                    empty-text="조건에 맞는 외주 입고가 없습니다." @row-click="openInspection" />
+                    :pagination="paging" empty-text="조건에 맞는 외주 입고가 없습니다." @row-click="openInspection" @page="onPage" />
             </div>
         </div>
     </div>
@@ -38,6 +38,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import SubconInspectionForm from '@core/Components/Production/SubconInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 import { fmtQty, itemLabel } from '@core/Utils/format';
 import { COLORS } from '@core/Utils/colors';
 
@@ -75,21 +76,35 @@ const columns = [
 
 const rows    = ref([]);
 const loading = ref(false);
+const paging  = reactive({ page: 1, perPage: 50, total: 0 });   // 서버 페이징
 
+// 상태를 고르지 않으면 취소분은 뺀다 ( 서버에서 — 페이징이라 화면에서 거르면 건수가 틀린다 )
+function params(extra = {}) {
+    const p = { ...search, hide_canceled: search.status ? undefined : 1, ...extra };
+    delete p.date_basis;
+    return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined));
+}
+const latest = useLatest();
 async function load() {
+    const isLatest = latest.begin();
     loading.value = true;
     try {
-        const p = { ...search };
-        delete p.date_basis;
-        const { data } = await window.axios.get(route('production.subcon.inspection.receipts'), {
-            params: Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined)),
-        });
-        rows.value = (data.rows ?? []).filter(r => search.status || r.status !== 'CANCELED');
+        const { data } = await window.axios.get(route('production.subcon.inspection.receipts'), { params: params({ page: paging.page, perPage: paging.perPage }) });
+        if (!isLatest()) return;
+        rows.value   = data.rows ?? [];
+        paging.total = data.total ?? 0;
+        paging.page  = data.page ?? 1;
     } catch (e) {
-        showFlash(failMsg(e), true);
+        if (isLatest()) showFlash(failMsg(e), true);
     } finally {
-        loading.value = false;
+        if (isLatest()) loading.value = false;
     }
+}
+function loadFirstPage() { paging.page = 1; load(); }
+function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
+async function exportRows() {
+    const { data } = await window.axios.get(route('production.subcon.inspection.receipts'), { params: params({ export: 1 }) });
+    return data.rows ?? [];
 }
 
 function openInspection(row) {

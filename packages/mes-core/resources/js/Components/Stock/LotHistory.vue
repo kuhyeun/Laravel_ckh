@@ -34,7 +34,7 @@
                 </tbody>
             </table>
         </div>
-        <p v-if="truncated" class="text-xs text-amber-600 mt-1">처음 500줄만 보입니다.</p>
+        <p v-if="truncated" class="text-xs text-amber-600 mt-1">최근 500줄만 보입니다. ( 누적은 앞의 이력부터 이어서 계산 )</p>
         <p class="text-xs text-gray-400 mt-1">취소된 입출고는 줄을 그어 보이고, 되돌린 행( 취소 )이 따로 있습니다.</p>
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
             <!-- 진입점 ( 화면목록 §5-2 ) — 처리는 각 화면의 창이 한다 -->

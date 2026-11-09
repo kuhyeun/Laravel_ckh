@@ -94,7 +94,7 @@ class ShipmentController extends Controller {
         if (!$s) {
             return response()->json(['message' => 'NotFound'], 404);
         }
-        $users = User::pluck('user_name', 'account_idx');
+        $users = User::namesFor(array_merge([$s->approval_requested_by, $s->approved_by, $s->shipped_by, $s->canceled_by], $s->lines->pluck('inspected_by')->all()));
         $stage = $this->shipments->stage($s);
         return response()->json(['shipment' => [
             'shipment_idx'          => $s->shipment_idx,
@@ -149,7 +149,9 @@ class ShipmentController extends Controller {
         $lines = SalesOrderLine::with(['order:sales_order_idx,order_no,partner_idx,status', 'item:item_idx,item_code,item_name,spec,material,spec_unit'])
             ->where('line_status', 'OPEN')
             ->whereHas('order', fn ($q) => $q->where('partner_idx', $v['partner_idx'])->where('status', 'CONFIRMED'))
-            ->orderBy('due_date')->orderBy('sales_order_line_idx')->get()
+            ->orderBy('due_date')->orderBy('sales_order_line_idx')->get();
+        $waiting = $this->shipments->waitingByLine($lines->pluck('sales_order_line_idx')->all(), $v['shipment_idx'] ?? null);   // 한 번에 ( 전에는 줄마다 )
+        $lines = $lines
             ->map(fn (SalesOrderLine $l) => [
                 'sales_order_line_idx' => $l->sales_order_line_idx,
                 'order_no'     => $l->order?->order_no,
@@ -165,7 +167,7 @@ class ShipmentController extends Controller {
                 'unit_price'   => $l->unit_price !== null ? (float) $l->unit_price : null,
                 'produced_qty' => (float) $l->produced_qty,
                 'shipped_qty'  => (float) $l->shipped_qty,
-                'remaining'    => $this->shipments->soRemaining($l, $v['shipment_idx'] ?? null),
+                'remaining'    => $this->shipments->soRemaining($l, $v['shipment_idx'] ?? null, $waiting[$l->sales_order_line_idx] ?? 0.0),
             ])->filter(fn ($l) => $l['remaining'] > 0.000001)->values();
         return response()->json(['lines' => $lines]);
     }

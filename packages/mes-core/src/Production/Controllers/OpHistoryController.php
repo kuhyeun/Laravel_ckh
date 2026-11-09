@@ -157,7 +157,7 @@ class OpHistoryController extends Controller {
         $ops  = WorkOrderOp::with('process')->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get();
         $runs = WorkOrderOpRun::with(['operator:account_idx,user_id,user_name', 'creator:account_idx,user_id,user_name', 'equipment:equipment_idx,equipment_name'])
             ->whereIn('work_order_op_idx', $ops->pluck('work_order_op_idx'))->orderBy('worked_at')->orderBy('run_idx')->get();   // 같은 일시면 입력 순
-        $users   = User::pluck('user_name', 'account_idx');
+        $users   = User::namesFor($runs->pluck('canceled_by'));   // 이 줄들의 취소자만
         $reasons = SystemCode::where('system_code_group_key', OpResultService::SHORT_GROUP)->pluck('system_code_name', 'system_code_key');
         $name    = fn ($u) => $u ? ($u->user_name ?: $u->user_id) : null;
         $opName  = fn (WorkOrderOp $o) => str_pad((string) $o->seq, 3, '0', STR_PAD_LEFT) . ' ' . $o->process?->process_name;

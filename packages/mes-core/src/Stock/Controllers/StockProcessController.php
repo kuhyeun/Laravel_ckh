@@ -202,12 +202,13 @@ class StockProcessController extends Controller {
         ]);
 
         $reasons = SystemCode::where('system_code_group_key', StockAdjustService::REASON_GROUP)->pluck('system_code_name', 'system_code_key');
-        $users   = User::pluck('user_name', 'account_idx');
+        $users   = new \ArrayObject();   // 그 페이지 행의 등록자만 ( $prepare 가 채운다 )
 
         // 줄 → 수주번호 · 출하번호 · 고객사 ( 생산 입고 · 출하만 — 페이지 행만 한 번에 )
         //   map 은 화살표 함수라 값을 복사해 잡는다 → 나중에 채우는 표는 객체로 넘긴다
         $refs    = new \ArrayObject();
-        $prepare = function (Collection $rows) use ($type, $refs) {
+        $prepare = function (Collection $rows) use ($type, $refs, $users) {
+            $users->exchangeArray(User::namesFor($rows->pluck('txn_creator'))->all());
             if ($type === OpResultService::TXN_TYPE) $refs->exchangeArray($this->productionRefs($rows));
             if ($type === ShipmentService::TXN_TYPE) $refs->exchangeArray($this->shipmentRefs($rows));
         };

@@ -100,11 +100,12 @@ class MaterialIssueController extends Controller {
     // 지시의 출고 이력 ( 줄 단위 · 최근 먼저 )
     public function history(int $woIdx) {
         $wo    = $this->find($woIdx);
-        $users = User::pluck('user_name', 'account_idx');
-        $rows  = StockTxnLine::with(['txn', 'item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
+        $lines = StockTxnLine::with(['txn', 'item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
             ->where('work_order_idx', $wo->work_order_idx)
             ->whereHas('txn', fn ($q) => $q->where('txn_type', MaterialIssueService::TXN_TYPE))
-            ->orderByDesc('stock_txn_line_idx')->get()
+            ->orderByDesc('stock_txn_line_idx')->get();
+        $users = User::namesFor($lines->pluck('txn.create_account_idx'));
+        $rows  = $lines
             ->map(fn (StockTxnLine $l) => [
                 'stock_txn_line_idx' => $l->stock_txn_line_idx,
                 'txn_no'             => $l->txn?->txn_no,
@@ -164,11 +165,12 @@ class MaterialIssueController extends Controller {
     // 반납할 수 있는 LOT · 반납 이력 · 창고 선택지
     public function returnPlan(int $woIdx) {
         $wo    = $this->find($woIdx);
-        $users = User::pluck('user_name', 'account_idx');
-        $history = StockTxnLine::with(['txn', 'item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
+        $lines = StockTxnLine::with(['txn', 'item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
             ->where('work_order_idx', $wo->work_order_idx)
             ->whereHas('txn', fn ($q) => $q->where('txn_type', MaterialIssueService::RETURN_TYPE))
-            ->orderByDesc('stock_txn_line_idx')->get()
+            ->orderByDesc('stock_txn_line_idx')->get();
+        $users = User::namesFor($lines->pluck('txn.create_account_idx'));
+        $history = $lines
             ->map(fn (StockTxnLine $l) => [
                 'stock_txn_line_idx' => $l->stock_txn_line_idx,
                 'txn_no'             => $l->txn?->txn_no,

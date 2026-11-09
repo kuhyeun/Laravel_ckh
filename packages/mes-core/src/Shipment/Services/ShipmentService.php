@@ -127,11 +127,19 @@ class ShipmentService {
     }
 
     // 수주 줄의 남은 출하 = 수량 − 출하 − 다른 출하대기의 그 줄 수량
-    public function soRemaining(SalesOrderLine $line, ?int $exceptShipmentIdx = null): float {
-        $waiting = (float) ShipmentLine::where('sales_order_line_idx', $line->sales_order_line_idx)
-            ->whereHas('shipment', fn ($q) => $q->where('status', 'WAIT')->when($exceptShipmentIdx, fn ($w) => $w->where('shipment_idx', '!=', $exceptShipmentIdx)))
-            ->sum('qty');
+    //   $waiting : 미리 읽어 둔 출하대기 합 ( waitingByLine() — 여러 줄이면 한 번에 읽어 넘긴다 )
+    public function soRemaining(SalesOrderLine $line, ?int $exceptShipmentIdx = null, ?float $waiting = null): float {
+        $waiting ??= $this->waitingByLine([$line->sales_order_line_idx], $exceptShipmentIdx)[$line->sales_order_line_idx] ?? 0.0;
         return (float) $line->qty - (float) $line->shipped_qty - $waiting;
+    }
+
+    /** 수주 줄별 출하대기( 아직 안 나간 출하 ) 수량 합 — @return array<int, float> */
+    public function waitingByLine(array $lineIdxs, ?int $exceptShipmentIdx = null): array {
+        if (!$lineIdxs) return [];
+        return ShipmentLine::whereIn('sales_order_line_idx', $lineIdxs)
+            ->whereHas('shipment', fn ($q) => $q->where('status', 'WAIT')->when($exceptShipmentIdx, fn ($w) => $w->where('shipment_idx', '!=', $exceptShipmentIdx)))
+            ->groupBy('sales_order_line_idx')->selectRaw('sales_order_line_idx, SUM(qty) as n')->pluck('n', 'sales_order_line_idx')
+            ->map(fn ($n) => (float) $n)->all();
     }
 
     // ---- 저장 ( 출하대기 ) ----

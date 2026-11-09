@@ -7,21 +7,21 @@
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openForm(null)">+ 등록</BaseButton>
         </div>
 
-        <SearchBar v-model="search" :date-bases="DATE_BASES" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="load">
+        <SearchBar v-model="search" :date-bases="DATE_BASES" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="loadFirstPage">
             <PartnerSelect v-model="search.partner_idx" :options="partners" all-label="고객사 전체" class="w-40" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 min-h-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
-                <span class="text-sm font-semibold text-gray-600">클레임 · <span class="text-xs text-gray-400">{{ rows.length.toLocaleString() }} 줄 · 클레임 수량 합 {{ fmtNum(totalQty) }}</span></span>
+                <span class="text-sm font-semibold text-gray-600">클레임 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 줄 · 클레임 수량 합 {{ fmtNum(totalQty) }}</span></span>
                 <div class="flex items-center gap-1.5">
                     <GridSettingButton :grid="grid" />
-                    <ExcelExportButton :rows="rows" :columns="columns" :grid="grid" filename="클레임" />
+                    <ExcelExportButton :rows="exportRows" :columns="columns" :grid="grid" filename="클레임" />
                 </div>
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :loading="loading" setting-key="list" class="flex-1" :data="rows" :columns="columns"
-                    empty-text="조건에 맞는 클레임이 없습니다." @row-click="row => openForm(row.claim_idx)" />
+                    :pagination="paging" empty-text="조건에 맞는 클레임이 없습니다." @row-click="row => openForm(row.claim_idx)" @page="onPage" />
             </div>
         </div>
     </div>
@@ -41,6 +41,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import ClaimForm from '@core/Components/Shipment/ClaimForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
+import { useLatest } from '@core/Composables/useLatest';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
@@ -76,22 +77,35 @@ const columns = [
 
 const rows    = ref([]);
 const loading = ref(false);
-const totalQty = computed(() => rows.value.reduce((s, r) => s + (Number(r.qty) || 0), 0));
-
+const paging  = reactive({ page: 1, perPage: 50, total: 0 });   // 서버 페이징 ( 전에는 기간을 넓히면 전부 내려받았다 )
+const totalQty = ref(0);   // 조건 전체의 클레임 수량 합 ( 서버 )
+function params(extra = {}) {
+    const p = { ...search, ...extra };
+    delete p.date_basis;
+    return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined));
+}
+const latest = useLatest();
 async function load() {
+    const isLatest = latest.begin();
     loading.value = true;
     try {
-        const p = { ...search };
-        delete p.date_basis;
-        const { data } = await window.axios.get(route('shipment.claim.list'), {
-            params: { ...Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined)), _t: Date.now() },
-        });
-        rows.value = data.rows ?? [];
+        const { data } = await window.axios.get(route('shipment.claim.list'), { params: params({ page: paging.page, perPage: paging.perPage, _t: Date.now() }) });
+        if (!isLatest()) return;
+        rows.value   = data.rows ?? [];
+        paging.total = data.total ?? 0;
+        paging.page  = data.page ?? 1;
+        totalQty.value = data.total_qty ?? 0;
     } catch (e) {
-        showFlash(failMsg(e), true);
+        if (isLatest()) showFlash(failMsg(e), true);
     } finally {
-        loading.value = false;
+        if (isLatest()) loading.value = false;
     }
+}
+function loadFirstPage() { paging.page = 1; load(); }
+function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
+async function exportRows() {
+    const { data } = await window.axios.get(route('shipment.claim.list'), { params: params({ export: 1 }) });
+    return data.rows ?? [];
 }
 
 function openForm(claimIdx) {

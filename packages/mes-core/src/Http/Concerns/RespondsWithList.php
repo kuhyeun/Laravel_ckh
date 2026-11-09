@@ -3,6 +3,7 @@
 namespace MesCore\Http\Concerns;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -16,6 +17,7 @@ use Illuminate\Validation\ValidationException;
  *
  *   정렬 : sort( 허용한 컬럼만 ) + dir( asc | desc ). 허용 안 된 컬럼은 무시하고 기본 정렬
  *   $map : 행을 화면용으로 바꾸는 함수 ( 없으면 모델 그대로 )
+ *   $query : Eloquent 빌더 또는 DB::table() 쿼리 빌더 ( 외주 목록처럼 조인으로 만든 목록 )
  */
 trait RespondsWithList {
 
@@ -30,7 +32,7 @@ trait RespondsWithList {
     }
 
     // $prepare : 행을 바꾸기 전에 그 페이지 모델 묶음을 한 번 받는다 ( 행마다 조회하지 않고 한꺼번에 읽어 둘 때 )
-    protected function listResponse(Request $request, Builder $query, array $sortable, string $legacyKey, ?callable $map = null, ?callable $prepare = null): JsonResponse {
+    protected function listResponse(Request $request, Builder|QueryBuilder $query, array $sortable, string $legacyKey, ?callable $map = null, ?callable $prepare = null): JsonResponse {
         $validated = $request->validate([
             'page'    => 'nullable|integer|min:1',
             'perPage' => 'nullable|integer|in:20,50,100,200',
@@ -53,7 +55,7 @@ trait RespondsWithList {
         };
 
         if ((string) ($validated['export'] ?? '0') === '1') {
-            $total = (clone $query)->toBase()->getCountForPagination();
+            $total = $query instanceof Builder ? (clone $query)->toBase()->getCountForPagination() : (clone $query)->getCountForPagination();
             $limit = $this->exportLimit();
             if ($total > $limit) {
                 throw ValidationException::withMessages(['export' => [

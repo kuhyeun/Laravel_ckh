@@ -46,9 +46,10 @@ class SubconService {
     // ---- 출고 ----
 
     /** 출고할 수 있는 수량 ( 기준 − 이미 출고 ) · 기준 */
-    public function available(WorkOrder $wo, Collection $ops, WorkOrderOp $op): array {
+    //   $issued : 미리 읽어 둔 출고 합계 ( 목록이 한꺼번에 읽어 넘긴다 — 없으면 여기서 읽는다 )
+    public function available(WorkOrder $wo, Collection $ops, WorkOrderOp $op, ?float $issued = null): array {
         $base   = (float) ($this->results->baseQty($wo, $ops, $op) ?? 0);
-        $issued = (float) DB::table('subcon_issue')->where('work_order_op_idx', $op->work_order_op_idx)->where('is_canceled', 'N')->sum('qty');
+        $issued ??= (float) DB::table('subcon_issue')->where('work_order_op_idx', $op->work_order_op_idx)->where('is_canceled', 'N')->sum('qty');
         return ['base' => $base, 'issued' => $issued, 'available' => max(0, $base - $issued)];
     }
 

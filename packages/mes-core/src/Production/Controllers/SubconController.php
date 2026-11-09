@@ -4,6 +4,7 @@ namespace MesCore\Production\Controllers;
 
 use MesCore\Http\Controller;
 use MesCore\Http\Concerns\SearchesKeyword;
+use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Partner;
 use MesCore\Config\Models\Warehouse;
@@ -18,9 +19,21 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 // 외주관리 ( 4005 ) — 외주 출고 400501 · 외주 입고 400502 · 외주 품질검사 400503 · 외주 이력관리 400504 ( SubconService )
-//   목록은 화면에서 거르기 · 정렬 ( 기간 · 검색어 · 외주처는 서버 )
+//   목록( 출고 · 입고 · 이력 )은 서버 페이징 · 정렬 · 엑셀 전체( RespondsWithList ) — 전에는 기간을 넓히면 전부 내려받았다
 class SubconController extends Controller {
-    use SearchesKeyword;
+    use SearchesKeyword, RespondsWithList;
+
+    const ISSUE_SORTABLE   = ['issue_no', 'issued_at', 'partner_name', 'wo_no', 'item_code', 'process_name', 'qty', 'amount', 'received', 'issuer_name'];
+    const RECEIPT_SORTABLE = ['receipt_no', 'received_at', 'done_at', 'issue_no', 'partner_name', 'wo_no', 'item_code', 'process_name', 'r_qty', 'pass_qty', 'fail_qty', 'r_status', 'inspector_name'];
+    const HISTORY_SORTABLE = ['at', 'kind', 'doc_no', 'partner_name', 'wo_no', 'item_code', 'process_name', 'move_qty'];
+
+    private ?string $tie = null;   // 열 정렬 때 같은 값끼리의 순서 — 목록마다 다르다
+
+    protected function listTieBreaker(): ?string {
+        return $this->tie;
+    }
+
+    const CANDIDATE_LIMIT = 500;   // 출고 대상( 끝나지 않은 외주 공정 ) 상한 — 넘으면 검색어로 좁힌다
 
     public function __construct(private SubconService $subcon) {}
 
@@ -51,15 +64,23 @@ class SubconController extends Controller {
             ->join('item as i', 'i.item_idx', '=', 'wo.item_idx')
             ->where('p.process_type', 'SUBCON')->whereIn('wo.status', ['WAIT', 'RUN'])->where('op.status', '!=', 'DONE');
         $this->keyword($q, $v);
-        $opIdxs = $q->orderBy('wo.wo_no')->orderBy('op.seq')->pluck('op.work_order_op_idx');
+        $opIdxs = $q->orderBy('wo.wo_no')->orderBy('op.seq')->limit(self::CANDIDATE_LIMIT)->pluck('op.work_order_op_idx');
+
+        // 지시 · 공정 · 출고 합계를 한꺼번에 읽는다 ( 전에는 지시마다 · 공정마다 따로 읽었다 )
+        $mineByWo = WorkOrderOp::whereIn('work_order_op_idx', $opIdxs)->get(['work_order_op_idx', 'work_order_idx'])->groupBy('work_order_idx');
+        $woIds    = $mineByWo->keys()->all();
+        $wos      = WorkOrder::with('item')->whereIn('work_order_idx', $woIds)->get()->keyBy('work_order_idx');
+        $opsByWo  = WorkOrderOp::with('process')->whereIn('work_order_idx', $woIds)->orderBy('seq')->get()->groupBy('work_order_idx');
+        $issuedBy = DB::table('subcon_issue')->whereIn('work_order_op_idx', $opIdxs)->where('is_canceled', 'N')
+            ->groupBy('work_order_op_idx')->selectRaw('work_order_op_idx, SUM(qty) as n')->pluck('n', 'work_order_op_idx');
 
         $rows = [];
-        foreach (WorkOrderOp::with('process')->whereIn('work_order_op_idx', $opIdxs)->get()->groupBy('work_order_idx') as $woIdx => $mine) {
-            $wo  = WorkOrder::with('item')->find($woIdx);
-            $ops = WorkOrderOp::with('process')->where('work_order_idx', $woIdx)->orderBy('seq')->get();
+        foreach ($mineByWo as $woIdx => $mine) {
+            $wo  = $wos[$woIdx];
+            $ops = $opsByWo[$woIdx];
             foreach ($mine as $o) {
                 $op = $ops->firstWhere('work_order_op_idx', $o->work_order_op_idx);
-                $av = $this->subcon->available($wo, $ops, $op);
+                $av = $this->subcon->available($wo, $ops, $op, (float) ($issuedBy[$op->work_order_op_idx] ?? 0));
                 $prev = $ops->filter(fn ($x) => $x->seq < $op->seq && ($x->isQtyOp() || $x->isInspectionOp()))->last();
                 $rows[] = [
                     'work_order_op_idx' => $op->work_order_op_idx,
@@ -119,17 +140,18 @@ class SubconController extends Controller {
         if (!empty($v['partner_idx'])) $q->where('s.partner_idx', $v['partner_idx']);
         $this->keyword($q, $v);
 
-        // 마지막 공정( 제품 입고 — 입고 때 창고 필요 )
-        $rows = $q->orderBy('s.issued_at')->orderBy('s.subcon_issue_idx')->get();
-        $lastOps = $this->lastOps($rows->pluck('work_order_idx')->unique()->all());
-        return response()->json(['rows' => $rows->map(fn ($r) => $this->issueRow($r) + [
+        // 마지막 공정( 제품 입고 — 입고 때 창고 필요 ) — 그 페이지 지시만 한 번에
+        $q->orderBy('s.issued_at')->orderBy('s.subcon_issue_idx');
+        $this->tie = 's.subcon_issue_idx';
+        $lastOps = [];
+        return $this->listResponse($request, $q, self::ISSUE_SORTABLE, 'rows', fn ($r) => $this->issueRow($r) + [
             'received_qty' => (float) $r->received,
             'passed_qty'   => (float) $r->passed,
             'failed_qty'   => (float) $r->failed,
             'waiting'      => (int) $r->waiting,
             'left_qty'     => $r->is_canceled === 'Y' ? 0.0 : max(0, (float) $r->qty - (float) $r->received),
             'is_last'      => ($lastOps[$r->work_order_idx] ?? null) === (int) $r->work_order_op_idx,
-        ])->values()]);
+        ], function ($rows) use (&$lastOps) { $lastOps = $this->lastOps($rows->pluck('work_order_idx')->unique()->all()); });
     }
 
     // ---- 외주 입고 ----
@@ -158,6 +180,7 @@ class SubconController extends Controller {
             'from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d',
             'keyword' => 'nullable|string|max:100', 'search_field' => 'nullable|string|max:30',
             'partner_idx' => 'nullable|integer', 'status' => ['nullable', Rule::in(array_keys(SubconService::RECEIPT_STATUSES))],
+            'hide_canceled' => 'nullable|boolean',   // 상태를 고르지 않았을 때 취소분 빼기 ( 품질검사 화면 — 페이징이라 서버에서 거른다 )
         ]);
         $q = $this->issueBase()->join('subcon_receipt as r', 'r.subcon_issue_idx', '=', 's.subcon_issue_idx')
             ->leftJoin('account_member as iu', 'iu.account_idx', '=', 'r.create_account_idx')
@@ -166,12 +189,14 @@ class SubconController extends Controller {
             ->addSelect('r.subcon_receipt_idx', 'r.receipt_no', 'r.qty as r_qty', 'r.pass_qty', 'r.fail_qty', 'r.status as r_status', 'r.received_at', 'r.done_at', 'r.remark as r_remark',
                 DB::raw("COALESCE(NULLIF(qu.user_name, ''), qu.user_id) as inspector_name"));
         if (!empty($v['status'])) $q->where('r.status', $v['status']);
+        elseif (filter_var($v['hide_canceled'] ?? false, FILTER_VALIDATE_BOOLEAN)) $q->where('r.status', '!=', 'CANCELED');
         $this->period($q, 'r.received_at', $v);
         if (!empty($v['partner_idx'])) $q->where('s.partner_idx', $v['partner_idx']);
         $this->keyword($q, $v);
 
-        $rows = $q->orderBy('r.received_at')->orderBy('r.subcon_receipt_idx')->get();
-        return response()->json(['rows' => $rows->map(fn ($r) => $this->issueRow($r) + [
+        $q->orderBy('r.received_at')->orderBy('r.subcon_receipt_idx');
+        $this->tie = 'r.subcon_receipt_idx';
+        return $this->listResponse($request, $q, self::RECEIPT_SORTABLE, 'rows', fn ($r) => $this->issueRow($r) + [
             'subcon_receipt_idx' => $r->subcon_receipt_idx,
             'receipt_no'         => $r->receipt_no,
             'receipt_qty'        => (float) $r->r_qty,
@@ -183,7 +208,7 @@ class SubconController extends Controller {
             'done_at'            => substr((string) $r->done_at, 0, 16),
             'receipt_remark'     => $r->r_remark,
             'inspector_name'     => $r->inspector_name,
-        ])->values()]);
+        ]);
     }
 
     // ---- 외주 품질검사 ----
@@ -237,15 +262,17 @@ class SubconController extends Controller {
         $this->period($out, 's.issued_at', $v);
         $this->period($in, 'r.done_at', $v);
 
-        $rows = $out->get()->concat($in->get())->sortBy(fn ($r) => [(string) $r->at, $r->kind === 'ISSUE' ? 0 : 1])->values();
-        return response()->json(['rows' => $rows->map(fn ($r) => $this->issueRow($r) + [
+        // 출고 · 입고를 한 쿼리로 합쳐( UNION ALL ) 서버에서 정렬 · 페이징 ( 전에는 둘 다 전부 읽어 PHP 에서 합쳤다 )
+        $q = DB::query()->fromSub($out->unionAll($in), 'h')->select('h.*')->orderBy('h.at')->orderByRaw("h.kind = 'RECEIPT'")->orderBy('h.doc_no');
+        $this->tie = 'h.doc_no';
+        return $this->listResponse($request, $q, self::HISTORY_SORTABLE, 'rows', fn ($r) => $this->issueRow($r) + [
             'kind'       => $r->kind,
             'kind_label' => $r->kind === 'ISSUE' ? '외주 출고' : '외주 입고',
             'at'         => substr((string) $r->at, 0, 16),
             'move_qty'   => (float) $r->move_qty,
             'fail_qty'   => $r->fail !== null ? (float) $r->fail : null,
             'doc_no'     => $r->doc_no,
-        ])->values()]);
+        ]);
     }
 
     // ---- 내부 ----

@@ -7,7 +7,7 @@
             <BaseButton size="sm" variant="danger" :disabled="!checked.length || busy" @click="cancelChecked">출고 취소</BaseButton>
         </div>
 
-        <SearchBar v-model="search" :date-bases="tab === 'issues' ? DATE_BASES : []" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="load">
+        <SearchBar v-model="search" :date-bases="tab === 'issues' ? DATE_BASES : []" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="loadFirstPage">
             <PartnerSelect v-if="tab === 'issues'" v-model="search.partner_idx" :options="partners" all-label="외주처 전체" class="w-40" />
             <BaseCheckbox v-if="tab === 'issues'" v-model="search.include_canceled" variant="checkbox" true-value="Y" false-value="N">취소 포함</BaseCheckbox>
         </SearchBar>
@@ -20,17 +20,17 @@
 
         <div class="flex-1 min-w-0 min-h-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
-                <span class="text-sm font-semibold text-gray-600">{{ tab === 'targets' ? '출고 대상' : '출고 내역' }} · <span class="text-xs text-gray-400">{{ rows.length.toLocaleString() }} 건{{ tab === 'targets' ? ' · 행을 누르면 출고' : '' }}</span></span>
+                <span class="text-sm font-semibold text-gray-600">{{ tab === 'targets' ? '출고 대상' : '출고 내역' }} · <span class="text-xs text-gray-400">{{ (tab === 'issues' ? paging.total : rows.length).toLocaleString() }} 건{{ tab === 'targets' ? ' · 행을 누르면 출고' : '' }}</span></span>
                 <div class="flex items-center gap-1.5">
                     <GridSettingButton :grid="grid" />
-                    <ExcelExportButton :rows="rows" :columns="columns" :grid="grid" :filename="tab === 'targets' ? '외주출고대상' : '외주출고내역'" />
+                    <ExcelExportButton :rows="tab === 'issues' ? exportRows : rows" :columns="columns" :grid="grid" :filename="tab === 'targets' ? '외주출고대상' : '외주출고내역'" />
                 </div>
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :key="tab" :loading="loading" :setting-key="tab" class="flex-1" :data="rows" :columns="columns"
-                    :options="tab === 'issues' && canDelete ? { rowHeaders: 'checkbox' } : {}"
+                    :options="tab === 'issues' && canDelete ? { rowHeaders: 'checkbox' } : {}" :pagination="tab === 'issues' ? paging : null"
                     :empty-text="tab === 'targets' ? '외주 출고할 공정이 없습니다. ( 대기 · 진행 중 지시의 외주 공정 )' : '조건에 맞는 출고가 없습니다.'"
-                    @row-click="onRow" @select="sel => checked = sel" />
+                    @row-click="onRow" @select="sel => checked = sel" @page="onPage" />
             </div>
         </div>
     </div>
@@ -108,6 +108,7 @@ const rows    = ref([]);
 const loading = ref(false);
 const busy    = ref(false);
 const checked = ref([]);
+const paging  = reactive({ page: 1, perPage: 50, total: 0 });   // [출고 내역] 서버 페이징 ( 출고 대상은 끝나지 않은 공정만이라 한 번에 )
 
 const params = () => {
     const p = { ...search, include_canceled: search.include_canceled === 'Y' ? 1 : 0 };
@@ -122,8 +123,10 @@ async function load() {
     loading.value = true; checked.value = [];
     try {
         const name = tab.value === 'targets' ? 'production.subcon.issue.candidates' : 'production.subcon.issue.issues';
-        const { data } = await window.axios.get(route(name), { params: { ...params(), _t: Date.now() } });   // 늘 새로 ( 캐시 안 씀 )
+        const paged = tab.value === 'issues' ? { page: paging.page, perPage: paging.perPage } : {};
+        const { data } = await window.axios.get(route(name), { params: { ...params(), ...paged, _t: Date.now() } });   // 늘 새로 ( 캐시 안 씀 )
         if (!isLatest()) return;
+        if (tab.value === 'issues') { paging.total = data.total ?? 0; paging.page = data.page ?? 1; }
         rows.value = (data.rows ?? []).map(r => r.is_canceled ? { ...r, _attributes: { className: { row: ['row-canceled'] }, checkDisabled: true } } : r);
     } catch (e) {
         if (isLatest()) showFlash(failMsg(e), true);
@@ -131,7 +134,13 @@ async function load() {
         if (isLatest()) loading.value = false;
     }
 }
-function changeTab(key) { tab.value = key; rows.value = []; load(); }
+function changeTab(key) { tab.value = key; rows.value = []; loadFirstPage(); }
+function loadFirstPage() { paging.page = 1; load(); }
+function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
+async function exportRows() {
+    const { data } = await window.axios.get(route('production.subcon.issue.issues'), { params: { ...params(), export: 1 } });
+    return data.rows ?? [];
+}
 
 function onRow(row) {
     if (tab.value !== 'targets') return;

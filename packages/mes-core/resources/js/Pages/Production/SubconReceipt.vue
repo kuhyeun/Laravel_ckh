@@ -8,7 +8,7 @@
             <BaseButton size="sm" variant="danger" :disabled="!checked.length || busy" @click="cancelChecked">입고 취소</BaseButton>
         </div>
 
-        <SearchBar v-model="search" :date-bases="DATE_BASES" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="load">
+        <SearchBar v-model="search" :date-bases="DATE_BASES" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="loadFirstPage">
             <PartnerSelect v-model="search.partner_idx" :options="partners" all-label="외주처 전체" class="w-40" />
             <BaseSelect v-if="tab === 'receipts'" v-model="search.status" :options="STATUS_OPTIONS" class="w-32" />
         </SearchBar>
@@ -22,17 +22,17 @@
 
         <div class="flex-1 min-w-0 min-h-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
-                <span class="text-sm font-semibold text-gray-600">{{ tab === 'open' ? '입고 대기 출고' : '입고 내역' }} · <span class="text-xs text-gray-400">{{ rows.length.toLocaleString() }} 건{{ tab === 'open' ? ' · 행을 누르면 입고' : '' }}</span></span>
+                <span class="text-sm font-semibold text-gray-600">{{ tab === 'open' ? '입고 대기 출고' : '입고 내역' }} · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건{{ tab === 'open' ? ' · 행을 누르면 입고' : '' }}</span></span>
                 <div class="flex items-center gap-1.5">
                     <GridSettingButton :grid="grid" />
-                    <ExcelExportButton :rows="rows" :columns="columns" :grid="grid" :filename="tab === 'open' ? '외주입고대기' : '외주입고내역'" />
+                    <ExcelExportButton :rows="exportRows" :columns="columns" :grid="grid" :filename="tab === 'open' ? '외주입고대기' : '외주입고내역'" />
                 </div>
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :key="tab" :loading="loading" :setting-key="tab" class="flex-1" :data="rows" :columns="columns"
-                    :options="tab === 'receipts' && canDelete ? { rowHeaders: 'checkbox' } : {}"
+                    :options="tab === 'receipts' && canDelete ? { rowHeaders: 'checkbox' } : {}" :pagination="paging"
                     :empty-text="tab === 'open' ? '입고할 외주 출고가 없습니다.' : '조건에 맞는 입고가 없습니다.'"
-                    @row-click="onRow" @select="sel => checked = sel" />
+                    @row-click="onRow" @select="sel => checked = sel" @page="onPage" />
             </div>
         </div>
     </div>
@@ -114,6 +114,7 @@ const rows    = ref([]);
 const loading = ref(false);
 const busy    = ref(false);
 const checked = ref([]);
+const paging  = reactive({ page: 1, perPage: 50, total: 0 });   // 서버 페이징 ( 두 탭 모두 )
 
 const params = () => {
     const p = { ...search, open: tab.value === 'open' ? 1 : undefined };
@@ -128,8 +129,9 @@ async function load() {
     loading.value = true; checked.value = [];
     try {
         const name = tab.value === 'open' ? 'production.subcon.receipt.issues' : 'production.subcon.receipt.receipts';
-        const { data } = await window.axios.get(route(name), { params: { ...params(), _t: Date.now() } });   // 늘 새로 ( 캐시 안 씀 )
+        const { data } = await window.axios.get(route(name), { params: { ...params(), page: paging.page, perPage: paging.perPage, _t: Date.now() } });   // 늘 새로 ( 캐시 안 씀 )
         if (!isLatest()) return;
+        paging.total = data.total ?? 0; paging.page = data.page ?? 1;
         rows.value = (data.rows ?? []).map(r => r.status === 'CANCELED' ? { ...r, _attributes: { className: { row: ['row-canceled'] }, checkDisabled: true } } : r);
     } catch (e) {
         if (isLatest()) showFlash(failMsg(e), true);
@@ -137,7 +139,14 @@ async function load() {
         if (isLatest()) loading.value = false;
     }
 }
-function changeTab(key) { tab.value = key; rows.value = []; load(); }
+function changeTab(key) { tab.value = key; rows.value = []; loadFirstPage(); }
+function loadFirstPage() { paging.page = 1; load(); }
+function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
+async function exportRows() {
+    const name = tab.value === 'open' ? 'production.subcon.receipt.issues' : 'production.subcon.receipt.receipts';
+    const { data } = await window.axios.get(route(name), { params: { ...params(), export: 1 } });
+    return data.rows ?? [];
+}
 
 function onRow(row) {
     if (tab.value === 'open') {

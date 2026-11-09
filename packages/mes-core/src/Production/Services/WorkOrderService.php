@@ -304,6 +304,7 @@ class WorkOrderService {
     /** @return array<int,int> routing_line_idx → work_order_op_idx */
     private function syncOps(WorkOrder $wo, array $ops, $routingLines): array {
         $existing = WorkOrderOp::where('work_order_idx', $wo->work_order_idx)->get()->keyBy('work_order_op_idx');
+        $procs    = Process::whereIn('process_idx', array_column($ops, 'process_idx'))->get()->keyBy('process_idx');   // 한 번에 ( 전에는 공정마다 )
         $keep     = [];
         $map      = [];
 
@@ -312,7 +313,7 @@ class WorkOrderService {
                 ? $existing->get($row['work_order_op_idx'])
                 : new WorkOrderOp(['work_order_idx' => $wo->work_order_idx]);
             $rl   = !empty($row['routing_line_idx']) ? $routingLines->get($row['routing_line_idx']) : null;
-            $proc = Process::find($row['process_idx']);
+            $proc = $procs->get($row['process_idx']);
             $ifl  = $this->isIfl($proc);
 
             $op->fill([

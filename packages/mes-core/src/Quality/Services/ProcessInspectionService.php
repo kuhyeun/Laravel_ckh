@@ -40,13 +40,14 @@ class ProcessInspectionService {
     }
 
     // 지금 검사 완료( 일반 · IFL 종합 )를 할 수 없는 이유
-    public function completeBlock(WorkOrder $wo, Collection $ops, WorkOrderOp $op): ?string {
+    //   $latest : 미리 읽어 둔 stageLatest() ( 목록이 한꺼번에 읽어 넘긴다 — 없으면 여기서 읽는다 )
+    public function completeBlock(WorkOrder $wo, Collection $ops, WorkOrderOp $op, ?array $latest = null): ?string {
         if (!in_array($wo->status, ['WAIT', 'RUN'], true)) return '대기 · 진행 중인 품목 줄만 검사합니다.';
         if ($op->status === 'DONE') return null;
         $open = $ops->filter(fn (WorkOrderOp $o) => $o->seq < $op->seq && $o->status !== 'DONE')->first();
         if ($open) return "앞 공정( {$this->results->opName($open)} )이 끝난 뒤에 검사 완료합니다.";
         if ($op->isIflOp()) {
-            $latest = $this->stageLatest($op);
+            $latest ??= $this->stageLatest($op);
             foreach ($op->iflStages() as $st) {
                 if (($latest[$st]?->result ?? null) !== 'PASS') return self::STAGE_NAMES[$st] . ' 검사가 합격이어야 완료합니다.';
             }
@@ -160,6 +161,19 @@ class ProcessInspectionService {
     }
 
     /** @return array<string, ?Inspection> 단계별 마지막 판정 ( 취소 제외 ) */
+    /** 여러 공정의 stageLatest() 를 한 번에 — @return array<int, array> 공정 idx → 단계별 마지막 기록 */
+    public function stageLatestMany(array $opIdxs): array {
+        if (!$opIdxs) return [];
+        $rows = Inspection::where('ref_type', self::REF_TYPE)->whereIn('ref_idx', $opIdxs)
+            ->whereIn('insp_type', self::STAGE_TYPES)->where('is_canceled', 'N')->orderBy('inspected_at')->orderBy('inspection_idx')->get()->groupBy('ref_idx');
+        $out = [];
+        foreach ($opIdxs as $id) {
+            $mine = $rows[$id] ?? collect();
+            foreach (self::STAGE_TYPES as $st => $type) $out[$id][$st] = $mine->where('insp_type', $type)->last();
+        }
+        return $out;
+    }
+
     public function stageLatest(WorkOrderOp $op): array {
         $rows = Inspection::where('ref_type', self::REF_TYPE)->where('ref_idx', $op->work_order_op_idx)
             ->whereIn('insp_type', self::STAGE_TYPES)->where('is_canceled', 'N')->orderBy('inspected_at')->orderBy('inspection_idx')->get();

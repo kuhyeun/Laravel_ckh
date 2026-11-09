@@ -5,6 +5,7 @@ namespace MesCore\Shipment\Controllers;
 use Carbon\Carbon;
 use MesCore\Http\Controller;
 use MesCore\Http\Concerns\SearchesKeyword;
+use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Config\Models\Partner;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,9 +17,14 @@ use Illuminate\Validation\ValidationException;
 //   수량 : 그 출하 줄의 클레임 합( 다른 클레임 포함 )이 출하 수량을 넘을 수 없다
 //   줄 빼기 · 삭제 : 첨부가 남은 줄은 막는다 ( 첨부를 먼저 지운다 )
 class ClaimController extends Controller {
-    use SearchesKeyword;
+    use SearchesKeyword, RespondsWithList;
 
     private const EPS = 0.000001;
+    const SORTABLE = ['claim_no', 'claim_date', 'shipment_no', 'shipped_at', 'partner_name', 'item_code', 'shipped_qty', 'qty', 'claim_type', 'file_count', 'creator_name'];
+
+    protected function listTieBreaker(): ?string {
+        return 'cl.claim_line_idx';
+    }
 
     // 목록 : 클레임 줄 1개 = 1행
     public function list(Request $request) {
@@ -47,8 +53,10 @@ class ClaimController extends Controller {
             'item_code'   => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
             'item_name'   => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
         ]);
-        $rows = $q->orderByDesc('c.claim_date')->orderByDesc('c.claim_idx')->orderBy('sl.line_no')->get();
-        return response()->json(['rows' => $rows->map(fn ($r) => [
+        // 서버 페이징 · 정렬 · 엑셀 전체 ( 전에는 기간을 넓히면 전부 내려받았다 )
+        $totalQty = (float) (clone $q)->sum('cl.qty');   // 조건 전체의 클레임 수량 합 ( 화면 머리 — 페이지와 상관없이 )
+        $q->orderByDesc('c.claim_date')->orderByDesc('c.claim_idx')->orderBy('sl.line_no');
+        $res = $this->listResponse($request, $q, self::SORTABLE, 'rows', fn ($r) => [
             'claim_line_idx' => $r->claim_line_idx,
             'claim_idx'      => $r->claim_idx,
             'claim_no'       => $r->claim_no,
@@ -67,7 +75,8 @@ class ClaimController extends Controller {
             'remark'         => $r->remark,
             'file_count'     => (int) $r->file_count,
             'creator_name'   => $r->creator_name,
-        ])->values()]);
+        ]);
+        return $res->setData($res->getData(true) + ['total_qty' => $totalQty]);
     }
 
     public function formData() {

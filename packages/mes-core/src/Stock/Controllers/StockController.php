@@ -26,6 +26,7 @@ class StockController extends Controller {
     use ScopesItemType;
 
     private const SORTABLE = ['item_code', 'lot_no', 'in_at', 'qty', 'warehouse_name'];
+    private const HISTORY_LIMIT = 500;   // LOT 이력 한 번에 보여 줄 줄 ( 최근 것 )
 
     // 목록 : 품목 × LOT × 창고 ( group=item 이면 품목 × 창고 합계 )
     public function list(Request $request) {
@@ -115,17 +116,24 @@ class StockController extends Controller {
         ]);
         $this->assertItemInScope($request, (int) $v['item_idx']);
 
-        $rows = StockLedger::query()
+        // 최근 500 행 ( 전에는 오래된 500 행이라 이력이 많은 LOT 은 최근 이동이 빠졌다 ) → 화면은 그대로 오래된 순
+        //   누적 = 앞에서 잘린 행의 합( 시작 잔량 )부터 이어 간다
+        $base = StockLedger::query()
             ->where('item_idx', $v['item_idx'])->where('lot_idx', $v['lot_idx'])
-            ->when(!empty($v['warehouse_idx']), fn ($q) => $q->where('warehouse_idx', $v['warehouse_idx']))
-            ->orderBy('occurred_at')->orderBy('stock_ledger_idx')
-            ->limit(500)
-            ->get();
+            ->when(!empty($v['warehouse_idx']), fn ($q) => $q->where('warehouse_idx', $v['warehouse_idx']));
+        $rows = (clone $base)->orderByDesc('occurred_at')->orderByDesc('stock_ledger_idx')->limit(self::HISTORY_LIMIT + 1)->get();
+        $truncated = $rows->count() > self::HISTORY_LIMIT;
+        $rows = $rows->take(self::HISTORY_LIMIT)->reverse()->values();
+        $start = 0.0;
+        if ($truncated && ($first = $rows->first())) {
+            $start = (float) (clone $base)->where(fn ($q) => $q->where('occurred_at', '<', $first->occurred_at)
+                ->orWhere(fn ($w) => $w->where('occurred_at', $first->occurred_at)->where('stock_ledger_idx', '<', $first->stock_ledger_idx)))->sum('qty_delta');
+        }
 
         $txns = StockTxn::whereIn('stock_txn_idx', $rows->pluck('stock_txn_idx')->unique())->pluck('txn_no', 'stock_txn_idx');
         $whs  = Warehouse::whereIn('warehouse_idx', $rows->pluck('warehouse_idx')->unique())->pluck('warehouse_name', 'warehouse_idx');
 
-        $running = 0.0;
+        $running = $start;
         $out = $rows->map(function (StockLedger $l) use (&$running, $txns, $whs) {
             $running += (float) $l->qty_delta;
             return [
@@ -142,7 +150,7 @@ class StockController extends Controller {
             ];
         });
 
-        return response()->json(['rows' => $out, 'truncated' => $rows->count() >= 500]);
+        return response()->json(['rows' => $out, 'truncated' => $truncated, 'start_balance' => $start]);
     }
 
     // 창고 선택지 ( 입고 등록과 같은 트리 이름 ) + 재고현황 팝업에서 열 수 있는 처리 ( 각 처리 메뉴 쓰기 권한 )

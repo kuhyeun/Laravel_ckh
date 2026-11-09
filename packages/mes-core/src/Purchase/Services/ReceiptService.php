@@ -258,10 +258,18 @@ class ReceiptService {
     }
 
     // 발주 줄의 남은 수량 = 발주 수량 − 입고된 수량 − 다른 입고에서 검사대기 중인 수량
-    public function remainingQty(PurchaseOrderLine $pol): float {
-        $waiting = (float) StockTxnLine::where('purchase_order_line_idx', $pol->purchase_order_line_idx)
-            ->where('line_status', 'WAIT')->sum('qty');
+    //   $waiting : 미리 읽어 둔 검사대기 합 ( waitingByLine() — 여러 줄이면 한 번에 읽어 넘긴다 )
+    public function remainingQty(PurchaseOrderLine $pol, ?float $waiting = null): float {
+        $waiting ??= $this->waitingByLine([$pol->purchase_order_line_idx])[$pol->purchase_order_line_idx] ?? 0.0;
         return (float) $pol->qty - (float) $pol->received_qty - $waiting;
+    }
+
+    /** 발주 줄별 검사대기 입고 수량 합 — @return array<int, float> */
+    public function waitingByLine(array $lineIdxs): array {
+        if (!$lineIdxs) return [];
+        return StockTxnLine::whereIn('purchase_order_line_idx', $lineIdxs)->where('line_status', 'WAIT')
+            ->groupBy('purchase_order_line_idx')->selectRaw('purchase_order_line_idx, SUM(qty) as n')->pluck('n', 'purchase_order_line_idx')
+            ->map(fn ($n) => (float) $n)->all();
     }
 
     // RC-YYMMDD-NNN ( 입고일 기준 날짜별 순번 )

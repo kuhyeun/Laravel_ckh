@@ -82,7 +82,8 @@ class ShippingInspectionController extends Controller {
             'lot_no'      => fn ($q, $kw) => $q->whereHas('picks.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
         ]);
 
-        $users = User::pluck('user_name', 'account_idx');
+        $users = new \ArrayObject();   // 그 페이지 행의 검사자만 ( $prepare 가 채운다 — 화살표 함수는 값을 복사해 잡아서 객체로 )
+        $prepare = fn ($rows) => $users->exchangeArray(User::namesFor($rows->pluck('inspected_by'))->all());
         return $this->listResponse($request, $query, self::SORTABLE, 'lines', fn (ShipmentLine $l) => [
             'shipment_line_idx' => $l->shipment_line_idx,
             'shipment_idx'      => $l->shipment_idx,
@@ -102,7 +103,7 @@ class ShippingInspectionController extends Controller {
             'inspector_name'    => $l->inspected_by ? ($users[$l->inspected_by] ?? '') : '',
             'inspect_remark'    => $l->inspect_remark,
             'shipment_status'   => $l->shipment_status,
-        ]);
+        ], $prepare);
     }
 
     public function formData() {

@@ -78,6 +78,12 @@ class User extends Authenticatable {
         return \Illuminate\Validation\Rule::exists('account_member', 'account_idx')->where('is_use', 'Y')->whereNot('user_level', self::SYSTEM_LEVEL);
     }
 
+    /** 이름 표시용 — 그 화면 행에 나오는 계정만 읽는다 ( 전에는 화면마다 사용자 표 전체를 읽었다 ) @return \Illuminate\Support\Collection<int, string> account_idx → user_name */
+    public static function namesFor(iterable $ids): \Illuminate\Support\Collection {
+        $ids = collect($ids)->filter()->unique()->values();
+        return $ids->isEmpty() ? collect() : static::whereIn('account_idx', $ids)->pluck('user_name', 'account_idx');
+    }
+
     public function username(): string {
         return 'user_id';
     }
