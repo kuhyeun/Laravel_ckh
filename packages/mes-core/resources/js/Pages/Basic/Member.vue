@@ -83,7 +83,7 @@ const codeOptions = {
 const memberColumns = [
     { header: '아이디', name: 'user_id', minWidth: 140, className: 'cursor-pointer' },
     { header: '이름', name: 'user_name',minWidth: 140, className: 'cursor-pointer' },
-    { header: '유형', name: 'user_type', minWidth: 100, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value || '-', hidden: true },
+    { header: '유형', name: 'user_type', minWidth: 100, align: 'center', className: 'cursor-pointer', dash: true, hidden: true },
     { header: '레벨', name: 'user_level', width: 150, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => LEVELS[value] ?? value },
     { header: '사용여부', name: 'is_use', width: 100, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => (value ? '사용' : '미사용') },
     { header: '가입일', name: 'create_datetime', width: 180, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => fmtDateTime(value) },

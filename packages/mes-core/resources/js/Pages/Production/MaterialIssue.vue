@@ -118,8 +118,8 @@ const fmt = (v) => Number(v ?? 0).toLocaleString(undefined, { maximumFractionDig
 const columns = [
     { header: '지시번호', name: 'wo_no', width: 120, sortable: true, className: 'cursor-pointer' },
     { header: '품목', name: 'item_code', minWidth: 120, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
-    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true, dash: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmt(row.target_qty) },
     { header: '착수', name: 'start_date', width: 90, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '출고', name: 'issued_count', width: 60, align: 'center', className: 'cursor-pointer',

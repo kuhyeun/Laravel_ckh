@@ -56,6 +56,7 @@
 </template>
 
 <script setup>
+import { decorateColumns } from '@core/Utils/gridColumns';
 import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
@@ -97,13 +98,14 @@ const copyOnlyContextMenu = () => [[
 // ---- 열 설정 ( setting-key ) ----
 const page        = usePage();
 const modalStore  = useModalStore();
-const gridColumns = shallowRef(props.columns);   // 그리드에 준 열 ( 설정 적용 ) — 엑셀도 이것을 쓴다 ( 열 객체는 반응형으로 감싸지 않는다 — TUI 에 그대로 )
+const gridColumns = shallowRef(decorateColumns(props.columns));   // 그리드에 준 열 ( 설정 적용 ) — 엑셀도 이것을 쓴다 ( 열 객체는 반응형으로 감싸지 않는다 — TUI 에 그대로 )
 const settable    = () => gridColumns.value.filter(c => c._origHeader !== undefined);
 const settingParams = () => ({ page: page.component, key: props.settingKey });
 // 설정에 쓰는 화면 열 : 트리 펼침 열은 숨기면 트리가 깨지므로 늘 잠근다
 const baseColumns = () => {
     const tree = props.options?.treeColumnOptions?.name;
-    return tree ? props.columns.map(c => c.name === tree ? { ...c, lockHide: true } : c) : props.columns;
+    const cols = decorateColumns(props.columns);   // 공통 규칙 : 글자 열 … · 규격 / 재질 빈 칸 "-" ( Utils/gridColumns )
+    return tree ? cols.map(c => c.name === tree ? { ...c, lockHide: true } : c) : cols;
 };
 
 async function loadSetting() {

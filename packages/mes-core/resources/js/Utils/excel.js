@@ -116,7 +116,8 @@ function listValue(col, row, index, rows, gridColumns, context) {
         v = col.map[v] ?? v;
     } else if (col.display) {
         const gc = gridColumns.find(g => g.name === col.field);
-        if (gc?.formatter) v = stripHtml(gc.formatter({ value: v, row, column: gc }));
+        // 빈 칸 "-" 열( gridColumns _dash )은 엑셀에서는 빈 칸 그대로
+        if (gc?.formatter && !(gc._dash && (v === null || v === undefined || v === ''))) v = stripHtml(gc.formatter({ value: v, row, column: gc }));
     }
     return normalize(v, !!col.numFmt);
 }

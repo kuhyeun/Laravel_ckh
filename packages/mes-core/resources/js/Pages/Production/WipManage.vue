@@ -95,7 +95,7 @@ const historyColumns = [
     { header: '일시', name: 'occurred_at', width: 150, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '지시번호', name: 'wo_no', width: 180, sortable: true, className: 'cursor-pointer' },
     { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 180, className: 'cursor-pointer', escapeHTML: true, formatter: ({ value }) => value ? value : "-" },
+    { header: '규격', name: 'item_spec', width: 180, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '공정', name: 'op_label', width: 120, className: 'cursor-pointer', escapeHTML: true },
     { header: '구분', name: 'kind_label', width: 120, align: 'left', className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 110, align: 'right', className: 'cursor-pointer', formatter: qtyCell(r => r.spec_unit) },

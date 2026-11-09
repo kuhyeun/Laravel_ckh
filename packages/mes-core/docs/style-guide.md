@@ -150,6 +150,9 @@
 - 숫자 열은 `align: 'right'` + `fmtNum` / `fmtQty` ( `@core/Utils/format` — §8 ), 단위는 값 뒤에 한 칸 띄워
 - 날짜 열 `width: 100, align: 'center'`, 상태 열 `align: 'center'` + 상태 색( §7 )
 - **조회 중 표시 : `:loading="loading"`** — 검색바에 주는 그 `loading` 을 그리드에도 준다. 0.3 초가 넘으면 그리드를 덮고 "불러오는 중…" ( 앞 결과가 남아 있어 끝났는지 모르는 일을 막는다 · 2026-10-30 )
+- **열 공통 규칙 ( 자동 · 2026-11-09 — `Utils/gridColumns` )** : `DataGrid` 가 모든 열에 붙인다 — 화면 열에 따로 쓰지 않는다
+  - 글자 열은 넘치면 **`ellipsis: true`**( … ) — 숫자 열( `align: 'right'` ) · `renderer` 열은 빼고 · 끄려면 열에 `ellipsis: false`
+  - 비어 있을 수 있는 칸 **규격 · 재질**( `item_spec` · `item_material` · `spec` · `material` )은 빈 칸이면 **"-"** — 다른 열도 `dash: true` 로 · 끄려면 `dash: false` / 엑셀은 "-" 대신 빈 칸
 - 사용자가 쓴 글자가 들어가는 열은 `escapeHTML: true`
 - 체크 : `options.rowHeaders: 'checkbox'` → `@select` ( 선택된 행 배열 )
 - 트리 ( 머리 행 + 하위 행 ) : `options.treeColumnOptions: { name: '첫 열', useIcon: false, useCascadingCheckbox: false }`, 행에 `_children`

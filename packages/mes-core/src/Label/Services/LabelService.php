@@ -117,6 +117,27 @@ class LabelService {
         });
     }
 
+    /**
+     * 현품표( 7005 ) — 출하 줄마다 바로 인쇄할 라벨 : 발행된 라벨이 있으면 가장 최근 것 · 없으면 기본 양식 · 기본 장수로 발행
+     * @return int[] label_idx ( 줄 순서 )
+     */
+    public function labelsForShipmentLines(array $lineIdxs): array {
+        $latest = BarcodeLabel::whereIn('shipment_line_idx', $lineIdxs)->where('status', 'ISSUED')
+            ->selectRaw('shipment_line_idx, MAX(label_idx) as label_idx')->groupBy('shipment_line_idx')->pluck('label_idx', 'shipment_line_idx');
+        $missing = array_values(array_diff(array_map('intval', $lineIdxs), $latest->keys()->map(fn ($v) => (int) $v)->all()));
+        if ($missing) {
+            $template = $this->templates('SHIPMENT')->first();
+            if (!$template) {
+                throw ValidationException::withMessages(['rows' => '출하 라벨 양식이 없습니다. 라벨 양식을 먼저 등록하세요.']);
+            }
+            $rows = collect($this->draftShipmentLines($missing))->map(fn ($d) => ['id' => $d['id'], 'label_count' => $d['label_count'], 'label_qty' => $d['label_qty']])->all();
+            foreach ($this->issue(BarcodeLabel::TARGET_SHIPMENT, $template->label_template_idx, $rows) as $k => $idx) {
+                $latest[$rows[$k]['id']] = $idx;
+            }
+        }
+        return collect($lineIdxs)->map(fn ($id) => (int) ($latest[$id] ?? 0))->filter()->values()->all();
+    }
+
     // 인쇄용 — 발행 건마다 양식 · 라벨 내용 ( 화면이 장수만큼 그린다 )
     public function sheets(array $labelIdxs): array {
         $labels = BarcodeLabel::with([

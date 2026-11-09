@@ -5,6 +5,7 @@ use MesCore\Shipment\Controllers\ShipmentController;
 use MesCore\Shipment\Controllers\ShipmentHistoryController;
 use MesCore\Shipment\Controllers\InvoiceController;
 use MesCore\Shipment\Controllers\ClaimController;
+use MesCore\Shipment\Controllers\ShipmentTagController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -36,6 +37,15 @@ Route::prefix('shipment')->name('shipment.')->middleware([UserAuth::class])->gro
             Route::post('/reject', [ShipmentController::class, 'reject'])->name('reject');
             Route::post('/cancel', [ShipmentController::class, 'cancel'])->name('cancel');
         });
+    });
+
+    // 현품표 ( Shipment/ShipmentTag — 메뉴 출하관리 > 현품표 7005 ) — 출하 완료 품목 라벨 미리보기 · 인쇄 ( 없으면 발행 → 쓰기 권한 )
+    Route::prefix('tag')->name('tag.')->group(function() {
+        Route::middleware(MenuAuth::class . ':Shipment/ShipmentTag,can_read')->group(function() {
+            Route::get('/list', [ShipmentTagController::class, 'list'])->name('list');
+            Route::get('/formData', [ShipmentTagController::class, 'formData'])->name('formData');
+        });
+        Route::post('/sheets', [ShipmentTagController::class, 'sheets'])->middleware(MenuAuth::class . ':Shipment/ShipmentTag,can_write')->name('sheets');
     });
 
     // 클레임관리 ( Shipment/ClaimManage — 메뉴 출하관리 > 클레임관리 7004 ) — 출하 완료 건 품목 줄의 클레임 이력 ( 기록만 )

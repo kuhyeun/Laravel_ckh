@@ -119,7 +119,7 @@ defineOptions({ layout: AppLayout });
 // 코드 목록 그리드 컬럼 ( TUI Grid )
 //   validation.required → 헤더에 빨간 * ( useGrid ) + 저장 전 grid.validate() 검사 대상
 const codeColumns = [
-    { header: '그룹키', name: 'system_code_group_key', minWidth: 120, className: 'cursor-pointer', align: 'center', formatter: ({value}) => value ? value : "-", validation: { required: true } },
+    { header: '그룹키', name: 'system_code_group_key', minWidth: 120, className: 'cursor-pointer', align: 'center', dash: true, validation: { required: true } },
     { header: '코드키', name: 'system_code_key', minWidth: 120, className: 'cursor-pointer', editor: "text", validation: { required: true } },
     { header: '코드명', name: 'system_code_name', minWidth: 160, className: 'cursor-pointer', editor: "text", validation: { required: true } },
     // { header: '코드값', name: 'system_code_value', minWidth: 120, className: 'cursor-pointer', editor: "text" },

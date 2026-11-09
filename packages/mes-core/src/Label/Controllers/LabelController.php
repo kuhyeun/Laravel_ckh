@@ -22,7 +22,7 @@ class LabelController extends Controller {
     // 대상별로 발행 · 인쇄를 열 수 있는 화면 ( 하나라도 쓰기 권한이 있으면 )
     private const ISSUE_PAGES = [
         BarcodeLabel::TARGET_LOT      => ['Purchase/ReceiptManage', 'Stock/StockStatus', 'Product/ProductStock', 'Label/LabelHistory'],
-        BarcodeLabel::TARGET_SHIPMENT => ['Shipment/ShipmentManage', 'Label/LabelHistory'],
+        BarcodeLabel::TARGET_SHIPMENT => ['Shipment/ShipmentManage', 'Shipment/ShipmentTag', 'Label/LabelHistory'],   // 현품표( 7005 ) 포함
     ];
     private const HISTORY_PAGE = 'Label/LabelHistory';
     private const SORTABLE     = ['create_datetime', 'barcode_no', 'last_printed_at'];
