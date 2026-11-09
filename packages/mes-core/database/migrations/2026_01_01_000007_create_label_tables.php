@@ -2,9 +2,15 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
+// 라벨 · 바코드
+//   현재 구조를 첫 기준으로 다시 씀 ( 2026-11-09 — 개발 중 쌓인 마이그레이션 77개를 정리 )
+//   label_template              : 라벨 양식
+//   barcode_label               : 바코드 라벨 발행
+//   label_print_log             : 라벨 인쇄 이력
+//
+// ── 처음 만들 때의 설계 메모 ──
 // 바코드 라벨 ( LBL-01 ~ 03 ) — 1D 바코드( Code128 )만 · 바코드 번호 = LOT 번호 / 출하번호-줄
 //   label_template  : 라벨 양식 ( 크기 · 배치 종류 ). 기본 100 × 72mm ( Zebra ZD230 )
 //   barcode_label   : 발행 1건 = 대상( LOT · 출하 줄 ) 하나 × 장수. 같은 번호 여러 장 · 재발행 = 같은 번호로 다시 인쇄 · 폐기는 상태만
@@ -33,8 +39,7 @@ return new class extends Migration {
             $table->id('label_idx')->comment('라벨 발행 IDX');
             $table->enum('target', ['LOT', 'SHIPMENT_LINE'])->comment('대상');
             $table->foreignId('lot_idx')->nullable()->comment('LOT ( target = LOT )')->constrained(table: 'lot', column: 'lot_idx')->restrictOnDelete();
-            $table->foreignId('shipment_line_idx')->nullable()->comment('출하 줄 ( target = SHIPMENT_LINE )')
-                ->constrained(table: 'shipment_line', column: 'shipment_line_idx')->restrictOnDelete();
+            $table->foreignId('shipment_line_idx')->nullable()->comment('출하 줄 ( target = SHIPMENT_LINE )')->constrained(table: 'shipment_line', column: 'shipment_line_idx')->restrictOnDelete();
             $table->string('barcode_no', 60)->comment('바코드 번호 — UNIQUE 아님 ( 같은 번호 재발행 )');
             $table->foreignId('label_template_idx')->comment('양식')->constrained(table: 'label_template', column: 'label_template_idx')->restrictOnDelete();
             $table->unsignedSmallInteger('label_count')->comment('장수 ( 같은 번호 )');
@@ -51,8 +56,8 @@ return new class extends Migration {
             $table->timestamp('update_datetime')->nullable()->useCurrentOnUpdate()->comment('수정일');
 
             $table->index('barcode_no');
-            $table->index(['target', 'status']);
             $table->index('create_datetime');
+            $table->index(['target', 'status']);
             $table->comment('바코드 라벨 발행');
         });
 
@@ -64,12 +69,6 @@ return new class extends Migration {
             $table->integer('printed_by')->comment('인쇄한 사람');
             $table->comment('라벨 인쇄 이력');
         });
-
-        // 기본 양식 — 100 × 72mm ( Zebra ZD230 · 업체에서 쓰던 크기 )
-        DB::table('label_template')->insert([
-            ['template_name' => '자재식별표 · 현품표 100×72', 'target' => 'LOT',      'width_mm' => 100, 'height_mm' => 72, 'layout' => 'LOT_STD',      'is_default' => 'Y', 'is_use' => 'Y', 'create_account_idx' => 1],
-            ['template_name' => '출하 라벨 100×72',          'target' => 'SHIPMENT', 'width_mm' => 100, 'height_mm' => 72, 'layout' => 'SHIPMENT_STD', 'is_default' => 'Y', 'is_use' => 'Y', 'create_account_idx' => 1],
-        ]);
     }
 
     public function down(): void {

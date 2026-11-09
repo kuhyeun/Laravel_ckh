@@ -10,6 +10,7 @@ use Database\Seeders\Config\SystemConfigSeeder;
 use Database\Seeders\Config\SystemCodeSeeder;
 use Database\Seeders\Config\ProcessSeeder;
 use Database\Seeders\Config\CalcDefSeeder;
+use Database\Seeders\Config\LabelTemplateSeeder;
 
 /**
  * php artisan db:seed 명령어를 통해 기초 데이터 입력 가능 ( ex 사용자 정보 )
@@ -24,6 +25,7 @@ class DatabaseSeeder extends Seeder {
             SystemCodeSeeder::class,
             ProcessSeeder::class,
             CalcDefSeeder::class,
+            LabelTemplateSeeder::class,
             // 추후 추가되는 Seeder 추가
         ]);
     }

@@ -9,19 +9,14 @@ use Illuminate\Support\Facades\Log;
 // 메뉴는 없을 때만 만든다 ( 처음 설치 · Core 업데이트로 늘어난 메뉴 )
 //   이미 있는 메뉴( menu_code 기준 )는 이름 · 경로 · 정렬 · 레벨 옵션 모두 건드리지 않는다 → 메뉴관리에서 바꾼 값이 기준
 //   menus.php 에서 기존 메뉴의 값을 바꿔도 설치된 곳에는 반영되지 않는다 ( 메뉴관리에서 직접 고친다 )
-//   새 메뉴의 값은 menus.php 그대로 : url_path · page_component ( 없으면 페이지 없는 메뉴 ) · is_use · is_display ( 없으면 Y )
+//   새 메뉴의 값은 menus.php 그대로 : url_path · page_component ( 없으면 페이지 없는 메뉴 ) · page_options · is_use · is_display ( 없으면 Y ) · read_only ( 없으면 N )
+//   형제 메뉴의 정렬 = menus.php 배열 순서 ( 11-09 — 전에는 메뉴 코드 순 )
 class MenuSeeder extends Seeder {
 
     public function run(): void {
-        foreach( $this->byCode( config( 'menus' ) ) as $topMenuData ) {
+        foreach( config( 'menus' ) as $topMenuData ) {
             $this->seedMenu( $topMenuData, $topMenuData['menu_code'] );
         }
-    }
-
-    // 형제 메뉴는 코드 순으로 만든다 → 처음 설치의 정렬이 메뉴 코드 순
-    private function byCode( array $menus ): array {
-        usort( $menus, fn ( $a, $b ) => strcmp( $a['menu_code'], $b['menu_code'] ) );
-        return $menus;
     }
 
     private function seedMenu( Array $menuData, String $topMenuCode, String $parentMenuCode = "", int $depth = 1 ): void {
@@ -49,9 +44,13 @@ class MenuSeeder extends Seeder {
                 'menu_route_name' => $menuData['menu_route_name'],
                 'url_path' => $menuData['url_path'] ?? null,
                 'page_component' => $menuData['page_component'] ?? null,
+                'page_options' => $menuData['page_options'] ?? null,
                 // 아직 쓰지 않는 메뉴( 미개발 등 )는 menus.php 에 is_use / is_display => 'N'
                 'is_use' => $menuData['is_use'] ?? 'Y',
                 'is_display' => $menuData['is_display'] ?? 'Y',
+                // 조회 전용 화면 ( 이력 등 — 쓰기 · 삭제 권한을 보지 않음 )
+                'read_only' => $menuData['read_only'] ?? 'N',
+                'remark' => $menuData['remark'] ?? null,
                 // 레벨 1 이하( 0 시스템 · 1 관리자 )까지만 노출되는 메뉴 = 관리자 메뉴
                 //   관리자 전용이어도 사용자 메뉴 쪽에 두려면 menus.php 에 'is_admin' => 'N' ( 예: 사용자관리 )
                 'is_admin' => $menuData['is_admin'] ?? ( $menuData['menu_level'] <= 1 ? 'Y' : 'N' ),
@@ -64,13 +63,14 @@ class MenuSeeder extends Seeder {
 
         // 기존 메뉴 아래에 새로 생긴 하위 메뉴도 만든다
         if( !empty( $menuData['children'] ) ) {
-            foreach( $this->byCode( $menuData['children'] ) as $childMenuData ) {
+            foreach( $menuData['children'] as $childMenuData ) {
                 $this->seedMenu( $childMenuData, $topMenuCode, $menuData['menu_code'], $depth + 1 );
             }
         }
     }
 
-    // $levelPerms : 신규 행의 레벨별 초기 권한 ( 예: [ 1 => [ 'can_write' => 'Y' ] ] ). 관리자 메뉴의 레벨 1 은 이 값대로 동작
+    // $levelPerms : 신규 행의 레벨별 초기 권한 중 기본과 다른 것 ( 예: [ 1 => [ 'can_write' => 'Y' ] ] )
+    //   기본 — 레벨 0 · 사용자 메뉴 = 전부 Y / 관리자 메뉴 = 읽기만 ( 컬럼 기본값 )
     private function seedMenuOptions( Menu $menu, int $menuLevel, bool $isUserMenu, array $levelPerms = [] ): void {
         foreach( [ 0, 1, 10, 99 ] as $level ) {
             if( $level > $menuLevel ) {
@@ -79,9 +79,10 @@ class MenuSeeder extends Seeder {
 
             // 사용자 메뉴의 레벨 옵션 = 상한(cap) → 전부 Y. 실제 권한은 템플릿/개인 지정으로 부여
             // 레벨 0( 시스템 )은 관리자 메뉴여도 항상 전부 Y
-            $perms = ( $isUserMenu || $level === 0 )
+            $base = ( $isUserMenu || $level === 0 )
                 ? [ 'can_read' => 'Y', 'can_write' => 'Y', 'can_delete' => 'Y' ]
-                : ( $levelPerms[$level] ?? [] );
+                : [ 'can_read' => 'Y', 'can_write' => 'N', 'can_delete' => 'N' ];
+            $perms = array_merge( $base, $levelPerms[$level] ?? [] );
 
             $menu->menuOptions()->create( array_merge( $perms, [
                 'menu_level'         => $level,
