@@ -1,6 +1,6 @@
 <?php
 
-namespace Database\Seeders\Menu;
+namespace MesCore\Database\Seeders\Menu;
 
 use Illuminate\Database\Seeder;
 use MesCore\Auth\Models\User;

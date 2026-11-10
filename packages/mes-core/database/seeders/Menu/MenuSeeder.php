@@ -1,10 +1,11 @@
 <?php
 
-namespace Database\Seeders\Menu;
+namespace MesCore\Database\Seeders\Menu;
 
 use MesCore\Menu\Models\Menu;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Log;
+use MesCore\Database\Seeders\SeedDefinitions;
 
 // 메뉴는 없을 때만 만든다 ( 처음 설치 · Core 업데이트로 늘어난 메뉴 )
 //   이미 있는 메뉴( menu_code 기준 )는 이름 · 경로 · 정렬 · 레벨 옵션 모두 건드리지 않는다 → 메뉴관리에서 바꾼 값이 기준
@@ -14,7 +15,21 @@ use Illuminate\Support\Facades\Log;
 class MenuSeeder extends Seeder {
 
     public function run(): void {
-        foreach( config( 'menus' ) as $topMenuData ) {
+        // Core 목록 + 업체 목록 ( SeedDefinitions )
+        foreach( SeedDefinitions::menus() as $topMenuData ) {
+            // 업체 메뉴를 이미 있는 메뉴 아래에 붙일 때 : 'parent_menu_code' => '3000'
+            if( !empty( $topMenuData['parent_menu_code'] ) ) {
+                $parent = Menu::where( 'menu_code', $topMenuData['parent_menu_code'] )->first( [ 'menu_code', 'top_menu_code', 'menu_depth' ] );
+                if( !$parent ) {
+                    $msg = "상위 메뉴 없음 : {$topMenuData['menu_code']} '{$topMenuData['menu_name']}' 의 parent_menu_code {$topMenuData['parent_menu_code']} 가 없어 만들지 못함";
+                    Log::warning( $msg );
+                    $this->command?->warn( $msg );
+                    continue;
+                }
+                $top = $parent->top_menu_code === '****' ? $parent->menu_code : $parent->top_menu_code;
+                $this->seedMenu( $topMenuData, $top, $parent->menu_code, $parent->menu_depth + 1 );
+                continue;
+            }
             $this->seedMenu( $topMenuData, $topMenuData['menu_code'] );
         }
     }

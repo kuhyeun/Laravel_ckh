@@ -33,7 +33,7 @@ class SystemConfig extends Model {
         'system_config_value',
         'system_config_remark',
         'system_config_etc',
-        // 정책 정의 ( 시더가 src/config/system_config.php 로 동기화 )
+        // 정책 정의 ( 시더가 Core config/system_config.php + 업체 config/system_config.php 로 동기화 )
         'system_config_category',
         'system_config_value_type',
         'system_config_default_value',

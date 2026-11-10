@@ -12,7 +12,8 @@
     "autoload": {
         "psr-4": {
             "MesCore\\": "src/",
-            "MesCore\\Database\\Factories\\": "database/factories/"
+            "MesCore\\Database\\Factories\\": "database/factories/",
+            "MesCore\\Database\\Seeders\\": "database/seeders/"
         }
     },
     "extra": {

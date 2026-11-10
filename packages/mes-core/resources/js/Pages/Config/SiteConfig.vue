@@ -75,7 +75,7 @@ const SECTION_META = {
     company: { title: '회사 설정', desc: '거래명세서 공급자 · 문서 머리에 쓰인다' },
     invoice: { title: '거래명세서', desc: '금액 계산' },
 };
-const WIDE   = ['company.address', 'company.homepage'];   // 두 칸 너비
+const WIDE   = ['company.address'];   // 두 칸 너비로 설정할 config 데이터
 const IMAGES = [
     { kind: 'seal', label: '직인', hint: '문서 양식 ( 인 ) 자리' },
     { kind: 'logo', label: '로고', hint: '문서 양식 왼쪽 상단' },

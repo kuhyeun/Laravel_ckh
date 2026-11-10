@@ -1,5 +1,5 @@
 <!-- 시스템 환경설정 · 정책 설정 / 권한 레벨 0 · 1
-     - 화면은 정책 카탈로그( system_config 정의 )로 그린다 — 항목 추가 = src/config/system_config.php 한 줄 + 시더
+     - 화면은 정책 카탈로그( system_config 정의 )로 그린다 — 항목 추가 = packages/mes-core/config/system_config.php 한 줄 ( 업체 전용은 src/config/system_config.php ) + 시더
      - 관리자 설정 [ admin ] : 업체가 바꾸는 업무 규칙 · 앱 설정
        시스템 설정 [ system ] : 기능 스위치 · 시스템관리자 전용 규칙 → 시스템 계정만 수정, 관리자에게는 읽기 전용
      - 기본값을 따르는 항목은 "기본값", 바꾼 항목은 "기본값과 다름" + [ 기본값으로 ]

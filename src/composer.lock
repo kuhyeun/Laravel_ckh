@@ -6071,7 +6071,7 @@
             "dist": {
                 "type": "path",
                 "url": "/var/www/packages/mes-core",
-                "reference": "5818f340cf0d5fe0b8730e4d18329049e1a82572"
+                "reference": "23046f9f2cea0e5a5a7fc477863dca0b1d56f141"
             },
             "require": {
                 "inertiajs/inertia-laravel": "^3.0",
@@ -6090,7 +6090,8 @@
             "autoload": {
                 "psr-4": {
                     "MesCore\\": "src/",
-                    "MesCore\\Database\\Factories\\": "database/factories/"
+                    "MesCore\\Database\\Factories\\": "database/factories/",
+                    "MesCore\\Database\\Seeders\\": "database/seeders/"
                 }
             },
             "license": [

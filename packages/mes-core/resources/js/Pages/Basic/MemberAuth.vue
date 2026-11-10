@@ -97,7 +97,7 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="row in perm" :key="row.menu_idx" class="border-t first:border-t-0 last:border-0 transition-colors hover:bg-blue-50/70" :class="{ 'bg-gray-50/60': row._depth === 0 }">
+                            <tr v-for="row in perm" :key="row.menu_idx" class="border-t first:border-t-0 last:border-0 transition-colors hover:bg-blue-50/70" :class="{ 'bg-gray-100': row._depth === 0 }">
                                 <td class="px-3 py-1.5 text-gray-700 truncate" :title="row.menu_name">
                                     <span :style="{ paddingLeft: (row._depth * 16) + 'px' }" class="inline-flex items-center gap-1.5">
                                         <span v-if="row._depth > 0" class="text-gray-300">└</span>

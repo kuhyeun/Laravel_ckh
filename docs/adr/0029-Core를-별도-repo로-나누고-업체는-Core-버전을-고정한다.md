@@ -35,6 +35,7 @@ resources/js/         화면 · 공통 컴포넌트
 resources/excel/      기본 엑셀 양식
 database/migrations/  Core 테이블
 config/               menus.php · system_config.php 기본값
+database/seeders/     Core 기본 데이터 ( CoreSeeder — 계정 · 메뉴 · 정책 · 코드 · 공정 · 계산식 · 라벨 양식 )
 CHANGELOG.md          버전별 변경
 ```
 
@@ -43,8 +44,9 @@ CHANGELOG.md          버전별 변경
 composer.json             "mes-core": "^1.4"  ← 이 업체가 쓰는 Core 버전
 config/mes.php            켤 모듈 · 계산식 변수
 config/menus.php          ( 있으면 ) 업체 메뉴 추가
+config/system_config.php  ( 있으면 ) 업체 정책 추가 · Core 정책 속성 변경 ( 묶음 → 항목 → 속성 단위로 합침 )
 database/migrations/      업체 전용 테이블 · 칸만
-database/seeders/         업체 초기 데이터
+database/seeders/         DatabaseSeeder( CoreSeeder 호출 ) + 업체 초기 데이터
 app/Modules/              업체 전용 기능 · 바꿔 끼운 서비스 ( ADR 0028 의 3 · 5 단계 )
 resources/js/Pages/       바꿔 끼운 화면 ( ADR 0028 의 4 단계 )
 resources/excel/          업체 엑셀 양식

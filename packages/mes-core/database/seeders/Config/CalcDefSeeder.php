@@ -1,6 +1,6 @@
 <?php
 
-namespace Database\Seeders\Config;
+namespace MesCore\Database\Seeders\Config;
 
 use Illuminate\Database\Seeder;
 use MesCore\Production\Calc\Formula;

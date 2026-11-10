@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * 업무 데이터 초기화 — 시스템설정 · 메뉴 · 계정 · 기준정보는 남기고 업무 전표만 비운다 ( 새로 시험할 때 )
+ * 업무 데이터 초기화 — 시스템설정 · 메뉴 · 계정 · 기준정보는 남기고 업무 전표만 비운다
  *
  *   php artisan mes:reset-transactions           무엇을 몇 건 지울지 보여 주기만 ( 시험 실행 )
  *   php artisan mes:reset-transactions --force   실제로 지운다 ( 되돌릴 수 없음 · production 에서는 거부 )
@@ -55,7 +55,7 @@ class ResetTransactionsCommand extends Command {
     public function handle(): int {
         $force = (bool) $this->option('force');
         if ($force && app()->environment('production')) {
-            $this->error('production 환경에서는 실행할 수 없습니다.');
+            $this->error('운영 환경에서는 실행할 수 없습니다.');
             return self::FAILURE;
         }
 

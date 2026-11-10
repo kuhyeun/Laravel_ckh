@@ -1,6 +1,6 @@
 <?php
 
-namespace Database\Seeders\User;
+namespace MesCore\Database\Seeders\User;
 
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Database\Seeder;
@@ -30,7 +30,12 @@ class UserSeeder extends Seeder {
             ]
         );
 
-        // 테스트 계정 user1~user5 ( 없는 것만 생성 )
+        // 테스트 계정 user1~user5 ( 없는 것만 생성 ) — 로컬 개발( APP_ENV=local )에서만
+        //   업체 서버 설치에는 만들지 않는다 ( Factory 가 쓰는 faker 는 개발용 패키지라 운영에는 없을 수도 있다 )
+        if( !app()->environment( 'local' ) ) {
+            return;
+        }
+
         for( $i = 1; $i <= 5; $i++ ) {
             $userId = 'user' . $i;
 
