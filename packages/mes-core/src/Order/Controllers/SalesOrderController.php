@@ -13,7 +13,6 @@ use MesCore\Order\Services\SalesOrderService;
 use MesCore\Config\Services\RoutingService;
 use MesCore\Config\Services\BomService;
 use MesCore\Menu\Services\MenuPermissionService;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -100,7 +99,7 @@ class SalesOrderController extends Controller {
             'partners'        => $partners,
             'today'           => now()->toDateString(),
             'processes'       => $this->routings->processOptions(),   // 줄 공정 편집기
-            'can_create_item' => $permissions->canPage(Auth::user(), 'Config/ItemManage', 'can_write'),
+            'can_create_item' => $permissions->canPageForMe('Config/ItemManage', 'can_write'),
         ]);
     }
 

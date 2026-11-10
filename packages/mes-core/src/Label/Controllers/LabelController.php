@@ -4,7 +4,6 @@ namespace MesCore\Label\Controllers;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use MesCore\Http\Controller;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Http\Concerns\SearchesKeyword;
@@ -182,7 +181,7 @@ class LabelController extends Controller {
     }
 
     private function canIssue(string $target): bool {
-        return Auth::user() && $this->permissions->canPage(Auth::user(), self::ISSUE_PAGES[$target], 'can_write');
+        return $this->permissions->canPageForMe(self::ISSUE_PAGES[$target], 'can_write');
     }
 
     private function guard(string $target): void {
@@ -192,6 +191,6 @@ class LabelController extends Controller {
 
     private function guardHistory(string $action): void {
         abort_unless($this->labels->enabled(), 404);
-        abort_unless(Auth::user() && $this->permissions->canPage(Auth::user(), self::HISTORY_PAGE, $action), 403);
+        abort_unless($this->permissions->canPageForMe(self::HISTORY_PAGE, $action), 403);
     }
 }

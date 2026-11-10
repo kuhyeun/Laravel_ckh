@@ -25,6 +25,7 @@ trait HandlesUnauthenticated {
         if (!$request->session()->has('user_id')) {
             return null;
         }
+        /** @var \MesCore\Auth\Models\User|null $user */
         $user = \Illuminate\Support\Facades\Auth::user();
         if (!$user || $user->is_use !== true) {
             \Illuminate\Support\Facades\Auth::logout();

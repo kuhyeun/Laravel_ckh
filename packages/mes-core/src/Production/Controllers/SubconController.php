@@ -40,9 +40,8 @@ class SubconController extends Controller {
     // ---- 선택지 ----
 
     public function formData(\MesCore\Menu\Services\MenuPermissionService $permissions) {
-        $user = \Illuminate\Support\Facades\Auth::user();
         return response()->json([
-            'op_result_url'     => $user && $permissions->canPage($user, 'Production/OpResult', 'can_read')
+            'op_result_url'     => $permissions->canPageForMe('Production/OpResult', 'can_read')
                 ? \MesCore\Menu\Models\Menu::where('page_component', 'Production/OpResult')->orderByRaw("read_only = 'N' DESC")->value('url_path') : null,
             'partners'          => Partner::where('is_subcon', 'Y')->where('is_use', 'Y')->orderBy('partner_name')->forPicker()->get(),
             'warehouses'        => Warehouse::options(),

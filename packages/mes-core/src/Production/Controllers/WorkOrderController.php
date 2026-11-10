@@ -26,7 +26,6 @@ use MesCore\Menu\Services\MenuPermissionService;
 use MesCore\Stock\Services\LotService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
@@ -144,7 +143,7 @@ class WorkOrderController extends Controller {
             'workers'   => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
             'today'     => now()->toDateString(),
             // 자재 탭의 [출고] — 자재출고 화면 권한이 있을 때만 그 화면 주소
-            'issue_url' => Auth::user() && $permissions->canPage(Auth::user(), 'Production/MaterialIssue', 'can_read')
+            'issue_url' => $permissions->canPageForMe('Production/MaterialIssue', 'can_read')
                 ? Menu::where('page_component', 'Production/MaterialIssue')->orderByRaw("read_only = 'N' DESC")->value('url_path') : null,
         ]);
     }

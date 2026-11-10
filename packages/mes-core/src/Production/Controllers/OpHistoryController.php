@@ -19,7 +19,6 @@ use MesCore\Production\Services\OpResultService;
 use MesCore\Stock\Models\StockTxnLine;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
@@ -237,7 +236,7 @@ class OpHistoryController extends Controller {
     // 선택지 : 공정( 수량 공정 ) · 작업자 · 설비 · 공정실적관리 주소( 권한이 있을 때 — 행 클릭으로 이동 )
     public function formData(MenuPermissionService $permissions) {
         return response()->json([
-            'op_result_url' => Auth::user() && $permissions->canPage(Auth::user(), 'Production/OpResult', 'can_read')
+            'op_result_url' => $permissions->canPageForMe('Production/OpResult', 'can_read')
                 ? Menu::where('page_component', 'Production/OpResult')->orderByRaw("read_only = 'N' DESC")->value('url_path') : null,
             'processes'  => Process::where('is_use', 'Y')->orderBy('process_code')->get(['process_idx', 'process_code', 'process_name', 'process_type', 'is_system', 'system_key'])
                 ->filter(fn (Process $p) => $p->isQtyProcess())

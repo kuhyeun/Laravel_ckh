@@ -40,6 +40,7 @@ class UserController extends Controller {
             
             $landing_page = SystemConfig::get( 'Common', 'landing_page', '/user/dashboard' );
 
+            /** @var \MesCore\Auth\Models\User $user */
             $user = Auth::user();
             Session::put( 'user_idx', $user->account_idx );
             Session::put( 'user_id', $user->user_id );

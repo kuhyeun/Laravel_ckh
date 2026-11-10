@@ -3,7 +3,6 @@
 namespace MesCore\Production\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MesCore\Http\Concerns\SearchesKeyword;
@@ -125,7 +124,7 @@ class ProductionScheduleController extends Controller {
             ])->values(),
             'ops'        => $ops,
             // 막대를 누르면 작업지시서( 보기 ) — 작업지시 조회 권한이 있을 때만
-            'can_view_wo' => $permissions->canPage(Auth::user(), 'Production/WorkOrderManage', 'can_read'),
+            'can_view_wo' => $permissions->canPageForMe('Production/WorkOrderManage', 'can_read'),
         ]);
     }
 }

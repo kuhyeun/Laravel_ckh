@@ -64,7 +64,7 @@ class BomController extends Controller {
         return response()->json([
             'items'           => $items,
             // 자재 고르기의 [새 자재 등록] ( 품목관리 쓰기 권한 )
-            'can_create_item' => Auth::user() && app(\MesCore\Menu\Services\MenuPermissionService::class)->canPage(Auth::user(), 'Config/ItemManage', 'can_write'),
+            'can_create_item' => app(\MesCore\Menu\Services\MenuPermissionService::class)->canPageForMe('Config/ItemManage', 'can_write'),
         ]);
     }
 

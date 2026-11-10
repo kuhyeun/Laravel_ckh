@@ -3,7 +3,6 @@
 namespace MesCore\Production\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MesCore\Config\Services\BomService;
@@ -64,7 +63,7 @@ class ProductionPlanController extends Controller {
         return response()->json([
             'plans'      => $out->values(),
             // [작업지시] 를 열 수 있는지 ( 작업지시 쓰기 권한 — 저장은 그 화면 권한으로 검사 )
-            'can_direct' => $permissions->canPage(Auth::user(), 'Production/WorkOrderManage', 'can_write'),
+            'can_direct' => $permissions->canPageForMe('Production/WorkOrderManage', 'can_write'),
         ]);
     }
 
@@ -179,7 +178,7 @@ class ProductionPlanController extends Controller {
             'routing'         => ['lines' => $routing ? $this->routings->linesPayload($routing) : [], 'modified' => $routing ? $this->routings->differsFromBase($routing) : false, 'locked' => $locked],
             'material'        => ['lines' => $bom ? $this->boms->linesPayload($bom) : [], 'modified' => $bom ? $this->boms->differsFromBase($bom) : false, 'locked' => $locked],
             'processes'       => $this->routings->processOptions(),
-            'can_create_item' => $permissions->canPage(Auth::user(), 'Config/ItemManage', 'can_write'),
+            'can_create_item' => $permissions->canPageForMe('Config/ItemManage', 'can_write'),
         ]);
     }
 

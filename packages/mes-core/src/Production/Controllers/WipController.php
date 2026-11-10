@@ -12,7 +12,6 @@ use MesCore\Production\Services\WipService;
 use Illuminate\Database\Eloquent\Builder;
 use MesCore\Production\Models\WipTxn;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 // 재공관리 ( 3010 · 자재관리 > 재공관리 ) — 조회만. 공정 사이 반제품 ( WipService )
@@ -73,7 +72,7 @@ class WipController extends Controller {
     // 선택지 : 공정( 수량 공정 ) · 공정실적관리 주소( 권한이 있을 때 — 행 클릭으로 이동 )
     public function formData(MenuPermissionService $permissions) {
         return response()->json([
-            'op_result_url' => Auth::user() && $permissions->canPage(Auth::user(), 'Production/OpResult', 'can_read')
+            'op_result_url' => $permissions->canPageForMe('Production/OpResult', 'can_read')
                 ? Menu::where('page_component', 'Production/OpResult')->orderByRaw("read_only = 'N' DESC")->value('url_path') : null,
             'processes'     => Process::where('is_use', 'Y')->orderBy('process_code')->get(['process_idx', 'process_code', 'process_name', 'process_type', 'is_system', 'system_key'])
                 ->filter(fn (Process $p) => $p->isQtyProcess())

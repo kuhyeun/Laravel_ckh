@@ -3,6 +3,7 @@
 namespace MesCore\Menu\Services;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use MesCore\Auth\Models\User;
@@ -149,8 +150,6 @@ class MenuPermissionService {
         return (bool)($perm[$action] ?? false);
     }
 
-    // 현재 버전의 캐시를 즉시 제거 ( getForUser 와 같은 키 사용 )
-    //   보통은 버전 기반 자동 무효화로 충분하고, 캐시를 강제로 다시 계산해야 할 때만 사용
     // 화면( page_component ) 기준 권한 — 라우트 미들웨어가 아닌 곳( 여러 화면이 같이 쓰는 API )에서 쓴다
     //   여럿을 주면 하나라도 되면 통과 ( 예: 입고검사는 입고관리 · 입고검사 어느 쪽 권한으로도 )
     public function canPage(User $user, string|array $pageComponents, string $action): bool {
@@ -162,6 +161,14 @@ class MenuPermissionService {
         return false;
     }
 
+    // 지금 로그인한 사람 기준 canPage — 로그인 안 했으면 false ( 11-09 — 호출마다 Auth::user() 를 넘기던 것 )
+    public function canPageForMe(string|array $pageComponents, string $action): bool {
+        $user = Auth::user();
+        return $user instanceof User && $this->canPage($user, $pageComponents, $action);
+    }
+
+    // 현재 버전의 캐시를 즉시 제거 ( getForUser 와 같은 키 사용 )
+    //   보통은 버전 기반 자동 무효화로 충분하고, 캐시를 강제로 다시 계산해야 할 때만 사용
     public function forgetForUser(User $user): void {
         $this->bumpVersion();
         Cache::forget($this->cacheKey($user));
