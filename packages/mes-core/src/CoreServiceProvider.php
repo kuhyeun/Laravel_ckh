@@ -39,6 +39,7 @@ class CoreServiceProvider extends ServiceProvider {
         'Shipment'   => ['shipment.php'],   // Order · Material 필요 ( 수주 줄 · 재고 엔진 )
         'Product'    => ['product.php'],    // Material 필요 ( 재고 엔진 · 창고이동 )
         'Label'      => ['label.php'],      // 바코드 라벨 — Material 필요 ( LOT ) · 출하 라벨은 Shipment
+        'Document'   => ['document.php'],   // DATA 관리 — 문서관리( 웹 폴더 )
     ];
 
     public function register(): void {
@@ -74,6 +75,8 @@ class CoreServiceProvider extends ServiceProvider {
             $service->register('shipment_line', ['Quality/ShippingInspection', 'Shipment/ShipmentManage'], \MesCore\Shipment\Models\ShipmentLine::class);
             // 클레임 품목 줄 ( 사진 · 고객 문서 ) — 클레임관리 권한
             $service->register('claim_line', 'Shipment/ClaimManage', \MesCore\Shipment\Models\ClaimLine::class);
+            // 문서관리 폴더 ( 웹 폴더 ) — 파일 삭제는 삭제 권한 ( 다른 첨부는 쓰기 권한 )
+            $service->register(\MesCore\Document\Models\DocFolder::REF_TYPE, 'Document/DocumentManage', \MesCore\Document\Models\DocFolder::class, 'can_delete');
             return $service;
         });
     }

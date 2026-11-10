@@ -13,10 +13,8 @@ use MesCore\Config\Models\Process;
 class ProcessSeeder extends Seeder {
 
     private array $systemProcesses = [
-        ['system_key' => 'RM_IN',   'process_code' => 'SYS-RM-IN',  'process_name' => '원자재입고', 'process_type' => 'PRODUCTION', 'inspection_kind' => null, 'is_use' => 'N'],
         ['system_key' => 'RM_OUT',  'process_code' => 'SYS-RM-OUT', 'process_name' => '원자재출고', 'process_type' => 'PRODUCTION', 'inspection_kind' => null],
-        ['system_key' => 'INSPECT', 'process_code' => 'SYS-INSP',   'process_name' => '검사',       'process_type' => 'INSPECTION', 'inspection_kind' => 'NORMAL'],
-        ['system_key' => 'PACK',    'process_code' => 'SYS-PACK',   'process_name' => '포장',       'process_type' => 'PRODUCTION', 'inspection_kind' => null],
+        ['system_key' => 'INSPECT', 'process_code' => 'SYS-INSP',   'process_name' => '검사',      'process_type' => 'INSPECTION', 'inspection_kind' => 'NORMAL']
     ];
 
     public function run(): void {

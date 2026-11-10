@@ -831,7 +831,7 @@ return [
     ],
     [
         'menu_code' => '11000',
-        'menu_name' => 'DATA 관리 ( 미개발 )',
+        'menu_name' => 'DATA 관리',
         'menu_icon' => 'PaperClipIcon',
         'module_code' => 'Document',
         'menu_route_name' => '',
@@ -839,7 +839,7 @@ return [
         'children' => [
             [
                 'menu_code' => '11001',
-                'menu_name' => '도면 버전 관리',
+                'menu_name' => '도면 버전 관리 ( 미개발 )',
                 'menu_icon' => null,
                 'module_code' => 'Document',
                 'menu_route_name' => '',
@@ -847,7 +847,7 @@ return [
             ],
             [
                 'menu_code' => '11002',
-                'menu_name' => 'CAD DATA 관리',
+                'menu_name' => 'CAD DATA 관리 ( 미개발 )',
                 'menu_icon' => null,
                 'module_code' => 'Document',
                 'menu_route_name' => '',
@@ -855,7 +855,7 @@ return [
             ],
             [
                 'menu_code' => '11003',
-                'menu_name' => 'NC DATA 관리',
+                'menu_name' => 'NC DATA 관리 ( 미개발 )',
                 'menu_icon' => null,
                 'module_code' => 'Document',
                 'menu_route_name' => '',
@@ -866,7 +866,10 @@ return [
                 'menu_name' => '문서관리',
                 'menu_icon' => null,
                 'module_code' => 'Document',
-                'menu_route_name' => '',
+                // 웹 폴더 ( 폴더 트리 + 파일 — 파일은 첨부 ref_type doc_folder )
+                'menu_route_name' => 'document.docs',
+                'url_path' => '/document/docs',
+                'page_component' => 'Document/DocumentManage',
                 'menu_level' => 99,
             ],
         ],

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 // 첨부파일 ( CMP-03 ) — 어떤 화면에서나 쓰는 공용 API
-//   권한은 라우트가 아니라 여기서 : ref_type 이 가리키는 화면의 메뉴 권한 ( 보기 · 받기 = can_read, 올리기 · 삭제 = can_write )
+//   권한은 라우트가 아니라 여기서 : ref_type 이 가리키는 화면의 메뉴 권한 ( 보기 · 받기 = can_read, 올리기 = can_write, 삭제 = 등록할 때 정한 권한 — 기본 can_write )
 //   컴포넌트는 권한을 판단하지 않는다 ( 화면정의 CMP-03 )
 class AttachmentController extends Controller {
 
@@ -81,7 +81,8 @@ class AttachmentController extends Controller {
 
     public function delete(int $attachmentIdx) {
         $attachment = Attachment::findOrFail($attachmentIdx);
-        $this->authorizeRef($attachment->ref_type, 'can_write');
+        // 삭제 권한은 대상마다 ( 등록할 때 정함 — 기본 can_write )
+        $this->authorizeRef($attachment->ref_type, $this->attachments->ref($attachment->ref_type)['delete'] ?? 'can_write');
 
         $this->attachments->delete($attachment);
 

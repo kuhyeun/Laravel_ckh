@@ -12,14 +12,18 @@ use Illuminate\Support\Facades\Storage;
  *
  *   php artisan mes:reset-transactions           무엇을 몇 건 지울지 보여 주기만 ( 시험 실행 )
  *   php artisan mes:reset-transactions --force   실제로 지운다 ( 되돌릴 수 없음 · production 에서는 거부 )
+ *   … --with-routing-bom                          라우팅 · BOM 도 전부 비운다 ( 공용 틀 · 품목 · 수주 사본 모두 + 품목의 기본 라우팅 연결 해제 )
+ *                                                 품목 · 공정 · 거래처 등 나머지 기준정보는 그대로 ( 라우팅 · BOM 을 처음부터 다시 잡을 때 )
  *
  *   비움( TRUNCATE — 번호도 1부터 ) : 수주 · 발주 · 작업지시 · 재공 · 외주 · 재고 · LOT · 출하 · 클레임 · 검사 · 라벨 발행 · 변경 이력
- *   일부만 : 라우팅 · BOM 은 수주 줄 사본( ORDER_LINE )만 / 첨부는 업무 전표에 붙은 것만( 파일도 )
- *   남김 : 계정 · 권한 · 메뉴 · 정책 · 코드 · 계산식 · 그리드 설정 · 품목 · 거래처 · 공정 · 설비 · 창고 · 라우팅 틀 / 품목 · 품목 BOM · 검사 기준 · 리드타임 · LOT 규칙 · 라벨 양식
+ *   일부만 : 라우팅 · BOM 은 수주 줄 사본( ORDER_LINE )만 ( --with-routing-bom 이면 전부 ) / 첨부는 업무 전표에 붙은 것만( 파일도 )
+ *   남김 : 계정 · 권한 · 메뉴 · 정책 · 코드 · 계산식 · 그리드 설정 · 품목 · 거래처 · 공정 · 설비 · 창고 · 라우팅 틀 / 품목 라우팅 · 품목 BOM ( 옵션 없을 때 ) · 검사 기준 · 리드타임 · LOT 규칙 · 라벨 양식
  */
 class ResetTransactionsCommand extends Command {
 
-    protected $signature = 'mes:reset-transactions {--force : 실제로 지운다}';
+    protected $signature = 'mes:reset-transactions
+        {--force : 실제로 지운다}
+        {--with-routing-bom : 라우팅 · BOM 도 전부 비운다 ( 공용 틀 · 품목 라우팅 · 품목 BOM 포함 )}';
 
     protected $description = '업무 데이터 초기화 ( 기준정보 · 시스템설정 · 메뉴는 남김 )';
 
@@ -48,19 +52,27 @@ class ResetTransactionsCommand extends Command {
         'routing_change_log', 'bom_change_log',
     ];
 
+    // --with-routing-bom : 라우팅 · BOM 전부 ( 단계 구분 없이 — 변경 이력은 TRUNCATE 에서 이미 비움 )
+    //   이 테이블을 가리키는 곳 : item.routing_idx ( 기본 라우팅 → NULL 로 ) · 작업지시 쪽은 위에서 같이 비워진다
+    private const ROUTING_BOM = ['routing', 'routing_line', 'bom', 'bom_line', 'bom_line_substitute'];
+
     // 업무 전표에 붙은 첨부의 ref_type ( CoreServiceProvider 의 AttachmentService 등록 — 기준정보 item · partner 는 남긴다 )
     //   업체 모듈이 업무 전표 첨부를 더 붙이면 여기에도 더한다
     private const TX_ATTACH_REFS = ['sales_order', 'purchase_order', 'receipt_line', 'work_order', 'shipment_line', 'claim_line'];
 
     public function handle(): int {
-        $force = (bool) $this->option('force');
+        $force       = (bool) $this->option('force');
+        $withRouting = (bool) $this->option('with-routing-bom');
         if ($force && app()->environment('production')) {
             $this->error('운영 환경에서는 실행할 수 없습니다.');
             return self::FAILURE;
         }
 
-        $plan = $this->plan();
+        $plan = $this->plan($withRouting);
         $this->table(['대상', '지울 건수'], array_map(fn ($k, $v) => [$k, number_format($v)], array_keys($plan), $plan));
+        if ($withRouting) {
+            $this->warn('라우팅 · BOM 을 공용 틀 · 품목 것까지 전부 지웁니다. 품목의 기본 라우팅 연결도 비워집니다.');
+        }
 
         if (!$force) {
             $this->info('시험 실행입니다. 실제로 지우려면 --force 를 붙이세요.');
@@ -75,16 +87,24 @@ class ResetTransactionsCommand extends Command {
 
         Schema::disableForeignKeyConstraints();
         try {
-            // 수주 줄 사본 ( 라우팅 ③ · 수주 자재 )
-            $routings = DB::table('routing')->where('owner_type', 'ORDER_LINE')->pluck('routing_idx');
-            DB::table('routing_line')->whereIn('routing_idx', $routings)->delete();
-            DB::table('routing')->whereIn('routing_idx', $routings)->delete();
+            if ($withRouting) {
+                // 라우팅 · BOM 전부 ( 번호도 1부터 ) + 품목의 기본 라우팅 연결 해제
+                DB::table('item')->whereNotNull('routing_idx')->update(['routing_idx' => null]);
+                foreach (self::ROUTING_BOM as $t) {
+                    DB::table($t)->truncate();
+                }
+            } else {
+                // 수주 줄 사본만 ( 라우팅 ③ · 수주 자재 )
+                $routings = DB::table('routing')->where('owner_type', 'ORDER_LINE')->pluck('routing_idx');
+                DB::table('routing_line')->whereIn('routing_idx', $routings)->delete();
+                DB::table('routing')->whereIn('routing_idx', $routings)->delete();
 
-            $boms  = DB::table('bom')->where('owner_type', 'ORDER_LINE')->pluck('bom_idx');
-            $lines = DB::table('bom_line')->whereIn('bom_idx', $boms)->pluck('bom_line_idx');
-            DB::table('bom_line_substitute')->whereIn('bom_line_idx', $lines)->delete();
-            DB::table('bom_line')->whereIn('bom_idx', $boms)->delete();
-            DB::table('bom')->whereIn('bom_idx', $boms)->delete();
+                $boms  = DB::table('bom')->where('owner_type', 'ORDER_LINE')->pluck('bom_idx');
+                $lines = DB::table('bom_line')->whereIn('bom_idx', $boms)->pluck('bom_line_idx');
+                DB::table('bom_line_substitute')->whereIn('bom_line_idx', $lines)->delete();
+                DB::table('bom_line')->whereIn('bom_idx', $boms)->delete();
+                DB::table('bom')->whereIn('bom_idx', $boms)->delete();
+            }
 
             $this->txAttachments()->delete();
 
@@ -113,12 +133,20 @@ class ResetTransactionsCommand extends Command {
     }
 
     // 지울 건수 ( 시험 실행 · 실행 전 확인 )
-    private function plan(): array {
+    private function plan(bool $withRouting): array {
         $plan = [];
         foreach (self::TRUNCATE as $t) {
             if (Schema::hasTable($t)) {
                 $plan[$t] = DB::table($t)->count();
             }
+        }
+        if ($withRouting) {
+            foreach (self::ROUTING_BOM as $t) {
+                $plan[$t . ' ( 전부 )'] = DB::table($t)->count();
+            }
+            $plan['item.routing_idx ( 기본 라우팅 연결 해제 )'] = DB::table('item')->whereNotNull('routing_idx')->count();
+            $plan['attachment ( 업무 전표 )'] = $this->txAttachments()->count();
+            return $plan;
         }
         $routings = DB::table('routing')->where('owner_type', 'ORDER_LINE')->pluck('routing_idx');
         $boms     = DB::table('bom')->where('owner_type', 'ORDER_LINE')->pluck('bom_idx');

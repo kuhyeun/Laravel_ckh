@@ -35,11 +35,12 @@ class AttachmentService {
         'zip',
     ];
 
-    /** @var array<string, array{menu: string|string[], model: class-string}> */
+    /** @var array<string, array{menu: string|string[], model: class-string, delete: string}> */
     private array $refs = [];
 
-    public function register(string $refType, string|array $menu, string $model): void {
-        $this->refs[$refType] = ['menu' => $menu, 'model' => $model];
+    // $deleteAction : 파일 삭제에 볼 권한 ( 기본 = 올리기와 같은 can_write · 문서관리는 can_delete )
+    public function register(string $refType, string|array $menu, string $model, string $deleteAction = 'can_write'): void {
+        $this->refs[$refType] = ['menu' => $menu, 'model' => $model, 'delete' => $deleteAction];
     }
 
     public function ref(string $refType): ?array {
