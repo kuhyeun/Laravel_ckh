@@ -6,7 +6,7 @@ use MesCore\Http\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Http\RedirectResponse;
-use MesCore\Basic\Models\SystemConfig;
+use MesCore\Auth\Support\LandingPage;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
@@ -37,8 +37,6 @@ class UserController extends Controller {
 
         if( Auth::attempt( $credentials ) ) {
             $request->session()->regenerate();
-            
-            $landing_page = SystemConfig::get( 'Common', 'landing_page', '/user/dashboard' );
 
             /** @var \MesCore\Auth\Models\User $user */
             $user = Auth::user();
@@ -48,7 +46,8 @@ class UserController extends Controller {
             Session::put( 'user_type', $user->user_type );
             Session::put( 'user_level', $user->user_level );
 
-            return redirect( $landing_page );
+            // 시작 메뉴 ( 권한이 없으면 대시보드 — LandingPage )
+            return redirect( LandingPage::for( $user ) );
         }
 
         return back()->withErrors([

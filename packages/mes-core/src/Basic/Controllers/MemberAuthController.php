@@ -7,6 +7,7 @@ use MesCore\Auth\Models\User;
 use MesCore\Menu\Models\Menu;
 use MesCore\Menu\Models\AccountMenuPermission;
 use MesCore\Menu\Models\PermissionTemplate;
+use MesCore\Menu\Models\PermissionTemplateMenu;
 use MesCore\Menu\Services\MenuPermissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -64,9 +65,28 @@ class MemberAuthController extends Controller {
             ->featureEnabled()   // 꺼진 기능의 메뉴는 권한도 줄 수 없다
             ->whereHas('menuOptions', fn ($q) => $q->where('menu_level', $level))
             ->with(['menuOptions' => fn ($q) => $q->where('menu_level', $level)])
-            ->orderBy('menu_depth')
-            ->orderBy('menu_code')
             ->get();
+
+        // 메뉴관리에서 사용안함인 메뉴는 그 아래 메뉴까지 뺀다 ( 부모가 빠져 최상위로 올라오지 않게 )
+        $useFlags = Menu::get(['menu_code', 'parent_menu_code', 'is_use'])->keyBy('menu_code');
+        $unusedAncestor = function (?string $code) use ($useFlags): bool {
+            for ($i = 0; $code !== null && $i < 10; $i++) {
+                $p = $useFlags->get($code);
+                if (!$p) return false;
+                if ($p->is_use !== 'Y') return true;
+                $code = $p->parent_menu_code;
+            }
+            return false;
+        };
+
+        // 정렬 = 사이드바와 같은 순서 ( 사용자 메뉴 → 관리자 메뉴 · 같은 부모 안에서는 그 레벨의 menu_sort )
+        //   화면( orderTree )이 부모 → 자식으로 묶을 때 형제 순서는 이 순서를 그대로 따른다
+        $menus = $menus->reject(fn ($m) => $unusedAncestor($m->parent_menu_code))
+            ->sortBy(fn ($m) => sprintf('%s-%05d-%s',
+                $m->is_admin === 'Y' ? '1' : '0',
+                $m->menuOptions->first()->menu_sort ?? 0,
+                $m->menu_code))
+            ->values();
 
         // 미리보기는 개인 지정을 반영하지 않음 ( 적용 시 초기화되는 값 )
         $overrides = $isPreview
@@ -140,6 +160,68 @@ class MemberAuthController extends Controller {
             return response()->json(['message' => 'Success'], 200);
         } catch (\Throwable $e) {
             Log::error('권한 템플릿 적용 실패 : ' . $e->getMessage());
+            return response()->json(['message' => 'Failed'], 500);
+        }
+    }
+
+    // 화면에 보이는 권한을 템플릿으로 저장 ( 사용자에게 적용하지는 않는다 — 적용은 [템플릿 적용] )
+    //   items = 화면 값 그대로 · 켜진 것이 하나라도 있는 메뉴만 행으로 남긴다 ( 행 없음 = 권한 없음 )
+    //   같은 이름이 있으면 overwrite=1 일 때만 덮어쓴다 → 그 템플릿을 쓰는 사용자 전원에게 바로 반영
+    //   덮어쓸 때도 바뀌는 건 화면에 있던 메뉴뿐 ( 다른 레벨에만 있는 메뉴의 템플릿 값은 남는다 )
+    public function saveTemplate(Request $request) {
+        $validated = $request->validate([
+            'template_name'      => 'required|string|max:50',
+            'overwrite'          => 'sometimes|boolean',
+            'items'              => 'required|array',
+            'items.*.menu_idx'   => 'required|integer|exists:system_menu,menu_idx',
+            'items.*.can_read'   => 'required|in:Y,N',
+            'items.*.can_write'  => 'required|in:Y,N',
+            'items.*.can_delete' => 'required|in:Y,N',
+        ]);
+        $name = trim($validated['template_name']);
+        if ($name === '') {
+            return response()->json(['message' => 'NameRequired'], 422);
+        }
+
+        $exists = PermissionTemplate::where('template_name', $name)->first();
+        if ($exists && !($validated['overwrite'] ?? false)) {
+            // 화면에서 덮어쓸지 묻는다 ( 연결된 사용자 수와 함께 )
+            return response()->json([
+                'message'    => 'Duplicate',
+                'user_count' => User::where('permission_template_idx', $exists->template_idx)->count(),
+            ], 409);
+        }
+
+        try {
+            $template = DB::transaction(function () use ($exists, $name, $validated) {
+                $template = $exists ?? PermissionTemplate::create(['template_name' => $name, 'is_use' => 'Y']);
+
+                // 화면에 있던 메뉴의 행만 바꾼다 ( 이 레벨에 안 보이는 메뉴의 기존 행은 그대로 — 다른 레벨 사용자가 같은 템플릿을 쓸 수 있다 )
+                PermissionTemplateMenu::where('template_idx', $template->template_idx)
+                    ->whereIn('menu_idx', array_column($validated['items'], 'menu_idx'))
+                    ->delete();
+                foreach ($validated['items'] as $it) {
+                    if ($it['can_read'] !== 'Y' && $it['can_write'] !== 'Y' && $it['can_delete'] !== 'Y') {
+                        continue;
+                    }
+                    PermissionTemplateMenu::create([
+                        'template_idx' => $template->template_idx,
+                        'menu_idx'     => $it['menu_idx'],
+                        'can_read'     => $it['can_read'],
+                        'can_write'    => $it['can_write'],
+                        'can_delete'   => $it['can_delete'],
+                    ]);
+                }
+                if ($exists) {
+                    $template->touch();   // 수정자 · 수정일
+                }
+                return $template;
+            });
+
+            $this->menuPermissionService->bumpVersion();   // 덮어쓴 경우 연결된 사용자 권한이 바뀐다
+            return response()->json(['message' => 'Success', 'template_idx' => $template->template_idx], 200);
+        } catch (\Throwable $e) {
+            Log::error('권한 템플릿 저장 실패 : ' . $e->getMessage());
             return response()->json(['message' => 'Failed'], 500);
         }
     }

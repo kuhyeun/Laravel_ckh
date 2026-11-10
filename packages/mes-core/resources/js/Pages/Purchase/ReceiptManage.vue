@@ -104,7 +104,7 @@ const blank = () => '';
 const HEAD_FIELDS = ['occurred_at', 'recorded_at', 'partner_name'];
 
 const columns = [
-    { header: '입고번호', name: 'txn_no', width: 150, sortable: true, className: 'cursor-pointer', formatter: ({ row }) => row.is_line ? `${row.txn_no} - ${row.line_no}` : row.txn_no },
+    { header: '입고번호', name: 'txn_no', width: 200, sortable: true, className: 'cursor-pointer', formatter: ({ row }) => row.is_line ? `${row.txn_no} - ${row.line_no}` : row.txn_no },
     { header: '입고일시', name: 'occurred_at', width: 125, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.occurred_at) },
     { header: '구매처', name: 'partner_name', width: 180, sortable: true, className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.partner_name)) },
     { header: '발주', name: 'po_summary', width: 140, className: 'cursor-pointer', escapeHTML: true, formatter: pick(r => r.po_summary, r => r.order_no ?? '( 직접 )') },

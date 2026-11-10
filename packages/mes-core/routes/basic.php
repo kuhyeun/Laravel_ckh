@@ -73,6 +73,7 @@ Route::middleware([AdminAuth::class])->group(function() {
             Route::middleware($authWrite)->group(function() {
                 Route::post('/save', [MemberAuthController::class, 'save'])->name('save');
                 Route::post('/applyTemplate', [MemberAuthController::class, 'applyTemplate'])->name('template.apply');
+                Route::post('/saveTemplate', [MemberAuthController::class, 'saveTemplate'])->name('template.save');
             });
         });
     });

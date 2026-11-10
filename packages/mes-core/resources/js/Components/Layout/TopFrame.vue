@@ -16,14 +16,14 @@
             <button id="user-info" class="mr-3" @click="openUserInfo">
                 <InformationCircleIcon class="h-6 w-6 fill-gray-700 hover:fill-blue-500"/>
             </button>
-            <button id="alarm" class="relative mr-3 hover:text-blue-500" @click="openGridModal">
+            <!-- <button id="alarm" class="relative mr-3 hover:text-blue-500" @click="openGridModal">
                 <BellIcon class="h-6 w-6" />
                 <span v-if="alarmCount > 0"
                     class="absolute -top-1 -right-[5px] bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-start justify-center px-0.5">
                     {{ alarmCount > 99 ? '99+' : alarmCount }}
                 </span>
-            </button>
-            <!-- <Link :href="route('user.dashboard')" class="mr-3 text-gray-700  hover:text-blue-500">DashBoard</Link> -->
+            </button> -->
+            <Link :href="route('user.dashboard')" class="mr-3 text-gray-700  hover:text-blue-500">대시보드</Link>
             <button type="button" class="text-gray-700 hover:text-blue-500" @click="logout">로그아웃</button>
         </div>
     </div>
@@ -75,12 +75,16 @@ const toggleSidebar = () => {
     localStorage.setItem( sidebarStateKey, isCollapsed );
 };
 
+// 로그인한 사람 ( 서버 공유 props auth.user — HandleInertiaRequests ) · 이메일은 받지 않으므로 아이디 · 이름만
 const openUserInfo = () => {
-    const dummyUser = {
-        name: '홍길동',
-        email: 'test@example.com',
-        joined: '2026-04-01',
-        id: 'temp_id'
+    const me = page.props.auth?.user ?? {};
+
+    console.log( me );
+
+    const user = {
+        id: me.user_id ?? '',
+        name: me.user_name ?? '',
+        level: me.user_level ?? 99
     };
 
     const modalOptions = {
@@ -89,7 +93,7 @@ const openUserInfo = () => {
         closeOnEsc: true
     };
 
-    modalStore.open( UserDetail, { modalTitle: "사용자 정보", user: dummyUser }, modalOptions );
+    modalStore.open( UserDetail, { modalTitle: "로그인 정보", user }, modalOptions );
 };
 
 const openGridModal = () => {

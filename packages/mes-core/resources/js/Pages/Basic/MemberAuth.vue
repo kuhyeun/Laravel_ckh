@@ -3,7 +3,9 @@
      - 레벨(메뉴관리)에서 허용한 것(cap)만 토글 가능 → cap N 이면 비활성
      - 템플릿 선택 시 적용 전에 그 권한을 미리 표시( 미리보기 ) → [템플릿 적용] 을 눌러야 저장
      - 권한 템플릿 적용 시 템플릿이 기본값( 개인 override 초기화 ), 미지정이면 기본값 = 권한 없음
-     - 기본값과 동일하면 override 미저장( 기본값 따라감 ) -->
+     - 기본값과 동일하면 override 미저장( 기본값 따라감 )
+     - 상위 메뉴 토글 → 아래 메뉴 전부 같은 값 ( cap Y 인 것만 )
+     - [템플릿으로 저장] : 지금 화면 값을 권한 템플릿으로 저장 ( 사용자에게 적용은 안 함 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
 
@@ -54,12 +56,18 @@
                             v-if="selectedUser"
                             :model-value="templateSel"
                             @update:model-value="onTemplateChange"
-                            size="sm"
+                            size="md"
                             class="w-48"
                             :options="templateOptions"
                             :disabled="!canWrite || saving || permLoading"
                         />
                         <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!selectedUser || saving || permLoading" @click="applyTemplate">템플릿 적용</BaseButton>
+                        <BaseButton
+                            v-if="canWrite" size="sm" variant="secondary"
+                            :disabled="!selectedUser || !perm.length || saving || permLoading"
+                            title="지금 화면에 보이는 권한을 템플릿으로 저장합니다 ( 이 사용자에게 적용하지는 않습니다 )"
+                            @click="saveAsTemplate"
+                        >템플릿으로 저장</BaseButton>
                         <BaseButton
                             v-if="canWrite" size="sm" variant="primary"
                             :disabled="!selectedUser || saving || previewing || permLoading"
@@ -105,14 +113,14 @@
                                         :model-value="row.can_read"
                                         true-value="Y" false-value="N"
                                         :disabled="row.cap_read === 'N'"
-                                        @update:model-value="v => setRead(row, v)"
+                                        @update:model-value="v => setPerm(row, 'can_read', v)"
                                     />
                                 </td>
                                 <td class="px-3 py-1.5 text-center">
-                                    <BaseCheckbox variant="switch" v-model="row.can_write" true-value="Y" false-value="N" :disabled="row.cap_write === 'N'" />
+                                    <BaseCheckbox variant="switch" :model-value="row.can_write" true-value="Y" false-value="N" :disabled="row.cap_write === 'N'" @update:model-value="v => setPerm(row, 'can_write', v)" />
                                 </td>
                                 <td class="px-3 py-1.5 text-center">
-                                    <BaseCheckbox variant="switch" v-model="row.can_delete" true-value="Y" false-value="N" :disabled="row.cap_delete === 'N'" />
+                                    <BaseCheckbox variant="switch" :model-value="row.can_delete" true-value="Y" false-value="N" :disabled="row.cap_delete === 'N'" @update:model-value="v => setPerm(row, 'can_delete', v)" />
                                 </td>
                             </tr>
                         </tbody>
@@ -278,14 +286,24 @@ function applyPerm(next) {
     }
 }
 
-// 노출(can_read) 토글 → 켜면 상위 메뉴 노출도 자동 허용 ( cap 이 Y 인 조상만 )
-function setRead(row, v) {
-    row.can_read = v;
-    if (v !== 'Y') return;
+// 권한 토글 → 아래 메뉴 전부 같은 값 ( 레벨 상한(cap)이 Y 인 것만 )
+//   perm 은 부모 → 자식 순서( orderTree )라 바로 뒤에 이어지는 더 깊은 행 = 아래 메뉴
+//   노출(읽기)을 켜면 상위 메뉴 노출도 자동 허용 ( 상위가 꺼져 있으면 사이드바에 안 보인다 )
+const CAP_OF = { can_read: 'cap_read', can_write: 'cap_write', can_delete: 'cap_delete' };
 
+function setPerm(row, field, v) {
+    row[field] = v;
+
+    const list  = perm.value;
+    const start = list.indexOf(row);
+    for (let i = start + 1; i < list.length && list[i]._depth > row._depth; i++) {
+        if (list[i][CAP_OF[field]] === 'Y') list[i][field] = v;
+    }
+
+    if (field !== 'can_read' || v !== 'Y') return;
     let parentCode = row.parent_menu_code;
     while (parentCode) {
-        const p = perm.value.find(r => r.menu_code === parentCode);
+        const p = list.find(r => r.menu_code === parentCode);
         if (!p) break;
         if (p.cap_read === 'Y') p.can_read = 'Y';   // 레벨이 허용한 경우만
         parentCode = p.parent_menu_code;
@@ -293,10 +311,8 @@ function setRead(row, v) {
 }
 
 // 헤더 클릭 → 컬럼 전체 Y/N 토글 ( 레벨 상한(cap)이 Y 인 행만 대상 )
-const CAP_FIELD = { can_read: 'cap_read', can_write: 'cap_write', can_delete: 'cap_delete' };
-
 function toggleColumn(field) {
-    const targets = perm.value.filter(r => r[CAP_FIELD[field]] === 'Y');
+    const targets = perm.value.filter(r => r[CAP_OF[field]] === 'Y');
     if (!targets.length) return;
 
     const next = targets.every(r => r[field] === 'Y') ? 'N' : 'Y';
@@ -350,6 +366,45 @@ async function applyTemplate() {
     } catch (e) {
         if (e.response?.status === 403)      showFlash('저장 권한이 없습니다', true);
         else                                 showFlash('템플릿 적용에 실패했습니다', true);
+    } finally {
+        saving.value = false;
+    }
+}
+
+// 지금 화면 값 → 권한 템플릿으로 저장 ( 사용자에게 적용은 안 함 · 같은 이름이면 덮어쓸지 묻는다 )
+async function saveAsTemplate() {
+    if (!selectedUser.value || !perm.value.length || saving.value || permLoading.value) return;
+
+    const input = await showAlert('템플릿으로 저장', '지금 보이는 권한을 저장할 템플릿 이름을 입력하세요', 'question', 'prompt', {
+        inputValidator: (v) => (!v || !v.trim()) ? '템플릿 이름을 입력하세요' : (v.trim().length > 50 ? '50자까지 입력할 수 있습니다' : undefined),
+    });
+    if (!input.isConfirmed) return;
+    const name = input.value.trim();
+
+    const items = perm.value.map(r => ({
+        menu_idx:   r.menu_idx,
+        can_read:   r.can_read,
+        can_write:  r.can_write,
+        can_delete: r.can_delete,
+    }));
+
+    saving.value = true;
+    try {
+        const post = (overwrite) => window.axios.post(route('basic.memauth.template.save'), { template_name: name, overwrite, items });
+        try {
+            await post(false);
+        } catch (e) {
+            if (e.response?.status !== 409) throw e;
+            const cnt = e.response.data?.user_count ?? 0;
+            const ok = await showAlert('확인', `'${name}' 템플릿이 이미 있습니다. 덮어쓸까요?` + (cnt ? `\n이 템플릿을 쓰는 사용자 ${cnt}명의 권한이 바로 바뀝니다` : ''), 'warning', 'confirm');
+            if (!ok.isConfirmed) return;
+            await post(true);
+        }
+        await loadTemplates();
+        showFlash(`'${name}' 템플릿으로 저장되었습니다`);
+    } catch (e) {
+        if (e.response?.status === 403)      showFlash('저장 권한이 없습니다', true);
+        else                                 showFlash('템플릿 저장에 실패했습니다', true);
     } finally {
         saving.value = false;
     }

@@ -28,7 +28,7 @@ return [
         'landing_page' => [
             'name'   => '시작 메뉴',
             'value'  => '/user/dashboard',
-            'remark' => 'MES 로그인 후 열리는 첫 메뉴 링크',
+            'remark' => 'MES 로그인 후 · 사이트 주소( / )로 들어왔을 때 열리는 첫 메뉴 링크 ( 그 메뉴 권한이 없는 사용자는 대시보드 )',
             'etc'    => [ 'type' => 'text' ],
         ],
     ],
