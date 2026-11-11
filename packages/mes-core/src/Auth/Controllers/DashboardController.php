@@ -27,6 +27,9 @@ class DashboardController extends Controller {
     private const LIMIT     = 50;
     private const DONE_DAYS = 7;   // 출하 리스트의 완료 건 기간 ( 오늘 포함 )
 
+    // 발주 줄의 수입검사 불합격 합 ( 취소 안 된 입고 줄 ) — 입고 예정에서 뺀다 : 불합격분은 다시 받지 않는다 ( 11-11 사용자 결정 )
+    private const FAILED_SQL = "(SELECT COALESCE(SUM(sl.fail_qty), 0) FROM stock_txn_line sl WHERE sl.purchase_order_line_idx = l.purchase_order_line_idx AND sl.line_status != 'CANCELED')";
+
     private const LINK_PAGES = [
         'orders'    => 'Order/SalesOrderManage',
         'wo'        => 'Production/WorkOrderManage',
@@ -201,14 +204,18 @@ class DashboardController extends Controller {
             ->orderBy('t.occurred_at')
             ->get(['l.stock_txn_line_idx as id', 't.occurred_at', 'p.partner_name as partner', 'i.item_code', 'i.item_name', 'l.qty'])
             ->map(fn ($r) => ['id' => "W{$r->id}", 'kind' => 'WAIT_INSP', 'date' => substr($r->occurred_at, 0, 10), 'partner' => $r->partner, 'item' => $this->itemText($r), 'qty' => (float) $r->qty]);
+        // 남은 수량 = 발주 − 받음( 합격 ) − 불합격 — 불합격분은 다시 받지 않는다( 끝난 발주 · 필요하면 재고 보고 새로 발주 — 11-11 사용자 결정 )
         $plan = DB::table('purchase_order_line as l')->join('purchase_order as o', 'o.purchase_order_idx', '=', 'l.purchase_order_idx')
             ->join('item as i', 'i.item_idx', '=', 'l.item_idx')
             ->leftJoin('partner as p', 'p.partner_idx', '=', 'o.partner_idx')
-            ->where('o.status', 'CONFIRMED')->where('l.line_status', 'OPEN')->whereColumn('l.received_qty', '<', 'l.qty')
+            ->where('o.status', 'CONFIRMED')->where('l.line_status', 'OPEN')
+            ->whereRaw('l.qty - l.received_qty - ' . self::FAILED_SQL . ' > 0.000001')
             ->orderByRaw('l.due_date IS NULL, l.due_date, o.order_no, l.line_no')
             ->limit(self::LIMIT)
-            ->get(['l.purchase_order_line_idx as id', 'l.due_date', 'p.partner_name as partner', 'i.item_code', 'i.item_name', 'l.qty', 'l.received_qty'])
-            ->map(fn ($r) => ['id' => "P{$r->id}", 'kind' => 'PLAN', 'date' => $r->due_date, 'partner' => $r->partner, 'item' => $this->itemText($r), 'qty' => (float) $r->qty - (float) $r->received_qty]);
+            ->select(['l.purchase_order_line_idx as id', 'l.due_date', 'p.partner_name as partner', 'i.item_code', 'i.item_name', 'l.qty', 'l.received_qty'])
+            ->selectRaw(self::FAILED_SQL . ' as failed_qty')
+            ->get()
+            ->map(fn ($r) => ['id' => "P{$r->id}", 'kind' => 'PLAN', 'date' => $r->due_date, 'partner' => $r->partner, 'item' => $this->itemText($r), 'qty' => (float) $r->qty - (float) $r->received_qty - (float) $r->failed_qty]);
         return $wait->concat($plan)->values()->all();
     }
 
@@ -218,7 +225,7 @@ class DashboardController extends Controller {
         $stock = $this->stockOf($items->pluck('item_idx')->all());
         $incoming = DB::table('purchase_order_line as l')->join('purchase_order as o', 'o.purchase_order_idx', '=', 'l.purchase_order_idx')
             ->where('o.status', 'CONFIRMED')->where('l.line_status', 'OPEN')->whereIn('l.item_idx', $items->pluck('item_idx')->all() ?: [0])
-            ->groupBy('l.item_idx')->selectRaw('l.item_idx, SUM(GREATEST(l.qty - l.received_qty, 0)) AS qty')->pluck('qty', 'item_idx');
+            ->groupBy('l.item_idx')->selectRaw('l.item_idx, SUM(GREATEST(l.qty - l.received_qty - ' . self::FAILED_SQL . ', 0)) AS qty')->pluck('qty', 'item_idx');   // 불합격분은 다시 안 받음
         return $items->filter(fn ($i) => ($stock[$i->item_idx] ?? 0) < (float) $i->safety_stock)
             ->map(fn ($i) => [
                 'id' => $i->item_idx, 'item' => $this->itemText($i), 'safety' => (float) $i->safety_stock,

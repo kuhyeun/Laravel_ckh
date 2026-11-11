@@ -283,10 +283,16 @@ class PurchaseOrderController extends Controller {
                 'amount'                  => (float) $l->amount,
                 'due_date'                => $l->due_date?->toDateString(),
                 'received_qty'            => (float) $l->received_qty,
+                'failed_qty'              => $this->failedOf($l),   // 수입검사 불합격 ( 다시 안 받음 — 받음 + 불합격 = 완료 )
                 'line_status'             => $l->line_status,
                 'status'                  => $o->status,
             ])->values()->all(),
         ];
+    }
+
+    // 발주 줄의 수입검사 불합격 합 ( 11-11 — 불합격분은 다시 받지 않아 받음 + 불합격이면 줄 완료 )
+    private function failedOf(PurchaseOrderLine $l): float {
+        return app(\MesCore\Purchase\Services\ReceiptService::class)->failedQty((int) $l->purchase_order_line_idx);
     }
 
     private function toForm(PurchaseOrder $o): array {
@@ -315,6 +321,7 @@ class PurchaseOrderController extends Controller {
                 'amount'                  => (float) $l->amount,
                 'due_date'                => $l->due_date?->toDateString(),
                 'received_qty'            => (float) $l->received_qty,
+                'failed_qty'              => $this->failedOf($l),   // 수입검사 불합격 ( 다시 안 받음 — 받음 + 불합격 = 완료 )
                 'line_status'             => $l->line_status,
                 'locked'                  => $l->hasDownstream(),
                 'min_qty'                 => $l->minQty(),

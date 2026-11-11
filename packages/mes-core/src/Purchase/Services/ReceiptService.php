@@ -228,7 +228,7 @@ class ReceiptService {
                 ->each(fn (StockLedger $l) => $this->stock->reverse($l, now()));
         }
 
-        $this->addReceived($line, '-' . (string) $line->pass_qty);
+        $this->addReceived($line, '-' . (string) $line->pass_qty, exceptLine: true);   // 이 줄의 불합격도 빠진다
     }
 
     // 줄 취소 — 검사대기는 그냥, 입고완료는 되돌린 뒤. LOT 은 남는다( 번호 재사용 없음 )
@@ -258,11 +258,26 @@ class ReceiptService {
         return $line->lot_idx ? $this->labels->scrapLot($line->lot_idx, '입고 취소') : 0;
     }
 
-    // 발주 줄의 남은 수량 = 발주 수량 − 입고된 수량 − 다른 입고에서 검사대기 중인 수량
+    // 발주 줄의 남은 수량 = 발주 수량 − 입고된 수량 − 불합격( 다시 안 받음 · 11-11 ) − 다른 입고에서 검사대기 중인 수량
     //   $waiting : 미리 읽어 둔 검사대기 합 ( waitingByLine() — 여러 줄이면 한 번에 읽어 넘긴다 )
     public function remainingQty(PurchaseOrderLine $pol, ?float $waiting = null): float {
         $waiting ??= $this->waitingByLine([$pol->purchase_order_line_idx])[$pol->purchase_order_line_idx] ?? 0.0;
-        return (float) $pol->qty - (float) $pol->received_qty - $waiting;
+        return (float) $pol->qty - (float) $pol->received_qty - $this->failedQty($pol->purchase_order_line_idx) - $waiting;
+    }
+
+    // 발주 줄의 수입검사 불합격 합 ( 검사완료된 입고 줄 — 취소 · 검사대기 제외 )
+    public function failedQty(int $polIdx, ?int $exceptLineIdx = null): float {
+        return (float) StockTxnLine::where('purchase_order_line_idx', $polIdx)->where('line_status', 'DONE')
+            ->when($exceptLineIdx, fn ($q) => $q->where('stock_txn_line_idx', '!=', $exceptLineIdx))
+            ->sum('fail_qty');
+    }
+
+    // 발주 줄 상태를 지금 기준으로 다시 판단 ( 한 번에 맞출 때 · 기준이 바뀐 뒤 )
+    public function refreshPoLineStatus(int $polIdx): void {
+        $pol = PurchaseOrderLine::whereKey($polIdx)->lockForUpdate()->first();
+        if ($pol) {
+            $this->refreshPoLine($pol);
+        }
     }
 
     /** 발주 줄별 검사대기 입고 수량 합 — @return array<int, float> */
@@ -296,19 +311,28 @@ class ReceiptService {
         return [$rule, $mode === 'ALWAYS' || ($mode === 'ASK' && !empty($data['with_partner']))];
     }
 
-    // 발주 줄 입고 수량 ± · 줄 완료 · 발주 머리 자동 완료 / 다시 열기
-    private function addReceived(StockTxnLine $line, string $delta): void {
-        if (!$line->purchase_order_line_idx || (float) $delta == 0) {
+    // 발주 줄 입고 수량 ± ( 합격분 ) → 줄 완료 · 발주 머리 다시 판단
+    //   $exceptLine : 그 입고 줄의 불합격은 세지 않는다 ( 되돌리는 중 — 아직 DONE 이지만 곧 WAIT · CANCELED )
+    private function addReceived(StockTxnLine $line, string $delta, bool $exceptLine = false): void {
+        if (!$line->purchase_order_line_idx) {
             return;
         }
         $pol = PurchaseOrderLine::whereKey($line->purchase_order_line_idx)->lockForUpdate()->first();
         if (!$pol) {
             return;
         }
+        if ((float) $delta != 0) {
+            $pol->received_qty = (string) ((float) $pol->received_qty + (float) $delta);
+        }
+        $this->refreshPoLine($pol, $exceptLine ? (int) $line->stock_txn_line_idx : null);
+    }
 
-        $pol->received_qty = (string) ((float) $pol->received_qty + (float) $delta);
+    // 발주 줄 완료 = 받음( 합격 ) + 수입검사 불합격 ≥ 발주 수량 — 불합격분은 다시 받지 않는다( 끝난 발주 · 필요하면 새로 발주 — 11-11 사용자 결정 )
+    //   received_qty 는 합격분 그대로 ( 재고 · 수주 자재 발주됨과 맞춘다 ) · 발주 머리 : 모든 줄 완료 → 완료 · 다시 남으면 확정
+    private function refreshPoLine(PurchaseOrderLine $pol, ?int $exceptLineIdx = null): void {
         if ($pol->line_status !== 'CANCELED') {
-            $pol->line_status = (float) $pol->received_qty >= (float) $pol->qty ? 'DONE' : 'OPEN';
+            $done = (float) $pol->received_qty + $this->failedQty($pol->purchase_order_line_idx, $exceptLineIdx) >= (float) $pol->qty - 0.000001;
+            $pol->line_status = $done ? 'DONE' : 'OPEN';
         }
         $pol->save();
 

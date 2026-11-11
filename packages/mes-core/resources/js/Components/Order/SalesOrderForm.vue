@@ -57,7 +57,7 @@
                         </div>
                         <div v-else class="h-9 flex items-center gap-2">
                             <span class="px-2 py-0.5 rounded text-xs text-white" :style="{ background: orderStatusColor(form.status) }">{{ orderStatusLabel(form.status) }}</span>
-                            <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="saving" @click="reopen">다시 열기</BaseButton>
+                            <!-- <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="saving" @click="reopen">다시 열기</BaseButton> -->
                         </div>
                     </div>
 

@@ -154,7 +154,7 @@ const columns = [
           return open && d < todayStr() ? `<span style="color:${COLORS.red600}">${d}</span>` : d;
       } },
     { header: '입고', name: 'done_count', width: 80, align: 'center', className: 'cursor-pointer',
-      formatter: pick(r => `${r.done_count} / ${r.line_count}`, r => num(r.received_qty)) },
+      formatter: pick(r => `${r.done_count} / ${r.line_count}`, r => num(r.received_qty) + (r.failed_qty ? ` <span style="color:${COLORS.red600}">( 불합격 ${num(r.failed_qty)} )</span>` : '')) },
     { header: '상태', name: 'status', width: 80, align: 'center', className: 'cursor-pointer',
       formatter: ({ row }) => row.is_line
           ? `<span style="color:${COLORS.gray500}">${lineStatusLabel(row.line_status)}</span>`

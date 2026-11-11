@@ -55,7 +55,7 @@
                         </div>
                         <div v-else class="h-9 flex items-center gap-2">
                             <span class="px-2 py-0.5 rounded text-xs text-white" :style="{ background: orderStatusColor(form.status) }">{{ orderStatusLabel(form.status) }}</span>
-                            <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="saving" @click="reopen">다시 열기</BaseButton>
+                            <!-- <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="saving" @click="reopen">다시 열기</BaseButton> -->
                         </div>
                     </div>
 
@@ -152,7 +152,7 @@
                                         <BaseDatePicker v-model="l.due_date" size="sm" class="w-full" :disabled="readonly" />
                                         <p v-if="lineError(i, 'due_date')" class="text-[11px] text-red-500">{{ lineError(i, 'due_date') }}</p>
                                     </td>
-                                    <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500">{{ fmt(l.received_qty) }}</td>
+                                    <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500">{{ fmt(l.received_qty) }}<span v-if="l.failed_qty" class="block text-[11px] text-red-500" title="수입검사 불합격 — 다시 받지 않습니다 ( 받음 + 불합격 = 완료 )">불합격 {{ fmt(l.failed_qty) }}</span></td>
                                     <td class="px-1.5 py-1">
                                         <BaseInput v-model="l.remark" size="sm" class="w-full" :disabled="readonly" />
                                     </td>

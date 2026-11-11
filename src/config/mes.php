@@ -18,6 +18,7 @@ return [
         'Quality',      // 품질관리 ( Material 필요 — 입고검사 )
         'Shipment',     // 출하관리 ( Order · Material 필요 )
         'Label',        // 바코드 라벨 ( Material 필요 · 기능 스위치 feature.barcode )
+        'Equip',        // 설비관리 ( 계측기, 설비보전관리 등 )
         'KPI',          // KPI ( KPI 업체별 메뉴 )
         'Document',     // DATA 관리 ( 도면, CAD, NC, 각종 문서 관리 )
         'Monitoring',   // 모니터링 ( 업체별 필요 메뉴 )
