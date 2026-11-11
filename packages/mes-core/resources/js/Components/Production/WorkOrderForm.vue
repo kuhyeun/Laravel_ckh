@@ -6,7 +6,10 @@
      - 저장 : 지시서 + 줄 전부 한 번에 ( 하나라도 틀리면 전부 취소 ) · 생산 LOT 은 줄마다 서버가 발급
      - 취소 : [줄 취소] 대기 줄 하나 / [지시서 취소] 모든 줄이 대기일 때 전부 ( 저장 안 한 줄은 ✕ 로 지움 )
      - 수주에서 열면( prefill ) 그 수주 줄을 담은 줄 하나짜리 지시서
-     - 생산계획에서 열면( prefill.lines ) 계획마다 줄 하나 ( 출처 계획 · 그 계획의 수주 줄 · 남은 계획 수량 ) · 착수 = 가장 이른 시작일 · 기한 = 가장 늦은 완료 예정일 -->
+     - 생산계획에서 열면( prefill.lines ) 계획마다 줄 하나 ( 출처 계획 · 그 계획의 수주 줄 · 남은 계획 수량 ) · 착수 = 가장 이른 시작일 · 기한 = 가장 늦은 완료 예정일
+     - 반제품 함께 지시 ( 기본 켬 · 11-10 ) : 완제품 줄을 담으면 BOM 의 하위 반제품( 만드는 것만 · 깊은 것부터 ) 재고 지시 줄을 그 위에 → 줄 번호 1 반제품 · 2 완제품
+       반제품 재고가 충분하면 체크를 끄거나 그 줄만 ✕ · 수량은 완제품 1개당 × 완제품 수량 ( 손대지 않으면 따라간다 ) · 재고 부족 경고는 없다 ( 자재출고에서 막힌다 )
+       저장하면 반제품 지시에 부모( 그 완제품 지시 — parent_work_order_idx )가 남는다 ( 이력 · 수주 수량과 무관 ) → 다시 열어도 '0N 완제품 용' -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <div v-if="errorMsg" class="mb-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</div>
@@ -56,6 +59,11 @@
                 <p v-if="errors.lines" class="err">{{ errors.lines[0] }}</p>
                 <div class="flex-1"></div>
                 <template v-if="sheetEditable">
+                    <label class="inline-flex items-center gap-1 mr-1 text-xs text-gray-600 cursor-pointer select-none"
+                        title="완제품 줄을 담을 때 BOM 의 하위 반제품 지시 줄( 재고 지시 )을 그 위에 함께 넣습니다. 반제품 재고가 충분하면 끄거나 그 줄만 ✕ 로 빼세요.">
+                        <input type="checkbox" class="base-checkbox w-3.5 h-3.5" v-model="withSemi" />
+                        반제품 함께 지시
+                    </label>
                     <BaseButton size="sm" variant="secondary" @click="addLine">+ 품목</BaseButton>
                     <BaseButton size="sm" variant="secondary" @click="togglePicker">+ 수주 줄</BaseButton>
                 </template>
@@ -93,6 +101,11 @@
                             <span v-if="lineHasError(i)" class="text-red-500">•</span>
                             <button v-if="!l.work_order_idx && sheetEditable" type="button" class="text-gray-400 hover:text-red-500" title="저장 안 한 줄 지우기" @click.stop="removeLine(i)">✕</button>
                         </div>
+                        <div v-if="l._semiOf || l.parent_work_order_idx || l.item_kind === 'SEMI'" class="flex items-center gap-1.5 mt-0.5 text-[11px] text-gray-500">
+                            <span class="px-1 rounded bg-violet-50 text-violet-600">반제품</span>
+                            <span v-if="semiParentNo(l)" class="truncate">{{ semiParentNo(l) }} 용</span>
+                            <span v-if="l._semiStock !== null" class="ml-auto shrink-0" :class="l._semiStock >= num(l.target_qty) ? 'text-emerald-600' : ''">재고 {{ fmt(l._semiStock) }}</span>
+                        </div>
                         <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
                             <span>{{ l.target_qty ? fmt(l.target_qty) : '—' }}</span>
                             <span v-if="l.lot_no" class="truncate">{{ l.lot_no }}</span>
@@ -121,7 +134,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import { router } from '@inertiajs/vue3';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
@@ -169,11 +182,71 @@ function addLine() {
     lines.value.push(newLine());
     selected.value = lines.value.length - 1;
 }
+// 저장 안 한 줄 지우기 — 완제품 줄이면 함께 넣은 ( 저장 안 한 ) 반제품 줄도
 function removeLine(i) {
-    lines.value.splice(i, 1);
+    const gone = lines.value[i];
+    lines.value = lines.value.filter(x => x !== gone && !(x._semiOf === gone._key && !x.work_order_idx));
     selected.value = Math.min(selected.value, Math.max(0, lines.value.length - 1));
     errors.value = {};
 }
+
+// ---- 반제품 함께 지시 ( 기본 켬 — 11-10 사용자 결정 ) ----
+//   완제품 줄을 담을 때 서버가 준 하위 반제품( semi_parts — 깊은 것부터 )마다 재고 지시 줄을 그 완제품 줄 위에 넣는다 → 1 반제품 · 2 완제품
+//   수량 = 완제품 1개당 × 완제품 수량 ( 손대지 않은 동안은 완제품 수량을 따라간다 ) · 재고가 충분하면 체크를 끄거나 그 줄만 ✕
+const withSemi = ref(true);
+const semiQty  = (per, parentQty) => Math.round(Number(per) * num(parentQty) * 1000) / 1000;
+// 이 반제품 줄을 쓰는 완제품 줄 ( 저장 전 = 화면의 줄 · 저장 후 = 부모 지시 — 이력 )
+const semiParentNo = (l) => {
+    if (l._semiOf) {
+        const p = lines.value.find(x => x._key === l._semiOf);
+        return p ? lineLabel(p) : '';
+    }
+    if (!l.parent_work_order_idx) return '';
+    const p = lines.value.find(x => Number(x.work_order_idx) === Number(l.parent_work_order_idx));
+    return p ? lineLabel(p) : `${l.parent_wo_no} ${l.parent_item}`.trim();
+};
+
+async function addSemiFor(parent, parts) {
+    parent._semiParts = parts?.length ? parts : null;
+    if (!withSemi.value || !parent._semiParts) return;
+    const made = [];
+    for (const part of parent._semiParts) {
+        if (lines.value.some(x => x._semiOf === parent._key && Number(x.item_idx) === Number(part.item_idx))) continue;
+        const line = newLine();
+        await applyItemDefaults(line, part.item_idx);   // 반제품의 품목 공정 · 활성 BOM
+        const q = semiQty(part.qty_per, parent.target_qty);
+        Object.assign(line, {
+            item_idx: part.item_idx, savedItem: part.item_label, item_kind: 'SEMI', source: 'STOCK',
+            target_qty: String(q), _semiOf: parent._key, _semiPer: part.qty_per, _semiAuto: String(q), _semiStock: Number(part.stock_qty ?? 0),
+        });
+        made.push(line);
+    }
+    if (made.length) lines.value.splice(lines.value.indexOf(parent), 0, ...made);
+}
+
+// 체크를 끄면 저장 안 한 반제품 줄을 빼고, 다시 켜면 저장 안 한 완제품 줄에 다시 넣는다
+watch(withSemi, async (on) => {
+    const keep = current.value;
+    if (!on) {
+        lines.value = lines.value.filter(x => !(x._semiOf && !x.work_order_idx));
+    } else {
+        for (const p of lines.value.filter(x => !x.work_order_idx && x._semiParts)) {
+            try { await addSemiFor(p, p._semiParts); } catch (e) { errorMsg.value = '반제품 정보를 불러오지 못했습니다.'; }
+        }
+    }
+    selected.value = Math.max(0, lines.value.indexOf(keep));
+});
+
+// 완제품 수량이 바뀌면 손대지 않은 반제품 수량도 따라간다
+watch(() => lines.value.map(l => `${l._key}:${l.target_qty}`).join(','), () => {
+    for (const s of lines.value) {
+        if (!s._semiOf || s.work_order_idx || s.target_qty !== s._semiAuto) continue;
+        const p = lines.value.find(x => x._key === s._semiOf);
+        if (!p) continue;
+        const q = String(semiQty(s._semiPer, p.target_qty));
+        if (q !== s.target_qty) { s.target_qty = q; s._semiAuto = q; }
+    }
+});
 
 // ---- 수주 줄 ( 모든 품목 ) ----
 const picker = reactive({ open: false, loading: false, lines: [] });
@@ -202,8 +275,9 @@ async function pickSource(l) {
     } else {
         const empty = emptyLine();
         const line  = empty ?? newLine();
+        let defaults;
         try {
-            await applyItemDefaults(line, l.item_idx, { salesOrderLineIdx: l.sales_order_line_idx });
+            defaults = await applyItemDefaults(line, l.item_idx, { salesOrderLineIdx: l.sales_order_line_idx });
         } catch (e) {
             errorMsg.value = '품목 정보를 불러오지 못했습니다.';
             return;
@@ -213,6 +287,11 @@ async function pickSource(l) {
         line.target_qty = String(l.remaining);
         line.sources    = [src];
         if (!empty) lines.value.push(line);
+        try {
+            await addSemiFor(line, defaults?.semi_parts);   // 하위 반제품 줄을 위에
+        } catch (e) {
+            errorMsg.value = '반제품 정보를 불러오지 못했습니다.';
+        }
         selected.value = lines.value.indexOf(line);
     }
     // 생산 기한 기본 = 가장 이른 납품일
@@ -274,16 +353,18 @@ onMounted(async () => {
             // 수주에서 = 줄 하나 / 생산계획에서 = 계획마다 줄 ( prefill.lines )
             const pre = props.prefill?.lines ?? (props.prefill ? [props.prefill] : []);
             const built = [];
+            const parts = new Map();   // 줄 _key → 하위 반제품
             for (const p of pre) {
                 const line = newLine();
                 line.item_idx   = p.item_idx;
                 line.savedItem  = p.item_label ?? '';
                 line.target_qty = String(p.target_qty ?? '');
-                await applyItemDefaults(line, line.item_idx, { salesOrderLineIdx: p.sources?.[0]?.sales_order_line_idx });
+                const d = await applyItemDefaults(line, line.item_idx, { salesOrderLineIdx: p.sources?.[0]?.sales_order_line_idx });
                 line.sources    = (p.sources ?? []).map(s => ({ ...s, qty: String(s.qty) }));
                 line.production_plan_idx = p.production_plan_idx ?? null;
                 line.plan_no    = p.plan_no ?? '';
                 built.push(line);
+                parts.set(line._key, d?.semi_parts);
             }
             if (props.prefill?.lines) {
                 sheet.start_date = props.prefill.start_date ?? sheet.start_date;
@@ -292,6 +373,9 @@ onMounted(async () => {
                 sheet.due_date = props.prefill.sources?.[0]?.due_date ?? sheet.due_date;
             }
             lines.value = built.length ? built : [newLine()];
+            // 수주 · 계획에서 연 완제품 줄 위에 하위 반제품 줄
+            for (const line of built) await addSemiFor(line, parts.get(line._key));
+            selected.value = built.length ? lines.value.indexOf(built[0]) : 0;
         }
     } catch (e) {
         errorMsg.value = e.response?.status === 404 ? '작업지시서를 찾을 수 없습니다.' : (e.response?.status === 403 ? '작업지시 권한이 없습니다.' : '작업지시서 정보를 불러오지 못했습니다.');
@@ -312,7 +396,15 @@ async function save() {
             due_date:    sheet.due_date || null,
             manager_idx: sheet.manager_idx === '' ? null : Number(sheet.manager_idx),
             remark:      sheet.remark || null,
-            lines:       sent.map(({ l }) => linePayload(l)),
+            // 반제품 줄의 부모( 완제품 줄 ) — 저장된 줄이면 번호, 같이 저장하는 새 줄이면 보낸 순번
+            lines:       sent.map(({ l }) => {
+                const parent = l._semiOf ? lines.value.find(x => x._key === l._semiOf) : null;
+                return {
+                    ...linePayload(l),
+                    parent_work_order_idx: parent ? (parent.work_order_idx ?? null) : (l.parent_work_order_idx ?? null),
+                    parent_line: parent && !parent.work_order_idx ? sent.findIndex(s => s.l === parent) : null,
+                };
+            }),
         };
         const { data } = await window.axios.post(route('production.workOrder.save'), payload);
         props.onSaved?.(data.sheet, data.warnings ?? []);
@@ -340,15 +432,34 @@ async function save() {
 }
 
 // ---- 취소 ----
+// 줄 취소 — 이 줄을 부모로 둔 반제품 지시( 대기 )가 있으면 함께 취소할지 묻는다 ( 11-10 ) : [함께 취소] · [이 줄만] · [닫기]
+//   진행 · 완료된 반제품 지시는 취소되지 않는다 ( 서버도 그대로 둔다 ) · 하나라도 막히면 전부 되돌린다
 async function cancelLine() {
     const l = current.value;
-    const r = await showAlert('줄 취소', `${l.wo_no} ( ${itemLabel(l)} )를 취소합니다.\n발급된 LOT 번호는 미사용으로 남습니다.`, 'warning', 'confirm');
-    if (!r.isConfirmed) return;
+    const semi = lines.value.filter(x => x.work_order_idx && Number(x.parent_work_order_idx) === Number(l.work_order_idx) && x.status !== 'CANCELED');
+    const waitSemi = semi.filter(x => x.status === 'WAIT');
+    const head = `${l.wo_no} ( ${itemLabel(l)} )를 취소합니다.`;
+
+    let withSemi = false;
+    if (waitSemi.length) {
+        const list = waitSemi.map(x => `· ${x.wo_no} ${itemLabel(x)}`).join('\n');
+        const rest = semi.length > waitSemi.length ? `\n( 진행 · 완료된 반제품 지시 ${semi.length - waitSemi.length}개는 취소되지 않습니다 )` : '';
+        const r = await showAlert('줄 취소', `${head}\n\n연결된 반제품 지시도 함께 취소할까요?\n${list}${rest}`, 'warning', 'confirm', {
+            showDenyButton: true, confirmButtonText: '함께 취소', denyButtonText: '이 줄만', cancelButtonText: '닫기',
+        });
+        if (!r.isConfirmed && !r.isDenied) return;
+        withSemi = r.isConfirmed;
+    } else {
+        const r = await showAlert('줄 취소', head, 'warning', 'confirm');
+        if (!r.isConfirmed) return;
+    }
+
     busy.value = true; errorMsg.value = '';
     try {
-        await window.axios.post(route('production.workOrder.cancelLine'), { work_order_idx: l.work_order_idx });
+        const { data } = await window.axios.post(route('production.workOrder.cancelLine'), { work_order_idx: l.work_order_idx, with_semi: withSemi });
         await reload();
-        props.onSaved?.({ sheet_no: sheet.sheet_no, canceled_line: l.wo_no }, []);
+        const done = (data.semi ?? []);
+        props.onSaved?.({ sheet_no: sheet.sheet_no, canceled_line: done.length ? `${l.wo_no} · 반제품 ${done.join(', ')}` : l.wo_no }, []);
     } catch (e) {
         errorMsg.value = failMsg(e);
     } finally {

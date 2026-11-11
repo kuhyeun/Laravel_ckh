@@ -41,7 +41,8 @@ export function showAlert(title = '', text = '', icon = 'info', type = 'alert', 
             title: 'text-lg',
             htmlContainer: 'text-base',
             confirmButton: 'px-[14px] py-[6px]',
-            cancelButton: 'px-[14px] py-[6px]'
+            cancelButton: 'px-[14px] py-[6px]',
+            denyButton: 'px-[14px] py-[6px]'   // 세 번째 버튼( showDenyButton )도 같은 크기
         },
         buttonsStyling: true
     };

@@ -142,15 +142,19 @@ class SubconController extends Controller {
         // 마지막 공정( 제품 입고 — 입고 때 창고 필요 ) — 그 페이지 지시만 한 번에
         $q->orderBy('s.issued_at')->orderBy('s.subcon_issue_idx');
         $this->tie = 's.subcon_issue_idx';
+        //   $lastOps 는 준비 콜백이 나중에 채운다 → 행 함수는 참조로 받아야 한다
+        //   ( 11-10 고침 : 화살표 함수 fn 은 만들 때의 빈 배열을 복사해 is_last 가 늘 false → 입고 창에 창고 칸이 안 보이고 서버는 창고 없음으로 거절 )
         $lastOps = [];
-        return $this->listResponse($request, $q, self::ISSUE_SORTABLE, 'rows', fn ($r) => $this->issueRow($r) + [
-            'received_qty' => (float) $r->received,
-            'passed_qty'   => (float) $r->passed,
-            'failed_qty'   => (float) $r->failed,
-            'waiting'      => (int) $r->waiting,
-            'left_qty'     => $r->is_canceled === 'Y' ? 0.0 : max(0, (float) $r->qty - (float) $r->received),
-            'is_last'      => ($lastOps[$r->work_order_idx] ?? null) === (int) $r->work_order_op_idx,
-        ], function ($rows) use (&$lastOps) { $lastOps = $this->lastOps($rows->pluck('work_order_idx')->unique()->all()); });
+        return $this->listResponse($request, $q, self::ISSUE_SORTABLE, 'rows', function ($r) use (&$lastOps) {
+            return $this->issueRow($r) + [
+                'received_qty' => (float) $r->received,
+                'passed_qty'   => (float) $r->passed,
+                'failed_qty'   => (float) $r->failed,
+                'waiting'      => (int) $r->waiting,
+                'left_qty'     => $r->is_canceled === 'Y' ? 0.0 : max(0, (float) $r->qty - (float) $r->received),
+                'is_last'      => ($lastOps[$r->work_order_idx] ?? null) === (int) $r->work_order_op_idx,
+            ];
+        }, function ($rows) use (&$lastOps) { $lastOps = $this->lastOps($rows->pluck('work_order_idx')->unique()->all()); });
     }
 
     // ---- 외주 입고 ----

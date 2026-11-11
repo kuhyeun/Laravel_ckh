@@ -162,6 +162,7 @@ const GROUP_TITLES = {
     feature:    '기능 스위치',
     stock:      '재고 · 수불',
     plan:       '부족 계산',
+    bom:        'BOM',
     material:   '자재',
     shipment:   '출하',
     lot:        'LOT',

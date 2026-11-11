@@ -19,6 +19,11 @@ export const blankLine = (extra = {}) => ({
     savedMaterials: [],     // 저장된 줄의 자재 사본
     savedItem: '',          // 저장된 품목 이름 ( 지금은 고를 수 없는 품목일 때 표시 )
     production_plan_idx: null, plan_no: '',   // 출처 생산계획 ( 계획에서 만든 지시 )
+    item_kind: '',          // 품목 소분류 ( SEMI = 반제품 표시 )
+    parent_work_order_idx: null, parent_wo_no: '', parent_item: '',   // 저장된 반제품 지시의 부모( 완제품 지시 ) — 이력
+    // 반제품 함께 지시 ( 저장 전 화면에서만 ) : _semiOf = 이 반제품을 쓰는 완제품 줄의 _key · _semiPer = 완제품 1개당 · _semiAuto = 자동으로 넣은 수량( 같으면 완제품 수량을 따라간다 )
+    _semiOf: null, _semiPer: null, _semiAuto: null, _semiStock: null,
+    _semiParts: null,       // 완제품 줄 : 서버가 준 하위 반제품 목록 ( 체크를 다시 켤 때 )
     ...extra,
 });
 
@@ -30,10 +35,14 @@ export const lineFromServer = (o) => blankLine({
     ops: toOps(o.ops), sources: o.sources.map(s => ({ ...s, qty: String(s.qty_in) })),
     savedMaterials: o.materials ?? [], savedItem: o.item_spec ? `${o.item_code} ${o.item_name} · ${o.item_spec}` : `${o.item_code} ${o.item_name}`,
     production_plan_idx: o.production_plan_idx ?? null, plan_no: o.plan_no ?? '',
+    item_kind: o.item_kind ?? '',
+    parent_work_order_idx: o.parent_work_order_idx ?? null,
+    parent_wo_no: o.parent_wo_no ?? '', parent_item: o.parent_item ?? '',
 });
 
 // 품목을 고르면 : 품목 공정( ② ) · 사용 중 BOM · 회당 상승 기본값 ( 다른 품목의 수주 줄은 뺀다 )
 //   수주 줄을 주면 그 줄의 수주 공정( ③ ) — docs/라우팅-3단계-설계.md
+//   받은 값을 돌려준다 ( semi_parts — 하위 반제품 : 지시서의 "반제품 함께 지시" )
 export async function applyItemDefaults(line, itemIdx, { isNew = true, salesOrderLineIdx = null } = {}) {
     const { data } = await window.axios.get(route('production.workOrder.itemDefaults'), {
         params: { item_idx: itemIdx, ...(salesOrderLineIdx ? { sales_order_line_idx: salesOrderLineIdx } : {}) },
@@ -43,6 +52,7 @@ export async function applyItemDefaults(line, itemIdx, { isNew = true, salesOrde
     line.bom         = data.bom;
     if (isNew) line.scan_qty = data.scan_qty ?? 1;
     line.sources = [];
+    return data;
 }
 
 // 수주 줄을 처음 담을 때 : 공정 · 자재를 그 줄의 수주 공정( ③ ) · 수주 자재로 ( 수량은 그대로 )

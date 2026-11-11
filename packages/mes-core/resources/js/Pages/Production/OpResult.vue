@@ -1,6 +1,7 @@
 <!-- 공정실적 ( PRD-06 · 생산 3단계 최소판 ) / 생산관리 > 공정실적관리 — docs/screens/50-생산.md "3단계"
      - 왼쪽 : 품목 줄( 대기 · 진행 기본 ) — 검색어 · 상태. ?wo=번호 로 들어오면 그 줄을 연다
-     - 오른쪽 : 공정마다 기준 · 실적 · 상태 → 공정을 고르면 아래에 실적 줄 + [실적 입력] / [공정 완료] · 검사 · 시스템 공정은 [완료]만
+     - 오른쪽 : 공정마다 기준 · 실적 · 상태 → 공정을 고르면 아래에 실적 줄 + [공정 완료] · 검사 · 시스템 공정은 [완료]만
+       · 실적을 쌓는 공정을 고르면 입력 칸이 바로 열린다( [실적 입력] 버튼 없음 · 11-10 ) — 저장하면 칸을 비워 다음 실적을 받는다
        · 뒤 공정은 앞 수량 공정 실적까지만 ( 서버가 막음 ) · 포장도 수량 공정
        · 마지막 공정이 수량 공정이면 실적마다 그 수량만큼 바로 제품 입고( 실적 입력 때 창고 ) — 아니면 줄 완료 때 남은 수량 입고
      - 원자재출고 공정 · 자재의 [출고 · 반납] : 이 화면 안에서 자재출고 · 반납( MaterialIssuePanel ) — 완료할 때 덜 나간 자재가 있으면 한 번 묻는다 · 완료된 줄은 반납만
@@ -100,8 +101,12 @@
                                             <!-- 검사 공정 : 검사 창 ( 완료 뒤에도 기록을 본다 · 취소도 그 창에서 ) -->
                                             <BaseButton v-if="o.is_inspection && line.quality_on" size="sm" :variant="o.status === 'DONE' ? 'secondary' : 'primary'" @click="openInspection(o)">검사</BaseButton>
                                             <template v-else-if="canWrite && o.status !== 'DONE' && line.status !== 'DONE'">
-                                                <BaseButton v-if="o.is_qty && !o.is_subcon" size="sm" variant="secondary" :disabled="!!o.block" @click="openPanel(o, 'run')">실적 입력</BaseButton>
-                                                <span v-if="o.is_subcon" class="text-xs text-gray-400" title="외주관리 > 외주 출고 · 입고로 처리합니다">외주 입고로</span>
+                                                <!-- 외주 공정 : 실적은 외주 입고로만 → 그 화면으로 ( 이 지시번호로 걸러서 · 권한 있을 때만 ) -->
+                                                <template v-if="o.is_subcon">
+                                                    <BaseButton v-if="subconUrls.issue" size="sm" variant="secondary" @click="goSubcon(subconUrls.issue)">외주 출고 →</BaseButton>
+                                                    <BaseButton v-if="subconUrls.receipt" size="sm" variant="secondary" class="ml-1" @click="goSubcon(subconUrls.receipt)">외주 입고 →</BaseButton>
+                                                    <span v-if="!subconUrls.issue && !subconUrls.receipt" class="text-xs text-gray-400" title="외주관리 > 외주 출고 · 입고로 처리합니다">외주관리에서 처리</span>
+                                                </template>
                                                 <BaseButton v-if="o.is_rm_out && line.materials.length" size="sm" variant="secondary" @click="openIssue">출고</BaseButton>
                                                 <BaseButton size="sm" variant="primary" class="ml-1" :disabled="!o.is_qty && !!o.block" @click="openPanel(o, 'done')">{{ o.is_qty ? '공정 완료' : '완료' }}</BaseButton>
                                             </template>
@@ -122,6 +127,7 @@
 
                             <!-- 실적 입력 -->
                             <div v-if="panel === 'run'" class="px-3 py-3 border-b bg-blue-50/40 flex items-end gap-3 flex-wrap">
+                                <p class="w-full -mb-1 text-xs font-semibold text-blue-700">새 실적 입력</p>
                                 <!-- 순서 : 작업 일시 · 설비 · 작업자 · 수량 · ( 입고 창고 ) · 비고 ( 11-05 ) -->
                                 <div>
                                     <label class="lbl">작업 일시 <span class="text-red-500">*</span></label>
@@ -148,7 +154,7 @@
                                     <BaseInput v-model="runForm.remark" class="w-40" maxlength="200" />
                                 </div>
                                 <div class="ml-auto flex gap-1">
-                                    <BaseButton size="sm" variant="secondary" @click="panel = ''">닫기</BaseButton>
+                                    <BaseButton size="sm" variant="secondary" :disabled="busy" @click="resetRunForm(selectedOp)">지우기</BaseButton>
                                     <BaseButton size="sm" variant="primary" :disabled="busy" @click="addRun">저장</BaseButton>
                                 </div>
                                 <p class="w-full text-xs text-gray-500">
@@ -178,7 +184,7 @@
                                     <WarehouseSelect v-model="doneForm.warehouse_idx" :options="warehouses" class="w-44" placeholder="창고" />
                                 </div>
                                 <div class="flex gap-1">
-                                    <BaseButton size="sm" variant="secondary" @click="panel = ''">닫기</BaseButton>
+                                    <BaseButton size="sm" variant="secondary" @click="closeDone">닫기</BaseButton>
                                     <BaseButton size="sm" variant="primary" :disabled="busy" @click="complete()">완료</BaseButton>
                                 </div>
                             </div>
@@ -240,7 +246,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, nextTick } from 'vue';
-import { usePage } from '@inertiajs/vue3';
+import { usePage, router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
@@ -328,6 +334,9 @@ const warehouses = ref([]);
 const equipments = ref([]);   // 사용 중 설비 전부 ( formData )
 const reasons    = ref([]);
 const me         = ref(null);
+// 외주 출고 · 입고 화면 주소 ( 권한 있을 때만 — formData ) · 이 지시번호로 걸러서 연다
+const subconUrls = reactive({ issue: null, receipt: null });
+const goSubcon   = (url) => router.visit(`${url}?wo_no=${encodeURIComponent(line.value?.wo_no ?? '')}`);
 // 작업 일시 기본값 = 입력 창을 연 지금 ( datetime-local 형식 )
 const localNow = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const userOptions      = computed(() => users.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
@@ -407,9 +416,12 @@ async function loadDetail(woIdx = line.value?.work_order_idx) {
         if (!isLatest() || (activeWo.value !== null && activeWo.value !== woIdx)) return;   // 그 사이 다른 줄을 골랐다
         line.value = data.line;
         // 고른 공정이 없으면 진행 중인 첫 공정
+        let opChanged = false;
         if (!line.value.ops.some(o => o.work_order_op_idx === selectedIdx.value)) {
             selectedIdx.value = (line.value.ops.find(o => o.status !== 'DONE') ?? line.value.ops[0])?.work_order_op_idx ?? null;
+            opChanged = true;
         }
+        syncPanel(opChanged);
     } catch (e) {
         if (!isLatest()) return;
         line.value = null;
@@ -423,16 +435,43 @@ async function refresh() {
     await Promise.all([loadDetail(), load()]);
 }
 
+// ---- 실적 입력 칸 ( 11-10 ) ----
+//   [실적 입력] 버튼 없이 : 실적을 쌓는 공정( 수량 공정 · 외주 아님 · 완료 전 · 막힘 없음 · 쓰기 권한 )을 고르면 입력 칸이 바로 열린다
+//   저장하면 칸을 비워 새 실적을 받는다 ( 닫지 않음 ) · [공정 완료] 를 누르면 완료 칸으로 바뀌고 [닫기] 면 입력 칸으로 돌아온다
+const canRun = (o) => !!o && canWrite.value && o.is_qty && !o.is_subcon && o.status !== 'DONE' && line.value?.status !== 'DONE' && !o.block;
+
+function resetRunForm(o) {
+    Object.assign(runForm, { qty: '', equipment_idx: o?.equipment_idx ?? '', operator_idx: me.value ?? '', worked_at: localNow(), remark: '', warehouse_idx: defaultWarehouse() });
+}
+
+// 고른 공정에 맞춰 칸을 정한다 — opChanged : 다른 공정을 골랐다( 입력 칸을 새로 채운다 ) · 완료 칸은 같은 공정이면 그대로
+function syncPanel(opChanged) {
+    if (panel.value === 'done' && !opChanged) return;
+    if (canRun(selectedOp.value)) {
+        if (opChanged || panel.value !== 'run') resetRunForm(selectedOp.value);
+        panel.value = 'run';
+    } else {
+        panel.value = '';
+    }
+}
+
 function pickOp(o) {
-    if (selectedIdx.value !== o.work_order_op_idx) panel.value = '';
+    const changed = selectedIdx.value !== o.work_order_op_idx;
     selectedIdx.value = o.work_order_op_idx;
+    if (changed) errorText.value = '';
+    syncPanel(changed);
+}
+
+function closeDone() {
+    panel.value = '';
+    syncPanel(false);
 }
 
 function openPanel(o, kind) {
     selectedIdx.value = o.work_order_op_idx;
     errorText.value = '';
     if (kind === 'run') {
-        Object.assign(runForm, { qty: '', equipment_idx: o.equipment_idx ?? '', operator_idx: me.value ?? '', worked_at: localNow(), remark: '', warehouse_idx: defaultWarehouse() });
+        resetRunForm(o);
     } else {
         Object.assign(doneForm, { short_reason: '', warehouse_idx: defaultWarehouse() });
     }
@@ -454,7 +493,8 @@ async function addRun() {
         });
         if (selectedOp.value.receives_on_run && runForm.warehouse_idx !== '') rememberWarehouse(runForm.warehouse_idx);
         showFlash(okMsg(`${selectedOp.value.name} 실적 ${fmtNum(runForm.qty)} 을 넣었습니다.${selectedOp.value.receives_on_run ? ' ( 제품 입고 )' : ''}`, data.warnings));
-        runForm.qty = ''; runForm.remark = '';
+        // 저장하면 칸을 비워 새 실적을 받는다 ( 작업 일시 = 지금 · 작업자 = 나 — 11-10 ) · 실패하면 그대로( 고쳐서 다시 저장 )
+        resetRunForm(selectedOp.value);
         await refresh();
     } catch (e) {
         errorText.value = failMsg(e);
@@ -538,6 +578,7 @@ onMounted(async () => {
         const { data } = await window.axios.get(route('production.opResult.formData'));
         users.value = data.users ?? []; warehouses.value = data.warehouses ?? []; equipments.value = data.equipments ?? []; reasons.value = data.reasons ?? [];
         me.value = data.me;
+        subconUrls.issue = data.subcon_issue_url ?? null; subconUrls.receipt = data.subcon_receipt_url ?? null;
     } catch (e) {
         showFlash('선택지를 불러오지 못했습니다.', true);
     }

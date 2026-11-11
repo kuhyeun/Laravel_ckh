@@ -14,6 +14,8 @@ use MesCore\Production\Models\WorkOrderOp;
 use MesCore\Production\Models\WorkOrderOpRun;
 use MesCore\Production\Services\MaterialIssueService;
 use MesCore\Production\Services\OpResultService;
+use MesCore\Menu\Models\Menu;
+use MesCore\Menu\Services\MenuPermissionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -164,7 +166,17 @@ class OpResultController extends Controller {
                 ->get(['system_code_key', 'system_code_name']),
             'me'        => User::pickableMe(),
             'now'       => now()->format('Y-m-d\TH:i'),
+            // 외주 공정 줄의 [외주 출고 →] · [외주 입고 →] — 그 화면 권한이 있을 때만 주소 ( 11-10 )
+            'subcon_issue_url'   => $this->pageUrl('Production/SubconIssue'),
+            'subcon_receipt_url' => $this->pageUrl('Production/SubconReceipt'),
         ]);
+    }
+
+    // 화면 주소 ( 읽기 권한이 있을 때만 · 메뉴의 url_path )
+    private function pageUrl(string $pageComponent): ?string {
+        return app(MenuPermissionService::class)->canPageForMe($pageComponent, 'can_read')
+            ? Menu::where('page_component', $pageComponent)->value('url_path')
+            : null;
     }
 
     public function addRun(Request $request) {

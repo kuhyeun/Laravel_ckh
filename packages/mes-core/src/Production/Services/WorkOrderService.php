@@ -43,7 +43,7 @@ class WorkOrderService {
     use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
 
     // 화면( toForm )이 쓰는 관계
-    public const FORM_RELATIONS = ['item', 'lot', 'ops.process', 'materials.childItem', 'materials.substitutes.childItem', 'sources.salesOrderLine.order', 'sources.creator'];
+    public const FORM_RELATIONS = ['item', 'lot', 'ops.process', 'materials.childItem', 'materials.substitutes.childItem', 'sources.salesOrderLine.order', 'sources.creator', 'parent.item'];
 
     public function __construct(private LotService $lots, private RoutingService $routings, private BomService $boms) {}
 

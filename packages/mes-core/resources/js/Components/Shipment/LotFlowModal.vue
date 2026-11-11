@@ -32,7 +32,7 @@
                             <p v-if="data.sub" class="text-[11px] text-gray-400 truncate" :title="data.sub">{{ data.sub }}</p>
                             <div v-if="data.qty || data.defect" class="mt-1 flex items-center gap-1.5 text-[11px]">
                                 <span v-if="data.qty" class="text-gray-700 truncate">{{ data.qty }}</span>
-                                <span v-if="data.defect" class="ml-auto shrink-0 px-1 rounded bg-red-50 text-red-600">⚠ 공정 불량 {{ fmtNum(data.defect) }}</span>
+                                <span v-if="data.defect" class="ml-auto shrink-0 px-1 rounded bg-red-50 text-red-600">⚠ {{ data.defect_label || '공정 불량' }} {{ fmtNum(data.defect) }}</span>
                             </div>
                         </div>
                     </div>
@@ -62,17 +62,23 @@
             </div>
             <div class="relative flex-1 min-h-0 overflow-auto">
                 <table v-if="panel === 'history' && history.length" class="w-full table-fixed text-xs">
-                    <colgroup><col class="w-32"><col class="w-24"><col class="w-36"><col class="w-28"><col class="w-24"><col class="w-24"><col></colgroup>
+                    <colgroup><col class="w-36"><col class="w-36"><col class="w-40"><col class="w-36"><col class="w-24"><col class="w-24"><col></colgroup>
                     <thead class="text-gray-400 sticky top-0 bg-white"><tr>
                         <th class="px-2 py-1 text-left font-normal">일시</th><th class="px-2 py-1 text-left font-normal">구분</th><th class="px-2 py-1 text-left font-normal">전표</th>
                         <th class="px-2 py-1 text-left font-normal">창고</th><th class="px-2 py-1 text-right font-normal">수량</th><th class="px-2 py-1 text-right font-normal">잔량</th><th class="px-2 py-1 text-left font-normal">거래처 · 지시</th>
                     </tr></thead>
                     <tbody>
-                        <tr v-for="h in history" :key="h.idx" class="border-t border-gray-100">
-                            <td class="px-2 py-1">{{ h.occurred_at }}</td><td class="px-2 py-1">{{ h.type_label }}</td><td class="px-2 py-1 truncate" :title="h.txn_no">{{ h.txn_no }}</td>
+                        <!-- 수입검사 불합격 줄( is_defect ) : 재고에 안 잡힌 수량 — 잔량 계산 밖 -->
+                        <tr v-for="h in history" :key="h.idx" class="border-t border-gray-100" :class="h.is_defect ? 'bg-red-50/50' : ''">
+                            <td class="px-2 py-1">{{ h.occurred_at }}</td>
+                            <td class="px-2 py-1" :class="h.is_defect ? 'text-red-600 font-medium' : ''">{{ h.type_label }}</td>
+                            <td class="px-2 py-1 truncate" :title="h.txn_no">{{ h.txn_no }}</td>
                             <td class="px-2 py-1 truncate">{{ h.warehouse_name }}</td>
-                            <td class="px-2 py-1 text-right" :class="h.qty < 0 ? 'text-red-600' : 'text-blue-700'">{{ h.qty > 0 ? '+' : '' }}{{ fmtNum(h.qty) }}</td>
-                            <td class="px-2 py-1 text-right">{{ fmtNum(h.balance) }}</td>
+                            <td class="px-2 py-1 text-right" :class="h.is_defect || h.qty < 0 ? 'text-red-600' : 'text-blue-700'">
+                                <template v-if="h.is_defect">불량 {{ fmtNum(h.qty) }}</template>
+                                <template v-else>{{ h.qty > 0 ? '+' : '' }}{{ fmtNum(h.qty) }}</template>
+                            </td>
+                            <td class="px-2 py-1 text-right" :class="h.is_defect ? 'text-gray-300' : ''" :title="h.is_defect ? '재고에 잡히지 않은 수량이라 잔량에 넣지 않습니다' : ''">{{ h.is_defect ? '—' : fmtNum(h.balance) }}</td>
                             <td class="px-2 py-1 truncate" :title="refOf(h)">{{ refOf(h) }}</td>
                         </tr>
                     </tbody>
@@ -194,7 +200,10 @@ const woOf  = (n) => n?.work_order_idx ?? null;
 const history = computed(() => historyCache.value[lotOf(selected.value)] ?? []);
 const ops     = computed(() => opsCache.value[woOf(selected.value)] ?? []);
 const panelOn = (key) => key === 'history' ? !!lotOf(selected.value) : !!woOf(selected.value);
-const refOf = (h) => [h.partner_name, h.wo_no].filter(Boolean).join(' · ') || h.remark || '';
+// 불합격 줄은 구매처 + 유형 · 사유를 함께
+const refOf = (h) => h.is_defect
+    ? [h.partner_name, h.remark].filter(Boolean).join(' · ')
+    : [h.partner_name, h.wo_no].filter(Boolean).join(' · ') || h.remark || '';
 
 let panelSeq = 0;
 async function select(id) {

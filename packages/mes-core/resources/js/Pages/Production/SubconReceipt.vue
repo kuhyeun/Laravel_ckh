@@ -73,7 +73,9 @@ const SEARCH_FIELDS = [{ value: 'wo_no', label: '지시번호' }, { value: 'item
 const STATUS_OPTIONS = [{ value: '', label: '상태 전체' }, { value: 'WAIT', label: '검사대기' }, { value: 'DONE', label: '입고 완료' }, { value: 'CANCELED', label: '취소' }];
 const STATUS_COLOR = { WAIT: COLORS.amber700, DONE: COLORS.green700, CANCELED: COLORS.gray400 };
 const blankFilters = () => ({ partner_idx: '', status: '' });
-const search = reactive({ date_basis: 'at', from: '', to: '', keyword: '', search_field: '', ...blankFilters() });
+// 공정실적의 [외주 입고 →] 로 오면 ?wo_no= — 처음 조회부터 그 지시번호로 거른다 ( SearchBar 가 열릴 때 한 번 조회 )
+const fromWo = new URLSearchParams(window.location.search).get('wo_no') ?? '';
+const search = reactive({ date_basis: 'at', from: '', to: '', keyword: fromWo, search_field: fromWo ? 'wo_no' : '', ...blankFilters() });
 const tab  = ref('open');
 const grid = ref(null);
 

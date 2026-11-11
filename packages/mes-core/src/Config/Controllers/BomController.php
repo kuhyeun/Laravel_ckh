@@ -8,6 +8,7 @@ use MesCore\Config\Models\BomLine;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\RoutingLine;
 use MesCore\Config\Services\BomService;
+use MesCore\Basic\Services\PolicyService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,7 @@ use Illuminate\Validation\ValidationException;
 // BOM관리 ( BAS-03 )
 //   품목 × 버전. 변경 한 번이 버전 하나 → 버전 목록이 곧 변경 이력 ( 별도 이력 화면 없음 )
 //   승인은 관문이 아니라 기록 : 승인 없이도 활성 전환되고 경고만 한다
+//   정책 bom.activate_on_approve( 기본 Y ) : 승인하면 그 버전을 바로 활성으로 ( 끄면 승인은 기록만 )
 //   투입 지점은 라우팅의 "줄"을 가리킨다 → 순서를 바꿔도 참조 유지
 //   자재 줄마다 대체 자재 N ( 자기 소요 · 계산식 ) — 줄 검증 · 동기화 · 복사 · 순환 검사는 BomService ( docs/대체자재-수주자재-설계.md )
 class BomController extends Controller {
@@ -28,6 +30,9 @@ class BomController extends Controller {
         'changed_at'               => '변경일',
         'remark'                   => '변경 사유',
     ];
+
+    // 승인하면 바로 활성 ( 정책 — 기본 Y )
+    private const ACTIVATE_ON_APPROVE = 'bom.activate_on_approve';
 
     // 화면용 관계 ( 대체 자재 포함 )
     private const WITH = ['item', 'lines.childItem', 'lines.routingLine.process', 'lines.substitutes.childItem'];
@@ -84,7 +89,11 @@ class BomController extends Controller {
                 'lines_count' => $b->lines_count,
             ]);
 
-        return response()->json(['versions' => $boms]);
+        return response()->json([
+            'versions'            => $boms,
+            // 정책 bom.activate_on_approve — 화면이 [승인] 확인 문구를 고른다
+            'activate_on_approve' => (bool) app(PolicyService::class)->get(self::ACTIVATE_ON_APPROVE),
+        ]);
     }
 
     // 단건 : 줄 + 그 품목 라우팅의 줄( 투입 지점 선택지 )
@@ -182,16 +191,7 @@ class BomController extends Controller {
         $bom = Bom::itemBoms()->findOrFail($validated['bom_idx']);
 
         try {
-            DB::transaction(function () use ($bom) {
-                Bom::itemBoms()->where('item_idx', $bom->item_idx)
-                    ->where('bom_idx', '!=', $bom->bom_idx)
-                    ->where('is_active', 'Y')
-                    ->update(['is_active' => 'N', 'update_account_idx' => Auth::id(), 'update_datetime' => now()]);
-
-                $bom->is_active    = 'Y';
-                $bom->activated_at = now();
-                $bom->save();
-            });
+            DB::transaction(fn () => $this->switchActive($bom));
 
             $warnings = [];
             if (!$bom->isApproved()) {
@@ -207,20 +207,29 @@ class BomController extends Controller {
         }
     }
 
-    // 승인 : 누가 언제 눌렀는지 기록 ( 활성 전환과 별개 )
+    // 승인 : 누가 언제 눌렀는지 기록
+    //   정책 bom.activate_on_approve 가 켜져 있으면( 기본 ) 같은 트랜잭션에서 활성으로도 바꾼다 ( 이전 활성 버전은 비활성 )
     public function approve(Request $request) {
         $validated = $request->validate(['bom_idx' => 'required|integer|exists:bom,bom_idx']);
 
         $bom = Bom::itemBoms()->findOrFail($validated['bom_idx']);
+        $activate = (bool) app(PolicyService::class)->get(self::ACTIVATE_ON_APPROVE) && $bom->is_active !== 'Y';
 
         try {
-            $bom->approved_at = now();
-            $bom->approved_by = Auth::id();
-            $bom->save();
+            DB::transaction(function () use ($bom, $activate) {
+                $bom->approved_at = now();
+                $bom->approved_by = Auth::id();
+                $bom->save();
+
+                if ($activate) {
+                    $this->switchActive($bom);
+                }
+            });
 
             return response()->json([
                 'message'     => 'Success',
                 'approved_at' => $bom->approved_at->format('Y-m-d H:i'),
+                'activated'   => $activate,
             ], 200);
         } catch (\Throwable $e) {
             Log::error('BOM 승인 실패 : ' . $e->getMessage());
@@ -268,6 +277,18 @@ class BomController extends Controller {
     // ---- 내부 ----
 
     // 투입 지점 선택지 : 그 품목 라우팅의 줄을 순서대로 ( "4. 조립" 형태 )
+    // 같은 품목의 다른 활성 버전을 끄고 이 버전을 켠다 ( 트랜잭션 안에서 부른다 )
+    private function switchActive(Bom $bom): void {
+        Bom::itemBoms()->where('item_idx', $bom->item_idx)
+            ->where('bom_idx', '!=', $bom->bom_idx)
+            ->where('is_active', 'Y')
+            ->update(['is_active' => 'N', 'update_account_idx' => Auth::id(), 'update_datetime' => now()]);
+
+        $bom->is_active    = 'Y';
+        $bom->activated_at = now();
+        $bom->save();
+    }
+
     private function routingLineOptions(?Item $item): array {
         if (!$item || !$item->routing_idx) {
             return [];

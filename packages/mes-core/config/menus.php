@@ -504,17 +504,8 @@ return [
                 'page_component' => 'Product/ProductReceipt',
                 'menu_level' => 99,
             ],
-            [
-                'menu_code' => '5006',
-                'menu_name' => '제품입고이력',
-                'menu_icon' => null,
-                'module_code' => 'Product',
-                'menu_route_name' => '',
-                'url_path' => '/product/receipt-history',
-                'page_component' => 'Product/ProductReceipt',
-                'read_only' => 'Y',
-                'menu_level' => 99,
-            ],
+            // 5006 제품입고이력 · 5007 제품출고이력은 뺐다 ( 11-11 ) — 제품입고 · 제품출고가 이미 이력 화면이라 같은 화면이 하나 더 있는 셈
+            //   ( 입고는 공정실적 · 출하는 출하관리 · 기타출고는 제품재고에서 처리 · 기타출고 취소를 막으려면 제품출고 쓰기 권한을 끈다 )
             [
                 'menu_code' => '5002',
                 'menu_name' => '제품출고',
@@ -523,17 +514,6 @@ return [
                 'menu_route_name' => '',
                 'url_path' => '/product/issue',
                 'page_component' => 'Product/ProductIssue',
-                'menu_level' => 99,
-            ],
-            [
-                'menu_code' => '5007',
-                'menu_name' => '제품출고이력',
-                'menu_icon' => null,
-                'module_code' => 'Product',
-                'menu_route_name' => '',
-                'url_path' => '/product/issue-history',
-                'page_component' => 'Product/ProductIssue',
-                'read_only' => 'Y',
                 'menu_level' => 99,
             ],
             [

@@ -19,7 +19,7 @@
             @search="loadFirstPage"
         >
             <BaseSelect v-model="search.source" :options="SOURCE_FILTER" class="w-32" />
-            <BaseSelect v-model="search.status" :options="WO_STATUS_FILTER" class="w-32" />
+            <BaseSelect v-model="search.status" :options="WO_STATUS_FILTER" class="w-44" />
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
@@ -94,7 +94,8 @@ const SEARCH_FIELDS = [
     { value: 'lot_no',    label: 'LOT' },
     { value: 'order_no',  label: '수주번호' },
 ];
-const blankFilters = () => ({ source: '', status: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+// 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 ) · 상태 = 취소 제외 ( 취소된 지시는 지우지 않고 숨긴다 — 11-10 )
+const blankFilters = () => ({ source: '', status: 'ACTIVE' });
 const search = reactive({ date_basis: 'start_date', from: '', to: '', keyword: '', ...blankFilters() });
 
 const todayStr = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -195,7 +196,7 @@ async function cancelChecked() {
         return;
     }
     const names = target.slice(0, 3).map(r => r.sheet_no).join(', ') + (target.length > 3 ? ` 외 ${target.length - 3}건` : '');
-    const r = await showAlert('작업지시서 취소', `${target.length}건( ${names} )의 품목 줄 전부를 취소합니다.\n발급된 LOT 번호는 미사용으로 남습니다.`, 'warning', 'confirm');
+    const r = await showAlert('작업지시서 취소', `${target.length}건( ${names} )의 품목 줄 전부를 취소합니다.`, 'warning', 'confirm');
     if (!r.isConfirmed) return;
     busy.value = true;
     try {

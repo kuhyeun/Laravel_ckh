@@ -95,7 +95,9 @@ class PurchaseOrderService {
                 $key  = (int) $row['sales_order_line_idx'] . ':' . (int) $row['item_idx'];
                 $d    = $demand->get($key);
                 $kept = $old && (int) ($oldSource[$old->purchase_order_line_idx] ?? 0) === (int) $row['sales_order_line_idx'] && $sameItem;
-                if (!$d) {
+                if (!$d && $kept) {
+                    // 이미 저장된 줄 그대로 ( 11-10 반제품 전개 전에 반제품으로 담은 줄 등 — 지금 소요에는 없지만 막지 않는다 )
+                } elseif (!$d) {
                     $errors["lines.{$i}.item_idx"] = ['이 수주 줄의 자재가 아닙니다. 수주 자재에서 다시 담으세요.'];
                 } elseif (isset($seenPair[$key])) {
                     $errors["lines.{$i}.item_idx"] = ['같은 수주 줄 · 자재가 두 번 들어 있습니다. 한 줄로 합치세요.'];

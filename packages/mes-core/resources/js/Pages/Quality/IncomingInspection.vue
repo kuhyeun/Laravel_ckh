@@ -97,7 +97,7 @@ const columns = [
     { header: '공급처 LOT', name: 'external_lot_no', width: 120, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 110, align: 'right', className: 'cursor-pointer',
       formatter: ({ row }) => qtyText(row.qty, row.spec_unit) },
-    { header: '검사', name: 'insp_mode', width: 70, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => inspModeLabel(value) },
+    { header: '검사', name: 'insp_mode', width: 100, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => inspModeLabel(value) },
     { header: '결과', name: 'pass_qty', width: 120, align: 'center', className: 'cursor-pointer',
       formatter: ({ row }) => row.line_status === 'DONE' ? `합격 ${fmtNum(row.pass_qty)}${row.fail_qty > 0 ? ` · <span style="color:${COLORS.red600}">불합격 ${fmtNum(row.fail_qty)}</span>` : ''}` : '' },
     { header: '상태', name: 'line_status', width: 80, align: 'center', className: 'cursor-pointer',

@@ -19,6 +19,9 @@ use Monolog\Logger;
  */
 class MesLogging {
 
+    // sql.log 를 쓰는 중 ( 그 사이 생긴 쿼리는 남기지 않는다 )
+    private static bool $writing = false;
+
     // 채널 등록 ( ServiceProvider::register — 설정을 읽기 전에 )
     public static function registerChannels(): void {
         $root = storage_path('logs');
@@ -47,10 +50,19 @@ class MesLogging {
         if (config('mes.log.sql', true)) {
             $skip = config('mes.log.sql_skip_tables', []);
             DB::listen(function (QueryExecuted $q) use ($skip) {
+                // 로그를 남기는 도중에 생긴 쿼리는 남기지 않는다 ( 되돌아 들어와 끝없이 도는 것 방지 — 11-11 )
+                if (self::$writing) {
+                    return;
+                }
                 if ($skip && preg_match('/\b(?:from|into|update|join)\s+`?(' . implode('|', array_map('preg_quote', $skip)) . ')`?\b/i', $q->sql)) {
                     return;
                 }
-                Log::channel('mes_sql')->info(sprintf('(%.2fms) %s', $q->time, self::interpolate($q->sql, $q->bindings, $q->connection->getPdo())));
+                self::$writing = true;
+                try {
+                    Log::channel('mes_sql')->info(sprintf('(%.2fms) %s', $q->time, self::interpolate($q->sql, $q->bindings, $q->connection->getPdo())));
+                } finally {
+                    self::$writing = false;
+                }
             });
         }
 

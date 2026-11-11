@@ -1,5 +1,6 @@
 <!-- 수주 자재 고르기 — 발주 등록의 [+ 수주 자재에서] ( 모달 본체 )
      - 확정 수주의 진행 중 줄 · 수주 자재의 주 자재 줄 ( 대체 자재는 빼고 ) — 서버 purchase.order.orderMaterials
+     - 반제품은 그 BOM 의 자재로 펼쳐서 보인다 ( 단계 제한 없음 · BOM 없는 반제품은 그대로 ) — 거쳐 온 반제품 = '경유'
      - 소요 = 개당 × 수주 수량 / 발주됨 = 그 수주 줄 · 자재로 이미 연결된 발주( 지금 고치는 발주는 빼고 — 화면에 있는 줄은 "담음" )
      - 남은 소요가 있는 줄만 ( [남은 소요 없는 줄도] 로 전부 ) · 현재고는 참고로만
      - [담기] : 고른 줄을 onPick 으로 넘긴다 ( 발주 줄은 수주 줄마다 따로 — 합치기는 나중 ) -->
@@ -59,6 +60,7 @@
                             {{ r.item_name }} <span class="text-gray-400">[{{ r.item_code }}]</span>
                             <span v-if="r.item_spec" class="ml-1 px-1 rounded bg-gray-100 text-gray-600">{{ r.item_spec }}</span>
                             <span v-if="inForm(r)" class="ml-1 text-[11px]">( 담음 )</span>
+                            <span v-if="r.via" class="block text-[11px] text-gray-400 truncate" :title="`경유 · ${r.via}`">경유 · {{ r.via }}</span>
                         </td>
                         <td class="px-2 py-1 text-right">{{ fmtNum(r.need_qty) }} <span class="text-gray-400">{{ r.spec_unit }}</span></td>
                         <td class="px-2 py-1 text-right">{{ fmtNum(r.ordered_qty) }}</td>
@@ -68,7 +70,7 @@
                 </tbody>
             </table>
         </div>
-        <p class="mt-1 text-xs text-gray-400">수량은 남은 소요로 채웁니다( 고칠 수 있음 ). 현재고는 참고용입니다 — 같은 재고를 여러 수주가 나눠 쓰므로 빼지 않습니다. 대체 자재는 대상이 아닙니다.</p>
+        <p class="mt-1 text-xs text-gray-400">수량은 남은 소요로 채웁니다( 고칠 수 있음 ). 현재고는 참고용입니다 — 같은 재고를 여러 수주가 나눠 쓰므로 빼지 않습니다. 대체 자재는 대상이 아닙니다. 반제품은 그 BOM 의 자재로 펼쳐 보여 줍니다.</p>
 
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">취소</BaseButton>

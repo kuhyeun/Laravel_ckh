@@ -55,7 +55,7 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
-import { usePage, router } from '@inertiajs/vue3';
+import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
 import { itemLabel, fmtNum } from '@core/Utils/format';
@@ -92,7 +92,7 @@ const statusCell = ({ value }) => value === 'CANCELED' ? `<span style="color:${C
 
 const common = [
     { name: 'occurred_at', width: 115, align: 'center', sortable: true },
-    { header: '등록', name: 'recorded_at', width: 110, align: 'center', sortable: true, formatter: ({ value }) => `<span style="color:${COLORS.gray400}">${value}</span>` },
+    { header: '등록', name: 'recorded_at', width: 120, align: 'center', sortable: true, formatter: ({ value }) => `<span style="color:${COLORS.gray400}">${value}</span>` },
     { header: '품목', name: 'item_code', minWidth: 140, escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '규격', name: 'item_spec', width: 110, escapeHTML: true },
     { header: '재질', name: 'item_material', width: 90, escapeHTML: true },
@@ -151,15 +151,15 @@ CONFIG.production = {
     rowHint: '행을 누르면 그 작업지시의 공정실적을 엽니다',
     list: R.productionList, cancel: null,
     columns: [
-        { header: '입고번호', name: 'txn_no', width: 125, sortable: true, className: 'cursor-pointer' },
-        { ...common[0], header: '입고일시', className: 'cursor-pointer' }, { ...common[1], className: 'cursor-pointer' },
-        { header: '작업지시', name: 'wo_no', width: 120, className: 'cursor-pointer', escapeHTML: true },
-        { header: '수주번호', name: 'order_no', width: 125, className: 'cursor-pointer', escapeHTML: true },
-        { ...common[2], className: 'cursor-pointer' }, { ...common[3], className: 'cursor-pointer' }, { ...common[4], className: 'cursor-pointer' }, { ...common[5], className: 'cursor-pointer' },
-        { header: '창고', name: 'warehouse_name', width: 90, className: 'cursor-pointer', escapeHTML: true },
-        { header: '수량', name: 'qty', width: 90, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => qtyText(row.qty, row.spec_unit, row.spec_value) },
-        { header: '처리자', name: 'user_name', width: 70, className: 'cursor-pointer', escapeHTML: true },
-        { header: '상태', name: 'status', width: 60, align: 'center', className: 'cursor-pointer', formatter: statusCell },
+        { header: '입고번호', name: 'txn_no', width: 125, sortable: true },
+        { ...common[0], header: '입고일시' }, { ...common[1] },
+        { header: '작업지시번호', name: 'wo_no', width: 120, escapeHTML: true },
+        { header: '수주번호', name: 'order_no', width: 125, escapeHTML: true },
+        { ...common[2] }, { ...common[3] }, { ...common[4] }, { ...common[5] },
+        { header: '창고', name: 'warehouse_name', width: 90, escapeHTML: true },
+        { header: '수량', name: 'qty', width: 90, align: 'right', formatter: ({ row }) => qtyText(row.qty, row.spec_unit, row.spec_value) },
+        { header: '처리자', name: 'user_name', width: 100, escapeHTML: true },
+        { header: '상태', name: 'status', width: 60, align: 'center', formatter: statusCell },
     ],
 };
 CONFIG.shipment = {
@@ -171,9 +171,9 @@ CONFIG.shipment = {
         { header: '고객사', name: 'partner_name', width: 130, escapeHTML: true },
         { header: '수주번호', name: 'order_no', width: 125, escapeHTML: true },
         common[2], common[3], common[4], common[5],
-        { header: '창고', name: 'warehouse_name', width: 90, escapeHTML: true },
+        { header: '창고', name: 'warehouse_name', width: 90, align: 'center', escapeHTML: true },
         { header: '수량', name: 'qty', width: 90, align: 'right', formatter: ({ row }) => qtyText(row.qty, row.spec_unit, row.spec_value) },
-        { header: '처리자', name: 'user_name', width: 70, escapeHTML: true },
+        { header: '처리자', name: 'user_name', align: 'center', width: 100, escapeHTML: true },
         { header: '상태', name: 'status', width: 60, align: 'center', formatter: statusCell },
     ],
 };
@@ -225,10 +225,6 @@ function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPag
 function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage(); }
 
 function onRowClick(row) {
-    if (props.type === 'production') {
-        if (row.work_order_idx) router.visit(`/production/op-result?wo=${row.work_order_idx}`);
-        return;
-    }
     askCancel(row);
 }
 

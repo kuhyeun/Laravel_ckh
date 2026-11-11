@@ -2,6 +2,7 @@
      - 좌 : 품목 목록 ( 활성 버전 표시 )  /  우 : 선택 품목의 버전 + 자재 줄
      - 변경 한 번이 버전 하나 → 버전 목록이 곧 변경 이력 ( 별도 이력 화면 없음 )
      - 승인은 관문이 아니라 기록 : 승인 없이도 활성 전환되고 경고만
+     - 정책 bom.activate_on_approve( 시스템 설정 · 기본 켬 ) : [승인] 하면 그 버전이 바로 활성 ( 끄면 승인은 기록만 )
      - 투입 지점은 라우팅의 "줄" ( 그 줄이 작업지시에 없으면 그 자재도 소요 없음 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
@@ -341,6 +342,7 @@ async function selectItem(it) {
         ]);
         if (!isLatest()) return;
         versions.value     = vRes.data.versions ?? [];
+        activateOnApprove.value = vRes.data.activate_on_approve !== false;
         routingLines.value = rRes.data.routingLines ?? [];
 
         // 활성 버전이 있으면 그것을, 없으면 첫 버전을 연다
@@ -420,8 +422,12 @@ async function newVersion() {
 async function refreshVersions() {
     const { data } = await window.axios.get(route('config.bom.versions', form.item_idx ?? selectedItem.value.item_idx));
     versions.value = data.versions ?? [];
+    activateOnApprove.value = data.activate_on_approve !== false;
     await loadItems();
 }
+
+// 정책 bom.activate_on_approve ( 시스템 설정 — 기본 켬 ) : 승인하면 바로 활성
+const activateOnApprove = ref(true);
 
 async function save() {
     saving.value = true;
@@ -490,16 +496,21 @@ async function activate() {
     }
 }
 
-// 승인 ( 활성 전환과 별개 · 기록 )
+// 승인 ( 기록 ) — 정책이 켜져 있으면 그 버전을 바로 활성으로 ( 이전 활성 버전은 비활성 )
 async function approve() {
-    const result = await showAlert('BOM 승인', `[ ${form.version} ]을(를) 승인합니다.\n승인 후 자재를 고치면 승인이 해제됩니다.`, 'question', 'confirm');
+    const willActivate = activateOnApprove.value && form.is_active !== 'Y';
+    const prev = willActivate ? versions.value.find(v => v.is_active === 'Y' && v.bom_idx !== form.bom_idx) : null;
+    const msg = willActivate
+        ? `[ ${form.version} ]을(를) 승인하고 활성으로 전환합니다.` + (prev ? `\n지금 활성인 [ ${prev.version} ]은(는) 비활성이 됩니다.` : '')
+        : `[ ${form.version} ]을(를) 승인합니다.`;
+    const result = await showAlert('BOM 승인', `${msg}\n승인 후 자재를 고치면 승인이 해제됩니다.`, 'question', 'confirm');
     if (!result.isConfirmed) return;
 
     try {
         const { data } = await window.axios.post(route('config.bom.approve'), { bom_idx: form.bom_idx });
-        form.approved_at = data.approved_at;
         await refreshVersions();
-        showFlash('승인되었습니다.');
+        await loadBom(form.bom_idx);
+        showFlash(data.activated ? '승인하고 활성으로 전환했습니다.' : '승인되었습니다.');
     } catch (e) {
         showFlash('승인에 실패했습니다', true);
     }

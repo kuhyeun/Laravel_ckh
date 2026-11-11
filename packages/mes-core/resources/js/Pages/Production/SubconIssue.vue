@@ -68,7 +68,9 @@ const TABS = [{ key: 'targets', label: '출고 대상' }, { key: 'issues', label
 const DATE_BASES = [{ value: 'issued', label: '출고 일시' }];
 const SEARCH_FIELDS = [{ value: 'wo_no', label: '지시번호' }, { value: 'item_code', label: '품번' }, { value: 'item_name', label: '품명' }];
 const blankFilters = () => ({ partner_idx: '', include_canceled: 'N' });
-const search = reactive({ date_basis: 'issued', from: '', to: '', keyword: '', search_field: '', ...blankFilters() });
+// 공정실적의 [외주 출고 →] 로 오면 ?wo_no= — 처음 조회부터 그 지시번호로 거른다 ( SearchBar 가 열릴 때 한 번 조회 )
+const fromWo = new URLSearchParams(window.location.search).get('wo_no') ?? '';
+const search = reactive({ date_basis: 'issued', from: '', to: '', keyword: fromWo, search_field: fromWo ? 'wo_no' : '', ...blankFilters() });
 const tab = ref('targets');
 const grid = ref(null);
 

@@ -64,6 +64,8 @@ const MATERIAL_COLUMNS = [
     qty('in_qty', '입고량'),
     qty('stock_qty', '현재고'),
     { header: '투입 지시', name: 'wo_count', width: 80, align: 'right', sortable: true, className: 'cursor-pointer', formatter: ({ value }) => value ? `${value}건` : '' },
+    // 수입검사 불합격 ( 재고에 안 잡힌 수량 — 11-10 )
+    { header: '입고 불량', name: 'defect_qty', width: 80, align: 'right', sortable: true, className: 'cursor-pointer', formatter: ({ value }) => value ? `<span style="color:${COLORS.red600}">${fmtNum(value)}</span>` : '' },
 ];
 const PRODUCT_COLUMNS = [
     { header: 'LOT', name: 'lot_no', width: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true },

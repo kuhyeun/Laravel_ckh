@@ -86,7 +86,8 @@ async function save() {
     } catch (e) {
         if (e.response?.status === 422) {
             errors.value = e.response.data.errors || {};
-            const shown = ['qty', 'warehouse_idx'];
+            // 칸 아래에 보이는 오류만 빼고 위에 모아 보인다 ( 창고 칸이 숨겨져 있으면 창고 오류도 위에 — 11-10 )
+            const shown = props.issue.is_last ? ['qty', 'warehouse_idx'] : ['qty'];
             errorMsg.value = Object.entries(errors.value).filter(([k]) => !shown.includes(k)).flatMap(([, v]) => v).join('\n');
         } else {
             errorMsg.value = e.response?.status === 403 ? '권한이 없습니다.' : '입고하지 못했습니다.';

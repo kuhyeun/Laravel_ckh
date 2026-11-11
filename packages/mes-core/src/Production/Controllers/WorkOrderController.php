@@ -66,14 +66,17 @@ class WorkOrderController extends Controller {
             'to'         => 'nullable|date_format:Y-m-d|after_or_equal:from',
             'keyword'    => 'nullable|string|max:100',
             'source'     => ['nullable', Rule::in(array_keys(WorkOrder::SOURCES))],
-            'status'     => ['nullable', Rule::in(array_merge(['OPEN'], array_keys(WorkOrder::STATUSES)))],
+            // OPEN = 대기 · 진행 / ACTIVE = 취소 제외( 목록 기본 — 11-10 · 취소된 줄도 목록에서 뺀다 ) / 그 밖 = 그 상태
+            'status'     => ['nullable', Rule::in(array_merge(['OPEN', 'ACTIVE'], array_keys(WorkOrder::STATUSES)))],
         ], [], ['from' => '시작일', 'to' => '종료일']);
+        $hideCanceled = ($v['status'] ?? null) === 'ACTIVE';
 
         $query = WorkOrderSheet::query()
             ->with([
                 'manager:account_idx,user_id,user_name',
                 'lines' => fn ($q) => $q->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no', 'sources.salesOrderLine.order:sales_order_idx,order_no'])
-                    ->withCount(['ops', 'ops as done_ops_count' => fn ($o) => $o->where('status', 'DONE')]),
+                    ->withCount(['ops', 'ops as done_ops_count' => fn ($o) => $o->where('status', 'DONE')])
+                    ->when($hideCanceled, fn ($l) => $l->where('status', '!=', 'CANCELED')),
             ])
             ->orderByDesc('sheet_idx');
 
@@ -82,8 +85,9 @@ class WorkOrderController extends Controller {
         if (!empty($v['to']))   $query->where($basis, '<=', $v['to']);
         if (!empty($v['source'])) $query->whereHas('lines', fn ($q) => $q->where('source', $v['source']));
         $status = $v['status'] ?? null;
-        if ($status === 'OPEN') $query->whereIn('status', ['WAIT', 'RUN']);
-        elseif ($status)        $query->where('status', $status);
+        if ($status === 'OPEN')       $query->whereIn('status', ['WAIT', 'RUN']);
+        elseif ($status === 'ACTIVE') $query->where('status', '!=', 'CANCELED');
+        elseif ($status)              $query->where('status', $status);
         $this->applyKeyword($query, $v['keyword'] ?? null, [
             'wo_no'     => fn ($q, $kw) => $q->where('sheet_no', 'like', $kw)->orWhereHas('lines', fn ($r) => $r->where('wo_no', 'like', $kw)),
             'item_code' => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_code', 'like', $kw)),
@@ -168,6 +172,9 @@ class WorkOrderController extends Controller {
             'ops'         => $routingIdx ? $this->opsFromRouting((int) $routingIdx) : [],
             'bom'         => $this->bomPreview($item->item_idx, !empty($v['sales_order_line_idx']) ? (int) $v['sales_order_line_idx'] : null),
             'scan_qty'    => (float) ($item->pack_qty ?: 1),
+            // 먼저 만들 하위 반제품 ( 깊은 것부터 · 개당 소요 · 현재고 ) — 화면의 "반제품 함께 지시"
+            'semi_parts'  => app(\MesCore\Production\Services\SemiPartService::class)
+                ->forProduct($item->item_idx, !empty($v['sales_order_line_idx']) ? (int) $v['sales_order_line_idx'] : null),
         ]);
     }
 
@@ -223,6 +230,9 @@ class WorkOrderController extends Controller {
             'lines.*.sources.*.sales_order_line_idx' => 'required|integer',
             'lines.*.sources.*.qty'                  => 'required|numeric|gt:0|max:999999999999',
             'lines.*.production_plan_idx'            => 'nullable|integer',   // 출처 생산계획 ( 계획에서 만든 지시 )
+            // 반제품 지시의 부모 ( 완제품 지시 ) : 저장된 줄이면 parent_work_order_idx · 같이 저장하는 새 줄이면 그 줄의 순번 parent_line
+            'lines.*.parent_work_order_idx'          => 'nullable|integer',
+            'lines.*.parent_line'                    => 'nullable|integer|min:0',
         ], [
             'lines.required'           => '품목 줄을 하나 이상 넣으세요.',
             'lines.min'                => '품목 줄을 하나 이상 넣으세요.',
@@ -258,13 +268,14 @@ class WorkOrderController extends Controller {
 
     // 품목 줄 하나 취소 — 대기 줄만
     public function cancelLine(Request $request) {
-        $v  = $request->validate(['work_order_idx' => 'required|integer']);
+        // with_semi : 이 줄을 부모로 둔 반제품 지시도 함께 취소 ( 화면이 물어본 뒤 )
+        $v  = $request->validate(['work_order_idx' => 'required|integer', 'with_semi' => 'nullable|boolean']);
         $wo = WorkOrder::find($v['work_order_idx']);
         if (!$wo) {
             return response()->json(['message' => 'NotFound'], 404);
         }
-        $this->sheets->cancelLine($wo);
-        return response()->json(['message' => 'Success', 'wo_no' => $wo->wo_no]);
+        $semi = $this->sheets->cancelLine($wo, !empty($v['with_semi']));
+        return response()->json(['message' => 'Success', 'wo_no' => $wo->wo_no, 'semi' => $semi]);
     }
 
     // ---- 내부 ----
@@ -406,6 +417,11 @@ class WorkOrderController extends Controller {
             'item_name'      => $w->item?->item_name,
             'item_spec'      => $w->item?->spec,
             'item_material'  => $w->item?->material,
+            'item_kind'      => $w->item?->item_kind,   // 반제품 줄 표시
+            // 반제품 지시의 부모 ( 어느 완제품 지시용 — 이력 )
+            'parent_work_order_idx' => $w->parent_work_order_idx,
+            'parent_wo_no'   => $w->parent?->wo_no,
+            'parent_item'    => $w->parent?->item ? \MesCore\Config\Models\Item::labelOf($w->parent->item) : null,
             'spec_unit'      => $w->item?->spec_unit,
             'routing_idx'    => $w->routing_idx,
             'bom_idx'        => $w->bom_idx,

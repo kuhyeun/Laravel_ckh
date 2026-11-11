@@ -18,9 +18,12 @@ export const woSourceLabel = (v) => WO_SOURCES.find(s => s.value === v)?.label ?
 export const woStatusLabel = (v) => WO_STATUSES.find(s => s.value === v)?.label ?? v ?? '';
 export const woStatusColor = (v) => WO_STATUSES.find(s => s.value === v)?.color ?? STATUS_COLOR.idle;
 
+// 작업지시 목록 상태 거르기 — 서버 WorkOrderController::list 와 맞출 것
+//   ACTIVE = 취소 제외 ( 목록 기본 — 취소된 지시는 지우지 않고 숨긴다 · 11-10 ) · OPEN = 미완료( 대기 + 진행 — '진행'( RUN )과 헷갈리지 않게 이름을 바꿈 )
 export const WO_STATUS_FILTER = [
-    { value: 'OPEN', label: '진행 중' },
-    { value: '',     label: '상태 전체' },
+    { value: '',       label: '상태 전체' },
+    { value: 'ACTIVE', label: '취소 제외' },
+    { value: 'OPEN',   label: '미완료 ( 대기 · 진행 )' },
     ...WO_STATUSES.map(s => ({ value: s.value, label: s.label })),
 ];
 

@@ -323,6 +323,14 @@ html.sidebar-collapsed #app-sidebar {
 }
 
 /* SweetAlert2 Styles */
+/* 본문 · 제목 줄바꿈 : 한글을 글자 단위가 아니라 띄어쓰기 단위로 ( "취소 / 합니다" 처럼 단어 중간에서 끊기지 않게 )
+   띄어쓰기 없는 긴 글자( 번호 · 경로 )는 칸을 넘을 때만 아무 데서나 끊는다 */
+.swal2-popup .swal2-html-container,
+.swal2-popup .swal2-title {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
 .swal2-container .swal2-toast * {
   cursor: pointer;
 }

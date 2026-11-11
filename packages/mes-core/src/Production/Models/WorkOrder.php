@@ -35,6 +35,7 @@ class WorkOrder extends Model {
     protected $fillable = [
         'sheet_idx', 'line_no', 'wo_no', 'source', 'item_idx', 'routing_idx', 'bom_idx', 'lot_idx', 'lot_rule_idx',
         'target_qty', 'scan_qty', 'start_date', 'due_date', 'status', 'approval_status', 'remark', 'production_plan_idx',
+        'parent_work_order_idx',   // 반제품 지시 → 그 반제품을 쓰는 완제품 지시 ( 수주 수량과 무관 )
     ];
 
     protected $attributes = [
@@ -57,6 +58,15 @@ class WorkOrder extends Model {
 
     public function item() {
         return $this->belongsTo(Item::class, 'item_idx', 'item_idx');
+    }
+
+    // 반제품 지시의 부모 ( 완제품 지시 ) · 완제품 지시의 반제품 지시들
+    public function parent() {
+        return $this->belongsTo(self::class, 'parent_work_order_idx', 'work_order_idx');
+    }
+
+    public function semiChildren() {
+        return $this->hasMany(self::class, 'parent_work_order_idx', 'work_order_idx');
     }
 
     public function lot() {

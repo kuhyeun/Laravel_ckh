@@ -20,7 +20,8 @@ use Illuminate\Support\Facades\DB;
  *     선의 source 가 위 ( 화면이 dagre TB 로 위에서 아래 배치 )
  *   아래 패널 : history( LOT 원장 ) · ops( 작업지시 공정 ) — 노드를 누를 때 부른다
  *   연결 : wo_stock( 지시 × 자재 LOT ) · work_order.lot_idx( 지시 = 제품 LOT ) · shipment_pick( 출하 LOT ) · stock_txn_line( 입고 ) · lot.parent_lot_idx( 잔재 )
- *   배지 : 공정 불량( defect PROCESS · SUBCON — 지시 공정 )만
+ *   배지 : 공정 불량( defect PROCESS · SUBCON — 지시 공정 ) · 입고 불량( defect INCOMING — 자재 LOT · 입고 줄 · 11-10 )
+ *     입고 불량은 재고에 안 잡혀 원장에 없다 → 목록 '입고 불량' 열 · 노드 배지 · [이력]에 '수입검사 불합격' 줄( 잔량 계산에는 안 넣음 )
  */
 class LotTraceController extends Controller {
     use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
@@ -29,7 +30,7 @@ class LotTraceController extends Controller {
     const MAX_DEPTH = 10;
     const MAX_NODES = 300;
 
-    const MATERIAL_SORTABLE = ['lot_no', 'item_code', 'partner_name', 'in_date', 'in_qty', 'stock_qty', 'wo_count'];
+    const MATERIAL_SORTABLE = ['lot_no', 'item_code', 'partner_name', 'in_date', 'in_qty', 'stock_qty', 'wo_count', 'defect_qty'];
     const PRODUCT_SORTABLE  = ['lot_no', 'item_code', 'wo_no', 'made_date', 'made_qty', 'stock_qty', 'shipped_qty', 'defect_qty'];
 
     public function __construct(private PolicyService $policy) {}
@@ -57,6 +58,8 @@ class LotTraceController extends Controller {
             ->selectRaw("(SELECT COALESCE(SUM(g.qty_delta), 0) FROM stock_ledger g WHERE g.lot_idx = t.lot_idx AND g.txn_type = 'IN_PURCHASE') as in_qty")
             ->selectRaw('(SELECT COALESCE(SUM(b.qty), 0) FROM stock_balance b WHERE b.lot_idx = t.lot_idx) as stock_qty')
             ->selectRaw('(SELECT COUNT(DISTINCT ws.work_order_idx) FROM wo_stock ws WHERE ws.lot_idx = t.lot_idx) as wo_count')
+            // 입고 불량 = 수입검사 불합격 ( defect INCOMING — 그 LOT · 취소 제외 ) — 재고에 안 잡혀 원장에는 없다
+            ->selectRaw("(SELECT COALESCE(SUM(d.qty), 0) FROM defect d WHERE d.lot_idx = t.lot_idx AND d.insp_type = 'INCOMING' AND d.is_canceled = 'N') as defect_qty")
             ->orderByDesc('t.lot_idx');
         $this->applyPeriod($query, $inDate, $v);
         $this->applyKeyword($query, $v['keyword'] ?? null, [
@@ -79,6 +82,7 @@ class LotTraceController extends Controller {
             'in_qty'          => (float) $r->in_qty,
             'stock_qty'       => (float) $r->stock_qty,
             'wo_count'        => (int) $r->wo_count,
+            'defect_qty'      => (float) $r->defect_qty,
         ]);
     }
 
@@ -291,6 +295,7 @@ class LotTraceController extends Controller {
             $produced = $this->producedBy($lots);
             $made     = DB::table('work_order')->whereIn('lot_idx', $lots)->where('status', '!=', 'CANCELED')->get(['lot_idx', 'work_order_idx'])->keyBy('lot_idx');
             $defects  = $this->defectsByWo($made->pluck('work_order_idx')->all());
+            $inDefect = $this->incomingDefectsByLot($lots);
             $rows = DB::table('lot as t')->join('item as i', 'i.item_idx', '=', 't.item_idx')->leftJoin('partner as pt', 'pt.partner_idx', '=', 't.partner_idx')
                 ->whereIn('t.lot_idx', $lots)
                 ->get(['t.lot_idx', 't.lot_no', 't.external_lot_no', 't.source', 't.in_at', 'i.item_code', 'i.item_name', 'i.item_kind', 'pt.partner_name'])->keyBy('lot_idx');
@@ -308,7 +313,9 @@ class LotTraceController extends Controller {
                         ? $this->join([$r->item_kind === 'SEMI' ? '반제품' : '', $date ? "생산 {$date}" : '생산 전', "재고 {$st}"])
                         : $this->join([$r->source === 'LEFTOVER' ? '잔재' : '', $r->partner_name, $r->external_lot_no ? "공급처 LOT {$r->external_lot_no}" : '', $date ? "입고 {$date}" : '검사대기']),
                     'qty'  => $isProd ? '생산 ' . $this->num($produced[$lot] ?? 0) : $this->join([isset($inQty[$lot]) ? '입고 ' . $this->num((float) $inQty[$lot]) : '', "재고 {$st}"]),
-                    'defect' => $wo ? ($defects[$wo->work_order_idx] ?? 0) : 0,
+                    // 제품 LOT = 만든 지시의 공정 불량 / 자재 LOT = 수입검사 불합격
+                    'defect' => $isProd ? ($wo ? ($defects[$wo->work_order_idx] ?? 0) : 0) : ($inDefect[$lot] ?? 0),
+                    'defect_label' => $isProd ? '공정 불량' : '입고 불량',
                     'lot_idx' => $lot, 'work_order_idx' => $wo ? (int) $wo->work_order_idx : null,
                 ];
             }
@@ -320,7 +327,7 @@ class LotTraceController extends Controller {
                 $nodes["W{$w->work_order_idx}"] = [
                     'id' => "W{$w->work_order_idx}", 'kind' => 'WO', 'title' => $w->wo_no, 'item' => trim("{$w->item_code} {$w->item_name}"),
                     'sub' => $this->woStatus($w->status) . ' · ' . substr((string) $w->start_date, 5, 5) . ' ~ ' . substr((string) $w->due_date, 5, 5),
-                    'qty' => '지시 ' . $this->num((float) $w->target_qty), 'defect' => $defects[$w->work_order_idx] ?? 0,
+                    'qty' => '지시 ' . $this->num((float) $w->target_qty), 'defect' => $defects[$w->work_order_idx] ?? 0, 'defect_label' => '공정 불량',
                     'work_order_idx' => (int) $w->work_order_idx,
                 ];
             }
@@ -348,6 +355,7 @@ class LotTraceController extends Controller {
                 $nodes["R{$r->stock_txn_line_idx}"] = [
                     'id' => "R{$r->stock_txn_line_idx}", 'kind' => 'RECEIPT', 'title' => $r->txn_no, 'item' => $r->partner_name,
                     'sub' => $this->join([substr((string) $r->occurred_at, 5, 5), $insp]), 'qty' => '',
+                    'defect' => (float) $r->fail_qty, 'defect_label' => '입고 불량',
                 ];
             }
         }
@@ -378,7 +386,7 @@ class LotTraceController extends Controller {
             ->orderBy('g.occurred_at')->orderBy('g.stock_ledger_idx')
             ->get(['g.stock_ledger_idx', 'g.occurred_at', 'g.txn_type', 'g.qty_delta', 'g.reverses_idx', 'x.txn_no', 'w.warehouse_name', 'pt.partner_name', 'wo.wo_no', 'x.remark']);
         $sum = 0.0;
-        return response()->json(['rows' => $rows->map(function ($r) use (&$sum) {
+        $ledger = $rows->map(function ($r) use (&$sum) {
             $sum += (float) $r->qty_delta;
             return [
                 'idx'            => $r->stock_ledger_idx,
@@ -392,7 +400,32 @@ class LotTraceController extends Controller {
                 'balance'        => round($sum, 6),
                 'remark'         => $r->remark,
             ];
-        })->values()]);
+        });
+
+        // 수입검사 불합격 ( 재고에 안 잡혀 원장에 없다 — 잔량 계산 밖 · 11-10 ) : 유형 · 사유 · 입고번호 · 구매처
+        $defects = DB::table('defect as d')
+            ->leftJoin('inspection as ins', 'ins.inspection_idx', '=', 'd.inspection_idx')
+            ->leftJoin('stock_txn_line as l', fn ($j) => $j->on('l.stock_txn_line_idx', '=', 'ins.ref_idx')->where('ins.ref_type', '=', 'stock_txn_line'))
+            ->leftJoin('stock_txn as x', 'x.stock_txn_idx', '=', 'l.stock_txn_idx')
+            ->leftJoin('partner as pt', 'pt.partner_idx', '=', 'd.partner_idx')
+            ->leftJoin('system_code as c', fn ($j) => $j->on('c.system_code_key', '=', 'd.defect_type_code')->where('c.system_code_group_key', '=', 'DEFECT_TYPE'))
+            ->where('d.lot_idx', $v['lot_idx'])->where('d.insp_type', 'INCOMING')->where('d.is_canceled', 'N')
+            ->get(['d.defect_idx', 'd.occurred_at', 'd.qty', 'd.reason', 'x.txn_no', 'pt.partner_name', 'c.system_code_name as type_name'])
+            ->map(fn ($d) => [
+                'idx'            => 'D' . $d->defect_idx,
+                'occurred_at'    => substr((string) $d->occurred_at, 0, 16),
+                'type_label'     => '수입검사 불합격',
+                'txn_no'         => $d->txn_no,
+                'warehouse_name' => null,
+                'partner_name'   => $d->partner_name,
+                'wo_no'          => null,
+                'qty'            => (float) $d->qty,
+                'balance'        => null,
+                'remark'         => trim(($d->type_name ?? '') . ($d->reason ? ' · ' . $d->reason : ''), ' ·'),
+                'is_defect'      => true,
+            ]);
+
+        return response()->json(['rows' => $ledger->concat($defects)->sortBy('occurred_at')->values()]);
     }
 
     // 작업지시 공정 ( 실적 · 미달 · 외주 · 공정 불량 )
@@ -425,6 +458,13 @@ class LotTraceController extends Controller {
     }
 
     // ---- 도움 ----
+
+    /** @return array<int,float> 자재 LOT → 입고 불량 수량 ( 수입검사 불합격 · 취소 제외 ) */
+    private function incomingDefectsByLot(array $lotIdxs): array {
+        if (!$lotIdxs) return [];
+        return DB::table('defect')->where('is_canceled', 'N')->where('insp_type', 'INCOMING')->whereIn('lot_idx', $lotIdxs)
+            ->groupBy('lot_idx')->selectRaw('lot_idx, SUM(qty) as n')->pluck('n', 'lot_idx')->map(fn ($n) => (float) $n)->all();
+    }
 
     /** @return array<int,float> 지시 → 공정 불량 수량 ( 공정검사 · 외주 검사 ) */
     private function defectsByWo(array $woIdxs): array {

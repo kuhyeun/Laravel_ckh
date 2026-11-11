@@ -359,7 +359,7 @@ const isEdit = computed(() => !!props.item?.item_idx);
 const TABS = [
     { key: 'basic', label: '기본' },
     { key: 'routing', label: '공정' },
-    { key: 'stock', label: '재고·발주' },
+    // { key: 'stock', label: '재고·발주' }, // 발주 주기, 포장 관련 상세 내용이 포함되어있으나, 현재는 기능이 없으므로 숨김 처리
     { key: 'price', label: '단가' },
     { key: 'extra', label: '추가정보' },
     { key: 'files', label: '첨부' },
