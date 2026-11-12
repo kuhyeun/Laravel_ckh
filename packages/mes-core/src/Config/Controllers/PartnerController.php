@@ -298,7 +298,7 @@ class PartnerController extends Controller {
     private function toPayload(Partner $partner): array {
         $data = $partner->only([
             'partner_idx', 'partner_code', 'partner_name', 'is_supplier', 'is_customer', 'is_subcon',
-            'biz_no', 'ceo_name', 'is_use', 'remark', 'create_datetime', 'update_datetime',
+            'biz_no', 'ceo_name', 'address', 'tel', 'is_use', 'remark', 'create_datetime', 'update_datetime',
         ]);
 
         $data['sites'] = $partner->sites->map(fn ($s) => [

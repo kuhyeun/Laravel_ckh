@@ -7,6 +7,10 @@
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 헤더 -->
         <div class="flex items-center gap-1 pb-2 shrink-0">
+            <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
+            <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0 || deleting" @click="deleteChecked">
+                삭제
+            </BaseButton>
             <ExcelImportButton
                 v-if="canWrite"
                 layout="item.import"
@@ -16,10 +20,6 @@
                 filename="품목_일괄등록"
                 :on-done="onImported"
             />
-            <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
-            <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0 || deleting" @click="deleteChecked">
-                삭제
-            </BaseButton>
         </div>
 
         <!-- 검색바 -->
@@ -30,8 +30,8 @@
                 placeholder="품번 · 품명"
                 @keyup.enter="loadItems"
             />
-            <BaseSelect v-model="search.item_type" :options="typeFilterOptions" class="w-32" size="sm" />
-            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="sm" />
+            <BaseSelect v-model="search.item_type" :options="typeFilterOptions" class="w-32" size="md" />
+            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="md" />
             <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="loadItems">조회</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="resetSearch">초기화</BaseButton>
         </div>

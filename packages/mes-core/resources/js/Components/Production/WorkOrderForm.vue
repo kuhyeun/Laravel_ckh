@@ -48,7 +48,7 @@
                 </div>
                 <div class="col-span-6">
                     <label class="lbl">비고</label>
-                    <textarea v-model="sheet.remark" rows="1" class="base-input w-full resize-y" :disabled="!sheetEditable"></textarea>
+                    <textarea v-model="sheet.remark" rows="1" class="base-input w-full" :class="!sheetEditable ? 'resize-none': 'resize-y'" :disabled="!sheetEditable"></textarea>
                 </div>
             </div>
 

@@ -167,6 +167,9 @@ class ShipmentService {
                 'partner_idx' => $data['partner_idx'],
                 'plan_date'   => $data['plan_date'],
                 'remark'      => $data['remark'] ?? null,
+                'manager_name'        => $data['manager_name'] ?? null,
+                'site_idx'            => $data['site_idx'] ?? null,
+                'ship_address'        => $data['ship_address'] ?? null,
             ]);
             if (!$s->exists) {
                 $s->shipment_no = $this->nextNo(now());

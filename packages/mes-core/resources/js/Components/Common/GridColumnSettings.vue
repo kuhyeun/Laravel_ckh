@@ -30,10 +30,10 @@
                         <td class="px-2 py-1 text-center">
                             <input type="checkbox" class="row-check accent-blue-600" :checked="!c.hidden" :disabled="c.lockHide" :title="c.lockHide ? '꼭 있어야 하는 열입니다' : ''" @change="c.hidden = !$event.target.checked" />
                         </td>
-                        <td class="px-2 py-1"><BaseInput v-model="c.header" size="sm" class="w-full" :placeholder="c.origHeader" maxlength="50" /></td>
+                        <td class="px-2 py-1"><BaseInput v-model="c.header" size="md" class="w-full" :placeholder="c.origHeader" maxlength="50" /></td>
                         <td class="px-2 py-1 text-xs text-gray-400 truncate" :title="c.origHeader">{{ c.origHeader }}</td>
                         <td class="px-2 py-1">
-                            <BaseInput v-model="c.width" type="number" min="20" size="sm" class="w-full text-right" :placeholder="c.origWidth ? String(c.origWidth) : '자동'" :class="widthBad(c) ? 'border-red-400' : ''" />
+                            <BaseInput v-model="c.width" type="number" min="20" size="md" class="w-full text-right" :placeholder="c.origWidth ? String(c.origWidth) : '자동'" :class="widthBad(c) ? 'border-red-400' : ''" />
                         </td>
                         <td class="px-2 py-1 text-center whitespace-nowrap">
                             <span class="cursor-grab text-gray-300 mr-1" title="끌어서 옮기기">⠿</span>

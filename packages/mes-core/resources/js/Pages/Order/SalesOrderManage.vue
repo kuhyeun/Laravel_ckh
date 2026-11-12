@@ -9,8 +9,8 @@
         <!-- 헤더 -->
         <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
-            <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!checkedRows.length || busy" @click="closeChecked">마감</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="!checkedRows.length || busy" @click="deleteChecked">삭제</BaseButton>
+            <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!checkedRows.length || busy" @click="closeChecked">마감</BaseButton>
         </div>
 
         <!-- 검색바 ( CMP-02 ) -->
@@ -132,6 +132,8 @@ const columns = [
       formatter: ditto(r => r.order_date ?? '') },
     { header: '고객사', name: 'partner_name', width: 140, sortable: true, className: 'cursor-pointer',
       formatter: ditto(r => escapeHtml(r.partner_name)) },
+    { header: '고객 발주번호', name: 'customer_po_no', width: 130, className: 'cursor-pointer',
+      formatter: ditto(r => escapeHtml(r.customer_po_no)) },
     { header: '수주명', name: 'order_name', minWidth: 150, className: 'cursor-pointer',
       formatter: ditto(r => escapeHtml(r.order_name)) },
     { header: '품목', name: 'item_summary', minWidth: 200, className: 'cursor-pointer', escapeHTML: true,
@@ -150,6 +152,8 @@ const columns = [
           if (!d) return '';
           return open && d < todayStr() ? `<span style="color:${COLORS.red600}">${d}</span>` : d;
       } },
+    { header: '담당자', name: 'manager_name', width: 80, align: 'center', className: 'cursor-pointer',
+      formatter: ditto(r => escapeHtml(r.manager_name)) },
     { header: '상태', name: 'status', width: 80, align: 'center', className: 'cursor-pointer',
       formatter: ({ row }) => row.is_line
           ? `<span style="color:${COLORS.gray500}">${lineStatusLabel(row.line_status)}</span>`
@@ -212,6 +216,7 @@ const exportColumns = [
     { header: '수주번호', name: 'order_no' },
     { header: '수주일', name: 'order_date' },
     { header: '고객사', name: 'partner_name' },
+    { header: '고객 발주번호', name: 'customer_po_no' },
     { header: '수주명', name: 'order_name' },
     { header: '품번', name: 'item_code' },
     { header: '품명', name: 'item_name' },
@@ -222,6 +227,8 @@ const exportColumns = [
     { header: '단가', name: 'unit_price' },
     { header: '금액', name: 'amount' },
     { header: '납품일', name: 'due_date' },
+    { header: '비고', name: 'remark' },
+    { header: '담당자', name: 'manager_name' },
     { header: '상태', name: 'status_label' },
 ];
 async function exportRows() {

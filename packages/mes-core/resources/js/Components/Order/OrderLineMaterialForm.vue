@@ -69,26 +69,26 @@
                                     <p v-if="bomNote(l).text" class="mt-0.5 text-[11px] text-blue-600">{{ bomNote(l).text }}</p>
                                     <div v-else class="mt-1 flex items-center gap-1.5 text-[11px] text-blue-600">
                                         <span class="shrink-0">품목 BOM :</span>
-                                        <BaseSelect :model-value="l.item_bom_target || String(itemBomLines[0].idx)" :options="bomTargetOptions" size="sm" class="flex-1"
+                                        <BaseSelect :model-value="l.item_bom_target || String(itemBomLines[0].idx)" :options="bomTargetOptions" size="md" class="flex-1"
                                             @update:model-value="v => l.item_bom_target = v" />
                                     </div>
                                 </template>
                             </td>
                             <td class="px-1.5 py-1">
-                                <SpecPicker v-model="l.child_item_spec" size="sm" :options="specOptions(l)" :new-hint="newSpecHint" :disabled="ro || !l.child_item_idx" placeholder="규격"
+                                <SpecPicker v-model="l.child_item_spec" size="md" :options="specOptions(l)" :new-hint="newSpecHint" :disabled="ro || !l.child_item_idx" placeholder="규격"
                                     @open="loadSpecs(l.child_item_code)" @commit="v => onSpecCommit(l, v)" />
                             </td>
                             <td class="px-1.5 py-1">
-                                <BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="ro" />
+                                <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="ro" />
                                 <p v-if="err(i, 'qty')" class="text-[11px] text-red-500">{{ err(i, 'qty') }}</p>
                             </td>
                             <td class="px-1.5 py-1">
-                                <BaseSelect v-model="l._routing_rk" :options="routingOptions" size="sm" class="w-full" :disabled="ro" />
+                                <BaseSelect v-model="l._routing_rk" :options="routingOptions" size="md" class="w-full" :disabled="ro" />
                             </td>
-                            <td v-if="SHOW_CALC" class="px-1.5 py-1"><BaseInput v-model="l.calc_code" size="sm" class="w-full" placeholder="예: BAR_CUT" :disabled="ro" /></td>
-                            <td v-if="SHOW_CALC" class="px-1.5 py-1"><BaseInput v-model="l.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="ro" /></td>
-                            <td v-if="!ro" class="px-1.5 py-1 text-center">
-                                <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="자재 삭제" @click="lines.splice(i, 1)">✕</button>
+                            <td v-if="SHOW_CALC" class="px-1.5 py-1"><BaseInput v-model="l.calc_code" size="md" class="w-full" placeholder="예: BAR_CUT" :disabled="ro" /></td>
+                            <td v-if="SHOW_CALC" class="px-1.5 py-1"><BaseInput v-model="l.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="ro" /></td>
+                            <td v-if="!ro" class="px-1.5 text-center py-1 leading-9">
+                                <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="자재 삭제" @click="lines.splice(i, 1)">✕</button>
                             </td>
                         </tr>
                         <tr v-if="SHOW_SUBS && open.has(keyOf(l))" class="bg-gray-50/70">
@@ -108,7 +108,7 @@
                                     <tbody>
                                         <tr v-if="!l.substitutes.length"><td :colspan="(ro ? 5 : 6) + (SHOW_CALC ? 2 : 0)" class="py-1 text-gray-400">대체 자재가 없습니다.</td></tr>
                                         <tr v-for="(sub, j) in l.substitutes" :key="keyOf(sub)" class="align-top">
-                                            <td class="py-1 text-gray-300">└</td>
+                                            <td class="text-gray-300 py-1 leading-9">└</td>
                                             <td class="pr-1.5 py-1">
                                                 <ItemPicker v-model="sub.child_item_idx" :remote="MATERIAL_ONLY" :exclude="[itemIdx, l.child_item_idx]" placeholder="대체 자재 선택" :can-create="canCreate" :disabled="ro"
                                                     :current="{ item_code: sub.child_item_code, item_name: sub.child_item_name, spec: sub._item_spec }" @select="it => applyItem(sub, it)" />
@@ -116,18 +116,18 @@
                                                 <p v-else-if="!ro && itemBomLoaded && sub.child_item_idx && !itemBomIds.has(Number(sub.child_item_idx))" class="text-[11px] text-blue-600">품목 BOM 에도 대체 자재로 추가됩니다.</p>
                                             </td>
                                             <td class="pr-1.5 py-1">
-                                                <SpecPicker v-model="sub.child_item_spec" size="sm" :options="specOptions(sub)" :new-hint="newSpecHint" :disabled="ro || !sub.child_item_idx" placeholder="규격"
+                                                <SpecPicker v-model="sub.child_item_spec" size="md" :options="specOptions(sub)" :new-hint="newSpecHint" :disabled="ro || !sub.child_item_idx" placeholder="규격"
                                     @open="loadSpecs(sub.child_item_code)" @commit="v => onSpecCommit(sub, v)" />
                                             </td>
                                             <td class="pr-1.5 py-1">
-                                                <BaseInput v-model="sub.qty" type="number" min="0" size="sm" class="w-full text-right" placeholder="소요" :disabled="ro" />
+                                                <BaseInput v-model="sub.qty" type="number" min="0" size="md" class="w-full text-right" placeholder="소요" :disabled="ro" />
                                                 <p v-if="subErr(i, j, 'qty')" class="text-[11px] text-red-500">{{ subErr(i, j, 'qty') }}</p>
                                             </td>
-                                            <td class="pr-1.5 py-1 text-gray-400">투입 공정은 주 자재와 같음</td>
-                                            <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="sm" class="w-full" placeholder="계산식" :disabled="ro" /></td>
-                                            <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="ro" /></td>
-                                            <td v-if="!ro" class="py-1 text-center">
-                                                <button type="button" class="px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
+                                            <td class="pr-1.5 text-gray-400 py-1 leading-9">투입 공정은 주 자재와 같음</td>
+                                            <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="md" class="w-full" placeholder="계산식" :disabled="ro" /></td>
+                                            <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="ro" /></td>
+                                            <td v-if="!ro" class="text-center py-1 leading-9">
+                                                <button type="button" class="inline-flex items-center h-9 align-top px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
                                             </td>
                                         </tr>
                                     </tbody>

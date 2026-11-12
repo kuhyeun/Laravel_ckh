@@ -41,6 +41,29 @@ class SystemCodeSeeder extends Seeder {
                 'ACCT'  => '회계담당',
             ],
         ],
+        'DEPT' => [
+            'name'  => '부서',
+            'desc'  => '사용자 부서 ( 사용자관리 )',
+            'codes' => [
+                'SALES'   => '영업팀',
+                'PROD'    => '생산팀',
+                'ACCT'    => '회계팀',
+                'QUALITY' => '품질팀',
+            ],
+        ],
+        'POSITION' => [
+            'name'  => '직급',
+            'desc'  => '사용자 직급 ( 사용자관리 — 배열 순서 = 높은 직급부터 )',
+            'codes' => [
+                'CEO'   => '사장',
+                'VP'    => '부사장',
+                'GM'    => '부장',
+                'MGR'   => '과장',
+                'AM'    => '대리',
+                'SUP'   => '주임',
+                'STAFF' => '사원',
+            ],
+        ],
         'ATTACH_TYPE' => [
             'name'  => '첨부 구분',
             'desc'  => '첨부파일 구분 ( attachment.category_code )',

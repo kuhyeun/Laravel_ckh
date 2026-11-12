@@ -1,7 +1,8 @@
-<!-- LOT 입출고 이력 ( INV-01 행 클릭 — INV-02 의 최소형 ) — 원장 행을 그대로, 집계 없음
+<!-- 입출고 이력 ( INV-01 행 클릭 — INV-02 의 최소형 ) — 원장 행을 그대로, 집계 없음
+     - 최근 것부터 페이지로 ( 50줄씩 — 11-12 ) · 누계는 그 행까지의 합
      - 아래 [입고] · [출고] · [창고이동] · [재고조정]이 처리 창을 연다 ( 그 메뉴 쓰기 권한이 있을 때 — 입고 = 입고관리 · 출고 = 출고관리 )
      - 발생 시각( 업무 순서 ) · 등록 시각( 전산 입력 ) 둘 다 보여 준다 ( 재고-수불-설계 §4.3 )
-     - 누계는 화면이 행을 따라 더한 값 ( 원장 GROUP BY 아님 ) -->
+     - 누계는 서버가 행을 따라 더한 값 ( 원장 GROUP BY 아님 ) -->
 <template>
     <div class="mt-3 text-sm">
         <p class="text-gray-600 mb-2">{{ title }}</p>
@@ -34,7 +35,15 @@
                 </tbody>
             </table>
         </div>
-        <p v-if="truncated" class="text-xs text-amber-600 mt-1">최근 500줄만 보입니다. ( 누적은 앞의 이력부터 이어서 계산 )</p>
+        <div v-if="!loading && !error" class="flex items-center gap-2 mt-1.5 text-xs text-gray-500">
+            <span>최근 것부터 · 총 <b class="text-gray-700">{{ fmtNum(paging.total) }}</b> 건</span>
+            <div class="flex-1"></div>
+            <template v-if="lastPage > 1">
+                <button type="button" class="px-2 py-0.5 rounded border hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent" :disabled="paging.page <= 1" @click="go(paging.page - 1)">‹ 이전</button>
+                <span class="whitespace-nowrap">{{ paging.page }} / {{ lastPage }}</span>
+                <button type="button" class="px-2 py-0.5 rounded border hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-transparent" :disabled="paging.page >= lastPage" @click="go(paging.page + 1)">다음 ›</button>
+            </template>
+        </div>
         <p class="text-xs text-gray-400 mt-1">취소된 입출고는 줄을 그어 보이고, 되돌린 행( 취소 )이 따로 있습니다.</p>
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
             <!-- 진입점 ( 화면목록 §5-2 ) — 처리는 각 화면의 창이 한다 -->
@@ -49,7 +58,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
@@ -75,25 +84,32 @@ const emit = defineEmits(['close']);
 const KEEP_OPEN = ['receipt', 'issue', 'label'];
 function act(type) {
     if (!KEEP_OPEN.includes(type)) emit('close');
-    props.onAction?.(type, load);
+    props.onAction?.(type, () => go(1));   // 처리한 행은 맨 앞 페이지에
 }
 
 const loading   = ref(true);
 const error     = ref('');
 const rows      = ref([]);
-const truncated = ref(false);
+const paging    = reactive({ page: 1, perPage: 50, total: 0 });
+const lastPage  = computed(() => Math.max(1, Math.ceil(paging.total / paging.perPage)));
 
 onMounted(load);
+
+function go(p) {
+    paging.page = p;
+    load();
+}
 
 async function load() {
     loading.value = true;
     error.value   = '';
     try {
-        const params = { item_idx: props.itemIdx, lot_idx: props.lotIdx };
+        const params = { item_idx: props.itemIdx, lot_idx: props.lotIdx, page: paging.page, per_page: paging.perPage };
         if (props.warehouseIdx) params.warehouse_idx = props.warehouseIdx;
         const { data } = await window.axios.get(route(STOCK_ROUTES[props.scope].history), { params });
-        rows.value      = data.rows ?? [];
-        truncated.value = data.truncated === true;
+        rows.value   = data.rows ?? [];
+        paging.page  = data.pagination?.page ?? 1;
+        paging.total = data.pagination?.total ?? rows.value.length;
     } catch (e) {
         error.value = '이력을 불러오지 못했습니다.';
     } finally {

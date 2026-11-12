@@ -20,6 +20,8 @@ class PartnerRules {
         'is_subcon'    => '외주처',
         'biz_no'       => '사업자번호',
         'ceo_name'     => '대표자',
+        'address'      => '주소',
+        'tel'          => '전화번호',
         'is_use'       => '사용 여부',
         'remark'       => '비고',
     ];
@@ -33,6 +35,8 @@ class PartnerRules {
             'is_subcon'    => 'required|in:Y,N',
             'biz_no'       => 'nullable|string|max:20',
             'ceo_name'     => 'nullable|string|max:50',
+            'address'      => 'nullable|string|max:200',
+            'tel'          => 'nullable|string|max:30',
             'is_use'       => 'required|in:Y,N',
             'remark'       => 'nullable|string|max:2000',
         ];

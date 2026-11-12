@@ -33,7 +33,7 @@ class WorkOrder extends Model {
     ];
 
     protected $fillable = [
-        'sheet_idx', 'line_no', 'wo_no', 'source', 'item_idx', 'routing_idx', 'bom_idx', 'lot_idx', 'lot_rule_idx',
+        'sheet_idx', 'line_no', 'wo_no', 'source', 'item_idx', 'routing_idx', 'bom_idx', 'lot_idx', 'lot_rule_idx', 'lot_mode',
         'target_qty', 'scan_qty', 'start_date', 'due_date', 'status', 'approval_status', 'remark', 'production_plan_idx',
         'parent_work_order_idx',   // 반제품 지시 → 그 반제품을 쓰는 완제품 지시 ( 수주 수량과 무관 )
     ];
@@ -67,6 +67,14 @@ class WorkOrder extends Model {
 
     public function semiChildren() {
         return $this->hasMany(self::class, 'parent_work_order_idx', 'work_order_idx');
+    }
+
+    // 실적마다 LOT ( RUN 방식 — 지시 LOT 없음 · docs/실적LOT-설계.md )
+    const LOT_MODE_WO  = 'WO';
+    const LOT_MODE_RUN = 'RUN';
+
+    public function isRunLot(): bool {
+        return $this->lot_mode === self::LOT_MODE_RUN;
     }
 
     public function lot() {

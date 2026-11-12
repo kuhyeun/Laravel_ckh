@@ -78,6 +78,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::get('/list', [OpResultController::class, 'list'])->name('list');
             Route::get('/show/{woIdx}', [OpResultController::class, 'show'])->whereNumber('woIdx')->name('show');
             Route::get('/formData', [OpResultController::class, 'formData'])->name('formData');
+            Route::get('/inputCandidates', [OpResultController::class, 'inputCandidates'])->name('inputCandidates');
             // 원자재출고 공정의 [출고] — 자재출고와 같은 처리를 공정실적 권한으로
             Route::get('/issuePlan/{woIdx}', [MaterialIssueController::class, 'plan'])->whereNumber('woIdx')->name('issuePlan');
             Route::get('/issueHistory/{woIdx}', [MaterialIssueController::class, 'history'])->whereNumber('woIdx')->name('issueHistory');
@@ -85,6 +86,9 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
         });
         Route::middleware($write)->group(function() {
             Route::post('/addRun', [OpResultController::class, 'addRun'])->name('addRun');
+            // 투입 LOT ( 공정 LOT 추적 — 실적LOT-설계 §5 ) : 나중에 더하기 · 해제
+            Route::post('/addInputs', [OpResultController::class, 'addInputs'])->name('addInputs');
+            Route::post('/cancelInput', [OpResultController::class, 'cancelInput'])->name('cancelInput');
             Route::post('/complete', [OpResultController::class, 'complete'])->name('complete');
             Route::post('/issueSave', [MaterialIssueController::class, 'save'])->name('issueSave');
             Route::post('/returnSave', [MaterialIssueController::class, 'returnSave'])->name('returnSave');
@@ -106,6 +110,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::middleware($auth('SubconIssue', 'can_read'))->group(function() {
                 Route::get('/formData', [SubconController::class, 'formData'])->name('formData');
                 Route::get('/candidates', [SubconController::class, 'candidates'])->name('candidates');
+                Route::get('/inputCandidates', [SubconController::class, 'inputCandidates'])->name('inputCandidates');   // 내보낼 LOT ( 공정 LOT 추적 )
                 Route::get('/issues', [SubconController::class, 'issues'])->name('issues');
             });
             Route::post('/save', [SubconController::class, 'issue'])->middleware($auth('SubconIssue', 'can_write'))->name('save');

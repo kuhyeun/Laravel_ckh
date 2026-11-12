@@ -19,7 +19,7 @@ class Lot extends Model {
     const UPDATED_AT = 'update_datetime';
 
     protected $fillable = [
-        'item_idx', 'lot_no', 'external_lot_no', 'partner_idx', 'spec_value', 'parent_lot_idx',
+        'item_idx', 'lot_no', 'external_lot_no', 'heat_no', 'partner_idx', 'spec_value', 'parent_lot_idx',
         'source', 'lot_rule_idx', 'in_at',
     ];
 

@@ -71,7 +71,7 @@ class RoutingController extends Controller {
 
     // 라우팅 화면의 공정 선택지 ( 공정관리 권한 없이도 고를 수 있도록 라우팅 권한으로 제공 )
     public function processOptions() {
-        $processes = Process::select('process_idx', 'process_code', 'process_name', 'process_type', 'class_code', 'is_system')
+        $processes = Process::select('process_idx', 'process_code', 'process_name', 'process_type', 'class_code', 'is_system', 'system_key')
             ->where('is_use', 'Y')
             ->orderByRaw("CASE WHEN is_system = 'Y' THEN 0 ELSE 1 END")
             ->orderBy('process_code')

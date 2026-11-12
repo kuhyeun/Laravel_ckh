@@ -39,7 +39,7 @@
                 </div>
                 <div class="col-span-2">
                     <label class="block text-gray-500 font-medium mb-1">고객사 <span class="text-red-500">*</span></label>
-                    <PartnerSelect v-model="form.partner_idx" :options="ctx.partners" class="w-full" placeholder="고객사 선택" :current="{ partner_name: form.partner_name }" :disabled="!editable || lines.some(l => l.sales_order_line_idx)" />
+                    <PartnerSelect v-model="form.partner_idx" :options="ctx.partners" class="w-full" placeholder="고객사 선택" :current="{ partner_name: form.partner_name }" :disabled="!editable || lines.some(l => l.sales_order_line_idx)" @update:model-value="onPartnerChange" />
                     <p v-if="errors.partner_idx" class="text-xs text-red-500 mt-0.5">{{ errors.partner_idx[0] }}</p>
                 </div>
                 <div>
@@ -50,6 +50,21 @@
                 <div class="col-span-2">
                     <label class="block text-gray-500 font-medium mb-1">비고</label>
                     <BaseInput v-model="form.remark" class="w-full" maxlength="1000" :disabled="!editable" />
+                </div>
+                <div>
+                    <label class="block text-gray-500 font-medium mb-1">출하 담당자</label>
+                    <BaseInput v-model="form.manager_name" class="w-full" maxlength="50" :disabled="!editable" />
+                    <p v-if="errors.manager_name" class="text-xs text-red-500 mt-0.5">{{ errors.manager_name[0] }}</p>
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-gray-500 font-medium mb-1">출고지</label>
+                    <BaseSelect v-model="form.site_idx" :options="siteOptions" class="w-full" :disabled="!editable || !form.partner_idx" @update:model-value="onSiteChange" />
+                    <p v-if="errors.site_idx" class="text-xs text-red-500 mt-0.5">{{ errors.site_idx[0] }}</p>
+                </div>
+                <div class="col-span-3">
+                    <label class="block text-gray-500 font-medium mb-1">주소</label>
+                    <BaseInput v-model="form.ship_address" class="w-full" maxlength="200" placeholder="출고지를 고르면 그 주소로 채웁니다" :disabled="!editable" />
+                    <p v-if="errors.ship_address" class="text-xs text-red-500 mt-0.5">{{ errors.ship_address[0] }}</p>
                 </div>
             </div>
 
@@ -104,10 +119,10 @@
                         <button v-if="l.shipment_line_idx && !dirty && (l.inspect_required || l.inspect_status !== 'NONE')" type="button"
                             class="text-xs text-blue-700 hover:underline" @click="openInspection(l)">검사</button>
                         <label class="text-xs text-gray-500">출하</label>
-                        <BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-24 text-right" :disabled="!editable" @update:modelValue="fillFifo(l)" />
+                        <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-24 text-right" :disabled="!editable" @update:modelValue="fillFifo(l)" />
                         <span class="text-xs text-gray-500 w-8">{{ l.spec_unit }}</span>
                         <label class="text-xs text-gray-500" title="거래명세서 단가 — 기본 = 수주 단가 · 품목 기준가">단가</label>
-                        <BaseInput v-model="l.unit_price" type="number" min="0" size="sm" class="w-24 text-right" :disabled="!editable" />
+                        <BaseInput v-model="l.unit_price" type="number" min="0" size="md" class="w-24 text-right" :disabled="!editable" />
                         <button v-if="editable" type="button" class="text-gray-400 hover:text-red-500" title="줄 빼기" @click="lines.splice(i, 1)">✕</button>
                     </div>
                     <p v-if="lineErr(i)" class="px-3 py-1 text-xs text-red-500">{{ lineErr(i) }}</p>
@@ -134,7 +149,7 @@
                                         <td class="px-1 text-right text-gray-500">{{ c.reserved ? fmtNum(c.reserved) : '' }}</td>
                                         <td class="px-1 text-right font-semibold">{{ fmtNum(c.available) }}</td>
                                         <td class="px-1 py-0.5">
-                                            <BaseInput v-model="c.fill" type="number" min="0" size="sm" class="w-full text-right"
+                                            <BaseInput v-model="c.fill" type="number" min="0" size="md" class="w-full text-right"
                                                 :class="num(c.fill) > c.available + 1e-9 ? '!border-red-400 !text-red-600' : ''" :disabled="!editable" />
                                         </td>
                                     </tr>
@@ -159,13 +174,13 @@
             <template v-if="form.status === 'WAIT' && !dirty && form.shipment_idx">
                 <BaseButton v-if="canWrite && ['APPROVAL_NEED', 'REJECTED'].includes(form.stage)" variant="secondary" :disabled="busy" @click="act('requestApproval', '결재를 요청했습니다.')">결재 요청</BaseButton>
                 <template v-if="canDelete && form.stage === 'APPROVAL_PENDING'">
-                    <BaseInput v-model="rejectReason" size="sm" class="w-40" placeholder="반려 사유" maxlength="200" />
+                    <BaseInput v-model="rejectReason" size="md" class="w-40" placeholder="반려 사유" maxlength="200" />
                     <BaseButton variant="danger" :disabled="busy" @click="reject">반려</BaseButton>
                     <BaseButton variant="primary" :disabled="busy" @click="act('approve', '승인했습니다.')">승인</BaseButton>
                 </template>
                 <template v-if="canWrite && form.stage === 'READY'">
                     <label class="text-xs text-gray-500">출하일시</label>
-                    <BaseDatePicker v-model="shippedAt" mode="datetime" size="sm" class="w-44" />
+                    <BaseDatePicker v-model="shippedAt" mode="datetime" size="md" class="w-44" />
                     <BaseButton variant="primary" :disabled="busy" @click="process">출하처리</BaseButton>
                 </template>
             </template>
@@ -180,6 +195,7 @@
 import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
+import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { showAlert } from '@core/Utils/message';
@@ -213,8 +229,9 @@ const errorMsg = ref('');
 const { showFlash } = useToast();
 const errors   = ref({});
 const dirty    = ref(false);
-const ctx      = reactive({ partners: [], items: [], approval_required: false, today: '', now: '' });
-const form     = reactive({ shipment_idx: null, shipment_no: '', partner_idx: '', plan_date: '', remark: '', status: 'WAIT', stage: '', approval_status: 'NONE',
+const ctx      = reactive({ partners: [], partner_addresses: {}, sites: {}, items: [], approval_required: false, today: '', now: '' });
+const form     = reactive({ shipment_idx: null, shipment_no: '', partner_idx: '', plan_date: '', remark: '',
+                            manager_name: '', site_idx: '', site_name: '', ship_address: '', status: 'WAIT', stage: '', approval_status: 'NONE',
                             approval_requested: null, approved: null, reject_reason: null, shipped_at: null, shipped_by: null, canceled: null });
 const lines        = ref([]);
 const addItemIdx   = ref('');
@@ -222,6 +239,24 @@ const rejectReason = ref('');
 const shippedAt    = ref('');
 let keySeq = 0;
 const label = useLabelAccess();
+
+// 출고지 = 고른 고객사의 출고지 ( 거래처관리 · 출고지 탭 )
+const partnerSites = computed(() => ctx.sites?.[form.partner_idx] ?? []);
+const siteOptions  = computed(() => {
+    const opts = [{ value: '', label: partnerSites.value.length ? '— 선택 안 함 —' : '등록된 출고지 없음' }, ...partnerSites.value.map(x => ({ value: x.site_idx, label: x.site_name }))];
+    if (form.site_idx && !partnerSites.value.some(x => x.site_idx === form.site_idx)) opts.push({ value: form.site_idx, label: form.site_name || '( 출고지 )' });
+    return opts;
+});
+// 고객사를 바꾸면 : 출고지는 첫 출고지( 하나뿐이면 ), 주소는 그 주소 → 없으면 거래처 주소
+function onPartnerChange() {
+    const list = partnerSites.value;
+    form.site_idx = list.length === 1 ? list[0].site_idx : '';
+    form.ship_address = (list.length === 1 && list[0].address) || ctx.partner_addresses?.[form.partner_idx] || '';
+}
+function onSiteChange() {
+    const site = partnerSites.value.find(x => x.site_idx === form.site_idx);
+    form.ship_address = site?.address || ctx.partner_addresses?.[form.partner_idx] || form.ship_address;
+}
 
 const editable = computed(() => props.canWrite && (!form.shipment_idx || (form.status === 'WAIT' && form.approval_status !== 'PENDING')));
 // 아직 나가지 않은 건 ( 신규 · 출하대기 ) — 가용 · 수주 남은 수량 경고는 여기서만 ( 완료 건은 이미 재고 · 출하 수량에 반영돼 0 과 비교하게 된다 )
@@ -333,6 +368,7 @@ async function load() {
             const s = data.shipment;
             Object.assign(form, {
                 shipment_idx: s.shipment_idx, shipment_no: s.shipment_no, partner_idx: s.partner_idx, plan_date: s.plan_date, remark: s.remark ?? '',
+                manager_name: s.manager_name ?? '', site_idx: s.site_idx ?? '', site_name: s.site_name ?? '', ship_address: s.ship_address ?? '',
                 status: s.status, stage: s.stage, approval_status: s.approval_status, approval_requested: s.approval_requested, approved: s.approved,
                 reject_reason: s.reject_reason, shipped_at: s.shipped_at, shipped_by: s.shipped_by, canceled: s.canceled,
             });
@@ -366,6 +402,9 @@ function payload() {
         partner_idx: form.partner_idx === '' ? null : Number(form.partner_idx),
         plan_date: form.plan_date || null,
         remark: form.remark || null,
+        manager_name: form.manager_name.trim() || null,
+        site_idx: form.site_idx === '' ? null : Number(form.site_idx),
+        ship_address: form.ship_address || null,
         lines: lines.value.map(l => ({
             shipment_line_idx: l.shipment_line_idx, sales_order_line_idx: l.sales_order_line_idx, item_idx: l.item_idx,
             qty: l.qty === '' ? null : l.qty, unit_price: l.unit_price === '' ? null : l.unit_price, remark: l.remark || null,
@@ -383,7 +422,7 @@ async function run(fn, done) {
     } catch (e) {
         if (e.response?.status === 422) {
             errors.value = e.response.data.errors ?? {};
-            const shown = /^(partner_idx|plan_date|lines|lines\.\d+\..+)$/;
+            const shown = /^(partner_idx|plan_date|manager_name|site_idx|ship_address|lines|lines\.\d+\..+)$/;
             const other = Object.entries(errors.value).filter(([k]) => !shown.test(k)).flatMap(([, v]) => v);
             errorMsg.value = other.join('\n') || (Object.keys(errors.value).some(k => k.startsWith('lines.')) ? '줄의 빨간 글을 확인하세요.' : '');
             if (errors.value.status?.length) showFlash(errors.value.status.join('\n'), true);   // 상태로 막힌 이유( 예 : 취소된 수주 )는 알림으로도

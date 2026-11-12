@@ -88,7 +88,7 @@ return [
     'material' => [
         'issue_calc'     => [ 'name' => '자재소요 계산식 기본값', 'value' => 'BOM_BASIC', 'category' => 'RULE', 'type' => 'STRING', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false ],
         'consume_source' => [ 'name' => '자재 차감 위치', 'value' => 'FIFO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
-                              'options' => [ 'ORDER_LINKED' => '수주연동 입고자재만', 'FIFO' => '창고 선입선출' ] ],
+                              'options' => [ 'ORDER_LINKED' => '수주연동 입고자재만', 'FIFO' => '재고 선입선출' ] ],
         'consume_timing' => [ 'name' => '자재 차감 시점', 'value' => 'PROCESS_START', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
                               // MANUAL( 수동 사용처리 화면 )은 미룸 — 3단계 최소판은 공정 시작 · 출고 둘만
                               'options' => [ 'PROCESS_START' => '생산 공정 시작 시', 'ISSUE' => '출고 시' ] ],
@@ -102,7 +102,7 @@ return [
                               'remark' => '켜면 출하대기 건은 승인을 받아야 출하처리됩니다 ( 승인 = 출하관리 삭제 권한 )',
                               'depends_on' => [ 'feature.approval', 'Y' ] ],
         'consume_source' => [ 'name' => '제품 차감 위치', 'value' => 'FIFO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
-                              'options' => [ 'ORDER_LINKED' => '수주연동 생산품만', 'FIFO' => '창고 선입선출' ] ],
+                              'options' => [ 'ORDER_LINKED' => '수주연동 생산품만', 'FIFO' => '재고 선입선출' ] ],
     ],
 
     'lot' => [
@@ -155,6 +155,12 @@ return [
                                     'remark' => '끄면 경고 후 허용' ],
         'op_after_prev_done'   => [ 'name' => '앞 공정 완료 후 다음 공정', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
                                     'remark' => '켜면 앞 생산 공정을 [공정 완료] 한 뒤에만 다음 공정 실적을 넣는다 ( 묶음 이동 ). 끄면 흐름 생산 — 뒤 공정은 앞 공정 실적까지만' ],
+        // docs/실적LOT-설계.md §3 ( 11-11 )
+        'op_before_rm_out_done' => [ 'name' => '원자재출고 완료 전 다음 공정 진행', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL',
+                                    'remark' => '켜면 그 품목 줄에 자재 출고가 1건이라도 있으면 원자재출고 공정을 완료하지 않아도 다음 공정 실적을 넣는다 ( 원자재출고 공정만 · 수량 상한 없음 ). 끄면 원자재출고를 [완료] 해야 다음 공정' ],
+        'op_lot_tracking'       => [ 'name' => '공정 LOT 추적', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
+                                    'remark' => '켜면 새로 만드는 작업지시는 실적마다 LOT 를 발급한다 ( 마지막 수량 공정 = 제품 LOT · 그 밖 = 공정 LOT ). 끄면 지시 1개에 LOT 1개 ( 지금 방식 ) · 이미 만든 지시는 만들 때의 방식 그대로',
+                                    'depends_on' => [ 'feature.lot', 'Y' ] ],
         'scan_qty_presets'     => [ 'name' => '수량 바코드 값', 'value' => '5,10,50,100,150,200', 'category' => 'RULE', 'type' => 'STRING', 'visible' => false ],
         'equipment_manual_qty' => [ 'name' => '설비 실적 수동 입력 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false ],
     ],

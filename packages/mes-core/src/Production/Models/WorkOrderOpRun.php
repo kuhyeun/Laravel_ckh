@@ -10,6 +10,7 @@ use MesCore\Support\RecordsAccount;
 // 공정 실적 ( PRD-06 ) — 입력 1건 = 1줄. 공정 수량 = 취소 안 된 실적의 합 ( OpResultService )
 //   작업자( operator )와 입력자( create_account_idx )가 다르면 대리 입력
 //   stock_txn_line_idx : 마지막 공정 실적이면 그 수량만큼 한 제품 입고 줄 ( 부분 입고 )
+//   lot_idx : 실적 LOT ( 지시가 RUN 방식일 때 — 마지막 수량 공정 = 제품 LOT · 그 밖 = 공정 LOT · docs/실적LOT-설계.md )
 class WorkOrderOpRun extends Model {
     use RecordsAccount;
 
@@ -19,7 +20,7 @@ class WorkOrderOpRun extends Model {
     const CREATED_AT = 'create_datetime';
     const UPDATED_AT = 'update_datetime';
 
-    protected $fillable = ['work_order_op_idx', 'equipment_idx', 'operator_idx', 'qty', 'worked_at', 'remark', 'stock_txn_line_idx', 'is_canceled', 'canceled_by', 'canceled_at'];
+    protected $fillable = ['work_order_op_idx', 'equipment_idx', 'operator_idx', 'qty', 'lot_idx', 'worked_at', 'remark', 'stock_txn_line_idx', 'is_canceled', 'canceled_by', 'canceled_at'];
 
     protected $attributes = [
         'is_canceled' => 'N',
@@ -47,5 +48,9 @@ class WorkOrderOpRun extends Model {
 
     public function equipment() {
         return $this->belongsTo(Equipment::class, 'equipment_idx', 'equipment_idx');
+    }
+
+    public function lot() {
+        return $this->belongsTo(\MesCore\Stock\Models\Lot::class, 'lot_idx', 'lot_idx');
     }
 }

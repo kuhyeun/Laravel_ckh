@@ -114,7 +114,7 @@
             <p v-if="errors.serial_use" class="col-span-2 text-xs text-red-500 -mt-2">{{ errors.serial_use[0] }}</p>
             <div class="col-span-2">
                 <label class="block text-gray-500 font-medium mb-1">비고</label>
-                <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="!canWrite"></textarea>
+                <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
             </div>
         </div>
 

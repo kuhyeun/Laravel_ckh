@@ -11,8 +11,8 @@
         <!-- 헤더 -->
         <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
-            <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!checkedRows.length || busy" @click="closeChecked">마감</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="!checkedRows.length || busy" @click="deleteChecked">삭제</BaseButton>
+            <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!checkedRows.length || busy" @click="closeChecked">마감</BaseButton>
             <BaseButton size="sm" variant="secondary" :disabled="!checkedRows.length" @click="openPrint">미리보기 · 인쇄</BaseButton>
         </div>
 

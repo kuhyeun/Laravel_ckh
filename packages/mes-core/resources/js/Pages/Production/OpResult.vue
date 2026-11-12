@@ -22,7 +22,7 @@
 
         <div class="flex-1 min-h-0 flex gap-3">
             <!-- 품목 줄 -->
-            <div class="w-[460px] shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">품목 줄 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건</span></span>
                     <div class="flex items-center gap-1.5">
@@ -50,7 +50,7 @@
             </div>
 
             <!-- 공정 -->
-            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[2] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div v-if="!line" class="flex-1 flex items-center justify-center text-sm text-gray-400">
                     {{ detailLoading ? '불러오는 중…' : '왼쪽에서 품목 줄을 고르세요.' }}
                 </div>
@@ -163,6 +163,9 @@
                                     · 작업자를 바꾸면 대리 입력으로 남습니다
                                     <template v-if="selectedOp.receives_on_run"> · <span class="text-blue-700">마지막 공정이라 저장하면 이 수량만큼 바로 제품을 입고합니다</span></template>
                                 </p>
+                                <!-- 투입 LOT ( 공정 LOT 추적 지시 · 실적LOT-설계 §5 ) — 후보가 있으면 필수 -->
+                                <RunInputPicker v-if="runLot" ref="runPicker" class="w-full pt-2 border-t border-blue-100"
+                                    :op-idx="selectedOp.work_order_op_idx" v-model="runForm.inputs" required />
                             </div>
 
                             <!-- 완료 -->
@@ -193,19 +196,46 @@
                             <div v-if="selectedOp.is_qty" class="overflow-x-auto">
                                 <table class="w-full min-w-[760px] table-fixed text-xs">
                                     <colgroup>
-                                        <col class="w-36"><col class="w-40"><col class="w-48"><col class="w-28"><col><col class="w-14">
+                                        <col class="w-36"><col v-if="runLot" class="w-56"><col class="w-40"><col class="w-48"><col class="w-28"><col><col class="w-14">
                                     </colgroup>
-                                    <thead class="text-gray-500"><tr><th class="px-3 py-1.5 text-left">작업 일시</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">수량</th><th class="px-2 py-1.5 text-left">비고</th><th></th></tr></thead>
+                                    <thead class="text-gray-500"><tr><th class="px-3 py-1.5 text-left">작업 일시</th><th v-if="runLot" class="px-2 py-1.5 text-left">실적 LOT</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">수량</th><th class="px-2 py-1.5 text-left">비고</th><th></th></tr></thead>
                                     <tbody>
-                                        <tr v-if="!selectedOp.runs.length"><td colspan="6" class="px-3 py-3 text-center text-gray-400">실적이 없습니다.</td></tr>
-                                        <tr v-for="r in selectedOp.runs" :key="r.run_idx" class="border-t">
+                                        <tr v-if="!selectedOp.runs.length"><td :colspan="runLot ? 7 : 6" class="px-3 py-3 text-center text-gray-400">실적이 없습니다.</td></tr>
+                                        <template v-for="r in selectedOp.runs" :key="r.run_idx">
+                                        <tr class="border-t">
                                             <td class="px-3 py-1.5">{{ r.worked_at }}</td>
+                                            <td v-if="runLot" class="px-2 py-1.5 align-top">
+                                                <div class="flex items-center gap-1">
+                                                    <span class="truncate font-medium text-gray-700" :title="r.lot_no ?? ''">{{ r.lot_no ?? '—' }}</span>
+                                                    <button v-if="canWrite && r.lot_no" type="button" class="shrink-0 text-[11px] text-blue-600 hover:underline" :disabled="busy" @click="openAddInput(r)">+ 연결</button>
+                                                </div>
+                                                <!-- 투입 LOT ( ← 자재 · 앞 공정 ) · ✕ = 연결 해제 -->
+                                                <div v-if="r.inputs?.length" class="mt-0.5 flex flex-wrap gap-1">
+                                                    <span v-for="x in r.inputs" :key="x.run_input_idx" class="inline-flex items-center gap-1 px-1 rounded text-[11px]"
+                                                        :class="x.input_type === 'MATERIAL' ? 'bg-amber-50 text-amber-800' : 'bg-gray-100 text-gray-600'"
+                                                        :title="`${x.input_type === 'MATERIAL' ? '자재' : '앞 공정'} LOT · 연결 ${x.creator ?? ''}`">
+                                                        ← {{ x.lot_no }} {{ fmtNum(x.qty) }}
+                                                        <button v-if="canWrite" type="button" class="text-gray-400 hover:text-red-500" :disabled="busy" title="연결 해제" @click="cancelInput(x)">✕</button>
+                                                    </span>
+                                                </div>
+                                            </td>
                                             <td class="px-2 py-1.5 truncate" :title="r.equipment_name ?? ''">{{ r.equipment_name ?? '—' }}</td>
                                             <td class="px-2 py-1.5">{{ r.operator }} <span v-if="r.is_proxy" class="text-gray-400">( 입력 : {{ r.creator }} )</span></td>
                                             <td class="px-2 py-1.5 text-right font-semibold">{{ fmtNum(r.qty) }}<span v-if="r.received" class="ml-1 px-1 rounded bg-blue-50 text-blue-700 font-normal">입고</span></td>
                                             <td class="px-2 py-1.5 text-gray-500 truncate" :title="r.remark">{{ r.remark }}</td>
                                             <td class="px-2 py-1 text-right"><button v-if="canDelete && selectedOp.status !== 'DONE'" type="button" class="text-gray-400 hover:text-red-500" :disabled="busy" @click="cancelRun(r)">취소</button></td>
                                         </tr>
+                                        <tr v-if="runLot && addingRun === r.run_idx" class="bg-blue-50/40">
+                                            <td :colspan="7" class="px-3 py-2">
+                                                <p class="mb-1 text-xs text-gray-600"><b>{{ r.lot_no }}</b> 에 투입 LOT 더하기 ( 나중에 출고한 자재 · 빠뜨린 앞 공정 LOT )</p>
+                                                <RunInputPicker :op-idx="selectedOp.work_order_op_idx" v-model="addInputs" />
+                                                <div class="mt-1.5 flex justify-end gap-1">
+                                                    <BaseButton size="sm" variant="secondary" :disabled="busy" @click="addingRun = null">닫기</BaseButton>
+                                                    <BaseButton size="sm" variant="primary" :disabled="busy || !addInputs.length" @click="saveAddInputs(r)">연결 추가</BaseButton>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        </template>
                                     </tbody>
                                 </table>
                             </div>
@@ -235,7 +265,7 @@
                             </table>
                             <MaterialIssuePanel v-if="issueOpen" class="mt-2 border border-blue-200 rounded h-[480px]"
                                 :wo-idx="line.work_order_idx" :can-write="canWrite" :can-cancel="canDelete" :routes="ISSUE_ROUTES"
-                                @changed="loadDetail()" @flash="showFlash" />
+                                @changed="loadDetail().then(() => runPicker?.reload())" @flash="showFlash" />
                         </section>
                     </div>
                 </template>
@@ -265,6 +295,7 @@ import { useModalStore } from '@core/Stores/modalStore';
 import { useToast } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
+import RunInputPicker from '@core/Components/Production/RunInputPicker.vue';
 import { fmtNum } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
@@ -315,6 +346,7 @@ const activeWo      = ref(null);   // 왼쪽 목록에 칠할 줄 — 누르는 
 const selectedIdx   = ref(null);
 const selectedOp    = computed(() => line.value?.ops.find(o => o.work_order_op_idx === selectedIdx.value) ?? null);
 const panel         = ref('');      // '' | 'run' | 'done'
+const runLot        = computed(() => line.value?.lot_mode === 'RUN');   // 실적마다 LOT ( 실적LOT-설계 ) — 실적 줄에 LOT 열
 const detailLoading = ref(false);
 const busy          = ref(false);
 const errorText     = ref('');
@@ -350,7 +382,10 @@ const equipOptions     = computed(() => {
         ...equipments.value.filter(e => !ids.has(Number(e.equipment_idx))).map(e => ({ value: e.equipment_idx, label: cand.length ? `${e.equipment_name} ( 다른 공정 )` : e.equipment_name }))];
 });
 
-const runForm  = reactive({ qty: '', equipment_idx: '', operator_idx: '', worked_at: '', remark: '', warehouse_idx: '' });
+const runForm  = reactive({ qty: '', equipment_idx: '', operator_idx: '', worked_at: '', remark: '', warehouse_idx: '', inputs: [] });
+const runPicker = ref(null);        // 투입 LOT 고르기 ( 저장 뒤 후보 다시 — 연결 수량이 바뀐다 )
+const addingRun = ref(null);        // [+ 연결] 을 연 실적
+const addInputs = ref([]);
 const doneForm = reactive({ short_reason: '', warehouse_idx: '' });
 const needReason = computed(() => selectedOp.value?.is_qty && num(selectedOp.value.base_qty) - num(selectedOp.value.qty) > 1e-6);
 
@@ -433,6 +468,7 @@ async function loadDetail(woIdx = line.value?.work_order_idx) {
 }
 async function refresh() {
     await Promise.all([loadDetail(), load()]);
+    runPicker.value?.reload();   // 투입 LOT 후보 ( 출고 · 연결 · 실적이 바뀌었을 수 있다 )
 }
 
 // ---- 실적 입력 칸 ( 11-10 ) ----
@@ -441,7 +477,7 @@ async function refresh() {
 const canRun = (o) => !!o && canWrite.value && o.is_qty && !o.is_subcon && o.status !== 'DONE' && line.value?.status !== 'DONE' && !o.block;
 
 function resetRunForm(o) {
-    Object.assign(runForm, { qty: '', equipment_idx: o?.equipment_idx ?? '', operator_idx: me.value ?? '', worked_at: localNow(), remark: '', warehouse_idx: defaultWarehouse() });
+    Object.assign(runForm, { qty: '', equipment_idx: o?.equipment_idx ?? '', operator_idx: me.value ?? '', worked_at: localNow(), remark: '', warehouse_idx: defaultWarehouse(), inputs: [] });
 }
 
 // 고른 공정에 맞춰 칸을 정한다 — opChanged : 다른 공정을 골랐다( 입력 칸을 새로 채운다 ) · 완료 칸은 같은 공정이면 그대로
@@ -478,6 +514,39 @@ function openPanel(o, kind) {
     panel.value = kind;
 }
 
+// ---- 투입 LOT : 나중에 더하기 · 해제 ( 실적LOT-설계 §5 ) ----
+function openAddInput(r) {
+    addInputs.value = [];
+    addingRun.value = addingRun.value === r.run_idx ? null : r.run_idx;
+}
+async function saveAddInputs(r) {
+    busy.value = true; errorText.value = '';
+    try {
+        const { data } = await window.axios.post(route('production.opResult.addInputs'), { run_idx: r.run_idx, inputs: addInputs.value });
+        showFlash(okMsg(`${r.lot_no} 에 투입 LOT 를 더했습니다.`, data.warnings));
+        addingRun.value = null;
+        await refresh();
+    } catch (e) {
+        errorText.value = failMsg(e);
+    } finally {
+        busy.value = false;
+    }
+}
+async function cancelInput(x) {
+    const ok = await showAlert('연결 해제', `← ${x.lot_no} ${fmtNum(x.qty)} 연결을 해제합니다.\n기록은 남고 추적에서만 빠집니다.`, 'warning', 'confirm');
+    if (!ok.isConfirmed) return;
+    busy.value = true; errorText.value = '';
+    try {
+        await window.axios.post(route('production.opResult.cancelInput'), { run_input_idx: x.run_input_idx });
+        showFlash('연결을 해제했습니다.');
+        await refresh();
+    } catch (e) {
+        errorText.value = failMsg(e);
+    } finally {
+        busy.value = false;
+    }
+}
+
 // ---- 처리 ----
 async function addRun() {
     busy.value = true; errorText.value = '';
@@ -490,6 +559,7 @@ async function addRun() {
             worked_at: runForm.worked_at || null,
             remark: runForm.remark || null,
             warehouse_idx: selectedOp.value.receives_on_run && runForm.warehouse_idx !== '' ? Number(runForm.warehouse_idx) : null,
+            ...(runLot.value ? { inputs: runForm.inputs } : {}),   // 투입 LOT ( 실적LOT-설계 §5 )
         });
         if (selectedOp.value.receives_on_run && runForm.warehouse_idx !== '') rememberWarehouse(runForm.warehouse_idx);
         showFlash(okMsg(`${selectedOp.value.name} 실적 ${fmtNum(runForm.qty)} 을 넣었습니다.${selectedOp.value.receives_on_run ? ' ( 제품 입고 )' : ''}`, data.warnings));

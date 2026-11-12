@@ -1,7 +1,7 @@
 {
     "type": "import",
     "entity": "partner",
-    "version": 1,
+    "version": 2,
     "name": "거래처 일괄 등록",
     "title": "거래처 일괄 등록 양식",
     "sheet": "거래처",
@@ -13,6 +13,8 @@
         { "field": "is_subcon",    "header": "외주처",     "type": "yn", "width": 8, "example": "N" },
         { "field": "biz_no",       "header": "사업자번호", "type": "text", "width": 14, "maxLength": 20, "example": "000-00-00000" },
         { "field": "ceo_name",     "header": "대표자",     "type": "text", "width": 10, "maxLength": 50 },
+        { "field": "tel",          "header": "전화번호",   "type": "text", "width": 14, "maxLength": 30, "example": "000-0000-0000" },
+        { "field": "address",      "header": "주소",       "type": "text", "width": 30, "maxLength": 200 },
         { "field": "is_use",       "header": "사용",       "type": "yn", "width": 8, "example": "Y" },
         { "field": "remark",       "header": "비고",       "type": "text", "width": 24, "maxLength": 2000 }
     ]

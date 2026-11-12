@@ -3,7 +3,7 @@
     <BaseSelect
         v-model="store[item.key]"
         :options="item.options || []"
-        size="sm"
+        size="md"
         class="w-full max-w-xs"
     />
 </template>

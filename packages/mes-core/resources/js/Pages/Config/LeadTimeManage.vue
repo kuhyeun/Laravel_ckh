@@ -22,8 +22,8 @@
                 placeholder="품번 · 품명"
                 @keyup.enter="loadLeadTimes"
             />
-            <BaseSelect v-model="search.item_type" :options="TYPE_FILTER_OPTIONS" class="w-28" size="sm" />
-            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="sm" />
+            <BaseSelect v-model="search.item_type" :options="TYPE_FILTER_OPTIONS" class="w-28" size="md" />
+            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="md" />
             <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="loadLeadTimes">조회</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="resetSearch">초기화</BaseButton>
         </div>

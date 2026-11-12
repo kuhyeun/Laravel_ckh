@@ -32,9 +32,9 @@
         </div>
 
         <!-- 서버 페이징 바 -->
-        <div v-if="pagination" class="flex items-center justify-between gap-4 px-4 py-2.5 border-t text-sm text-gray-600 shrink-0">
-            <span>총 <b>{{ total.toLocaleString() }}</b> 건</span>
-            <div class="flex items-center gap-1.5">
+        <div v-if="pagination" class="flex items-center justify-between gap-2 px-3 py-2.5 border-t text-sm text-gray-600 shrink-0">
+            <span class="whitespace-nowrap shrink-0">총 <b>{{ total.toLocaleString() }}</b> 건</span>
+            <div class="flex items-center gap-1">
                 <button type="button" class="pg-btn" :disabled="current <= 1" @click="go(1)">«</button>
                 <button type="button" class="pg-btn" :disabled="current <= 1" @click="go(current - 1)">‹</button>
                 <button
@@ -48,7 +48,7 @@
                 <button type="button" class="pg-btn" :disabled="current >= lastPage" @click="go(current + 1)">›</button>
                 <button type="button" class="pg-btn" :disabled="current >= lastPage" @click="go(lastPage)">»</button>
             </div>
-            <select class="h-8 border border-gray-300 rounded px-2 text-sm cursor-pointer" :value="perPage" @change="e => changePerPage(Number(e.target.value))">
+            <select class="shrink-0 h-8 border border-gray-300 rounded px-2 text-sm cursor-pointer" :value="perPage" @change="e => changePerPage(Number(e.target.value))">
                 <option v-for="n in PER_PAGE_OPTIONS" :key="n" :value="n">{{ n }}개씩</option>
             </select>
         </div>

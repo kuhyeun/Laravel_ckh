@@ -23,12 +23,20 @@ class MemberController extends Controller {
                 'account_idx',
                 'user_id',
                 'user_name',
+                'emp_no',
+                'dept_code',
+                'position_code',
                 'user_type',
                 'user_level',
                 'is_use',
                 'create_datetime',
                 'update_datetime'
             )
+            // 부서 · 직급 이름 ( 공통코드 DEPT · POSITION )
+            ->addSelect([
+                'dept_name'     => DB::table('system_code')->select('system_code_name')->where('system_code_group_key', 'DEPT')->whereColumn('system_code_key', 'account_member.dept_code')->limit(1),
+                'position_name' => DB::table('system_code')->select('system_code_name')->where('system_code_group_key', 'POSITION')->whereColumn('system_code_key', 'account_member.position_code')->limit(1),
+            ])
             ->where('user_level', $myLevel === User::SYSTEM_LEVEL ? '>=' : '>', $myLevel)   // 나보다 하위만 ( 시스템 계정은 전부 )
             ->where('account_idx', '!=', $myIdx)
             ->orderBy('account_idx')
@@ -46,6 +54,9 @@ class MemberController extends Controller {
         $validated = $request->validate([
             'user_id'    => ['required', 'string', 'max:50', Rule::unique('account_member', 'user_id')->ignore($idx, 'account_idx')],
             'user_name'  => ['required', 'string', 'max:50'],
+            'emp_no'        => ['nullable', 'string', 'max:30'],
+            'dept_code'     => ['nullable', 'string', 'max:30', Rule::exists('system_code', 'system_code_key')->where('system_code_group_key', 'DEPT')],
+            'position_code' => ['nullable', 'string', 'max:30', Rule::exists('system_code', 'system_code_key')->where('system_code_group_key', 'POSITION')],
             // user_type 은 저장 시 모델에서 user_level 로 자동 결정 ( 입력 불필요 )
             // 내 레벨과 같거나 상위( 작은 수 )는 부여 불가 ( 시스템 계정은 같은 레벨까지 )
             'user_level' => ['required', 'integer', 'min:' . $this->minAssignable($myLevel)],
@@ -66,6 +77,9 @@ class MemberController extends Controller {
 
             $user->user_id    = $validated['user_id'];
             $user->user_name  = $validated['user_name'];
+            $user->emp_no        = $validated['emp_no'] ?? null;
+            $user->dept_code     = $validated['dept_code'] ?? null;
+            $user->position_code = $validated['position_code'] ?? null;
             $user->user_level = $validated['user_level'];   // user_type 은 모델 saving 훅이 자동 설정
             $user->is_use     = $validated['is_use'];
             if (!empty($validated['user_pw'])) {

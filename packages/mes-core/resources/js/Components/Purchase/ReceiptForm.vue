@@ -99,18 +99,20 @@
                 </div>
 
                 <div class="border rounded overflow-x-auto">
-                    <table class="w-full table-fixed min-w-[992px] text-xs">
+                    <!-- 최소 폭 = 고정 칸 1088 + 품목 280 — 넓으면 가로 스크롤 ( 11-12 ) -->
+                    <table class="w-full table-fixed min-w-[1368px] text-xs">
                         <colgroup>
-                            <col class="w-7">
+                            <col class="w-10">
                             <col>
+                            <col class="w-40">
+                            <col class="w-24">
+                            <col class="w-28">
+                            <col class="w-28">
+                            <col class="w-40">
+                            <col class="w-36">
                             <col class="w-36">
                             <col class="w-20">
-                            <col class="w-24">
-                            <col class="w-24">
-                            <col class="w-36">
-                            <col class="w-28">
-                            <col class="w-16">
-                            <col class="w-7">
+                            <col class="w-10">
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr>
@@ -122,13 +124,14 @@
                                 <th class="px-2 py-1.5 text-right">규격</th>
                                 <th class="px-2 py-1.5 text-left">창고 *</th>
                                 <th class="px-2 py-1.5 text-left">공급처 LOT{{ lot.source === 'EXTERNAL' ? ' *' : '' }}</th>
+                                <th class="px-2 py-1.5 text-left">Heat No</th>
                                 <th class="px-2 py-1.5">검사</th>
                                 <th class="px-2 py-1.5"></th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-if="!form.lines.length">
-                                <td colspan="10" class="px-2 py-4 text-center text-gray-400">구매처를 고르고 발주를 불러오거나 직접 추가하세요.</td>
+                                <td colspan="11" class="px-2 py-4 text-center text-gray-400">구매처를 고르고 발주를 불러오거나 직접 추가하세요.</td>
                             </tr>
                             <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-middle">
                                 <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
@@ -142,22 +145,26 @@
                                 </td>
                                 <td class="px-2 py-1.5 text-right text-gray-500">{{ l.purchase_order_line_idx ? fmt(l.remaining) : '—' }}</td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-full text-right" />
+                                    <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" />
                                     <p v-if="lineError(i, 'qty')" class="text-[11px] text-red-500">{{ lineError(i, 'qty') }}</p>
                                     <p v-else-if="l.purchase_order_line_idx && num(l.qty) > num(l.remaining)" class="text-[11px] text-amber-600">남은 수량 초과</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-if="l.item_kind === 'STOCK'" v-model="l.spec_value" type="number" min="0" size="sm" class="w-full text-right" placeholder="조각 1개" />
+                                    <BaseInput v-if="l.item_kind === 'STOCK'" v-model="l.spec_value" type="number" min="0" size="md" class="w-full text-right" placeholder="조각 1개" />
                                     <p v-else class="py-1.5 text-center text-gray-300">—</p>
                                     <p v-if="lineError(i, 'spec_value')" class="text-[11px] text-red-500">{{ lineError(i, 'spec_value') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <WarehouseSelect v-model="l.warehouse_idx" :options="warehouses" size="sm" class="w-full h-[30px]" @update:model-value="rememberWarehouse" />
+                                    <WarehouseSelect v-model="l.warehouse_idx" :options="warehouses" size="md" class="w-full" @update:model-value="rememberWarehouse" />
                                     <p v-if="lineError(i, 'warehouse_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'warehouse_idx') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="l.external_lot_no" size="sm" class="w-full" placeholder="Heat No 등" />
+                                    <BaseInput v-model="l.external_lot_no" size="md" class="w-full" maxlength="50" placeholder="공급처 LOT" />
                                     <p v-if="lineError(i, 'external_lot_no')" class="text-[11px] text-red-500">{{ lineError(i, 'external_lot_no') }}</p>
+                                </td>
+                                <td class="px-1.5 py-1">
+                                    <BaseInput v-model="l.heat_no" size="md" class="w-full" maxlength="50" />
+                                    <p v-if="lineError(i, 'heat_no')" class="text-[11px] text-red-500">{{ lineError(i, 'heat_no') }}</p>
                                 </td>
                                 <td class="px-2 py-1.5 text-center" :class="l.insp_mode && l.insp_mode !== 'NONE' ? 'text-amber-700 font-semibold' : 'text-gray-500'">{{ l.insp_mode ? inspModeLabel(l.insp_mode) : '' }}</td>
                                 <td class="px-1 py-1 text-center">
@@ -239,7 +246,7 @@ function rememberWarehouse(v) {
 const blankLine = (extra = {}) => ({
     _key: ++keySeq, item_idx: '', item_code: '', item_name: '', item_kind: '', spec_unit: '',
     purchase_order_line_idx: null, order_label: '', remaining: 0,
-    qty: '', spec_value: '', warehouse_idx: defaultWarehouse(), external_lot_no: '', remark: '', insp_mode: '',
+    qty: '', spec_value: '', warehouse_idx: defaultWarehouse(), external_lot_no: '', heat_no: '', remark: '', insp_mode: '',
     ...extra,
 });
 
@@ -347,6 +354,7 @@ async function save() {
                 warehouse_idx:           l.warehouse_idx === '' ? null : Number(l.warehouse_idx),
                 spec_value:              l.item_kind === 'STOCK' && l.spec_value !== '' ? l.spec_value : null,
                 external_lot_no:         l.external_lot_no || null,
+                heat_no:                 l.heat_no || null,
                 purchase_order_line_idx: l.purchase_order_line_idx,
                 remark:                  l.remark || null,
             })),

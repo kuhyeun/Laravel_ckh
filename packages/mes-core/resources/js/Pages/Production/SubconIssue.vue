@@ -100,6 +100,7 @@ const ISSUE_COLUMNS = [
     qty('qty', '출고'),
     qty('received_qty', '입고'),
     qty('left_qty', '남은 수량'),
+    { header: '내보낸 LOT', name: 'sent_lots', width: 220, className: 'cursor-pointer', escapeHTML: true },   // 공정 LOT 추적 지시만
     { header: '외주 금액', name: 'amount', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ value }) => fmtNum(value, 0) },
     { header: '등록자', name: 'issuer_name', width: 100, align: 'center', className: 'cursor-pointer', escapeHTML: true },
     { header: '비고', name: 'remark', minWidth: 150, className: 'cursor-pointer', escapeHTML: true },

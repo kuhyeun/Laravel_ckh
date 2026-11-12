@@ -21,12 +21,13 @@
 
             <div class="mt-3 border rounded overflow-x-auto">
                 <!-- 최소 폭 = 고정 칸 876 + 품목 160 — xl 모달 안쪽( 약 1080 )에 들어가게 -->
-                <table class="w-full table-fixed min-w-[1036px] text-xs">
+                <table class="w-full table-fixed min-w-[1132px] text-xs">
                     <colgroup>
                         <col v-if="canCheck" class="w-8">
                         <col class="w-7">
                         <col>
                         <col class="w-32">
+                        <col class="w-24">
                         <col class="w-24">
                         <col class="w-28">
                         <col class="w-20">
@@ -43,6 +44,7 @@
                             <th class="px-2 py-1.5 text-left">품목</th>
                             <th class="px-2 py-1.5 text-left">LOT</th>
                             <th class="px-2 py-1.5 text-left">공급처 LOT</th>
+                            <th class="px-2 py-1.5 text-left">Heat No</th>
                             <th class="px-2 py-1.5">수량</th>
                             <th class="px-2 py-1.5">창고</th>
                             <th class="px-2 py-1.5 text-left">발주번호</th>
@@ -61,6 +63,7 @@
                             <td class="px-2 py-1.5 truncate" :title="`${l.item_code} ${l.item_name}`">{{ l.item_code }} {{ l.item_name }}</td>
                             <td class="px-2 py-1.5 truncate" :title="l.lot_no">{{ l.lot_no || '—' }}</td>
                             <td class="px-2 py-1.5 truncate" :title="l.external_lot_no">{{ l.external_lot_no || '' }}</td>
+                            <td class="px-2 py-1.5 truncate" :title="l.heat_no">{{ l.heat_no || '' }}</td>
                             <td class="px-2 py-1.5 text-right">{{ qtyText(l.qty, l.spec_unit, l.spec_value) }}</td>
                             <td class="px-2 py-1.5 text-center truncate" :title="l.warehouse_name">{{ l.warehouse_name }}</td>
                             <td class="px-2 py-1.5">{{ l.order_no || '( 직접 )' }}</td>

@@ -8,6 +8,7 @@ use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Partner;
+use MesCore\Config\Models\PartnerSite;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Shipment\Models\Shipment;
 use MesCore\Shipment\Models\ShipmentLine;
@@ -46,7 +47,7 @@ class ShipmentController extends Controller {
 
         $col   = self::DATE_COLUMNS[$v['date_basis'] ?? 'plan'];
         $query = Shipment::query()
-            ->with(['partner:partner_idx,partner_name', 'lines.item:item_idx,item_code,item_name,spec,material,spec_unit', 'lines.salesOrderLine.order:sales_order_idx,order_no', 'lines.picks.lot:lot_idx,lot_no'])
+            ->with(['partner:partner_idx,partner_name', 'site:site_idx,site_name', 'lines.item:item_idx,item_code,item_name,spec,material,spec_unit', 'lines.salesOrderLine.order:sales_order_idx,order_no', 'lines.picks.lot:lot_idx,lot_no'])
             ->orderByDesc('plan_date')->orderByDesc('shipment_idx');
 
         $status = $v['status'] ?? '';   // 없으면 전체 ( 화면 기본값은 blankFilters 가 늘 보낸다 — 스타일 가이드 §3 )
@@ -71,6 +72,8 @@ class ShipmentController extends Controller {
                 'plan_date'    => $s->plan_date?->toDateString(),
                 'shipped_at'   => $s->shipped_at?->format('Y-m-d H:i'),
                 'partner_name' => $s->partner?->partner_name,
+                'manager_name' => $s->manager_name,
+                'site_name'    => $s->site?->site_name,
                 'status'       => $s->status,
                 'stage'        => $stage,
                 'stage_label'  => ShipmentService::STAGES[$stage] ?? $stage,
@@ -90,7 +93,7 @@ class ShipmentController extends Controller {
     }
 
     public function show(int $shipmentIdx) {
-        $s = Shipment::with(['partner', 'lines.item', 'lines.salesOrderLine.order', 'lines.picks.lot', 'lines.picks.warehouse'])->find($shipmentIdx);
+        $s = Shipment::with(['partner', 'site', 'lines.item', 'lines.salesOrderLine.order', 'lines.picks.lot', 'lines.picks.warehouse'])->find($shipmentIdx);
         if (!$s) {
             return response()->json(['message' => 'NotFound'], 404);
         }
@@ -101,6 +104,10 @@ class ShipmentController extends Controller {
             'shipment_no'           => $s->shipment_no,
             'partner_idx'           => $s->partner_idx,
             'partner_name'          => $s->partner?->partner_name,
+            'manager_name'          => $s->manager_name,
+            'site_idx'              => $s->site_idx,
+            'site_name'             => $s->site?->site_name,
+            'ship_address'          => $s->ship_address,
             'plan_date'             => $s->plan_date?->toDateString(),
             'shipped_at'            => $s->shipped_at?->format('Y-m-d H:i'),
             'status'                => $s->status,
@@ -132,10 +139,16 @@ class ShipmentController extends Controller {
         ]]);
     }
 
-    // 선택지 : 고객사 · 품목( 제품 ) · 결재 사용 여부
+    // 선택지 : 고객사 · 출고지( 고객사별 ) · 결재 사용 여부
+    //   주소 : 출고지를 고르면 그 주소, 출고지가 없으면 거래처 주소로 채운다 ( 화면 — 고칠 수 있다 )
     public function formData() {
+        $partners = Partner::where('is_customer', 'Y')->where('is_use', 'Y')->orderBy('partner_name')->forPicker()->get();
+        $ids      = $partners->pluck('partner_idx');
         return response()->json([
-            'partners'          => Partner::where('is_customer', 'Y')->where('is_use', 'Y')->orderBy('partner_name')->forPicker()->get(),
+            'partners'          => $partners,
+            'partner_addresses' => Partner::whereIn('partner_idx', $ids)->whereNotNull('address')->pluck('address', 'partner_idx'),
+            'sites'             => PartnerSite::whereIn('partner_idx', $ids)->orderBy('sort_order')->orderBy('site_idx')
+                ->get(['site_idx', 'partner_idx', 'site_name', 'address'])->groupBy('partner_idx'),
             // 품목 선택지는 보내지 않는다 — 화면의 ItemPicker 가 공용 검색( common.items.search )에서 30개씩
             'approval_required' => $this->shipments->approvalRequired(),
             'today'             => now()->toDateString(),
@@ -188,6 +201,9 @@ class ShipmentController extends Controller {
             'partner_idx'                   => 'required|integer|exists:partner,partner_idx',
             'plan_date'                     => 'required|date_format:Y-m-d',
             'remark'                        => 'nullable|string|max:1000',
+            'manager_name'                  => 'nullable|string|max:50',
+            'site_idx'                      => ['nullable', 'integer', Rule::exists('partner_site', 'site_idx')->where('partner_idx', (int) $request->input('partner_idx'))],
+            'ship_address'                  => 'nullable|string|max:200',
             'lines'                         => 'required|array|min:1|max:200',
             'lines.*.shipment_line_idx'     => 'nullable|integer',
             'lines.*.sales_order_line_idx'  => 'nullable|integer',
@@ -200,7 +216,7 @@ class ShipmentController extends Controller {
             'lines.*.picks.*.warehouse_idx' => 'required|integer',
             'lines.*.picks.*.qty'           => 'required|numeric|min:0',
         ], ['lines.*.qty.gt' => '출하 수량은 0보다 커야 합니다.'], [
-            'partner_idx' => '고객사', 'plan_date' => '출하 예정일', 'lines' => '출하 줄', 'lines.*.item_idx' => '품목', 'lines.*.qty' => '출하 수량', 'lines.*.unit_price' => '단가',
+            'partner_idx' => '고객사', 'manager_name' => '출하 담당자', 'site_idx' => '출고지', 'ship_address' => '주소', 'plan_date' => '출하 예정일', 'lines' => '출하 줄', 'lines.*.item_idx' => '품목', 'lines.*.qty' => '출하 수량', 'lines.*.unit_price' => '단가',
         ]);
         [$saved, $warnings] = $this->shipments->save($data, $s);
         return response()->json(['message' => 'Success', 'warnings' => $warnings, 'shipment' => ['shipment_idx' => $saved->shipment_idx, 'shipment_no' => $saved->shipment_no]]);

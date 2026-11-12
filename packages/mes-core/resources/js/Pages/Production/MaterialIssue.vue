@@ -35,7 +35,7 @@
 
         <div class="flex-1 min-h-0 flex gap-3">
             <!-- 작업지시 -->
-            <div class="w-[520px] shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">작업지시 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건 ( 대기 · 진행 )</span></span>
                     <div class="flex items-center gap-1.5">
@@ -61,7 +61,7 @@
             </div>
 
             <!-- 출고 -->
-            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[2] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div v-if="!woIdx" class="flex-1 flex items-center justify-center text-sm text-gray-400">왼쪽에서 작업지시를 고르세요.</div>
                 <MaterialIssuePanel v-else class="flex-1" :wo-idx="woIdx" :can-write="canWrite" :can-cancel="canWrite" @changed="load" @flash="showFlash" />
             </div>

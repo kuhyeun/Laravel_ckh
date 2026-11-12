@@ -57,8 +57,8 @@ class PurchaseOrderSheetService {
                 'name'     => $o->partner?->partner_name,
                 'biz_no'   => $o->partner?->biz_no,
                 'ceo_name' => $o->partner?->ceo_name,
-                'address'  => $site?->address,
-                'tel'      => $site?->tel ?: $contact?->phone,
+                'address'  => $site?->address ?: $o->partner?->address,   // 출고지가 없으면 거래처 주소
+                'tel'      => $site?->tel ?: ($o->partner?->tel ?: $contact?->phone),
                 'contact'  => $contact?->contact_name,
             ],
             'lines'      => $lines->all(),

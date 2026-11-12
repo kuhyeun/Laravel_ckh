@@ -34,8 +34,10 @@ class InvoiceService {
     // 명세서 한 장의 데이터 — $sites : firstSites() 결과 ( 여러 장이면 미리 읽어 넘긴다 · 없으면 여기서 읽는다 )
     public function build(Shipment $s, ?array $sites = null): array {
         $s->loadMissing(self::RELATIONS);
-        $site  = $sites !== null ? ($sites[$s->partner_idx] ?? null)
-            : PartnerSite::where('partner_idx', $s->partner_idx)->orderBy('sort_order')->orderBy('site_idx')->first();
+        // 출고지 : 출하에 고른 것 → 없으면 거래처 첫 출고지
+        $site  = $s->site_idx ? PartnerSite::find($s->site_idx)
+            : ($sites !== null ? ($sites[$s->partner_idx] ?? null)
+                : PartnerSite::where('partner_idx', $s->partner_idx)->orderBy('sort_order')->orderBy('site_idx')->first());
         $lines = $s->lines->values()->map(function (ShipmentLine $l, int $i) {
             [$supply, $tax] = $this->amounts((float) $l->qty, (float) ($l->unit_price ?? 0));
             $so = $l->salesOrderLine;
@@ -74,8 +76,8 @@ class InvoiceService {
                 'name'     => $s->partner?->partner_name,
                 'biz_no'   => $s->partner?->biz_no,
                 'ceo_name' => $s->partner?->ceo_name,
-                'address'  => $site?->address,
-                'tel'      => $site?->tel,
+                'address'  => $s->ship_address ?: ($site?->address ?: $s->partner?->address),   // 출하 주소 → 출고지 → 거래처
+                'tel'      => $site?->tel ?: $s->partner?->tel,
             ],
             'lines'        => $lines->all(),
             'supply'       => $supply,

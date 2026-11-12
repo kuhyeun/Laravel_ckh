@@ -89,7 +89,7 @@
                                             <td class="px-1 text-center text-gray-500">{{ l.in_at }}</td>
                                             <td class="px-1 text-right">{{ fmtNum(l.qty) }}</td>
                                             <td class="px-1 py-0.5">
-                                                <BaseInput v-model="l.fill" type="number" min="0" size="sm" class="w-full text-right"
+                                                <BaseInput v-model="l.fill" type="number" min="0" size="md" class="w-full text-right"
                                                     :class="over(l) ? '!border-red-400 !text-red-600' : ''" :disabled="!canIssue" />
                                             </td>
                                         </tr>
@@ -116,8 +116,8 @@
             <div v-if="canIssue" class="shrink-0 flex items-center justify-end gap-2 px-3 py-2 border-t border-gray-200 bg-gray-50/70">
                 <span class="mr-auto text-xs text-gray-500">{{ fillTotal ? `이번 출고 ${materials.filter(m => filled(m) > 1e-9).length} 자재` : '출고할 수량을 채우세요' }}</span>
                 <label class="text-xs text-gray-500">출고일시</label>
-                <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="sm" class="w-44" />
-                <BaseInput v-model="form.remark" size="sm" class="w-40" placeholder="비고" maxlength="200" />
+                <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="md" class="w-44" />
+                <BaseInput v-model="form.remark" size="md" class="w-40" placeholder="비고" maxlength="200" />
                 <BaseButton variant="primary" :disabled="saving || planLoading || !fillTotal" @click="save">출고</BaseButton>
             </div>
 

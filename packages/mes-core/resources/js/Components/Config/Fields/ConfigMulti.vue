@@ -7,7 +7,7 @@
             <BaseInput
                 :type="row.inputType || 'text'"
                 v-model="store[row.key]"
-                size="sm"
+                size="md"
                 class="flex-1 max-w-xs"
             />
         </div>

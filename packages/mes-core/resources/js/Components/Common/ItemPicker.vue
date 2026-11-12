@@ -70,7 +70,7 @@ const props = defineProps({
     current:     { type: Object,  default: null },       // 선택지에 없는 지금 값( 미사용 등 ) 표시용 { item_code, item_name, spec }
     currentNote: { type: String,  default: '현재 선택 불가' },   // 그 값 뒤에 붙는 말
     showType:    { type: Boolean, default: false },      // 대분류 배지 ( 자재 · 제품이 섞인 선택지 )
-    size:        { type: String,  default: 'sm' },
+    size:        { type: String,  default: 'md' },
     remote:      { type: Object,  default: null },       // 서버 모드 { types: ['PRODUCT'], extra: ['std_sale_price'], includeInactive }
 });
 const emit = defineEmits(['update:modelValue', 'select', 'created']);

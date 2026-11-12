@@ -18,11 +18,11 @@
 
         <div class="flex flex-1 min-h-0 gap-4">
             <!-- 좌 : 규칙 목록 -->
-            <div class="w-80 shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <BaseInput v-model="search.keyword" size="sm" class="w-full" placeholder="규칙명" @keyup.enter="loadRules" />
+                    <BaseInput v-model="search.keyword" size="md" class="w-full" placeholder="규칙명" @keyup.enter="loadRules" />
                     <div class="flex items-center gap-2 mt-2">
-                        <BaseSelect v-model="search.rule_type" :options="TYPE_FILTER_OPTIONS" size="sm" class="w-28" @update:model-value="onTypeFilter" />
+                        <BaseSelect v-model="search.rule_type" :options="TYPE_FILTER_OPTIONS" size="md" class="w-28" @update:model-value="onTypeFilter" />
                         <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer select-none">
                             <input type="checkbox" class="base-checkbox w-3.5 h-3.5" v-model="showInactive" @change="loadRules" />
                             미사용 포함
@@ -49,7 +49,7 @@
             </div>
 
             <!-- 우 : 상세 -->
-            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[3] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">{{ form.lot_rule_idx ? '규칙 수정' : '규칙 등록' }}</span>
                     <div class="flex items-center gap-2">
@@ -99,8 +99,8 @@
                         </div>
                         <div class="flex items-center gap-2 shrink-0">
                             <span class="text-xs text-gray-500">구분자</span>
-                            <BaseSelect v-model="form.separator" :options="SEPARATOR_OPTIONS" size="sm" class="w-28" :disabled="!canWrite" />
-                            <BaseSelect v-if="canWrite" v-model="elementPick" :options="addableOptions" size="sm" class="w-40" placeholder="+ 요소 추가" @update:model-value="addElement" />
+                            <BaseSelect v-model="form.separator" :options="SEPARATOR_OPTIONS" size="md" class="w-28" :disabled="!canWrite" />
+                            <BaseSelect v-if="canWrite" v-model="elementPick" :options="addableOptions" size="md" class="w-40" placeholder="+ 요소 추가" @update:model-value="addElement" />
                         </div>
                     </div>
                     <p v-if="errors.format_spec" class="mb-2 text-xs text-red-500">{{ errors.format_spec[0] }}</p>
@@ -146,7 +146,7 @@
                                     <td class="px-2 py-2 align-middle font-medium text-gray-700">{{ ELEMENT_LABEL[el.type] }}</td>
                                     <td class="px-1.5 py-1">
                                         <!-- 요소별 설정 -->
-                                        <BaseInput v-if="el.type === 'TEXT'" v-model="el.value" size="sm" class="w-40 font-mono uppercase" placeholder="예: L" :disabled="!canWrite" />
+                                        <BaseInput v-if="el.type === 'TEXT'" v-model="el.value" size="md" class="w-40 font-mono uppercase" placeholder="예: L" :disabled="!canWrite" />
                                         <div v-else-if="el.type === 'DATE'" class="flex items-center gap-3 h-8 text-xs">
                                             <label v-for="u in DATE_UNITS" :key="u.value" class="inline-flex items-center gap-1 cursor-pointer">
                                                 <input type="radio" class="accent-blue-600" :value="u.value" v-model="el.unit" :disabled="!canWrite" />
@@ -154,7 +154,7 @@
                                             </label>
                                         </div>
                                         <div v-else-if="el.type === 'SEQ'" class="flex items-center gap-1.5 h-8 text-xs">
-                                            <BaseInput v-model="el.digits" type="number" min="1" :empty-value="3" size="sm" class="w-16 text-right" :disabled="!canWrite" />
+                                            <BaseInput v-model="el.digits" type="number" min="1" :empty-value="3" size="md" class="w-16 text-right" :disabled="!canWrite" />
                                             <span>자리</span>
                                             <span class="text-gray-400">· {{ seqResetText }}</span>
                                         </div>
@@ -185,7 +185,7 @@
 
                     <div class="mt-4 max-w-2xl">
                         <label class="block text-gray-500 font-medium mb-1">비고</label>
-                        <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="!canWrite"></textarea>
+                        <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
                     </div>
                     <p class="mt-3 text-xs text-gray-400">
                         여러 규칙을 등록해 두고 발행할 때 고릅니다 — 생산 LOT 은 작업지시, 입고 LOT 은 입고등록, 출하 LOT 은 출하등록, 시리얼은 실적에서 자동.

@@ -191,6 +191,12 @@ class WorkOrderService {
         } elseif (!$bom) {
             $warnings[] = '사용 중 BOM 이 없습니다. 자재 없는 지시로 저장합니다.';   // W_WO_NO_BOM
         }
+        // 원자재출고 공정 없음 : 자재가 있는 지시면 알린다 ( 막지 않음 — 11-11 )
+        //   출고는 자재출고 화면에서 따로 · 출고 전에도 첫 공정 진행 · 완료 때 덜 나간 자재 확인이 없다
+        $hasMaterials = $issued || ($bom && $bom->lines->isNotEmpty());
+        if ($hasMaterials && !$processes->contains(fn (Process $p) => $p->isRmOut())) {
+            $warnings[] = '공정에 원자재출고가 없습니다. 자재는 자재출고 화면에서 따로 출고하세요. ( 출고 전에도 첫 공정을 진행할 수 있고, 덜 나간 자재를 확인하지 않습니다 )';   // W_WO_NO_RM_OUT
+        }
         if ($data['due_date'] < $data['start_date']) {
             $warnings[] = '생산 기한이 착수 예정일보다 앞입니다.';   // W_WO_DUE
         } elseif ($data['due_date'] < now()->toDateString()) {
@@ -237,10 +243,20 @@ class WorkOrderService {
                 $wo->line_no   = $lineNo;
                 $wo->wo_no     = $sheet->sheet_no . '-' . str_pad((string) $lineNo, 2, '0', STR_PAD_LEFT);
             }
+            // LOT 방식 : 새 지시를 만들 때 한 번 정한다 ( 공정 LOT 추적 + LOT 사용이면 RUN — 이미 만든 지시는 그대로 · 실적LOT-설계 §9-5 )
+            if ($isNew) {
+                $wo->lot_mode = ($this->lots->enabled() && app(\MesCore\Basic\Services\PolicyService::class)->get('production.op_lot_tracking'))
+                    ? WorkOrder::LOT_MODE_RUN : WorkOrder::LOT_MODE_WO;
+            }
             if ($newLot && $rule) {
-                $date = $rule->rule_type === 'PRODUCE_END' ? $data['due_date'] : $data['start_date'];
-                $lot  = $this->lots->issueProductionLot($item, $rule, $date);
-                $wo->lot_idx      = $lot?->lot_idx;
+                if ($wo->isRunLot()) {
+                    // RUN : 지시 LOT 는 발급하지 않는다 — 실적마다 ( 제품 LOT 는 이 규칙으로 · §9-1 · §9-2 )
+                    $wo->lot_idx = null;
+                } else {
+                    $date = $rule->rule_type === 'PRODUCE_END' ? $data['due_date'] : $data['start_date'];
+                    $lot  = $this->lots->issueProductionLot($item, $rule, $date);
+                    $wo->lot_idx = $lot?->lot_idx;
+                }
                 $wo->lot_rule_idx = $rule->lot_rule_idx;
             }
             $wo->save();

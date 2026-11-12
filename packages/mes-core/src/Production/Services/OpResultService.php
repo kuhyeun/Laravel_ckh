@@ -30,6 +30,7 @@ use MesCore\Stock\Services\StockService;
  *            검사 공정도 기준 사슬에 든다 : 검사 완료 때 수량 = 합격 수량 → 뒤 공정 기준 · 제품 입고는 합격분만 ( 70-품질 §3 )
  *            품질 모듈이 켜져 있으면 검사 공정은 검사 창( ProcessInspectionService )에서만 완료, 꺼져 있으면 [완료] = 전부 합격
  *   진행   : 바로 앞 공정이 검사 · 시스템 공정이면 완료돼야, 수량 공정이면 시작만 되면 ( 정책 op_after_prev_done = Y 면 완료돼야 )
+ *            원자재출고는 정책 op_before_rm_out_done = Y( 기본 )면 완료 전이라도 그 품목 줄에 자재 출고가 1건 이상이면 ( 실적LOT-설계 §3 )
  *            자재는 막지 않는다 ( ADR 0008 )
  *   완료   : 수량 공정은 앞 공정이 모두 완료된 뒤 사람이 [공정 완료] — 실적 < 기준이면 미달 종료( 사유 필수 ).
  *            검사 · 시스템 공정은 수량 없이 [완료]. 원자재출고 공정은 덜 나간 자재( 출고 계획의 남음 > 0 · 미출고 )가 있으면 확인 후 완료
@@ -55,6 +56,7 @@ class OpResultService {
         private WorkOrderSheetService $sheets,
         private PolicyService $policy,
         private WipService $wip,
+        private RunInputService $inputs,
     ) {}
 
     // ---- 실적 ----
@@ -102,6 +104,12 @@ class OpResultService {
                 $warnings[] = "지시 수량( {$this->num((float) $wo->target_qty)} )보다 많습니다. ( 초과 생산 )";   // W_OP_OVER
             }
 
+            // 투입 LOT ( RUN 방식 — 실적LOT-설계 §5 ) : 실적을 만들기 전에 검사 · 외주 입고로 들어오는 실적은 5단계
+            [$inputs, $inputWarnings] = ($wo->isRunLot() && !$viaSubcon)
+                ? $this->inputs->normalize($wo, $ops, $op, $data['inputs'] ?? [], true)
+                : [[], []];
+            $warnings = array_merge($warnings, $inputWarnings);
+
             // 마지막 공정 : 실적만큼 바로 제품 입고 ( 부분 입고 )
             $receive = $this->receivesOnRun($ops, $op);
             $wh      = $receive ? $this->warehouse($data['warehouse_idx'] ?? null) : null;
@@ -116,10 +124,17 @@ class OpResultService {
                 'remark'            => $data['remark'] ?? null,
             ]);
 
+            // 실적 LOT ( RUN 방식 — 실적LOT-설계 §4 ) : 마지막 수량 공정 = 제품 LOT( 지시의 LOT 규칙 ) · 그 밖 = 공정 LOT
+            if ($wo->isRunLot()) {
+                $run->lot_idx = $this->issueRunLot($wo, $ops, $op, $workedAt)->lot_idx;
+                $run->save();
+                $this->inputs->save($run, $inputs);
+            }
+
             $this->wip->recordRun($wo, $ops, $op, $run);   // 재공 이력 : 이 공정 + · 앞 수량 공정 −
 
             if ($receive) {
-                $line = $this->receive($wo, $qty, $wh, $workedAt, "생산 입고 {$wo->wo_no} · {$this->opName($op)} 실적");
+                $line = $this->receive($wo, $qty, $wh, $workedAt, "생산 입고 {$wo->wo_no} · {$this->opName($op)} 실적", $run->lot_idx);
                 $run->stock_txn_line_idx = $line->stock_txn_line_idx;
                 $run->save();
             }
@@ -159,6 +174,11 @@ class OpResultService {
                 ]]);   // E_OP_CANCEL_BELOW
             }
 
+            // 실적 LOT 가 뒤 공정에 투입 LOT 로 연결돼 있으면 막고 · 이 실적의 투입 연결은 함께 해제 ( RUN 방식 )
+            if ($wo->isRunLot()) {
+                $this->inputs->beforeCancelRun($run);
+            }
+
             // 부분 입고한 실적이면 그 입고도 되돌린다 ( 제품 재고가 남아 있을 때 )
             if ($run->stock_txn_line_idx) {
                 $this->unreceive(StockTxnLine::with('lot')->whereKey($run->stock_txn_line_idx)->lockForUpdate()->first());
@@ -169,6 +189,43 @@ class OpResultService {
             $op->qty = $this->str($this->runSum($op));
             $op->save();
             $this->afterChange($wo, $ops);
+        });
+    }
+
+    // ---- 투입 LOT ( 실적LOT-설계 §5 ) ----
+
+    // 그 공정 실적에 고를 수 있는 투입 LOT ( 자재 LOT · 앞 공정 실적 LOT )
+    public function inputCandidates(WorkOrderOp $op): array {
+        $wo  = WorkOrder::findOrFail($op->work_order_idx);
+        $ops = WorkOrderOp::with('process')->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get();
+        return $this->inputs->candidates($wo, $ops, $ops->firstWhere('work_order_op_idx', $op->work_order_op_idx));
+    }
+
+    // 이미 저장한 실적 LOT 에 투입 LOT 를 더한다 ( 나중에 출고한 자재 등 — 공정 · 지시 완료 뒤에도 기록용으로 ) → 경고
+    public function addInputs(WorkOrderOpRun $run, array $inputs): array {
+        return DB::transaction(function () use ($run, $inputs) {
+            [$wo, $ops, $op] = $this->lockLine($run->op);
+            $run = WorkOrderOpRun::whereKey($run->run_idx)->lockForUpdate()->first();
+            if (!$wo->isRunLot() || !$run->lot_idx) {
+                throw ValidationException::withMessages(['run_idx' => ['실적 LOT 가 없는 실적입니다. ( 공정 LOT 추적으로 만든 지시만 )']]);
+            }
+            if ($run->is_canceled === 'Y') {
+                throw ValidationException::withMessages(['run_idx' => ['취소된 실적입니다.']]);
+            }
+            if (!$inputs) {
+                throw ValidationException::withMessages(['inputs' => ['더할 투입 LOT 를 고르세요.']]);
+            }
+            [$normalized, $warnings] = $this->inputs->normalize($wo, $ops, $op, $inputs, false);
+            $this->inputs->save($run, $normalized);
+            return $warnings;
+        });
+    }
+
+    // 투입 연결 해제 ( 취소 표시 )
+    public function cancelInput(\MesCore\Production\Models\WorkOrderRunInput $input): void {
+        DB::transaction(function () use ($input) {
+            $this->lockLine($input->run->op);
+            $this->inputs->cancel(\MesCore\Production\Models\WorkOrderRunInput::whereKey($input->run_input_idx)->lockForUpdate()->first());
         });
     }
 
@@ -298,7 +355,16 @@ class OpResultService {
             return null;
         }
         if (!$prev->isQtyOp()) {
-            return $prev->status === 'DONE' ? null : "앞 공정( {$this->opName($prev)} )을 먼저 완료하세요.";
+            if ($prev->status === 'DONE') {
+                return null;
+            }
+            // 원자재출고 : 설정이 켜져 있으면 완료 전이라도 그 품목 줄에 자재가 1건이라도 나갔으면 진행 ( docs/실적LOT-설계.md §3 · 11-11 )
+            if ($prev->isRmOut() && $this->policy->get('production.op_before_rm_out_done')) {
+                return $this->materials->hasIssued((int) $op->work_order_idx)
+                    ? null
+                    : "자재가 아직 출고되지 않았습니다. 자재를 1건 이상 출고하면 시작할 수 있습니다. ( {$this->opName($prev)} )";
+            }
+            return "앞 공정( {$this->opName($prev)} )을 먼저 완료하세요.";
         }
         if ($this->policy->get('production.op_after_prev_done') && $prev->status !== 'DONE') {
             return "앞 공정( {$this->opName($prev)} )을 완료한 뒤에 시작합니다. ( 앞 공정 완료 후 다음 공정 설정 )";
@@ -376,7 +442,9 @@ class OpResultService {
     private function completeLine(WorkOrder $wo, Collection $ops, ?int $warehouseIdx): array {
         $warnings = [];
         $left     = $this->receiveLeft($wo, $ops);
-        if ($left > self::EPS) {
+        if ($left > self::EPS && $wo->isRunLot()) {
+            $this->receiveLeftByRunLot($wo, $ops, $left, $this->warehouse($warehouseIdx));   // 실적 LOT 별로 나눠 ( §9-3 )
+        } elseif ($left > self::EPS) {
             $this->receive($wo, $left, $this->warehouse($warehouseIdx), now(), "생산 입고 {$wo->wo_no}");
         } elseif ($this->receivedQty($wo) <= self::EPS) {
             $warnings[] = '실적이 없어 제품 입고 없이 완료했습니다.';
@@ -424,8 +492,63 @@ class OpResultService {
         return $wh;
     }
 
-    // 입고 1건 : 전표 · 줄 · 원장 · LOT 입고일 · 수주 생산 수량
-    private function receive(WorkOrder $wo, float $qty, Warehouse $wh, Carbon $at, string $remark): StockTxnLine {
+    // ---- 실적 LOT ( RUN 방식 · docs/실적LOT-설계.md §4 · §9 ) ----
+
+    // 마지막 수량 공정 = 제품 LOT ( 지시의 LOT 규칙 · 날짜 = 작업 일시 ) / 그 밖 = 공정 LOT ( 지시 번호 + P공정순번 + 순번 — 예 WO-261111-001-01-P020-001 )
+    private function issueRunLot(WorkOrder $wo, Collection $ops, WorkOrderOp $op, Carbon $at): Lot {
+        $lastQty = $ops->filter(fn (WorkOrderOp $o) => $o->isQtyOp())->last();
+        $lots    = app(\MesCore\Stock\Services\LotService::class);
+        if ($lastQty && (int) $lastQty->work_order_op_idx === (int) $op->work_order_op_idx) {
+            $rule = $wo->lot_rule_idx
+                ? \MesCore\Config\Models\LotRule::find($wo->lot_rule_idx)
+                : $lots->productionRules()->first();
+            $lot = $lots->issueProductionLot($wo->item ?? $wo->load('item')->item, $rule, $at->toDateString());
+            if (!$lot) {
+                throw ValidationException::withMessages(['qty' => ['LOT 를 쓰지 않는 설정이라 실적 LOT 를 발급할 수 없습니다. ( LOT 기능 확인 )']]);
+            }
+            return $lot;
+        }
+        // 같은 공정의 실적 LOT 순번 ( 취소된 실적 포함 — 번호 재사용 없음 · 지시 행을 잠근 상태 )
+        $n = WorkOrderOpRun::where('work_order_op_idx', $op->work_order_op_idx)->whereNotNull('lot_idx')->count() + 1;
+        return Lot::create([
+            'item_idx' => $wo->item_idx,
+            'lot_no'   => mb_substr(sprintf('%s-P%03d-%03d', $wo->wo_no, (int) $op->seq, $n), 0, 50),
+            'source'   => 'PROCESS',
+        ]);
+    }
+
+    // 줄 완료 때 남은 수량을 마지막 수량 공정의 실적 LOT 별로 ( 실적 순 · LOT 마다 실적 − 이미 입고 — 검사로 줄었으면 뒤 LOT 부터 덜 받는다 )
+    //   실적 LOT 가 없으면( 수량 공정이 없음 ) 제품 LOT 를 하나 발급해 받는다
+    private function receiveLeftByRunLot(WorkOrder $wo, Collection $ops, float $left, Warehouse $wh): void {
+        $lastQty = $ops->filter(fn (WorkOrderOp $o) => $o->isQtyOp())->last();
+        $runs    = $lastQty ? WorkOrderOpRun::where('work_order_op_idx', $lastQty->work_order_op_idx)->where('is_canceled', 'N')
+            ->whereNotNull('lot_idx')->orderBy('worked_at')->orderBy('run_idx')->get() : collect();
+        $got     = $this->receiptLines($wo)->get()->groupBy('lot_idx')->map(fn ($g) => (float) $g->sum('qty'));
+        $remark  = "생산 입고 {$wo->wo_no}";
+
+        foreach ($runs as $run) {
+            if ($left <= self::EPS) break;
+            $room = (float) $run->qty - (float) ($got[$run->lot_idx] ?? 0);
+            if ($room <= self::EPS) continue;
+            $take = min($room, $left);
+            $this->receive($wo, $take, $wh, now(), $remark, (int) $run->lot_idx);
+            $got[$run->lot_idx] = (float) ($got[$run->lot_idx] ?? 0) + $take;
+            $left -= $take;
+        }
+        if ($left > self::EPS) {
+            // 실적 LOT 가 모자라거나 없을 때 ( 수량 공정 없음 ) — 마지막 실적 LOT · 없으면 새 제품 LOT
+            $lotIdx = $runs->last()?->lot_idx;
+            if (!$lotIdx) {
+                $rule   = $wo->lot_rule_idx ? \MesCore\Config\Models\LotRule::find($wo->lot_rule_idx) : app(\MesCore\Stock\Services\LotService::class)->productionRules()->first();
+                $lotIdx = app(\MesCore\Stock\Services\LotService::class)->issueProductionLot($wo->item ?? $wo->load('item')->item, $rule, now()->toDateString())?->lot_idx;
+            }
+            $this->receive($wo, $left, $wh, now(), $remark, $lotIdx ? (int) $lotIdx : null);
+        }
+    }
+
+    // 입고 1건 : 전표 · 줄 · 원장 · LOT 입고일 · 수주 생산 수량 — LOT = $lotIdx( 실적 LOT ) · 없으면 지시 LOT
+    private function receive(WorkOrder $wo, float $qty, Warehouse $wh, Carbon $at, string $remark, ?int $lotIdx = null): StockTxnLine {
+        $lotIdx ??= $wo->lot_idx ? (int) $wo->lot_idx : null;
         $txn = StockTxn::create([
             'txn_no'      => $this->stock->nextTxnNo(self::NO_PREFIX, $at),
             'txn_type'    => self::TXN_TYPE,
@@ -438,7 +561,7 @@ class OpResultService {
             'stock_txn_idx'  => $txn->stock_txn_idx,
             'line_no'        => 1,
             'item_idx'       => $wo->item_idx,
-            'lot_idx'        => $wo->lot_idx,
+            'lot_idx'        => $lotIdx,
             'warehouse_idx'  => $wh->warehouse_idx,
             'qty'            => $this->str($qty),
             'work_order_idx' => $wo->work_order_idx,
@@ -450,12 +573,12 @@ class OpResultService {
             'stock_txn_idx'      => $txn->stock_txn_idx,
             'stock_txn_line_idx' => $line->stock_txn_line_idx,
             'item_idx'           => $wo->item_idx,
-            'lot_idx'            => (int) $wo->lot_idx,
+            'lot_idx'            => (int) $lotIdx,
             'warehouse_idx'      => $wh->warehouse_idx,
             'txn_type'           => self::TXN_TYPE,
         ], $this->str($qty), $at);
-        if ($wo->lot_idx) {
-            Lot::whereKey($wo->lot_idx)->whereNull('in_at')->update(['in_at' => $at]);
+        if ($lotIdx) {
+            Lot::whereKey($lotIdx)->whereNull('in_at')->update(['in_at' => $at]);
         }
         $this->addProduced($wo, $qty);
         return $line;

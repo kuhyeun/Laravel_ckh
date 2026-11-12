@@ -9,9 +9,9 @@
 
         <div class="flex flex-1 min-h-0 gap-4">
             <!-- 좌 : 품목 -->
-            <div class="w-72 shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <BaseInput v-model="itemKeyword" size="sm" class="w-full" placeholder="품번 · 품명" @keyup.enter="loadItems" />
+                    <BaseInput v-model="itemKeyword" size="md" class="w-full" placeholder="품번 · 품명" @keyup.enter="loadItems" />
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto py-1">
                     <p v-if="!items.length" class="px-3 py-4 text-sm text-gray-400">품목이 없습니다.</p>
@@ -33,7 +33,7 @@
             </div>
 
             <!-- 우 : 버전 + 줄 -->
-            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[3] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex flex-wrap items-center gap-2 px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">
                         {{ selectedItem ? withSpec(`${selectedItem.item_name} [${selectedItem.item_code}]`, selectedItem.spec) : 'BOM' }}
@@ -41,7 +41,7 @@
                     <template v-if="selectedItem">
                         <BaseSelect
                             :model-value="form.bom_idx ?? ''"
-                            :options="versionOptions" size="sm" class="w-40"
+                            :options="versionOptions" size="md" class="w-40"
                             @update:model-value="onVersionChange"
                         />
                         <span v-if="form.is_active === 'Y'" class="text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">활성</span>
@@ -136,7 +136,7 @@
                                             <p v-if="rowError(i, 'qty')" class="text-[11px] text-red-500">{{ rowError(i, 'qty') }}</p>
                                         </td>
                                         <td class="px-1.5 py-1">
-                                            <BaseSelect v-model="l.routing_line_idx" :options="routingOptions" size="sm" class="w-full" :disabled="!canWrite || !hasRouting" />
+                                            <BaseSelect v-model="l.routing_line_idx" :options="routingOptions" size="md" class="w-full" :disabled="!canWrite || !hasRouting" />
                                             <p v-if="rowError(i, 'routing_line_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'routing_line_idx') }}</p>
                                         </td>
                                         <td v-if="SHOW_CALC" class="px-1.5 py-1">
@@ -145,8 +145,8 @@
                                         <td v-if="SHOW_CALC" class="px-1.5 py-1">
                                             <BaseInput v-model="l.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" />
                                         </td>
-                                        <td v-if="canWrite" class="px-1.5 py-1 text-center">
-                                            <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="줄 삭제" @click="form.lines.splice(i, 1)">✕</button>
+                                        <td v-if="canWrite" class="px-1.5 text-center py-1 leading-9">
+                                            <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="form.lines.splice(i, 1)">✕</button>
                                         </td>
                                     </tr>
                                     <!-- 대체 자재 : 소요는 대체 자재 기준 ( 출고 때 주 자재 대신 · 섞어서 낸다 — 자동 채움은 주 자재만 ) -->
@@ -168,7 +168,7 @@
                                                         <td :colspan="(canWrite ? 5 : 4) + (SHOW_CALC ? 2 : 0)" class="py-1 text-gray-400">대체 자재가 없습니다. 이 자재 대신 쓸 수 있는 자재를 넣으면 자재 출고 때 대신 · 섞어서 낼 수 있습니다.</td>
                                                     </tr>
                                                     <tr v-for="(sub, j) in l.substitutes" :key="sub._rowKey" class="align-top">
-                                                        <td class="py-1 text-gray-300">└</td>
+                                                        <td class="text-gray-300 py-1 leading-9">└</td>
                                                         <td class="pr-1.5 py-1">
                                                             <ItemPicker v-model="sub.child_item_idx" :remote="{}" :exclude="[selectedItem?.item_idx, l.child_item_idx]" placeholder="대체 자재 선택"
                                                                 :can-create="canCreateItem" :disabled="!canWrite"
@@ -176,14 +176,14 @@
                                                             <p v-if="subError(i, j, 'child_item_idx')" class="text-[11px] text-red-500">{{ subError(i, j, 'child_item_idx') }}</p>
                                                         </td>
                                                         <td class="pr-1.5 py-1">
-                                                            <BaseInput v-model="sub.qty" type="number" min="0" size="sm" class="w-full text-right" placeholder="소요" :disabled="!canWrite" />
+                                                            <BaseInput v-model="sub.qty" type="number" min="0" size="md" class="w-full text-right" placeholder="소요" :disabled="!canWrite" />
                                                             <p v-if="subError(i, j, 'qty')" class="text-[11px] text-red-500">{{ subError(i, j, 'qty') }}</p>
                                                         </td>
-                                                        <td class="pr-1.5 py-1 text-gray-400">투입 지점은 주 자재와 같음</td>
-                                                        <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="sm" class="w-full" placeholder="계산식" :disabled="!canWrite" /></td>
-                                                        <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="sm" class="w-full text-right" :disabled="!canWrite" /></td>
-                                                        <td v-if="canWrite" class="py-1 text-center">
-                                                            <button type="button" class="px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
+                                                        <td class="pr-1.5 text-gray-400 py-1 leading-9">투입 지점은 주 자재와 같음</td>
+                                                        <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="md" class="w-full" placeholder="계산식" :disabled="!canWrite" /></td>
+                                                        <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" /></td>
+                                                        <td v-if="canWrite" class="text-center py-1 leading-9">
+                                                            <button type="button" class="inline-flex items-center h-9 align-top px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
                                                         </td>
                                                     </tr>
                                                 </tbody>

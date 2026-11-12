@@ -300,6 +300,7 @@ class MaterialIssueService {
                     ->update(['issued_qty' => DB::raw('issued_qty + ' . $qty)]);
             }
 
+            $this->syncRmOutStatus($wo, $ops, $occurredAt);
             return $txn;
         });
 
@@ -353,6 +354,7 @@ class MaterialIssueService {
                 }
             }
 
+            $this->syncRmOutStatus($wo, WorkOrderOp::with('process')->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->lockForUpdate()->get(), now());
             return $lines->count();
         });
     }
@@ -627,6 +629,39 @@ class MaterialIssueService {
     }
 
     // ---- 내부 ----
+
+    // 그 품목 줄에 나간 자재가 있는지 ( 출고 − 출고 취소 > 0 · 주 · 대체 모두 ) — 원자재출고 완료 전 다음 공정 진행의 기준 ( 실적LOT-설계 §3 )
+    public function hasIssued(int $woIdx): bool {
+        return (float) DB::table('work_order_material')->where('work_order_idx', $woIdx)->sum('issued_qty') > self::EPS;
+    }
+
+    // 원자재출고 공정 상태 ( 정책 production.op_before_rm_out_done 이 켜져 있을 때 — 완료 전에도 뒤 공정이 진행되므로 )
+    //   첫 출고 → 진행( 시작 시각 = 출고 일시 ) · 출고를 모두 취소 → 대기 ( 뒤 공정이 이미 시작됐으면 그대로 — 거꾸로 꼬이지 않게 )
+    //   품목 줄 · 지시서 상태도 맞춘다 ( 대기 ↔ 진행 )
+    private function syncRmOutStatus(WorkOrder $wo, $ops, Carbon $at): void {
+        if (!$this->policy->get('production.op_before_rm_out_done')) {
+            return;
+        }
+        $rm = $ops->first(fn (WorkOrderOp $o) => $o->isRmOut());
+        if (!$rm || $rm->status === 'DONE') {
+            return;
+        }
+        $issued = $this->hasIssued((int) $wo->work_order_idx);
+        if ($issued && $rm->status === 'WAIT') {
+            $rm->fill(['status' => 'RUN', 'started_at' => $at])->save();
+        } elseif (!$issued && $rm->status === 'RUN') {
+            $laterStarted = $ops->contains(fn (WorkOrderOp $o) => $o->seq > $rm->seq && ($o->status !== 'WAIT' || (float) $o->qty > self::EPS));
+            if (!$laterStarted) {
+                $rm->fill(['status' => 'WAIT', 'started_at' => null])->save();
+            }
+        } else {
+            return;
+        }
+        $started    = $ops->contains(fn (WorkOrderOp $o) => $o->status !== 'WAIT');
+        $wo->status = $started ? 'RUN' : 'WAIT';
+        $wo->save();
+        app(WorkOrderSheetService::class)->refreshStatus($wo->sheet);
+    }
 
     private function assertOpen(?WorkOrder $wo): void {
         if (!$wo || !in_array($wo->status, ['WAIT', 'RUN'], true)) {

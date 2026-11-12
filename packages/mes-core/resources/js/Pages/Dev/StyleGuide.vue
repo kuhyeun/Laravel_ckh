@@ -48,10 +48,10 @@
 
             <!-- 2. 좌우 분할 -->
             <section id="split" class="scroll-mt-4">
-                <SectionHead title="좌우 분할" note="왼쪽에서 고르고 오른쪽에서 처리 — 왼쪽 목록 460 · 짧은 목록 / 트리 240 ( md §4 )" />
+                <SectionHead title="좌우 분할" note="왼쪽에서 고르고 오른쪽에서 처리 — 왼쪽 1 : 오른쪽 3 ( flex-[1] · flex-[3] — 모든 목록 · 상세 화면 같게 · 11-12 )" />
                 <ShowcaseCard title="목록 + 상세" :code="code.split">
                     <div class="w-full h-[320px] flex gap-3 border border-dashed border-gray-300 p-3 bg-white">
-                        <div class="w-[240px] shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+                        <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                             <div class="px-3 py-2 bg-gray-50/70 shrink-0 text-sm font-semibold text-gray-600">작업지시 · <span class="text-xs text-gray-400">{{ SPLIT_ROWS.length }} 건</span></div>
                             <div class="flex-1 min-h-0 overflow-y-auto">
                                 <button v-for="r in SPLIT_ROWS" :key="r.no" type="button" class="w-full text-left px-3 py-2 border-b text-sm"
@@ -60,7 +60,7 @@
                                 </button>
                             </div>
                         </div>
-                        <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+                        <div class="flex-[3] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                             <div v-if="!picked" class="flex-1 flex items-center justify-center text-sm text-gray-400">왼쪽에서 작업지시를 고르세요.</div>
                             <template v-else>
                                 <div class="px-3 py-2 bg-gray-50/70 shrink-0 flex items-center gap-3">
@@ -226,11 +226,11 @@
                             <p class="col-span-2 text-xs text-gray-400 font-mono">값 : {{ pick.d || '( 빈 값 )' }} · {{ pick.dt || '( 빈 값 )' }}</p>
                         </div>
                     </ShowcaseCard>
-                    <ShowcaseCard title="작게 ( 검색바 · 패널 머리 — size sm )" :code="code.pickerSm">
-                        <BaseDatePicker v-model="pick.from" size="sm" />
+                    <ShowcaseCard title="검색바 · 패널 머리 ( 입력 · 선택은 모두 md 36px — 11-12 )" :code="code.pickerSm">
+                        <BaseDatePicker v-model="pick.from" size="md" />
                         <span class="text-gray-400">~</span>
-                        <BaseDatePicker v-model="pick.to" size="sm" />
-                        <BaseDatePicker v-model="pick.dt2" mode="datetime" size="sm" />
+                        <BaseDatePicker v-model="pick.to" size="md" />
+                        <BaseDatePicker v-model="pick.dt2" mode="datetime" size="md" />
                     </ShowcaseCard>
                     <ShowcaseCard title="지우기 · 빈 값 안내 · 비활성" :code="code.pickerMore">
                         <div class="w-full grid grid-cols-3 gap-3">
@@ -277,7 +277,7 @@
                     <ShowcaseCard title="Input" :code="code.input">
                         <BaseInput v-model="text" placeholder="값을 입력하세요" class="w-48" />
                         <BaseInput type="number" v-model="num" class="w-28 text-right" :select-on-focus="true" />
-                        <BaseInput size="sm" v-model="text" placeholder="sm ( 검색바 )" class="w-36" />
+                        <BaseInput size="md" v-model="text" placeholder="검색바" class="w-36" />
                         <BaseInput v-model="text" placeholder="비활성" disabled class="w-36" />
                     </ShowcaseCard>
                     <ShowcaseCard title="Checkbox · Toggle" :code="code.checkbox">
@@ -524,13 +524,13 @@ const canDelete = computed(() => page.props.permissions?.[menuCode]?.can_delete 
 <\/script>`,
 
     split: `<div class="flex-1 min-h-0 flex gap-3">
-    <!-- 왼쪽 : 고르는 목록 ( 그리드 460 / 짧은 목록 · 트리 240 ) -->
-    <div class="w-[460px] shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+    <!-- 왼쪽 : 고르는 목록 ( 왼쪽 1 : 오른쪽 3 ) -->
+    <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
         <div class="px-3 py-2 bg-gray-50/70 shrink-0 text-sm font-semibold text-gray-600">작업지시 · <span class="text-xs text-gray-400">{{ n }} 건</span></div>
         <div class="flex-1 min-h-0 flex flex-col"><DataGrid class="flex-1" ... @row-click="select" /></div>
     </div>
     <!-- 오른쪽 : 고른 것의 상세 -->
-    <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+    <div class="flex-[3] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
         <div v-if="!current" class="flex-1 flex items-center justify-center text-sm text-gray-400">왼쪽에서 작업지시를 고르세요.</div>
         <template v-else>
             <div class="px-3 py-2 bg-gray-50/70 shrink-0 flex items-center gap-3"> 이름 · 요약 · 버튼 </div>
@@ -669,9 +669,9 @@ async function onMove(p, start, end) {
 <BaseDatePicker v-model="form.date" />
 <BaseDatePicker v-model="form.at" mode="datetime" />`,
 
-    pickerSm: `<BaseDatePicker v-model="search.from" size="sm" />
-<BaseDatePicker v-model="search.to" size="sm" />
-<BaseDatePicker v-model="form.occurred_at" mode="datetime" size="sm" />`,
+    pickerSm: `<BaseDatePicker v-model="search.from" size="md" />
+<BaseDatePicker v-model="search.to" size="md" />
+<BaseDatePicker v-model="form.occurred_at" mode="datetime" size="md" />`,
 
     pickerMore: `<BaseDatePicker v-model="form.due" clearable placeholder="날짜 선택" />
 <BaseDatePicker v-model="form.at" mode="datetime" clearable placeholder="일시 선택" />
@@ -680,11 +680,11 @@ async function onMove(p, start, end) {
     select: `<BaseSelect v-model="value" :options="options" class="w-40" />
 <BaseSelect v-model="value" :options="options" placeholder="선택하세요" class="w-40" />
 <BaseSelect v-model="value" :options="options" disabled class="w-40" />
-<!-- 검색바 안에서는 size="sm" -->`,
+<!-- 검색바 안도 기본 md ( sm 30px 는 쓰지 않는다 — 11-12 ) -->`,
 
     input: `<BaseInput v-model="text" placeholder="값을 입력하세요" class="w-48" />
 <BaseInput type="number" v-model="num" class="w-28 text-right" :select-on-focus="true" />
-<BaseInput size="sm" v-model="text" class="w-36" />   <!-- 검색바 안 -->
+<BaseInput size="md" v-model="text" class="w-36" />   <!-- 검색바 안 -->
 <BaseInput v-model="text" disabled class="w-36" />`,
 
     checkbox: `<BaseCheckbox variant="checkbox" true-value="Y" false-value="N">사용</BaseCheckbox>

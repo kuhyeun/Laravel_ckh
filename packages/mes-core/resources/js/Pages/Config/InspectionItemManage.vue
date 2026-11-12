@@ -21,8 +21,8 @@
                 placeholder="항목명 · 검사 방법"
                 @keyup.enter="loadInspectionItems"
             />
-            <BaseSelect v-model="search.is_quantitative" :options="NATURE_FILTER_OPTIONS" class="w-28" size="sm" />
-            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="sm" />
+            <BaseSelect v-model="search.is_quantitative" :options="NATURE_FILTER_OPTIONS" class="w-28" size="md" />
+            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="md" />
             <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="loadInspectionItems">조회</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="resetSearch">초기화</BaseButton>
         </div>

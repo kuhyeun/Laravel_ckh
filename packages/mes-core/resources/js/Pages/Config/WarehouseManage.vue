@@ -12,7 +12,7 @@
 
         <div class="flex flex-1 min-h-0 gap-4">
             <!-- 좌 : 트리 -->
-            <div class="w-80 shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">창고</span>
                     <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer select-none">
@@ -49,7 +49,7 @@
             </div>
 
             <!-- 우 : 상세 -->
-            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[3] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">
                         {{ form.warehouse_idx ? '창고 수정' : '창고 등록' }}
@@ -93,7 +93,7 @@
                         </div>
                         <div class="col-span-2">
                             <label class="block text-gray-500 font-medium mb-1">비고</label>
-                            <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="!canWrite"></textarea>
+                            <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
                         </div>
                     </div>
                 </div>

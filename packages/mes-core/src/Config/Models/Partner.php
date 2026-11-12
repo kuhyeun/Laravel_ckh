@@ -37,6 +37,8 @@ class Partner extends Model {
         'is_subcon',
         'biz_no',
         'ceo_name',
+        'address',
+        'tel',
         'is_use',
         'remark',
         'create_account_idx',

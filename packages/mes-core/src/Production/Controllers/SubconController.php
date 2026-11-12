@@ -97,6 +97,7 @@ class SubconController extends Controller {
                     'issued_qty'        => $av['issued'],
                     'available_qty'     => $av['available'],
                     'is_last'           => $results->receivesOnRun($ops, $op),
+                    'lot_mode'          => $wo->lot_mode,   // RUN = 내보낼 LOT 를 고른다 ( 실적LOT-설계 )
                 ];
             }
         }
@@ -111,9 +112,24 @@ class SubconController extends Controller {
             'amount'            => 'nullable|numeric|min:0|max:9999999999999',
             'issued_at'         => 'required|date_format:Y-m-d\TH:i',
             'remark'            => 'nullable|string|max:200',
-        ], ['qty.gt' => '수량은 0보다 커야 합니다.'], ['partner_idx' => '외주처', 'qty' => '수량', 'amount' => '외주 금액', 'issued_at' => '출고 일시']);
+            // 내보낼 LOT ( 공정 LOT 추적 지시 ) : [ input_type MATERIAL · RUN, lot_idx, qty ]
+            'inputs'              => 'nullable|array|max:100',
+            'inputs.*.input_type' => 'required|in:MATERIAL,RUN',
+            'inputs.*.lot_idx'    => 'required|integer',
+            'inputs.*.qty'        => 'required|numeric|gt:0|max:999999999999',
+        ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => 'LOT 수량은 0보다 커야 합니다.'], ['partner_idx' => '외주처', 'qty' => '수량', 'amount' => '외주 금액', 'issued_at' => '출고 일시', 'inputs.*.qty' => 'LOT 수량']);
         $issue = $this->subcon->issue($d);
-        return response()->json(['message' => 'Success', 'issue_no' => $issue->issue_no]);
+        return response()->json(['message' => 'Success', 'issue_no' => $issue->issue_no, 'warnings' => $issue->warnings ?? []]);
+    }
+
+    // 외주 출고 때 고를 LOT ( 공정 LOT 추적 — 공정실적과 같은 후보 · 외주 출고 권한으로 )
+    public function inputCandidates(Request $request, OpResultService $results) {
+        $v  = $request->validate(['work_order_op_idx' => 'required|integer']);
+        $op = WorkOrderOp::find($v['work_order_op_idx']);
+        if (!$op) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        return response()->json($results->inputCandidates($op));
     }
 
     public function cancelIssue(Request $request) {
@@ -145,8 +161,10 @@ class SubconController extends Controller {
         //   $lastOps 는 준비 콜백이 나중에 채운다 → 행 함수는 참조로 받아야 한다
         //   ( 11-10 고침 : 화살표 함수 fn 은 만들 때의 빈 배열을 복사해 is_last 가 늘 false → 입고 창에 창고 칸이 안 보이고 서버는 창고 없음으로 거절 )
         $lastOps = [];
-        return $this->listResponse($request, $q, self::ISSUE_SORTABLE, 'rows', function ($r) use (&$lastOps) {
+        $sentLots = [];   // 내보낸 LOT ( 공정 LOT 추적 · 그 페이지 출고만 )
+        return $this->listResponse($request, $q, self::ISSUE_SORTABLE, 'rows', function ($r) use (&$lastOps, &$sentLots) {
             return $this->issueRow($r) + [
+                'sent_lots'    => collect($sentLots[$r->subcon_issue_idx] ?? [])->map(fn ($l) => $l['lot_no'] . ' ' . rtrim(rtrim(number_format($l['qty'], 6, '.', ''), '0'), '.'))->implode(', '),
                 'received_qty' => (float) $r->received,
                 'passed_qty'   => (float) $r->passed,
                 'failed_qty'   => (float) $r->failed,
@@ -154,7 +172,10 @@ class SubconController extends Controller {
                 'left_qty'     => $r->is_canceled === 'Y' ? 0.0 : max(0, (float) $r->qty - (float) $r->received),
                 'is_last'      => ($lastOps[$r->work_order_idx] ?? null) === (int) $r->work_order_op_idx,
             ];
-        }, function ($rows) use (&$lastOps) { $lastOps = $this->lastOps($rows->pluck('work_order_idx')->unique()->all()); });
+        }, function ($rows) use (&$lastOps, &$sentLots) {
+            $lastOps  = $this->lastOps($rows->pluck('work_order_idx')->unique()->all());
+            $sentLots = $this->subcon->issueLots($rows->pluck('subcon_issue_idx')->all());
+        });
     }
 
     // ---- 외주 입고 ----

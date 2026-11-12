@@ -9,6 +9,7 @@ use MesCore\Basic\Services\PolicyService;
 use MesCore\Stock\Models\Lot;
 use MesCore\Stock\Models\StockTxn;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -53,7 +54,7 @@ class LotTraceController extends Controller {
             ->join('item as i', 'i.item_idx', '=', 't.item_idx')
             ->leftJoin('partner as pt', 'pt.partner_idx', '=', 't.partner_idx')
             ->whereIn('t.source', ['PURCHASE', 'LEFTOVER'])
-            ->select(['t.lot_idx', 't.lot_no', 't.external_lot_no', 't.source', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.spec_unit', 'pt.partner_name'])
+            ->select(['t.lot_idx', 't.lot_no', 't.external_lot_no', 't.heat_no', 't.source', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.spec_unit', 'pt.partner_name'])
             ->selectRaw("{$inDate} as in_date")
             ->selectRaw("(SELECT COALESCE(SUM(g.qty_delta), 0) FROM stock_ledger g WHERE g.lot_idx = t.lot_idx AND g.txn_type = 'IN_PURCHASE') as in_qty")
             ->selectRaw('(SELECT COALESCE(SUM(b.qty), 0) FROM stock_balance b WHERE b.lot_idx = t.lot_idx) as stock_qty')
@@ -63,7 +64,7 @@ class LotTraceController extends Controller {
             ->orderByDesc('t.lot_idx');
         $this->applyPeriod($query, $inDate, $v);
         $this->applyKeyword($query, $v['keyword'] ?? null, [
-            'lot_no'    => fn ($q, $kw) => $q->where('t.lot_no', 'like', $kw)->orWhere('t.external_lot_no', 'like', $kw),
+            'lot_no'    => fn ($q, $kw) => $q->where(fn ($w) => $w->where('t.lot_no', 'like', $kw)->orWhere('t.external_lot_no', 'like', $kw)->orWhere('t.heat_no', 'like', $kw)),
             'item_code' => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
             'item_name' => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
             'partner'   => fn ($q, $kw) => $q->where('pt.partner_name', 'like', $kw),
@@ -72,6 +73,7 @@ class LotTraceController extends Controller {
             'lot_idx'         => (int) $r->lot_idx,
             'lot_no'          => $r->lot_no,
             'external_lot_no' => $r->external_lot_no,
+            'heat_no'         => $r->heat_no,
             'is_leftover'     => $r->source === 'LEFTOVER',
             'item_code'       => $r->item_code,
             'item_name'       => $r->item_name,
@@ -92,7 +94,8 @@ class LotTraceController extends Controller {
         $madeDate = 'DATE(COALESCE(t.in_at, t.create_datetime))';
         $query = Lot::query()->from('lot as t')
             ->join('item as i', 'i.item_idx', '=', 't.item_idx')
-            ->join('work_order as wo', 'wo.lot_idx', '=', 't.lot_idx')
+            ->joinSub($this->lotWoQuery(), 'lw', 'lw.lot_idx', '=', 't.lot_idx')
+            ->join('work_order as wo', 'wo.work_order_idx', '=', 'lw.work_order_idx')
             ->where('t.source', 'PRODUCTION')->whereIn('wo.status', ['RUN', 'DONE'])
             ->select(['t.lot_idx', 't.lot_no', 'i.item_code', 'i.item_name', 'i.item_kind', 'i.spec as item_spec', 'i.spec_unit', 'wo.work_order_idx', 'wo.wo_no', 'wo.status as wo_status'])
             ->selectRaw("{$madeDate} as made_date")
@@ -143,12 +146,23 @@ class LotTraceController extends Controller {
 
     // ---- 흐름도 ----
 
+    // 공정 LOT 추적 ( 실적LOT-설계 §10 ) — 요청마다
+    private array $expand  = [];   // 펼친 지시 work_order_idx → true
+    private array $entered = [];   // 지시 → [ 그 지시로 들어온 LOT → true ] ( 정추적 = 투입한 LOT · 역추적 = 그 지시가 만든 제품 LOT )
+    private array $runMeta = [];   // lot_idx → 실적 정보( 실적 LOT 이면 ) / null
+
     // 노드 키 : L{lot} · W{지시} · S{출하 줄} · R{입고 줄} · K{lot}( 재고 ) · X{부모 키}( 외 N건 )
+    //   expand[] : 공정을 펼칠 지시 — 그 지시 안의 공정 LOT 사슬을 그리고 지시별 상자로 묶는다( group ) · 지시 안의 단계는 단계 상한에 세지 않는다
     public function graph(Request $request) {
-        $v = $request->validate(['dir' => 'required|in:forward,backward', 'lot_idx' => 'required|integer']);
+        $v = $request->validate([
+            'dir' => 'required|in:forward,backward', 'lot_idx' => 'required|integer',
+            'expand' => 'nullable|array|max:50', 'expand.*' => 'integer',
+        ]);
         $forward = $v['dir'] === 'forward';
         $rootLot = (int) $v['lot_idx'];
         abort_unless(DB::table('lot')->where('lot_idx', $rootLot)->exists(), 404, 'LOT 을 찾을 수 없습니다.');
+        $this->expand  = array_fill_keys(array_map('intval', $v['expand'] ?? []), true);
+        $this->entered = [];
 
         $rootKey  = "L{$rootLot}";
         $depth    = [$rootKey => 0];   // 키 → 단계 ( 그린 노드 · 그린 순서 )
@@ -162,15 +176,20 @@ class LotTraceController extends Controller {
             $next = [];
             foreach ($frontier as $parent) {
                 foreach ($children[$parent] ?? [] as [$child, $label]) {
+                    // 지시로 들어온 LOT 기억 ( 정추적 = 투입 LOT → 지시 / 역추적 = 제품 LOT → 지시 ) — 그 지시를 펼칠 때 실제로 이어진 것만 잇는다
+                    if ($child[0] === 'W' && $parent[0] === 'L') {
+                        $this->entered[(int) substr($child, 1)][(int) substr($parent, 1)] = true;
+                    }
                     if (isset($depth[$child])) {           // 이미 그린 노드 — 선만 ( 합류 · 순환 )
                         if ($child !== $parent) $edges[] = ['source' => $parent, 'target' => $child, 'label' => $label];
                         continue;
                     }
-                    if ($depth[$parent] + 1 > self::MAX_DEPTH || count($depth) >= self::MAX_NODES) {
+                    $inc = $this->sameGroup($parent, $child) ? 0 : 1;   // 펼친 지시 안은 단계를 세지 않는다
+                    if ($depth[$parent] + $inc > self::MAX_DEPTH || count($depth) >= self::MAX_NODES) {
                         $more[$parent] = ($more[$parent] ?? 0) + 1;
                         continue;
                     }
-                    $depth[$child] = $depth[$parent] + 1;
+                    $depth[$child] = $depth[$parent] + $inc;
                     $edges[] = ['source' => $parent, 'target' => $child, 'label' => $label];
                     if (in_array($child[0], ['L', 'W'], true)) $next[] = $child;   // 펼칠 수 있는 것만 ( LOT · 지시 )
                 }
@@ -193,10 +212,16 @@ class LotTraceController extends Controller {
         [$lots, $wos] = $this->splitKeys($keys);
         $out = [];
         if ($lots) {
+            $meta = $this->runMetaOf($lots);
             // 투입한 작업지시 ( 사용 · 아직 사용 전이면 출고 )
             foreach (DB::table('wo_stock')->whereIn('lot_idx', $lots)->groupBy('lot_idx', 'work_order_idx')
                 ->selectRaw('lot_idx, work_order_idx, SUM(issued_qty) as issued, SUM(consumed_qty) as consumed')->orderBy('work_order_idx')->get() as $r) {
                 $out["L{$r->lot_idx}"][] = ["W{$r->work_order_idx}", $this->useLabel((float) $r->consumed, (float) $r->issued)];
+            }
+            // 펼친 지시 안 : 실적 LOT → 그것을 투입받은 뒤 공정 실적 LOT
+            $inside = array_values(array_filter($lots, fn ($l) => ($m = $meta[$l] ?? null) && isset($this->expand[$m->work_order_idx])));
+            foreach ($this->inputsFrom($inside) as $r) {
+                $out["L{$r->from_lot}"][] = ["L{$r->to_lot}", '투입 ' . $this->num((float) $r->qty)];
             }
             // 출하 ( 완료 )
             foreach (DB::table('shipment_pick as pk')->join('shipment_line as l', 'l.shipment_line_idx', '=', 'pk.shipment_line_idx')
@@ -220,11 +245,28 @@ class LotTraceController extends Controller {
             }
         }
         if ($wos) {
-            // 지시 → 제품 LOT ( 생산 입고 )
-            $made = DB::table('work_order')->whereIn('work_order_idx', $wos)->where('lot_idx', '>', 0)->pluck('lot_idx', 'work_order_idx');
-            $qty  = $this->producedBy($made->values()->all());
-            foreach ($made as $wo => $lot) {
-                $out["W{$wo}"][] = ["L{$lot}", '생산 ' . $this->num($qty[$lot] ?? 0)];
+            $modes = DB::table('work_order')->whereIn('work_order_idx', $wos)->pluck('lot_mode', 'work_order_idx');
+            $made  = DB::query()->fromSub($this->lotWoQuery(), 'lw')->whereIn('work_order_idx', $wos)->orderBy('lot_idx')->get()->groupBy('work_order_idx');
+            foreach ($wos as $wo) {
+                $in = array_keys($this->entered[$wo] ?? []);
+                if (($modes[$wo] ?? 'WO') === 'RUN' && isset($this->expand[$wo])) {
+                    // 펼침 : 들어온 LOT 를 투입받은 첫 실적 LOT 들 ( 들어온 LOT 를 모르면 앞 공정 연결이 없는 실적 LOT )
+                    $first = $in ? $this->inputsFrom($in, $wo) : $this->headRuns($wo);
+                    foreach ($first as $r) {
+                        $out["W{$wo}"][] = ["L{$r->to_lot}", isset($r->qty) ? '투입 ' . $this->num((float) $r->qty) : ''];
+                    }
+                    continue;
+                }
+                $lots = ($made[$wo] ?? collect())->pluck('lot_idx')->map(fn ($v) => (int) $v)->all();
+                if (($modes[$wo] ?? 'WO') === 'RUN' && $in) {
+                    // 요약 : 들어온 LOT 에서 연결을 따라 실제로 이어진 제품 LOT 만
+                    $reach = $this->reachForward($wo, $in);
+                    $lots  = array_values(array_filter($lots, fn ($l) => isset($reach[$l])));
+                }
+                $qty = $this->producedBy($lots);
+                foreach ($lots as $lot) {
+                    $out["W{$wo}"][] = ["L{$lot}", '생산 ' . $this->num($qty[$lot] ?? 0)];
+                }
             }
         }
         return $out;
@@ -236,10 +278,17 @@ class LotTraceController extends Controller {
         $out = [];
         if ($lots) {
             // 제품 LOT → 만든 작업지시
-            $made = DB::table('work_order')->whereIn('lot_idx', $lots)->where('status', '!=', 'CANCELED')->orderBy('work_order_idx')->get(['work_order_idx', 'lot_idx']);
+            $made = DB::query()->fromSub($this->lotWoQuery(), 'lw')->join('work_order as wo', 'wo.work_order_idx', '=', 'lw.work_order_idx')
+                ->whereIn('lw.lot_idx', $lots)->where('wo.status', '!=', 'CANCELED')->orderBy('lw.work_order_idx')->get(['lw.work_order_idx', 'lw.lot_idx']);
             $qty  = $this->producedBy($made->pluck('lot_idx')->all());
             foreach ($made as $r) {
                 $out["L{$r->lot_idx}"][] = ["W{$r->work_order_idx}", '생산 ' . $this->num($qty[$r->lot_idx] ?? 0)];
+            }
+            // 펼친 지시 안의 공정 LOT → 그 실적에 투입된 LOT ( 앞 공정 LOT · 자재 LOT )
+            $meta    = $this->runMetaOf($lots);
+            $process = array_values(array_filter($lots, fn ($l) => ($m = $meta[$l] ?? null) && $m->source === 'PROCESS' && isset($this->expand[$m->work_order_idx])));
+            foreach ($this->inputsOf($process) as $r) {
+                $out["L{$r->to_lot}"][] = ["L{$r->from_lot}", '투입 ' . $this->num((float) $r->qty)];
             }
             // 구매 LOT → 입고 줄
             foreach (DB::table('stock_txn_line as l')->join('stock_txn as x', 'x.stock_txn_idx', '=', 'l.stock_txn_idx')
@@ -253,13 +302,129 @@ class LotTraceController extends Controller {
             }
         }
         if ($wos) {
-            // 작업지시 → 투입 LOT
-            foreach (DB::table('wo_stock')->whereIn('work_order_idx', $wos)->where('lot_idx', '>', 0)->groupBy('work_order_idx', 'lot_idx')
-                ->selectRaw('work_order_idx, lot_idx, SUM(issued_qty) as issued, SUM(consumed_qty) as consumed')->orderBy('lot_idx')->get() as $r) {
-                $out["W{$r->work_order_idx}"][] = ["L{$r->lot_idx}", $this->useLabel((float) $r->consumed, (float) $r->issued)];
+            $modes = DB::table('work_order')->whereIn('work_order_idx', $wos)->pluck('lot_mode', 'work_order_idx');
+            $stock = DB::table('wo_stock')->whereIn('work_order_idx', $wos)->where('lot_idx', '>', 0)->groupBy('work_order_idx', 'lot_idx')
+                ->selectRaw('work_order_idx, lot_idx, SUM(issued_qty) as issued, SUM(consumed_qty) as consumed')->orderBy('lot_idx')->get()->groupBy('work_order_idx');
+            foreach ($wos as $wo) {
+                $in   = array_keys($this->entered[$wo] ?? []);
+                $used = $stock[$wo] ?? collect();
+                if (($modes[$wo] ?? 'WO') === 'RUN' && $in && isset($this->expand[$wo])) {
+                    // 펼침 : 들어온 제품 LOT 의 실적에 투입된 LOT ( 앞 공정 LOT · 자재 LOT )
+                    foreach ($this->inputsOf($in) as $r) {
+                        $out["W{$wo}"][] = ["L{$r->from_lot}", '투입 ' . $this->num((float) $r->qty)];
+                    }
+                    continue;
+                }
+                if (($modes[$wo] ?? 'WO') === 'RUN' && $in) {
+                    // 요약 : 제품 LOT 에서 연결을 거슬러 실제로 이어진 투입 자재 LOT 만 ( 연결이 하나도 없으면 출고된 자재 전부 )
+                    $reach = $this->reachBackward($in);
+                    if ($reach) {
+                        $used = $used->filter(fn ($r) => isset($reach[(int) $r->lot_idx]));
+                    }
+                }
+                foreach ($used as $r) {
+                    $out["W{$wo}"][] = ["L{$r->lot_idx}", $this->useLabel((float) $r->consumed, (float) $r->issued)];
+                }
             }
         }
         return $out;
+    }
+
+    // ---- 공정 LOT 연결 ( work_order_run_input · 해제 · 취소 실적 제외 ) ----
+
+    // 이 LOT 들을 투입받은 실적 LOT — from_lot → to_lot ( $wo 를 주면 그 지시 안만 )
+    private function inputsFrom(array $lots, ?int $wo = null): Collection {
+        if (!$lots) return collect();
+        return DB::table('work_order_run_input as x')->join('work_order_op_run as r', 'r.run_idx', '=', 'x.run_idx')
+            ->join('work_order_op as op', 'op.work_order_op_idx', '=', 'r.work_order_op_idx')
+            ->where('x.is_canceled', 'N')->where('r.is_canceled', 'N')->whereNotNull('r.lot_idx')->whereIn('x.lot_idx', $lots)
+            ->when($wo, fn ($q) => $q->where('op.work_order_idx', $wo))
+            ->groupBy('x.lot_idx', 'r.lot_idx')->orderBy('r.lot_idx')
+            ->selectRaw('x.lot_idx as from_lot, r.lot_idx as to_lot, SUM(x.qty) as qty')->get();
+    }
+
+    // 이 실적 LOT 들에 투입된 LOT — to_lot ← from_lot
+    private function inputsOf(array $lots): Collection {
+        if (!$lots) return collect();
+        return DB::table('work_order_run_input as x')->join('work_order_op_run as r', 'r.run_idx', '=', 'x.run_idx')
+            ->where('x.is_canceled', 'N')->where('r.is_canceled', 'N')->whereIn('r.lot_idx', $lots)
+            ->groupBy('r.lot_idx', 'x.lot_idx', 'x.input_type')->orderBy('x.lot_idx')
+            ->selectRaw('r.lot_idx as to_lot, x.lot_idx as from_lot, x.input_type, SUM(x.qty) as qty')->get();
+    }
+
+    // 앞 공정 연결이 없는 실적 LOT ( 그 지시의 첫 실적들 — 들어온 LOT 를 모를 때 )
+    private function headRuns(int $wo): Collection {
+        return DB::table('work_order_op_run as r')->join('work_order_op as op', 'op.work_order_op_idx', '=', 'r.work_order_op_idx')
+            ->where('op.work_order_idx', $wo)->where('r.is_canceled', 'N')->whereNotNull('r.lot_idx')
+            ->whereNotExists(fn ($q) => $q->from('work_order_run_input as x')->whereColumn('x.run_idx', 'r.run_idx')->where('x.is_canceled', 'N')->where('x.input_type', 'RUN'))
+            ->orderBy('op.seq')->orderBy('r.run_idx')->select('r.lot_idx as to_lot')->get();
+    }
+
+    // 들어온 LOT 에서 연결을 따라 닿는 그 지시의 실적 LOT 전부 → [ lot → true ]
+    private function reachForward(int $wo, array $start): array {
+        $seen = [];
+        $front = $start;
+        for ($i = 0; $front && $i < 50; $i++) {
+            $next = [];
+            foreach ($this->inputsFrom($front, $wo) as $r) {
+                if (!isset($seen[$r->to_lot])) { $seen[$r->to_lot] = true; $next[] = (int) $r->to_lot; }
+            }
+            $front = $next;
+        }
+        return $seen;
+    }
+
+    // 제품 LOT 에서 연결을 거슬러 닿는 투입 LOT 전부( 앞 공정 LOT 는 계속 거슬러 · 자재 LOT 는 멈춤 ) → [ 자재 lot → true ]
+    private function reachBackward(array $start): array {
+        $materials = [];
+        $seen  = array_fill_keys($start, true);
+        $front = $start;
+        for ($i = 0; $front && $i < 50; $i++) {
+            $next = [];
+            foreach ($this->inputsOf($front) as $r) {
+                if ($r->input_type === 'RUN') {
+                    if (!isset($seen[$r->from_lot])) { $seen[$r->from_lot] = true; $next[] = (int) $r->from_lot; }
+                } else {
+                    $materials[(int) $r->from_lot] = true;
+                }
+            }
+            $front = $next;
+        }
+        return $materials;
+    }
+
+    // 실적 LOT 정보 ( 공정 · 실적 · 작업자 · 지시 ) — 실적 LOT 가 아니면 없음
+    private function runMetaOf(array $lots): array {
+        $need = array_values(array_filter($lots, fn ($l) => !array_key_exists($l, $this->runMeta)));
+        if ($need) {
+            foreach ($need as $l) $this->runMeta[$l] = null;
+            foreach (DB::table('work_order_op_run as r')->join('work_order_op as op', 'op.work_order_op_idx', '=', 'r.work_order_op_idx')
+                ->join('process as p', 'p.process_idx', '=', 'op.process_idx')->join('lot as l', 'l.lot_idx', '=', 'r.lot_idx')
+                ->leftJoin('account_member as u', 'u.account_idx', '=', 'r.operator_idx')
+                ->whereIn('r.lot_idx', $need)->where('r.is_canceled', 'N')
+                ->get(['r.lot_idx', 'r.run_idx', 'r.qty', 'r.worked_at', 'op.work_order_idx', 'op.seq', 'p.process_name', 'l.source', 'u.user_name', 'u.user_id']) as $r) {
+                $this->runMeta[(int) $r->lot_idx] = $r;
+            }
+        }
+        return array_intersect_key($this->runMeta, array_flip($lots));
+    }
+
+    // 두 노드가 같은 펼친 지시 안인가 ( 지시 노드 · 그 지시의 실적 LOT )
+    private function sameGroup(string $a, string $b): bool {
+        $ga = $this->groupOf($a);
+        return $ga !== null && $ga === $this->groupOf($b);
+    }
+
+    private function groupOf(string $key): ?int {
+        if ($key[0] === 'W') {
+            $wo = (int) substr($key, 1);
+            return isset($this->expand[$wo]) ? $wo : null;
+        }
+        if ($key[0] === 'L') {
+            $m = $this->runMetaOf([(int) substr($key, 1)])[(int) substr($key, 1)] ?? null;
+            return $m && isset($this->expand[$m->work_order_idx]) ? (int) $m->work_order_idx : null;
+        }
+        return null;
     }
 
     private function useLabel(float $consumed, float $issued): string {
@@ -273,6 +438,15 @@ class LotTraceController extends Controller {
             if ($k[0] === 'W') $wos[]  = (int) substr($k, 1);
         }
         return [$lots, $wos];
+    }
+
+    // 제품 LOT ↔ 만든 지시 ( lot_idx · work_order_idx ) — 지시 LOT( WO 방식 ) + 마지막 수량 공정 실적의 제품 LOT( RUN 방식 · lot.source PRODUCTION )
+    //   중간 공정 LOT( PROCESS )는 넣지 않는다 — 요약 보기 ( 공정 펼치기는 실적LOT-설계 §10 )
+    private function lotWoQuery() {
+        return DB::table('work_order')->where('lot_idx', '>', 0)->select('lot_idx', 'work_order_idx')
+            ->union(DB::table('work_order_op_run as r')->join('work_order_op as op', 'op.work_order_op_idx', '=', 'r.work_order_op_idx')
+                ->join('lot as rl', 'rl.lot_idx', '=', 'r.lot_idx')->where('rl.source', 'PRODUCTION')->where('r.is_canceled', 'N')
+                ->select('r.lot_idx', 'op.work_order_idx'));
     }
 
     /** @return array<int,float> lot → 생산 입고 합 */
@@ -293,15 +467,32 @@ class LotTraceController extends Controller {
             $stock    = DB::table('stock_balance')->whereIn('lot_idx', $lots)->groupBy('lot_idx')->selectRaw('lot_idx, SUM(qty) as n')->pluck('n', 'lot_idx');
             $inQty    = DB::table('stock_ledger')->whereIn('lot_idx', $lots)->where('txn_type', 'IN_PURCHASE')->groupBy('lot_idx')->selectRaw('lot_idx, SUM(qty_delta) as n')->pluck('n', 'lot_idx');
             $produced = $this->producedBy($lots);
-            $made     = DB::table('work_order')->whereIn('lot_idx', $lots)->where('status', '!=', 'CANCELED')->get(['lot_idx', 'work_order_idx'])->keyBy('lot_idx');
+            $made     = DB::query()->fromSub($this->lotWoQuery(), 'lw')->join('work_order as wo', 'wo.work_order_idx', '=', 'lw.work_order_idx')
+                ->whereIn('lw.lot_idx', $lots)->where('wo.status', '!=', 'CANCELED')->get(['lw.lot_idx', 'lw.work_order_idx'])->keyBy('lot_idx');
             $defects  = $this->defectsByWo($made->pluck('work_order_idx')->all());
             $inDefect = $this->incomingDefectsByLot($lots);
             $rows = DB::table('lot as t')->join('item as i', 'i.item_idx', '=', 't.item_idx')->leftJoin('partner as pt', 'pt.partner_idx', '=', 't.partner_idx')
                 ->whereIn('t.lot_idx', $lots)
-                ->get(['t.lot_idx', 't.lot_no', 't.external_lot_no', 't.source', 't.in_at', 'i.item_code', 'i.item_name', 'i.item_kind', 'pt.partner_name'])->keyBy('lot_idx');
+                ->get(['t.lot_idx', 't.lot_no', 't.external_lot_no', 't.heat_no', 't.source', 't.in_at', 'i.item_code', 'i.item_name', 'i.item_kind', 'pt.partner_name'])->keyBy('lot_idx');
+            $runs = $this->runMetaOf($lots);
             foreach ($lots as $lot) {
                 $r = $rows[$lot] ?? null;
                 if (!$r) continue;
+                $run = $runs[$lot] ?? null;
+                if ($r->source === 'PROCESS') {
+                    // 공정 LOT ( 실적 LOT · 재고 아님 )
+                    $who = $run ? ($run->user_name ?: $run->user_id) : '';
+                    $nodes["L{$lot}"] = [
+                        'id' => "L{$lot}", 'kind' => 'PROCESS', 'title' => $r->lot_no,
+                        'item' => $run ? sprintf('%03d %s', $run->seq, $run->process_name) : '',
+                        'sub'  => $run ? $this->join([substr((string) $run->worked_at, 5, 11), $who]) : '',
+                        'qty'  => $run ? '실적 ' . $this->num((float) $run->qty) : '',
+                        'lot_idx' => $lot, 'run_idx' => $run ? (int) $run->run_idx : null,
+                        'work_order_idx' => $run ? (int) $run->work_order_idx : null,
+                        'group' => $run && isset($this->expand[$run->work_order_idx]) ? "W{$run->work_order_idx}" : null,
+                    ];
+                    continue;
+                }
                 $isProd = $r->source === 'PRODUCTION';
                 $wo     = $made[$lot] ?? null;
                 $st     = $this->num((float) ($stock[$lot] ?? 0));
@@ -311,24 +502,30 @@ class LotTraceController extends Controller {
                     'item' => trim("{$r->item_code} {$r->item_name}"),
                     'sub'  => $isProd
                         ? $this->join([$r->item_kind === 'SEMI' ? '반제품' : '', $date ? "생산 {$date}" : '생산 전', "재고 {$st}"])
-                        : $this->join([$r->source === 'LEFTOVER' ? '잔재' : '', $r->partner_name, $r->external_lot_no ? "공급처 LOT {$r->external_lot_no}" : '', $date ? "입고 {$date}" : '검사대기']),
+                        : $this->join([$r->source === 'LEFTOVER' ? '잔재' : '', $r->partner_name, $r->external_lot_no ? "공급처 LOT {$r->external_lot_no}" : '', $r->heat_no ? "Heat {$r->heat_no}" : '', $date ? "입고 {$date}" : '검사대기']),
                     'qty'  => $isProd ? '생산 ' . $this->num($produced[$lot] ?? 0) : $this->join([isset($inQty[$lot]) ? '입고 ' . $this->num((float) $inQty[$lot]) : '', "재고 {$st}"]),
                     // 제품 LOT = 만든 지시의 공정 불량 / 자재 LOT = 수입검사 불합격
                     'defect' => $isProd ? ($wo ? ($defects[$wo->work_order_idx] ?? 0) : 0) : ($inDefect[$lot] ?? 0),
                     'defect_label' => $isProd ? '공정 불량' : '입고 불량',
                     'lot_idx' => $lot, 'work_order_idx' => $wo ? (int) $wo->work_order_idx : null,
+                    'run_idx' => $run ? (int) $run->run_idx : null,   // 실적 제품 LOT ( [실적] 탭 )
+                    'group'   => $run && isset($this->expand[$run->work_order_idx]) ? "W{$run->work_order_idx}" : null,
                 ];
             }
         }
         if ($ids['W']) {
             $defects = $this->defectsByWo($ids['W']);
             foreach (DB::table('work_order as wo')->join('item as i', 'i.item_idx', '=', 'wo.item_idx')->whereIn('wo.work_order_idx', $ids['W'])
-                ->get(['wo.work_order_idx', 'wo.wo_no', 'wo.status', 'wo.target_qty', 'wo.start_date', 'wo.due_date', 'i.item_code', 'i.item_name']) as $w) {
+                ->get(['wo.work_order_idx', 'wo.wo_no', 'wo.status', 'wo.target_qty', 'wo.start_date', 'wo.due_date', 'wo.lot_mode', 'i.item_code', 'i.item_name']) as $w) {
                 $nodes["W{$w->work_order_idx}"] = [
                     'id' => "W{$w->work_order_idx}", 'kind' => 'WO', 'title' => $w->wo_no, 'item' => trim("{$w->item_code} {$w->item_name}"),
                     'sub' => $this->woStatus($w->status) . ' · ' . substr((string) $w->start_date, 5, 5) . ' ~ ' . substr((string) $w->due_date, 5, 5),
                     'qty' => '지시 ' . $this->num((float) $w->target_qty), 'defect' => $defects[$w->work_order_idx] ?? 0, 'defect_label' => '공정 불량',
                     'work_order_idx' => (int) $w->work_order_idx,
+                    // 공정 펼치기 ( 실적마다 LOT 인 지시만 — 실적LOT-설계 §10 )
+                    'expandable' => $w->lot_mode === 'RUN',
+                    'expanded'   => isset($this->expand[$w->work_order_idx]),
+                    'group'      => isset($this->expand[$w->work_order_idx]) ? "W{$w->work_order_idx}" : null,
                 ];
             }
         }
@@ -426,6 +623,34 @@ class LotTraceController extends Controller {
             ]);
 
         return response()->json(['rows' => $ledger->concat($defects)->sortBy('occurred_at')->values()]);
+    }
+
+    // 실적 LOT 의 실적 ( [실적] 탭 — 공정 · 작업자 · 일시 · 설비 · 투입 LOT · 받아 간 뒤 공정 )
+    public function run(Request $request) {
+        $v = $request->validate(['lot_idx' => 'required|integer']);
+        $r = DB::table('work_order_op_run as r')->join('work_order_op as op', 'op.work_order_op_idx', '=', 'r.work_order_op_idx')
+            ->join('process as p', 'p.process_idx', '=', 'op.process_idx')->join('work_order as wo', 'wo.work_order_idx', '=', 'op.work_order_idx')
+            ->leftJoin('account_member as u', 'u.account_idx', '=', 'r.operator_idx')->leftJoin('equipment as e', 'e.equipment_idx', '=', 'r.equipment_idx')
+            ->where('r.lot_idx', $v['lot_idx'])->where('r.is_canceled', 'N')
+            ->first(['r.run_idx', 'r.qty', 'r.worked_at', 'r.remark', 'op.seq', 'p.process_name', 'wo.wo_no', 'u.user_name', 'u.user_id', 'e.equipment_name']);
+        if (!$r) return response()->json(['run' => null, 'inputs' => [], 'used_by' => []]);
+        $inputs = DB::table('work_order_run_input as x')->join('lot as l', 'l.lot_idx', '=', 'x.lot_idx')->leftJoin('account_member as u', 'u.account_idx', '=', 'x.create_account_idx')
+            ->where('x.run_idx', $r->run_idx)->where('x.is_canceled', 'N')->orderBy('x.run_input_idx')
+            ->get(['x.input_type', 'l.lot_no', 'x.qty', 'x.create_datetime', 'u.user_name', 'u.user_id']);
+        $usedBy = DB::table('work_order_run_input as x')->join('work_order_op_run as r2', 'r2.run_idx', '=', 'x.run_idx')
+            ->join('work_order_op as op', 'op.work_order_op_idx', '=', 'r2.work_order_op_idx')->join('process as p', 'p.process_idx', '=', 'op.process_idx')
+            ->join('lot as l', 'l.lot_idx', '=', 'r2.lot_idx')
+            ->where('x.lot_idx', $v['lot_idx'])->where('x.is_canceled', 'N')->where('r2.is_canceled', 'N')->orderBy('r2.run_idx')
+            ->get(['l.lot_no', 'op.seq', 'p.process_name', 'x.qty']);
+        return response()->json([
+            'run' => [
+                'process'   => sprintf('%03d %s', $r->seq, $r->process_name), 'wo_no' => $r->wo_no, 'qty' => (float) $r->qty,
+                'worked_at' => substr((string) $r->worked_at, 0, 16), 'operator' => $r->user_name ?: $r->user_id, 'equipment' => $r->equipment_name, 'remark' => $r->remark,
+            ],
+            'inputs'  => $inputs->map(fn ($x) => ['type' => $x->input_type === 'MATERIAL' ? '자재' : ($x->input_type === 'RUN' ? '앞 공정' : '외주'),
+                'lot_no' => $x->lot_no, 'qty' => (float) $x->qty, 'by' => $x->user_name ?: $x->user_id, 'at' => substr((string) $x->create_datetime, 0, 16)])->values(),
+            'used_by' => $usedBy->map(fn ($x) => ['lot_no' => $x->lot_no, 'process' => sprintf('%03d %s', $x->seq, $x->process_name), 'qty' => (float) $x->qty])->values(),
+        ]);
     }
 
     // 작업지시 공정 ( 실적 · 미달 · 외주 · 공정 불량 )

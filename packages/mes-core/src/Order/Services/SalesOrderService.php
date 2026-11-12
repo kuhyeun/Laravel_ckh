@@ -148,6 +148,7 @@ class SalesOrderService {
                 'partner_idx'    => $data['partner_idx'],
                 'order_name'     => $data['order_name'] ?? null,
                 'customer_po_no' => $data['customer_po_no'] ?? null,
+                'manager_name'   => $data['manager_name'] ?? null,
                 'remark'         => $data['remark'] ?? null,
             ]);
             if (in_array($data['status'] ?? null, SalesOrder::EDITABLE_STATUSES, true)

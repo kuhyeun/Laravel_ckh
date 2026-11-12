@@ -12,6 +12,7 @@
                 <div><span class="text-xs text-gray-500">창고</span><p>{{ b.warehouse_name }}</p></div>
                 <div><span class="text-xs text-gray-500">장부 수량</span><p class="font-semibold">{{ qtyText(b.qty, b.spec_unit, b.spec_value) }}</p></div>
                 <div><span class="text-xs text-gray-500">공급처 LOT</span><p>{{ b.external_lot_no || '—' }}</p></div>
+                <div v-if="b.heat_no"><span class="text-xs text-gray-500">Heat No</span><p>{{ b.heat_no }}</p></div>
             </div>
 
             <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>

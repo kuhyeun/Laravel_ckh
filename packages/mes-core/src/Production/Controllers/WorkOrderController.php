@@ -140,6 +140,8 @@ class WorkOrderController extends Controller {
             'processes' => $processes,
             'lot'       => [
                 'enabled' => $this->lots->enabled(),
+                // 새 지시는 실적마다 LOT ( 정책 production.op_lot_tracking — 실적LOT-설계 ) · 저장된 줄은 그 줄의 lot_no( '실적별' )
+                'run_lot' => $this->lots->enabled() && (bool) app(\MesCore\Basic\Services\PolicyService::class)->get('production.op_lot_tracking'),
                 'rules'   => $this->lots->productionRules()->map(fn ($r) => [
                     'lot_rule_idx' => $r->lot_rule_idx, 'lot_rule_name' => $r->lot_rule_name, 'rule_type' => $r->rule_type,
                 ])->values(),
@@ -294,7 +296,7 @@ class WorkOrderController extends Controller {
             'item_short'     => \MesCore\Config\Models\Item::labelOf($w->item, true),   // 머리 행 요약용
             'spec_unit'      => $w->item?->spec_unit,
             'target_qty'     => (float) $w->target_qty,
-            'lot_no'         => $w->lot?->lot_no,
+            'lot_no'         => $w->isRunLot() ? '실적별' : $w->lot?->lot_no,   // RUN 방식 = 실적마다 LOT
             'order_summary'  => $orderNos->isEmpty() ? '' : $orderNos->first() . ($orderNos->count() > 1 ? ' 외 ' . ($orderNos->count() - 1) : ''),
             'ops_count'      => $w->ops_count,
             'done_ops_count' => $w->done_ops_count,
@@ -425,7 +427,7 @@ class WorkOrderController extends Controller {
             'spec_unit'      => $w->item?->spec_unit,
             'routing_idx'    => $w->routing_idx,
             'bom_idx'        => $w->bom_idx,
-            'lot_no'         => $w->lot?->lot_no,
+            'lot_no'         => $w->isRunLot() ? '실적별' : $w->lot?->lot_no,   // RUN 방식 = 실적마다 LOT
             'lot_rule_idx'   => $w->lot_rule_idx,
             'target_qty'     => (float) $w->target_qty,
             'scan_qty'       => (float) $w->scan_qty,

@@ -21,7 +21,7 @@
                 @dragleave.prevent="dragging = false"
                 @drop.prevent="onDrop"
             >
-                <BaseSelect v-model="category" :options="categoryOptions" size="sm" class="w-28 shrink-0" :disabled="busy" />
+                <BaseSelect v-model="category" :options="categoryOptions" size="md" class="w-28 shrink-0" :disabled="busy" />
                 <span class="flex-1 text-xs text-gray-400">
                     파일을 끌어다 놓거나 [파일 선택] · 파일당 {{ MAX_MB }}MB · 한 번에 {{ MAX_FILES }}개
                 </span>

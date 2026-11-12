@@ -67,6 +67,7 @@ class IncomingInspectionController extends Controller {
             'item_name'       => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
             'lot_no'          => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
             'external_lot_no' => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('external_lot_no', 'like', $kw)),
+            'heat_no'         => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('heat_no', 'like', $kw)),
         ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'lines', fn (StockTxnLine $l) => [
@@ -82,6 +83,7 @@ class IncomingInspectionController extends Controller {
             'spec_unit'          => $l->item?->spec_unit,
             'lot_no'             => $l->lot?->lot_no,
             'external_lot_no'    => $l->lot?->external_lot_no,
+            'heat_no'            => $l->lot?->heat_no,
             'qty'                => (float) $l->qty,
             'pass_qty'           => (float) $l->pass_qty,
             'fail_qty'           => (float) $l->fail_qty,
@@ -113,6 +115,7 @@ class IncomingInspectionController extends Controller {
                 'spec_unit'          => $line->item?->spec_unit,
                 'lot_no'             => $line->lot?->lot_no,
                 'external_lot_no'    => $line->lot?->external_lot_no,
+                'heat_no'            => $line->lot?->heat_no,
                 'spec_value'         => $line->lot?->spec_value !== null ? (float) $line->lot->spec_value : null,
                 'warehouse_name'     => $line->warehouse?->warehouse_name,
                 'qty'                => (float) $line->qty,

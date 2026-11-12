@@ -54,23 +54,23 @@
 
             <div class="mt-4 mb-1.5 text-xs font-semibold text-gray-500">품목 <span class="font-normal text-gray-400">( 클레임 수량을 넣은 줄만 저장 )</span></div>
             <div class="overflow-auto border border-gray-200 rounded">
-                <table class="w-full min-w-[900px] table-fixed text-sm">
-                    <colgroup><col><col class="w-24"><col class="w-24"><col class="w-28"><col class="w-36"><col class="w-64"></colgroup>
+                <table class="w-full min-w-[1060px] table-fixed text-sm">
+                    <colgroup><col><col class="w-28"><col class="w-28"><col class="w-32"><col class="w-40"><col class="w-72"></colgroup>
                     <thead class="bg-gray-50 text-gray-500"><tr>
                         <th class="px-2 py-1.5 text-left font-normal">품목</th><th class="px-2 py-1.5 text-right font-normal">출하</th><th class="px-2 py-1.5 text-right font-normal">다른 클레임</th>
                         <th class="px-2 py-1.5 text-right font-normal">클레임 수량</th><th class="px-2 py-1.5 text-left font-normal">유형</th><th class="px-2 py-1.5 text-left font-normal">내용</th>
                     </tr></thead>
                     <tbody>
                         <tr v-for="(l, i) in lines" :key="l.shipment_line_idx" class="border-t align-top">
-                            <td class="px-2 py-1.5"><p class="truncate" :title="itemLabel(l)">{{ itemLabel(l) }}</p></td>
-                            <td class="px-2 py-1.5 text-right">{{ fmtQty(l.shipped_qty, l.spec_unit) }}</td>
-                            <td class="px-2 py-1.5 text-right text-gray-500">{{ l.other_claimed ? fmtNum(l.other_claimed) : '' }}</td>
+                            <td class="px-2 py-1 leading-9"><p class="truncate" :title="itemLabel(l)">{{ itemLabel(l) }}</p></td>
+                            <td class="px-2 text-right py-1 leading-9">{{ fmtQty(l.shipped_qty, l.spec_unit) }}</td>
+                            <td class="px-2 text-right text-gray-500 py-1 leading-9">{{ l.other_claimed ? fmtNum(l.other_claimed) : '' }}</td>
                             <td class="px-1 py-1">
-                                <BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="!canWrite" />
+                                <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" />
                                 <p v-if="errors[`lines.${idxOf(l)}.qty`]" class="text-[11px] text-red-500 mt-0.5">{{ errors[`lines.${idxOf(l)}.qty`][0] }}</p>
                             </td>
-                            <td class="px-1 py-1"><BaseSelect v-model="l.claim_type_code" :options="typeOptions" size="sm" class="w-full" :disabled="!canWrite" /></td>
-                            <td class="px-1 py-1"><BaseInput v-model="l.content" size="sm" class="w-full" maxlength="500" :disabled="!canWrite" /></td>
+                            <td class="px-1 py-1"><BaseSelect v-model="l.claim_type_code" :options="typeOptions" size="md" class="w-full" :disabled="!canWrite" /></td>
+                            <td class="px-1 py-1"><BaseInput v-model="l.content" size="md" class="w-full" maxlength="500" :disabled="!canWrite" /></td>
                         </tr>
                     </tbody>
                 </table>

@@ -9,7 +9,7 @@
         <template v-else>
             <div class="flex items-center gap-3 mb-2">
                 <label class="text-xs text-gray-500">양식</label>
-                <BaseSelect v-model="templateIdx" :options="templateOptions" size="sm" class="w-64" />
+                <BaseSelect v-model="templateIdx" :options="templateOptions" size="md" class="w-64" />
                 <span class="text-xs text-gray-400">1D 바코드 ( Code128 )</span>
             </div>
 
@@ -40,12 +40,12 @@
                             <td class="px-2 py-1.5 truncate" :title="r.spec">{{ r.spec }}</td>
                             <td class="px-2 py-1.5">
                                 <span v-if="isLot" class="font-semibold">{{ r.barcode_no }}</span>
-                                <BaseInput v-else v-model="r.barcode_no" size="sm" class="w-full" :placeholder="r.default_no" :disabled="!r.on" />
+                                <BaseInput v-else v-model="r.barcode_no" size="md" class="w-full" :placeholder="r.default_no" :disabled="!r.on" />
                             </td>
                             <td class="px-2 py-1.5 text-right whitespace-nowrap">{{ r.qty === null ? '-' : qtyText(r.qty, r.spec_unit, r.spec_value) }}</td>
                             <td class="px-2 py-1.5 text-right" :class="r.issued_count ? 'text-blue-700' : 'text-gray-400'">{{ r.issued_count ? `${r.issued_count} 장` : '없음' }}</td>
-                            <td class="px-2 py-1.5"><BaseInput v-model="r.label_count" type="number" min="1" max="999" size="sm" class="w-full text-right" :disabled="!r.on" /></td>
-                            <td class="px-2 py-1.5"><BaseInput v-model="r.label_qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="!r.on" /></td>
+                            <td class="px-2 py-1.5"><BaseInput v-model="r.label_count" type="number" min="1" max="999" size="md" class="w-full text-right" :disabled="!r.on" /></td>
+                            <td class="px-2 py-1.5"><BaseInput v-model="r.label_qty" type="number" min="0" size="md" class="w-full text-right" :disabled="!r.on" /></td>
                         </tr>
                     </tbody>
                 </table>

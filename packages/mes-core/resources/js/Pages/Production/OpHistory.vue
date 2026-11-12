@@ -58,7 +58,7 @@
         <div v-show="tab === 'summary'" class="flex-1 min-w-0 min-h-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center gap-3 px-3 py-2 bg-gray-50/70 shrink-0">
                 <span class="text-sm font-semibold text-gray-600">집계 · <span class="text-xs text-gray-400">{{ summaryRows.length.toLocaleString() }} 줄</span></span>
-                <BaseSelect v-model="group" :options="GROUPS" size="sm" class="w-28" @update:modelValue="loadSummary" />
+                <BaseSelect v-model="group" :options="GROUPS" size="md" class="w-28" @update:modelValue="loadSummary" />
                 <span class="text-xs text-gray-400">취소된 실적은 빼고 셉니다 · 행을 누르면 그 값으로 이력을 봅니다</span>
                 <div class="flex-1"></div>
                 <GridSettingButton :grid="summaryGrid" />

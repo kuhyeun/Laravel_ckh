@@ -8,6 +8,7 @@
         { "field": "order_no",     "header": "수주번호", "width": 16 },
         { "field": "order_date",   "header": "수주일",   "width": 11 },
         { "field": "partner_name", "header": "고객사",   "width": 18 },
+        { "field": "customer_po_no", "header": "고객 발주번호", "width": 16 },
         { "field": "order_name",   "header": "수주명",   "width": 20 },
         { "field": "item_code",    "header": "품번",     "width": 16 },
         { "field": "item_name",    "header": "품명",     "width": 24 },
@@ -16,6 +17,8 @@
         { "field": "unit_price",   "header": "단가",     "width": 12, "numFmt": "#,##0" },
         { "field": "amount",       "header": "금액",     "width": 14, "numFmt": "#,##0" },
         { "field": "due_date",     "header": "납품일",   "width": 11 },
+        { "field": "remark",       "header": "비고",     "width": 20 },
+        { "field": "manager_name", "header": "담당자",   "width": 10 },
         { "field": "status_label", "header": "상태",     "width": 8 }
     ]
 }

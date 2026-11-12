@@ -7,8 +7,8 @@
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openForm(null)">+ 계획 등록</BaseButton>
-            <BaseButton v-if="canDirect" size="sm" variant="secondary" :disabled="!directable.length" @click="openWorkOrder">작업지시 ( {{ directable.length }} )</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="!checked.size || busy" @click="removeChecked">삭제</BaseButton>
+            <BaseButton v-if="canDirect" size="sm" variant="secondary" :disabled="!directable.length" @click="openWorkOrder">작업지시 ( {{ directable.length }} )</BaseButton>
             <span v-if="checked.size" class="text-xs text-gray-400">고른 계획 {{ checked.size }} <button type="button" class="ml-1 hover:underline" @click="checked.clear()">선택 해제</button></span>
         </div>
 

@@ -77,9 +77,14 @@
                         <p v-if="errors.customer_po_no" class="text-xs text-red-500 mt-0.5">{{ errors.customer_po_no[0] }}</p>
                     </div>
 
-                    <div class="col-span-3">
+                    <div>
+                        <label class="block text-gray-500 font-medium mb-1">담당자</label>
+                        <BaseInput v-model="form.manager_name" class="w-full" maxlength="50" :disabled="readonly" />
+                        <p v-if="errors.manager_name" class="text-xs text-red-500 mt-0.5">{{ errors.manager_name[0] }}</p>
+                    </div>
+                    <div class="col-span-2">
                         <label class="block text-gray-500 font-medium mb-1">비고</label>
-                        <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="readonly"></textarea>
+                        <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="readonly ? 'resize-none': 'resize-y'" :disabled="readonly"></textarea>
                     </div>
                 </div>
 
@@ -88,10 +93,14 @@
                     <div class="flex items-center gap-2 mb-1.5">
                         <span class="text-xs font-semibold text-gray-500">품목 <span class="text-red-500">*</span></span>
                         <span class="text-xs text-gray-400">( {{ form.lines.length }} )</span>
+                        <!-- 생산 · 출하가 붙은 줄을 그 양보다 적게 줄이면 저장을 막는다 -->
+                        <span v-if="underMin.length" class="text-xs font-medium text-red-500">
+                            ⚠ 이미 생산 · 출하된 수량보다 적게 줄일 수 없습니다 ( {{ underMin.map(u => `${u.no}번 줄 ${fmt(u.min)} 이상`).join(' · ') }} )
+                        </span>
                         <div class="flex-1"></div>
                         <template v-if="!readonly">
                             <span class="text-xs text-gray-500">납품일 일괄</span>
-                            <BaseDatePicker v-model="bulkDue" size="sm" class="w-36" />
+                            <BaseDatePicker v-model="bulkDue" size="md" class="w-36" />
                             <BaseButton size="sm" variant="secondary" :disabled="!bulkDue" @click="applyBulkDue">빈 칸에 적용</BaseButton>
                             <BaseButton v-if="canCreateItem" size="sm" variant="secondary" @click="openNewItem">+ 새 품목 등록</BaseButton>
                             <BaseButton size="sm" variant="secondary" @click="addLine">+ 품목</BaseButton>
@@ -100,20 +109,21 @@
                     <p v-if="errors.lines" class="text-xs text-red-500 mb-1">{{ errors.lines[0] }}</p>
 
                     <div class="border rounded overflow-x-auto">
-                        <!-- 최소 폭 = 고정 칸 864 + 품목 160 — xl 모달 안쪽( 약 1080 )에 들어가게 -->
-                        <table class="w-full table-fixed min-w-[1024px] text-xs">
+                        <!-- 최소 폭 = 고정 칸 1048 + 품목 280 ( 수정은 지시 칸 160 더 ) — 칸을 여유 있게, 모달보다 넓으면 가로 스크롤 ( 11-12 ) -->
+                        <table class="w-full table-fixed text-xs" :class="isEdit ? 'min-w-[1488px]' : 'min-w-[1328px]'">
                             <colgroup>
-                                <col class="w-8">
+                                <col class="w-10">
                                 <col>
+                                <col class="w-28">
+                                <col class="w-14">
+                                <col class="w-32">
+                                <col class="w-32">
+                                <col class="w-40">
                                 <col class="w-24">
-                                <col class="w-12">
                                 <col class="w-24">
-                                <col class="w-24">
-                                <col class="w-38">
-                                <col class="w-24">
-                                <col class="w-24">
-                                <col v-if="isEdit" class="w-36">
-                                <col v-if="!readonly" class="w-8">
+                                <col class="w-48">
+                                <col v-if="isEdit" class="w-40">
+                                <col v-if="!readonly" class="w-10">
                             </colgroup>
                             <thead class="bg-gray-50 text-gray-500">
                                 <tr>
@@ -126,6 +136,7 @@
                                     <th class="px-2 py-1.5">납품일 *</th>
                                     <th class="px-2 py-1.5">공정</th>
                                     <th class="px-2 py-1.5">자재</th>
+                                    <th class="px-2 py-1.5 text-left">비고</th>
                                     <th v-if="isEdit" class="px-2 py-1.5 text-right">지시 · 생산 / 출하</th>
                                     <th v-if="!readonly" class="px-2 py-1.5"></th>
                                 </tr>
@@ -135,47 +146,50 @@
                                     <td :colspan="colCount" class="px-2 py-4 text-center text-gray-400">품목을 추가하세요.</td>
                                 </tr>
                                 <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
-                                    <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
+                                    <td class="px-2 text-center text-gray-400 py-1 leading-9">{{ i + 1 }}</td>
                                     <td class="px-1.5 py-1">
                                         <ItemPicker v-model="l.item_idx" :remote="ITEM_REMOTE" :disabled="readonly || l.locked" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @select="row => onItemPicked(l, row)" />
                                         <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                     </td>
                                     <td class="px-1.5 py-1">
-                                        <BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="readonly" />
+                                        <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :class="isUnderMin(l) ? '!border-red-400' : ''" :disabled="readonly" />
                                         <p v-if="lineError(i, 'qty')" class="text-[11px] text-red-500">{{ lineError(i, 'qty') }}</p>
-                                        <p v-else-if="l.locked" class="text-[11px] text-gray-400">최소 {{ fmt(l.min_qty) }}</p>
                                     </td>
-                                    <td class="px-2 py-1.5 text-center text-gray-500">{{ l.spec_unit }}</td>
+                                    <td class="px-2 text-center text-gray-500 py-1 leading-9">{{ l.spec_unit }}</td>
                                     <td class="px-1.5 py-1">
-                                        <BaseInput v-model="l.unit_price" type="number" min="0" size="sm" class="w-full text-right" :disabled="readonly" />
+                                        <BaseInput v-model="l.unit_price" type="number" min="0" size="md" class="w-full text-right" :disabled="readonly" />
                                         <p v-if="lineError(i, 'unit_price')" class="text-[11px] text-red-500">{{ lineError(i, 'unit_price') }}</p>
                                     </td>
-                                    <td class="px-2 py-1.5 text-right text-gray-700">{{ fmt(lineAmount(l)) }}</td>
+                                    <td class="px-2 text-right text-gray-700 py-1 leading-9">{{ fmt(lineAmount(l)) }}</td>
                                     <td class="px-1.5 py-1">
-                                        <BaseDatePicker v-model="l.due_date" size="sm" class="w-full" :disabled="readonly" />
+                                        <BaseDatePicker v-model="l.due_date" size="md" class="w-full" :disabled="readonly" />
                                         <p v-if="lineError(i, 'due_date')" class="text-[11px] text-red-500">{{ lineError(i, 'due_date') }}</p>
                                     </td>
-                                    <td class="px-1.5 py-1.5 text-center">
+                                    <td class="px-1.5 text-center py-1 leading-9">
                                         <button v-if="l.item_idx" type="button" class="text-blue-700 hover:underline" @click="openRouting(l, i)">공정 {{ l.routing_lines.length }}</button>
                                         <span v-else class="text-gray-300">—</span>
                                         <span v-if="l.routing_locked" class="ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 공정을 바꿀 수 없습니다">잠김</span>
                                         <span v-else-if="l.routing_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 공정과 다르게 고쳤습니다">수정됨</span>
                                         <p v-if="routingError(i)" class="text-[11px] text-red-500">공정을 확인하세요</p>
                                     </td>
-                                    <td class="px-1.5 py-1.5 text-center">
+                                    <td class="px-1.5 text-center py-1 leading-9">
                                         <button v-if="l.item_idx" type="button" class="text-blue-700 hover:underline" @click="openMaterial(l, i)">자재 {{ l.material_lines.length }}</button>
                                         <span v-else class="text-gray-300">—</span>
                                         <span v-if="l.material_locked" class="ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 자재를 바꿀 수 없습니다">잠김</span>
                                         <span v-else-if="l.material_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 BOM 과 다르게 고쳤습니다">수정됨</span>
                                         <p v-if="materialError(i)" class="text-[11px] text-red-500">자재를 확인하세요</p>
                                     </td>
-                                    <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500">
+                                    <td class="px-1.5 py-1">
+                                        <BaseInput v-model="l.remark" size="md" class="w-full" maxlength="200" :disabled="readonly" />
+                                        <p v-if="lineError(i, 'remark')" class="text-[11px] text-red-500">{{ lineError(i, 'remark') }}</p>
+                                    </td>
+                                    <td v-if="isEdit" class="px-2 text-right text-gray-500 py-1 leading-9">
                                         <p>지시 {{ fmt(l.directed_qty) }} · {{ fmt(l.produced_qty) }} / {{ fmt(l.shipped_qty) }}</p>
                                         <!-- 작업지시 ( 50-생산 §4 — 이 줄을 담은 지시 창. 남은 지시 수량이 기본 ) -->
                                         <button v-if="canDirect(l)" type="button" class="text-[11px] text-blue-700 hover:underline" @click="openWorkOrder(l, i)">작업지시</button>
                                     </td>
-                                    <td v-if="!readonly" class="px-1 py-1 text-center">
-                                        <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400" :disabled="l.locked" :title="l.locked ? '생산 · 출하가 시작된 줄은 지울 수 없습니다' : '줄 삭제'" @click="removeLine(i)">✕</button>
+                                    <td v-if="!readonly" class="px-1 text-center py-1 leading-9">
+                                        <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400" :disabled="l.locked" :title="l.locked ? '생산 · 출하가 시작된 줄은 지울 수 없습니다' : '줄 삭제'" @click="removeLine(i)">✕</button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -202,7 +216,7 @@
         <!-- 액션 -->
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ readonly ? '닫기' : '취소' }}</BaseButton>
-            <BaseButton v-if="!readonly" variant="primary" size="sm" :disabled="saving || loading" @click="save">
+            <BaseButton v-if="!readonly" variant="primary" size="sm" :disabled="saving || loading || underMin.length > 0" @click="save">
                 {{ isEdit ? '수정' : '등록' }}
             </BaseButton>
         </div>
@@ -267,6 +281,7 @@ const form = reactive({
     partner_name:    '',
     order_name:      '',
     customer_po_no:  '',
+    manager_name:    '',
     status:          'CONFIRMED',
     remark:          '',
     locked:          false,
@@ -276,8 +291,8 @@ const form = reactive({
 const editableStatus = computed(() => EDITABLE_STATUSES.includes(form.status));
 const readonly       = computed(() => !props.canWrite || !editableStatus.value);
 const orderLocked    = computed(() => form.locked);   // 생산 · 출하가 붙은 줄이 있으면 고객사 고정
-// # · 품목 · 수량 · 단위 · 단가 · 금액 · 납품일 · 공정 · 자재 = 9 ( + 지시 · 생산 / 출하 · 삭제 ) — colgroup 과 같아야 한다 ( 많으면 오른쪽에 빈 칸이 생긴다 )
-const colCount       = computed(() => 9 + (isEdit.value ? 1 : 0) + (readonly.value ? 0 : 1));
+// # · 품목 · 수량 · 단위 · 단가 · 금액 · 납품일 · 공정 · 자재 · 비고 = 10 ( + 지시 · 생산 / 출하 · 삭제 ) — colgroup 과 같아야 한다 ( 많으면 오른쪽에 빈 칸이 생긴다 )
+const colCount       = computed(() => 10 + (isEdit.value ? 1 : 0) + (readonly.value ? 0 : 1));
 
 // ---- 선택지 ----
 const partners  = ref([]);
@@ -425,6 +440,7 @@ function fillForm(o) {
         partner_name:    o.partner_name,
         order_name:      o.order_name ?? '',
         customer_po_no:  o.customer_po_no ?? '',
+        manager_name:    o.manager_name ?? '',
         status:          o.status,
         remark:          o.remark ?? '',
         locked:          o.locked === true,
@@ -491,8 +507,13 @@ function openWorkOrder(l, i) {
     );
 }
 
+// 생산 · 출하가 붙은 줄( 잠김 )의 수량이 그 양( min_qty ) 아래인가 — 서버도 막지만 화면에서 먼저
+const isUnderMin = (l) => l.locked && l.qty !== '' && l.qty !== null && Number(l.qty) < Number(l.min_qty ?? 0);
+const underMin   = computed(() => form.lines.map((l, i) => ({ l, no: i + 1 })).filter(({ l }) => isUnderMin(l)).map(({ l, no }) => ({ no, min: l.min_qty })));
+
 // ---- 저장 ----
 async function save() {
+    if (underMin.value.length) return;
     saving.value   = true;
     errors.value   = {};
     errorMsg.value = '';
@@ -503,6 +524,7 @@ async function save() {
             partner_idx:     form.partner_idx === '' ? null : Number(form.partner_idx),
             order_name:      form.order_name || null,
             customer_po_no:  form.customer_po_no || null,
+            manager_name:    form.manager_name.trim() || null,
             status:          form.status,
             remark:          form.remark || null,
             lines: form.lines.map(l => ({
@@ -558,7 +580,7 @@ function handleError(e, fallback) {
     if (status === 422) {
         errors.value = e.response.data.errors || {};
         // 줄 · 머리 칸에 붙지 않는 오류( status 등 )는 위에 모아 보여 준다
-        const shown = /^(order_date|partner_idx|order_name|customer_po_no|lines(\.\d+\.\w+)?|lines\.\d+\.(routing|material)_lines\..+)$/;
+        const shown = /^(order_date|partner_idx|order_name|customer_po_no|manager_name|lines(\.\d+\.\w+)?|lines\.\d+\.(routing|material)_lines\..+)$/;
         const other = Object.entries(errors.value).filter(([k]) => !shown.test(k)).flatMap(([, v]) => v);
         if (other.length) errorMsg.value = other.join('\n');
         tab.value = 'basic';

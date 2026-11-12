@@ -145,6 +145,7 @@ class ReceiptService {
                     'partner_code'    => $partner->partner_code,
                     'with_partner'    => $withPartner,
                     'external_lot_no' => $row['external_lot_no'] ?? null,
+                    'heat_no'         => $row['heat_no'] ?? null,
                     'spec_value'      => blank($row['spec_value'] ?? null) ? null : (string) $row['spec_value'],
                     'date'            => $occurredAt->toDateString(),
                 ]);

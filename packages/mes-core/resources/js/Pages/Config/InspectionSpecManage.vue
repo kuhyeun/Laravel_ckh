@@ -14,11 +14,11 @@
 
         <div class="flex flex-1 min-h-0 gap-4">
             <!-- 좌 : 기준서 목록 -->
-            <div class="w-80 shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <BaseInput v-model="search.keyword" size="sm" class="w-full" placeholder="기준서명 · 품번 · 품명" @keyup.enter="loadSpecs" />
+                    <BaseInput v-model="search.keyword" size="md" class="w-full" placeholder="기준서명 · 품번 · 품명" @keyup.enter="loadSpecs" />
                     <div class="flex items-center gap-2 mt-2">
-                        <BaseSelect v-model="search.insp_type" :options="TYPE_FILTER_OPTIONS" size="sm" class="w-28" @update:model-value="onTypeFilter" />
+                        <BaseSelect v-model="search.insp_type" :options="TYPE_FILTER_OPTIONS" size="md" class="w-28" @update:model-value="onTypeFilter" />
                         <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer select-none">
                             <input type="checkbox" class="base-checkbox w-3.5 h-3.5" v-model="showInactive" @change="loadSpecs" />
                             미사용 포함
@@ -47,7 +47,7 @@
             </div>
 
             <!-- 우 : 상세 -->
-            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[3] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">{{ form.inspection_spec_idx ? '기준서 수정' : '기준서 등록' }}</span>
                     <div class="flex items-center gap-2">
@@ -100,7 +100,7 @@
                                 <span class="ml-1 text-xs text-gray-400">마스터에서 고르면 값이 복사됩니다. 마스터를 고쳐도 이 기준서는 바뀌지 않습니다.</span>
                             </div>
                             <div v-if="canWrite" class="flex items-center gap-2 shrink-0">
-                                <BaseSelect v-model="masterPick" :options="masterOptions" size="sm" class="w-48" placeholder="+ 마스터에서 선택" @update:model-value="addFromMaster" />
+                                <BaseSelect v-model="masterPick" :options="masterOptions" size="md" class="w-48" placeholder="+ 마스터에서 선택" @update:model-value="addFromMaster" />
                                 <BaseButton size="sm" variant="secondary" @click="addManual">+ 직접 입력</BaseButton>
                             </div>
                         </div>
@@ -153,38 +153,38 @@
                                         <td class="px-2 py-2 text-center text-gray-300 align-middle select-none" :class="canWrite ? 'cursor-grab' : ''">⋮⋮</td>
                                         <td class="px-2 py-2 text-center text-gray-500 align-middle">{{ i + 1 }}</td>
                                         <td class="px-1.5 py-1">
-                                            <BaseInput v-model="l.inspection_item_name" size="sm" class="w-full" :disabled="!canWrite" />
+                                            <BaseInput v-model="l.inspection_item_name" size="md" class="w-full" :disabled="!canWrite" />
                                             <span v-if="l.inspection_item_idx" class="inline-block mt-0.5 text-[11px] px-1 rounded bg-blue-50 text-blue-600" title="검사항목 마스터에서 복사한 줄입니다">마스터</span>
                                             <p v-if="rowError(i, 'inspection_item_name')" class="text-[11px] text-red-500">{{ rowError(i, 'inspection_item_name') }}</p>
                                         </td>
                                         <td class="px-1.5 py-1">
                                             <!-- 마스터에서 온 줄은 성격을 바꾸지 않는다 ( 바꾸려면 직접 입력 ) -->
-                                            <BaseSelect v-model="l.is_quantitative" :options="NATURE_OPTIONS" size="sm" class="w-full" :disabled="!canWrite || !!l.inspection_item_idx" />
+                                            <BaseSelect v-model="l.is_quantitative" :options="NATURE_OPTIONS" size="md" class="w-full" :disabled="!canWrite || !!l.inspection_item_idx" />
                                         </td>
                                         <td class="px-1.5 py-1">
-                                            <BaseInput v-model="l.method" size="sm" class="w-full" :disabled="!canWrite" />
+                                            <BaseInput v-model="l.method" size="md" class="w-full" :disabled="!canWrite" />
                                         </td>
 
                                         <!-- 정량 : 규격 · 하한 · 상한 · 단위 -->
                                         <template v-if="l.is_quantitative === 'Y'">
                                             <td class="px-1.5 py-1">
-                                                <BaseInput v-model="l.standard_value" size="sm" class="w-full" maxlength="100" placeholder="예: 100x300" :disabled="!canWrite" />
+                                                <BaseInput v-model="l.standard_value" size="md" class="w-full" maxlength="100" placeholder="예: 100x300" :disabled="!canWrite" />
                                                 <p v-if="rowError(i, 'standard_value')" class="text-[11px] text-red-500">{{ rowError(i, 'standard_value') }}</p>
                                             </td>
                                             <td class="px-1.5 py-1">
-                                                <BaseInput v-model="l.lower_limit" type="number" size="sm" class="w-full text-right" :disabled="!canWrite" />
+                                                <BaseInput v-model="l.lower_limit" type="number" size="md" class="w-full text-right" :disabled="!canWrite" />
                                             </td>
                                             <td class="px-1.5 py-1">
-                                                <BaseInput v-model="l.upper_limit" type="number" size="sm" class="w-full text-right" :disabled="!canWrite" />
+                                                <BaseInput v-model="l.upper_limit" type="number" size="md" class="w-full text-right" :disabled="!canWrite" />
                                             </td>
                                             <td class="px-1.5 py-1">
-                                                <UnitSelect v-model="l.unit_code" size="sm" placeholder="단위" :disabled="!canWrite" />
+                                                <UnitSelect v-model="l.unit_code" size="md" placeholder="단위" :disabled="!canWrite" />
                                                 <p v-if="rowError(i, 'unit_code')" class="text-[11px] text-red-500">{{ rowError(i, 'unit_code') }}</p>
                                             </td>
                                         </template>
                                         <!-- 정성 : 판정 기준 -->
                                         <td v-else colspan="4" class="px-1.5 py-1">
-                                            <BaseInput v-model="l.criteria" size="sm" class="w-full" placeholder="판정 기준 ( 예: 흠 · 이물 없음 )" :disabled="!canWrite" />
+                                            <BaseInput v-model="l.criteria" size="md" class="w-full" placeholder="판정 기준 ( 예: 흠 · 이물 없음 )" :disabled="!canWrite" />
                                             <p v-if="rowError(i, 'criteria')" class="text-[11px] text-red-500">{{ rowError(i, 'criteria') }}</p>
                                         </td>
 
@@ -202,7 +202,7 @@
 
                         <div class="mt-4 max-w-2xl">
                             <label class="block text-gray-500 font-medium mb-1 text-sm">비고</label>
-                            <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="!canWrite"></textarea>
+                            <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
                         </div>
                     </template>
                 </div>

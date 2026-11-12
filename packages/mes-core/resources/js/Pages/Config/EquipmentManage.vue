@@ -21,7 +21,7 @@
                 placeholder="설비코드 · 설비명"
                 @keyup.enter="loadEquipments"
             />
-            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="sm" />
+            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="md" />
             <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="loadEquipments">조회</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="resetSearch">초기화</BaseButton>
         </div>

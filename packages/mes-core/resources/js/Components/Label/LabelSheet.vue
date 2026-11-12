@@ -57,6 +57,7 @@ const rows = computed(() => {
             { k: '수량',       v: qty.value, big: true },
             { k: '공급처',     v: l.partner_name },
             { k: '공급처 LOT', v: l.external_lot_no },
+            ...(l.heat_no ? [{ k: 'Heat No', v: l.heat_no }] : []),
         ];
     return list;
 });

@@ -100,7 +100,7 @@ const searchFields = computed(() => [
     { value: 'spec',      label: '규격' },
     { value: 'material',  label: '재질' },
     ...(byItem.value ? [] : [{ value: 'lot_no', label: 'LOT' }]),
-    ...(byItem.value || isProduct ? [] : [{ value: 'external_lot_no', label: '공급처 LOT' }]),
+    ...(byItem.value || isProduct ? [] : [{ value: 'external_lot_no', label: '공급처 LOT' }, { value: 'heat_no', label: 'Heat No' }]),
 ]);
 watch(searchFields, (list) => {   // 품목별로 바꿨는데 LOT 조건이 골라져 있으면 통합검색으로
     if (search.search_field && !list.some(f => f.value === search.search_field)) search.search_field = '';
@@ -113,8 +113,8 @@ const perms      = reactive({ can_move: false, can_adjust: false, can_issue: fal
 const showWarehouseFilter = usePage().props.pageOptions?.warehouse_filter !== false;
 const warehouseFilter = computed(() => [{ value: '', label: '창고 전체' }, ...warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label }))]);
 
-// 제품은 공급처 LOT · 구매처가 없다 ( 생산 입고 )
-const PURCHASE_ONLY = ['external_lot_no', 'partner_name'];
+// 제품은 공급처 LOT · Heat No · 구매처가 없다 ( 생산 입고 )
+const PURCHASE_ONLY = ['external_lot_no', 'heat_no', 'partner_name'];
 const lotColumns = [
     { header: '품번', name: 'item_code', width: 180, sortable: true, className: 'cursor-pointer', escapeHTML: true, lockHide: true },
     { header: '품명', name: 'item_name', minWidth: 160, className: 'cursor-pointer', escapeHTML: true },
@@ -122,6 +122,7 @@ const lotColumns = [
     { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', minWidth: 150, sortable: true, className: 'cursor-pointer', escapeHTML: true },
     { header: '공급처 LOT', name: 'external_lot_no', minWidth: 150, className: 'cursor-pointer', escapeHTML: true },
+    { header: 'Heat No', name: 'heat_no', width: 120, className: 'cursor-pointer', escapeHTML: true },
     { header: '창고', name: 'warehouse_name', width: 120, sortable: true, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 120, align: 'right', sortable: true, className: 'cursor-pointer',
       formatter: ({ row }) => qtyText(row.qty, row.spec_unit, row.spec_value) },
@@ -190,7 +191,7 @@ function openHistory(row) {
             canLabel: label.can_lot,
             onAction: (type, reloadHistory) => openProcess(type, row, reloadHistory),
             scope: props.scope,
-            modalTitle: 'LOT 입출고 이력',
+            modalTitle: '입출고 이력',
         },
         { size: 'lg' }
     );

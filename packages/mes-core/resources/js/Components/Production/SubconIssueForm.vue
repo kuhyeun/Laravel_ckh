@@ -1,6 +1,7 @@
 <!-- 외주 출고 창 ( 400501 ) — 모달 본체. 출고 대상 행( 지시 외주 공정 )에서 연다
      - 출고 가능 = 기준( 앞 수량 공정 실적 · 없으면 지시 수량 ) − 이미 출고 — 서버가 최종 판단
-     - 외주처 필수 · 외주 금액 = 외주에 드는 총 비용( 계산 없이 입력 그대로 · 기록만 ) -->
+     - 외주처 필수 · 외주 금액 = 외주에 드는 총 비용( 계산 없이 입력 그대로 · 기록만 )
+     - 공정 LOT 추적 지시( lot_mode RUN ) : 내보낼 LOT( 앞 공정 실적 LOT · 외주 공정 자재 LOT ) 선택 — 후보가 있으면 필수 · 외주 입고가 완료되면 새 LOT 의 투입 LOT 로 자동 연결 -->
 <template>
     <div class="mt-3 text-sm">
         <div class="grid grid-cols-3 gap-x-4 gap-y-1.5 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/70">
@@ -36,6 +37,8 @@
                 <BaseInput v-model="form.remark" class="w-full" maxlength="200" />
             </div>
         </div>
+        <RunInputPicker v-if="target.lot_mode === 'RUN'" class="mt-4 pt-3 border-t" :op-idx="target.work_order_op_idx" v-model="form.inputs"
+            candidates-route="production.subcon.issue.inputCandidates" title="내보낼 LOT" required />
         <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
 
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
@@ -52,6 +55,7 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
+import RunInputPicker from '@core/Components/Production/RunInputPicker.vue';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 
 const props = defineProps({
@@ -64,7 +68,7 @@ const emit = defineEmits(['close']);
 
 const form = reactive({
     partner_idx: '', qty: String(props.target.available_qty || ''), amount: '',
-    issued_at: props.now, remark: '',
+    issued_at: props.now, remark: '', inputs: [],
 });
 const saving   = ref(false);
 const errors   = ref({});
@@ -80,9 +84,11 @@ async function save() {
             amount: form.amount === '' ? 0 : form.amount,
             issued_at: form.issued_at,
             remark: form.remark || null,
+            ...(props.target.lot_mode === 'RUN' ? { inputs: form.inputs } : {}),
         });
         emit('close');
-        props.onDone?.(`${data.issue_no} 외주 출고했습니다.`, Number(form.qty));
+        const warn = (data.warnings ?? []).length ? ` ⚠ ${data.warnings.join(' / ')}` : '';
+        props.onDone?.(`${data.issue_no} 외주 출고했습니다.${warn}`, Number(form.qty));
     } catch (e) {
         if (e.response?.status === 422) {
             errors.value = e.response.data.errors || {};

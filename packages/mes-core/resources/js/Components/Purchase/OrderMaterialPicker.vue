@@ -7,7 +7,7 @@
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <div class="flex items-center gap-2 mb-2">
-            <BaseInput v-model="keyword" size="sm" class="w-72" placeholder="수주번호 · 고객 · 제품 · 자재로 찾기" @keydown.enter.prevent="load" />
+            <BaseInput v-model="keyword" size="md" class="w-72" placeholder="수주번호 · 고객 · 제품 · 자재로 찾기" @keydown.enter.prevent="load" />
             <BaseButton size="sm" variant="secondary" :disabled="loading" @click="load">찾기</BaseButton>
             <label class="ml-2 inline-flex items-center gap-1 text-xs text-gray-600 cursor-pointer">
                 <input v-model="includeDone" type="checkbox" class="accent-blue-600" @change="load" /> 남은 소요 없는 줄도

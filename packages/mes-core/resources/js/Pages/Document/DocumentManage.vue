@@ -9,7 +9,7 @@
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex flex-1 min-h-0 gap-4">
             <!-- 좌 : 폴더 트리 -->
-            <div class="w-80 shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">폴더</span>
                     <div class="flex items-center gap-1">
@@ -63,7 +63,7 @@
 
             <!-- 우 : 고른 폴더 -->
             <div
-                class="flex-1 min-w-0 flex flex-col border overflow-hidden transition-colors"
+                class="flex-[3] min-w-0 flex flex-col border overflow-hidden transition-colors"
                 :class="dragging ? 'border-blue-500 bg-blue-50/40' : 'border-gray-200'"
                 @dragover.prevent="onDragOver"
                 @dragleave.prevent="onDragLeave"

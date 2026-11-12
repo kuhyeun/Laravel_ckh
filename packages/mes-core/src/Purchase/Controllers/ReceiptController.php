@@ -38,6 +38,7 @@ class ReceiptController extends Controller {
         'lines.*.warehouse_idx'           => '창고',
         'lines.*.spec_value'              => '규격',
         'lines.*.external_lot_no'         => '공급처 LOT',
+        'lines.*.heat_no'                 => 'Heat No',
         'lines.*.purchase_order_line_idx' => '발주',
     ];
 
@@ -74,6 +75,7 @@ class ReceiptController extends Controller {
             'item_name'       => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_name', 'like', $kw)),
             'lot_no'          => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
             'external_lot_no' => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('external_lot_no', 'like', $kw)),
+            'heat_no'         => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('heat_no', 'like', $kw)),
             'po_no'           => fn ($q, $kw) => $q->whereHas('lines.purchaseOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),
         ]);
 
@@ -175,6 +177,7 @@ class ReceiptController extends Controller {
             'lines.*.warehouse_idx'           => 'required|integer',
             'lines.*.spec_value'              => 'nullable|numeric|gt:0|max:999999999999',
             'lines.*.external_lot_no'         => 'nullable|string|max:50',
+            'lines.*.heat_no'                 => 'nullable|string|max:50',
             'lines.*.purchase_order_line_idx' => 'nullable|integer',
             'lines.*.remark'                  => 'nullable|string|max:200',
         ], [
@@ -262,6 +265,7 @@ class ReceiptController extends Controller {
                 'lot_idx'                 => $l->lot_idx,
                 'lot_no'                  => $l->lot?->lot_no,
                 'external_lot_no'         => $l->lot?->external_lot_no,
+                'heat_no'                 => $l->lot?->heat_no,
                 'spec_value'              => $l->lot?->spec_value !== null ? (float) $l->lot->spec_value : null,
                 'warehouse_name'          => $l->warehouse?->warehouse_name,
                 'order_no'                => $l->purchaseOrderLine?->order?->order_no,

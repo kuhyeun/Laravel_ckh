@@ -98,18 +98,18 @@
                             </tr>
                             <tr v-for="(r, i) in form.equipments" :key="r._rowKey" class="border-t align-top">
                                 <td class="px-1.5 py-1">
-                                    <BaseSelect v-model="r.equipment_idx" :options="rowEquipmentOptions(r)" size="sm" class="w-full" placeholder="설비 선택" :disabled="readonly" />
+                                    <BaseSelect v-model="r.equipment_idx" :options="rowEquipmentOptions(r)" size="md" class="w-full" placeholder="설비 선택" :disabled="readonly" />
                                     <p v-if="rowError(i, 'equipment_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'equipment_idx') }}</p>
                                 </td>
-                                <td class="px-1.5 py-1 text-center leading-[30px]">
+                                <td class="px-1.5 py-1 text-center leading-9">
                                     <input type="radio" class="accent-blue-600" :checked="r.is_default === 'Y'" :disabled="readonly" @change="setDefault(i)" />
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="r.setup_loss" type="number" min="0" :empty-value="0" size="sm" class="w-full text-right" :disabled="readonly" />
+                                    <BaseInput v-model="r.setup_loss" type="number" min="0" :empty-value="0" size="md" class="w-full text-right" :disabled="readonly" />
                                     <p v-if="rowError(i, 'setup_loss')" class="text-[11px] text-red-500">{{ rowError(i, 'setup_loss') }}</p>
                                 </td>
-                                <td v-if="!readonly" class="px-1.5 py-1 text-center">
-                                    <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="행 삭제" @click="removeEquipment(i)">✕</button>
+                                <td v-if="!readonly" class="px-1.5 text-center py-1 leading-9">
+                                    <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="행 삭제" @click="removeEquipment(i)">✕</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -119,7 +119,7 @@
 
             <div class="mt-4">
                 <label class="block text-gray-500 font-medium mb-1">비고</label>
-                <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="readonly"></textarea>
+                <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="readonly ? 'resize-none': 'resize-y'" :disabled="readonly"></textarea>
             </div>
         </template>
 

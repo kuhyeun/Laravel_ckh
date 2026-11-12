@@ -48,6 +48,7 @@ class BomController extends Controller {
         $items = Item::query()
             ->forPicker(['routing_idx'])
             ->where('is_use', 'Y')
+            ->where('item_type', 'PRODUCT')
             ->when($validated['keyword'] ?? null, function ($q, $keyword) {
                 $q->where(fn ($w) => $w->where('item_code', 'like', "%{$keyword}%")
                                        ->orWhere('item_name', 'like', "%{$keyword}%"));

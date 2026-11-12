@@ -77,9 +77,19 @@
                     <p v-if="errors.biz_no" class="text-xs text-red-500 mt-0.5">{{ errors.biz_no[0] }}</p>
                 </div>
                 <div>
-                    <label class="block text-gray-500 font-medium mb-1">대표자</label>
+                    <label class="block text-gray-500 font-medium mb-1">담당자</label>
                     <BaseInput v-model="form.ceo_name" class="w-full" :disabled="!canWrite" />
                     <p v-if="errors.ceo_name" class="text-xs text-red-500 mt-0.5">{{ errors.ceo_name[0] }}</p>
+                </div>
+                <div>
+                    <label class="block text-gray-500 font-medium mb-1">전화번호</label>
+                    <BaseInput v-model="form.tel" class="w-full" placeholder="000-0000-0000" maxlength="30" :disabled="!canWrite" />
+                    <p v-if="errors.tel" class="text-xs text-red-500 mt-0.5">{{ errors.tel[0] }}</p>
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-gray-500 font-medium mb-1">주소</label>
+                    <BaseInput v-model="form.address" class="w-full" maxlength="200" :disabled="!canWrite" />
+                    <p v-if="errors.address" class="text-xs text-red-500 mt-0.5">{{ errors.address[0] }}</p>
                 </div>
                 <div class="col-span-2 pt-1">
                     <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
@@ -88,7 +98,7 @@
                 </div>
                 <div class="col-span-2">
                     <label class="block text-gray-500 font-medium mb-1">비고</label>
-                    <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="!canWrite"></textarea>
+                    <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
                 </div>
             </div>
 
@@ -128,27 +138,27 @@
                             </tr>
                             <tr v-for="(c, i) in form.contacts" :key="c._rowKey" class="border-t align-top">
                                 <td class="px-1.5 py-1">
-                                    <BaseSelect v-model="c.contact_type" :options="contactTypeRowOptions(c)" size="sm" class="w-full" placeholder="선택" :disabled="!canWrite" />
+                                    <BaseSelect v-model="c.contact_type" :options="contactTypeRowOptions(c)" size="md" class="w-full" placeholder="선택" :disabled="!canWrite" />
                                     <p v-if="rowError('contacts', i, 'contact_type')" class="text-[11px] text-red-500">{{ rowError('contacts', i, 'contact_type') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseSelect v-model="c.site_key" :options="siteOptions" size="sm" class="w-full" :disabled="!canWrite" />
+                                    <BaseSelect v-model="c.site_key" :options="siteOptions" size="md" class="w-full" :disabled="!canWrite" />
                                     <p v-if="rowError('contacts', i, 'site_key')" class="text-[11px] text-red-500">{{ rowError('contacts', i, 'site_key') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="c.contact_name" size="sm" :disabled="!canWrite" />
+                                    <BaseInput v-model="c.contact_name" size="md" :disabled="!canWrite" />
                                     <p v-if="rowError('contacts', i, 'contact_name')" class="text-[11px] text-red-500">{{ rowError('contacts', i, 'contact_name') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="c.phone" size="sm" :disabled="!canWrite" />
+                                    <BaseInput v-model="c.phone" size="md" :disabled="!canWrite" />
                                     <p v-if="rowError('contacts', i, 'phone')" class="text-[11px] text-red-500">{{ rowError('contacts', i, 'phone') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="c.email" size="sm" :disabled="!canWrite" />
+                                    <BaseInput v-model="c.email" size="md" :disabled="!canWrite" />
                                     <p v-if="rowError('contacts', i, 'email')" class="text-[11px] text-red-500">{{ rowError('contacts', i, 'email') }}</p>
                                 </td>
-                                <td v-if="canWrite" class="px-1.5 py-1 text-center">
-                                    <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="행 삭제" @click="form.contacts.splice(i, 1)">✕</button>
+                                <td v-if="canWrite" class="px-1.5 text-center py-1 leading-9">
+                                    <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="행 삭제" @click="form.contacts.splice(i, 1)">✕</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -187,22 +197,22 @@
                             </tr>
                             <tr v-for="(s, i) in form.sites" :key="s.key" class="border-t align-top">
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="s.site_name" size="sm" :disabled="!canWrite" />
+                                    <BaseInput v-model="s.site_name" size="md" :disabled="!canWrite" />
                                     <p v-if="rowError('sites', i, 'site_name')" class="text-[11px] text-red-500">{{ rowError('sites', i, 'site_name') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="s.address" size="sm" :disabled="!canWrite" />
+                                    <BaseInput v-model="s.address" size="md" :disabled="!canWrite" />
                                     <p v-if="rowError('sites', i, 'address')" class="text-[11px] text-red-500">{{ rowError('sites', i, 'address') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="s.tel" size="sm" :disabled="!canWrite" />
+                                    <BaseInput v-model="s.tel" size="md" :disabled="!canWrite" />
                                     <p v-if="rowError('sites', i, 'tel')" class="text-[11px] text-red-500">{{ rowError('sites', i, 'tel') }}</p>
                                 </td>
-                                <td class="px-1.5 py-1 text-center text-xs text-gray-500 leading-[30px]">
+                                <td class="px-1.5 text-center text-xs text-gray-500 py-1 leading-9">
                                     {{ form.contacts.filter(c => c.site_key === s.key).length }} 명
                                 </td>
-                                <td v-if="canWrite" class="px-1.5 py-1 text-center">
-                                    <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="행 삭제" @click="removeSite(i)">✕</button>
+                                <td v-if="canWrite" class="px-1.5 text-center py-1 leading-9">
+                                    <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="행 삭제" @click="removeSite(i)">✕</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -273,6 +283,8 @@ const form = reactive({
     is_subcon:    'N',
     biz_no:       '',
     ceo_name:     '',
+    address:      '',
+    tel:          '',
     is_use:       'Y',
     remark:       '',
     sites:        [],   // [{ site_idx, key, site_name, address, tel, remark }]
@@ -289,6 +301,8 @@ function applyPartner(p) {
         is_subcon:    p.is_subcon ?? 'N',
         biz_no:       p.biz_no ?? '',
         ceo_name:     p.ceo_name ?? '',
+        address:      p.address ?? '',
+        tel:          p.tel ?? '',
         is_use:       p.is_use ?? 'Y',
         remark:       p.remark ?? '',
         sites:        (p.sites ?? []).map(s => ({ ...s })),

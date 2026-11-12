@@ -10,8 +10,8 @@
             <div class="flex-1"></div>
             <template v-if="canWrite">
                 <label class="text-xs text-gray-500">반납일시</label>
-                <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="sm" class="w-44" />
-                <BaseInput v-model="form.remark" size="sm" class="w-40" placeholder="반납 사유( 메모 )" maxlength="200" />
+                <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="md" class="w-44" />
+                <BaseInput v-model="form.remark" size="md" class="w-40" placeholder="반납 사유( 메모 )" maxlength="200" />
                 <BaseButton variant="primary" :disabled="saving || loading || !fillTotal" @click="save">반납</BaseButton>
             </template>
         </div>
@@ -20,11 +20,11 @@
         <div class="flex-1 min-h-0 overflow-auto px-3 py-2">
             <p v-if="loading" class="py-6 text-center text-sm text-gray-400">불러오는 중…</p>
             <p v-else-if="!lots.length" class="py-6 text-center text-sm text-gray-400">이 지시가 출고한 자재가 없습니다.</p>
-            <table v-else class="w-full min-w-[1104px] table-fixed text-xs">
+            <table v-else class="w-full min-w-[1024px] table-fixed text-xs">
                 <colgroup>
                     <col><col class="w-40">
-                    <col class="w-20"><col class="w-20"><col class="w-20">
-                    <col class="w-20"><col class="w-20">
+                    <col class="w-16"><col class="w-16"><col class="w-16">
+                    <col class="w-16"><col class="w-16">
                     <col class="w-32"><col class="w-28"><col class="w-36">
                 </colgroup>
                 <thead class="text-gray-400">
@@ -45,14 +45,14 @@
                         <td class="px-1 text-right text-gray-500">{{ fmtNum(l.returned) }}</td>
                         <td class="px-1 text-right font-semibold" :class="l.returnable > 0 ? 'text-blue-700' : 'text-gray-400'">{{ fmtNum(l.returnable) }}</td>
                         <td class="px-1 py-0.5">
-                            <BaseSelect v-model="l.mode" :options="MODES" size="sm" class="w-full" :disabled="!canWrite || l.returnable <= 0" />
+                            <BaseSelect v-model="l.mode" :options="MODES" size="md" class="w-full" :disabled="!canWrite || l.returnable <= 0" />
                         </td>
                         <td class="px-1 py-0.5">
-                            <BaseInput v-model="l.fill" type="number" min="0" size="sm" class="w-full text-right"
+                            <BaseInput v-model="l.fill" type="number" min="0" size="md" class="w-full text-right"
                                 :class="over(l) ? '!border-red-400 !text-red-600' : ''" :disabled="!canWrite || l.returnable <= 0" />
                         </td>
                         <td class="px-1 py-0.5">
-                            <WarehouseSelect v-model="l.warehouse_idx" :options="warehouses" size="sm" class="w-full" :disabled="!canWrite || l.returnable <= 0" />
+                            <WarehouseSelect v-model="l.warehouse_idx" :options="warehouses" size="md" class="w-full" :disabled="!canWrite || l.returnable <= 0" />
                         </td>
                     </tr>
                 </tbody>

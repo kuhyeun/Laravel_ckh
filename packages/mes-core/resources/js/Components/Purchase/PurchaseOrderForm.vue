@@ -73,7 +73,7 @@
 
                     <div class="col-span-3">
                         <label class="block text-gray-500 font-medium mb-1">비고 <span class="text-xs text-gray-400 font-normal">( 발주서에 찍힙니다 )</span></label>
-                        <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="readonly"></textarea>
+                        <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="readonly ? 'resize-none': 'resize-y'" :disabled="readonly"></textarea>
                     </div>
                 </div>
 
@@ -85,7 +85,7 @@
                         <div class="flex-1"></div>
                         <template v-if="!readonly">
                             <span class="text-xs text-gray-500">입고 예정일 일괄</span>
-                            <BaseDatePicker v-model="bulkDue" size="sm" class="w-36" />
+                            <BaseDatePicker v-model="bulkDue" size="md" class="w-36" />
                             <BaseButton size="sm" variant="secondary" :disabled="!bulkDue" @click="applyBulkDue">빈 칸에 적용</BaseButton>
                             <BaseButton size="sm" variant="secondary" @click="openOrderMaterials">+ 수주 자재에서</BaseButton>
                             <BaseButton size="sm" variant="secondary" @click="addLine">+ 품목</BaseButton>
@@ -94,18 +94,19 @@
                     <p v-if="errors.lines" class="text-xs text-red-500 mb-1">{{ errors.lines[0] }}</p>
 
                     <div class="border rounded overflow-x-auto">
-                        <table class="w-full table-fixed min-w-[1052px] text-xs">
+                        <!-- 최소 폭 = 고정 칸 872 + 품목 300 ( 수정은 입고 칸 96 더 ) — 넓으면 가로 스크롤 ( 11-12 ) -->
+                        <table class="w-full table-fixed text-xs" :class="isEdit ? 'min-w-[1268px]' : 'min-w-[1172px]'">
                             <colgroup>
-                                <col class="w-8">
+                                <col class="w-10">
                                 <col>
-                                <col class="w-28">
-                                <col class="w-12">
-                                <col class="w-28">
-                                <col class="w-28">
-                                <col class="w-36">
-                                <col v-if="isEdit" class="w-20">
+                                <col class="w-32">
+                                <col class="w-14">
+                                <col class="w-32">
+                                <col class="w-32">
                                 <col class="w-40">
-                                <col v-if="!readonly" class="w-8">
+                                <col v-if="isEdit" class="w-24">
+                                <col class="w-48">
+                                <col v-if="!readonly" class="w-10">
                             </colgroup>
                             <thead class="bg-gray-50 text-gray-500">
                                 <tr>
@@ -126,7 +127,7 @@
                                     <td :colspan="colCount" class="px-2 py-4 text-center text-gray-400">품목을 추가하세요.</td>
                                 </tr>
                                 <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
-                                    <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
+                                    <td class="px-2 text-center text-gray-400 py-1 leading-9">{{ i + 1 }}</td>
                                     <td class="px-1.5 py-1">
                                         <ItemPicker v-model="l.item_idx" :remote="ITEM_REMOTE" show-type :disabled="readonly || l.locked || !!l.sales_order_line_idx" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @select="row => onItemPicked(l, row)" />
                                         <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
@@ -138,26 +139,26 @@
                                         </p>
                                     </td>
                                     <td class="px-1.5 py-1">
-                                        <BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="readonly" />
+                                        <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="readonly" />
                                         <p v-if="lineError(i, 'qty')" class="text-[11px] text-red-500">{{ lineError(i, 'qty') }}</p>
                                         <p v-else-if="l.locked" class="text-[11px] text-gray-400">최소 {{ fmt(l.min_qty) }}</p>
                                     </td>
-                                    <td class="px-2 py-1.5 text-center text-gray-500">{{ l.spec_unit }}</td>
+                                    <td class="px-2 text-center text-gray-500 py-1 leading-9">{{ l.spec_unit }}</td>
                                     <td class="px-1.5 py-1">
-                                        <BaseInput v-model="l.unit_price" type="number" min="0" size="sm" class="w-full text-right" :disabled="readonly" />
+                                        <BaseInput v-model="l.unit_price" type="number" min="0" size="md" class="w-full text-right" :disabled="readonly" />
                                         <p v-if="lineError(i, 'unit_price')" class="text-[11px] text-red-500">{{ lineError(i, 'unit_price') }}</p>
                                     </td>
-                                    <td class="px-2 py-1.5 text-right text-gray-700">{{ fmt(lineAmount(l)) }}</td>
+                                    <td class="px-2 text-right text-gray-700 py-1 leading-9">{{ fmt(lineAmount(l)) }}</td>
                                     <td class="px-1.5 py-1">
-                                        <BaseDatePicker v-model="l.due_date" size="sm" class="w-full" :disabled="readonly" />
+                                        <BaseDatePicker v-model="l.due_date" size="md" class="w-full" :disabled="readonly" />
                                         <p v-if="lineError(i, 'due_date')" class="text-[11px] text-red-500">{{ lineError(i, 'due_date') }}</p>
                                     </td>
-                                    <td v-if="isEdit" class="px-2 py-1.5 text-right text-gray-500">{{ fmt(l.received_qty) }}<span v-if="l.failed_qty" class="block text-[11px] text-red-500" title="수입검사 불합격 — 다시 받지 않습니다 ( 받음 + 불합격 = 완료 )">불합격 {{ fmt(l.failed_qty) }}</span></td>
+                                    <td v-if="isEdit" class="px-2 text-right text-gray-500 py-1 leading-9">{{ fmt(l.received_qty) }}<span v-if="l.failed_qty" class="block text-[11px] text-red-500" title="수입검사 불합격 — 다시 받지 않습니다 ( 받음 + 불합격 = 완료 )">불합격 {{ fmt(l.failed_qty) }}</span></td>
                                     <td class="px-1.5 py-1">
-                                        <BaseInput v-model="l.remark" size="sm" class="w-full" :disabled="readonly" />
+                                        <BaseInput v-model="l.remark" size="md" class="w-full" :disabled="readonly" />
                                     </td>
-                                    <td v-if="!readonly" class="px-1 py-1 text-center">
-                                        <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400" :disabled="l.locked" :title="l.locked ? '입고가 시작된 줄은 지울 수 없습니다' : '줄 삭제'" @click="removeLine(i)">✕</button>
+                                    <td v-if="!readonly" class="px-1 text-center py-1 leading-9">
+                                        <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400" :disabled="l.locked" :title="l.locked ? '입고가 시작된 줄은 지울 수 없습니다' : '줄 삭제'" @click="removeLine(i)">✕</button>
                                     </td>
                                 </tr>
                             </tbody>

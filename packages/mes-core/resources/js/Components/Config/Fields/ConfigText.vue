@@ -3,7 +3,7 @@
     <BaseInput
         :type="item.type === 'number' ? 'number' : 'text'"
         v-model="store[item.key]"
-        size="sm"
+        size="md"
         class="w-full max-w-xs"
         :placeholder="item.placeholder || '값을 입력하세요'"
     />

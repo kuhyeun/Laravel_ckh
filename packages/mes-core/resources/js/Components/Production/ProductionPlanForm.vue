@@ -47,9 +47,9 @@
                 <p v-if="errors.sources" class="text-xs text-red-500 mb-1">{{ errors.sources[0] }}</p>
 
                 <div class="border rounded overflow-x-auto">
-                    <table class="w-full min-w-[720px] table-fixed text-xs">
+                    <table class="w-full min-w-[848px] table-fixed text-xs">
                         <colgroup>
-                            <col class="w-36"> <col> <col class="w-24"> <col class="w-24"> <col class="w-28"> <col class="w-20"> <col v-if="!readonly && canChangeLines" class="w-8">
+                            <col class="w-40"> <col> <col class="w-28"> <col class="w-28"> <col class="w-32"> <col class="w-24"> <col v-if="!readonly && canChangeLines" class="w-10">
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr>
@@ -63,17 +63,17 @@
                             <tr v-if="!form.sources.length"><td :colspan="(!readonly && canChangeLines) ? 7 : 6" class="px-2 py-4 text-center text-gray-400">수주 줄을 담으세요.</td></tr>
                             <!-- 글자 칸은 입력 칸( sm 30px )과 같은 줄 높이 · 세로 가운데 — 오류 문구가 붙어도 글자는 입력 칸 높이에 맞춰 위쪽 -->
                             <tr v-for="(s, i) in form.sources" :key="s.sales_order_line_idx" class="border-t align-top">
-                                <td class="px-2 py-1 leading-[30px] whitespace-nowrap">{{ s.order_no }} <span class="text-gray-400">#{{ s.line_no }}</span></td>
-                                <td class="px-2 py-1 leading-[30px] truncate" :title="s.partner_name">{{ s.partner_name }}</td>
-                                <td class="px-2 py-1 leading-[30px] text-center">{{ s.due_date }}</td>
-                                <td class="px-2 py-1 leading-[30px] text-right text-gray-500">{{ fmtNum(s.order_qty) }}</td>
+                                <td class="px-2 whitespace-nowrap py-1 leading-9">{{ s.order_no }} <span class="text-gray-400">#{{ s.line_no }}</span></td>
+                                <td class="px-2 truncate py-1 leading-9" :title="s.partner_name">{{ s.partner_name }}</td>
+                                <td class="px-2 text-center py-1 leading-9">{{ s.due_date }}</td>
+                                <td class="px-2 text-right text-gray-500 py-1 leading-9">{{ fmtNum(s.order_qty) }}</td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="s.qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="readonly" />
+                                    <BaseInput v-model="s.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="readonly" />
                                     <p v-if="srcErr(i)" class="text-[11px] text-red-500">{{ srcErr(i) }}</p>
                                 </td>
-                                <td class="px-2 py-1 leading-[30px] text-right text-gray-500">{{ fmtNum(s.directed_qty) }}</td>
-                                <td v-if="!readonly && canChangeLines" class="px-1 py-1 leading-[30px] text-center">
-                                    <button type="button" class="px-1.5 text-gray-400 hover:text-red-500" title="빼기" @click="removeSource(i)">✕</button>
+                                <td class="px-2 text-right text-gray-500 py-1 leading-9">{{ fmtNum(s.directed_qty) }}</td>
+                                <td v-if="!readonly && canChangeLines" class="px-1 text-center py-1 leading-9">
+                                    <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="빼기" @click="removeSource(i)">✕</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -83,7 +83,7 @@
                 <!-- 수주 줄 고르기 -->
                 <div v-if="picking" class="mt-2 border rounded border-blue-200">
                     <div class="flex items-center gap-2 p-2 border-b bg-blue-50/40">
-                        <BaseInput v-model="lineKeyword" size="sm" class="w-64" placeholder="수주번호 · 고객 · 품번 · 품명" @keydown.enter.prevent="loadLines" />
+                        <BaseInput v-model="lineKeyword" size="md" class="w-64" placeholder="수주번호 · 고객 · 품번 · 품명" @keydown.enter.prevent="loadLines" />
                         <BaseButton size="sm" variant="secondary" :disabled="linesLoading" @click="loadLines">찾기</BaseButton>
                         <span class="text-xs text-gray-400">{{ form.sources.length ? '같은 품목 · 같은 공정 · 자재인 수주 줄만 담을 수 있습니다' : '계획 안 잡힌 수량이 있는 확정 수주 줄' }}</span>
                     </div>

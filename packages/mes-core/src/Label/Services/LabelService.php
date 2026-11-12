@@ -44,7 +44,7 @@ class LabelService {
             'barcode_no'   => $lot->lot_no,
             'item_label'   => trim("{$lot->item?->item_code} {$lot->item?->item_name}"),
             'spec'         => $lot->item?->spec,
-            'sub_label'    => $lot->external_lot_no ? "공급처 LOT {$lot->external_lot_no}" : null,
+            'sub_label'    => implode(' · ', array_filter([$lot->external_lot_no ? "공급처 LOT {$lot->external_lot_no}" : null, $lot->heat_no ? "Heat {$lot->heat_no}" : null])) ?: null,
             'qty'          => $qtyBy[$lot->lot_idx],
             'spec_unit'    => $lot->item?->spec_unit,
             'spec_value'   => $lot->spec_value,
@@ -174,6 +174,7 @@ class LabelService {
                     'spec_value'      => $lot->spec_value,
                     'lot_no'          => $lot->lot_no,
                     'external_lot_no' => $lot->external_lot_no,
+                    'heat_no'         => $lot->heat_no,
                     'partner_name'    => $lot->partner?->partner_name,
                     'date'            => ($lot->in_at ?? $lot->create_datetime)?->format('Y-m-d'),
                 ];

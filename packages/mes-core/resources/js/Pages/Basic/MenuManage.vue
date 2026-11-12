@@ -26,7 +26,7 @@
         <!-- 본문: 좌 트리 / 우 상세 -->
         <div class="flex flex-1 min-h-0 gap-4 pt-4">
             <!-- 좌: 트리 -->
-            <div class="w-72 shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
                 <!-- 머리 : 제목 · 전체 펼치기 / 접기 ( 하나라도 접혀 있으면 펼치기 ) -->
                 <div class="flex items-center justify-between gap-2 px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">{{ sortMode ? '순서 변경' : '메뉴 트리' }}</span>
@@ -46,7 +46,7 @@
                 </div>
 
                 <div v-if="sortMode" class="px-3 py-2 border-b shrink-0 space-y-1">
-                    <BaseSelect v-model="sortLevel" :options="sortLevelOptions" size="sm" class="w-full" :disabled="sortDirty" />
+                    <BaseSelect v-model="sortLevel" :options="sortLevelOptions" size="md" class="w-full" :disabled="sortDirty" />
                     <p class="text-xs text-gray-400 break-keep">
                         {{ sortDirty ? '레벨을 바꾸려면 먼저 저장하거나 취소하세요.' : '같은 상위 메뉴 안에서 끌어다 놓아 옮깁니다.' }}
                     </p>
@@ -97,7 +97,7 @@
             </div>
 
             <!-- 우: 상세 ( 순서 변경 중에는 잠금 ) -->
-            <div class="flex-1 min-h-0 overflow-y-auto pr-1" :class="sortMode ? 'opacity-50 pointer-events-none' : ''">
+            <div class="flex-[3] min-w-0 min-h-0 overflow-y-auto pr-1" :class="sortMode ? 'opacity-50 pointer-events-none' : ''">
                 <div class="border border-gray-200 rounded-lg p-5">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-base font-bold tracking-tight">
@@ -169,6 +169,7 @@
                                 rows="2"
                                 class="w-full text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400/40 focus:border-blue-400 transition"
                                 placeholder="메모"
+                                :class="!canWrite ? 'resize-none': 'resize-y'"
                             ></textarea>
                         </div>
                     </div>

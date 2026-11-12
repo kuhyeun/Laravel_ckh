@@ -56,7 +56,7 @@
                         <td class="px-2 py-2 text-center text-gray-300 align-middle select-none" :class="readonly ? '' : 'cursor-grab'">⋮⋮</td>
                         <td class="px-2 py-2 text-center text-gray-500 align-middle">{{ i + 1 }}</td>
                         <td class="px-1.5 py-1">
-                            <BaseSelect v-model="l.process_idx" :options="lineProcessOptions(l)" size="sm" class="w-full" placeholder="공정 선택" :disabled="readonly" @update:model-value="v => onProcessChange(l, v)" />
+                            <BaseSelect v-model="l.process_idx" :options="lineProcessOptions(l)" size="md" class="w-full" placeholder="공정 선택" :disabled="readonly" @update:model-value="v => onProcessChange(l, v)" />
                             <span v-if="l.bom_ref_count" class="inline-block mt-0.5 text-[11px] px-1 rounded bg-amber-50 text-amber-700" :title="'이 줄을 투입 지점으로 쓰는 BOM 라인이 ' + l.bom_ref_count + '건 있습니다. 줄을 지우면 그 투입 지점이 비워집니다.'">
                                 BOM {{ l.bom_ref_count }}건 참조
                             </span>
@@ -88,7 +88,7 @@
                                     <BaseInput
                                         v-if="preMode(l) === 'count'"
                                         v-model="l.pre_approve_min" type="number" min="1" :empty-value="1"
-                                        size="sm" class="w-14 text-right" :disabled="readonly"
+                                        size="md" class="w-14 text-right" :disabled="readonly"
                                     />
                                     <span v-if="preMode(l) === 'count'">명</span>
                                     <label class="inline-flex items-center gap-1 cursor-pointer">

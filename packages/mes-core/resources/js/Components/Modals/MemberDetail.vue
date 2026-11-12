@@ -18,14 +18,29 @@
                 <p v-if="errors.user_name" class="text-xs text-red-500 mt-0.5">{{ errors.user_name[0] }}</p>
             </div>
             <div>
-                <label class="block text-gray-500 font-medium mb-1">권한 레벨 <span class="text-red-400">*</span></label>
-                <BaseSelect v-model="form.user_level" :options="levelOptions" class="w-full" size="sm" />
-                <p v-if="errors.user_level" class="text-xs text-red-500 mt-0.5">{{ errors.user_level[0] }}</p>
-            </div>
-            <div>
                 <label class="block text-gray-500 font-medium mb-1">비밀번호 <span v-if="!isEdit" class="text-red-400">*</span></label>
                 <BaseInput v-model="form.user_pw" type="password" class="w-full" size="md" :placeholder="isEdit ? '변경 시에만 입력' : '8자 이상'" />
                 <p v-if="errors.user_pw" class="text-xs text-red-500 mt-0.5">{{ errors.user_pw[0] }}</p>
+            </div>
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">권한 레벨 <span class="text-red-400">*</span></label>
+                <BaseSelect v-model="form.user_level" :options="levelOptions" class="w-full" size="md" />
+                <p v-if="errors.user_level" class="text-xs text-red-500 mt-0.5">{{ errors.user_level[0] }}</p>
+            </div>
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">사번</label>
+                <BaseInput v-model="form.emp_no" class="w-full" size="md" maxlength="30" />
+                <p v-if="errors.emp_no" class="text-xs text-red-500 mt-0.5">{{ errors.emp_no[0] }}</p>
+            </div>
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">부서</label>
+                <BaseSelect v-model="form.dept_code" :options="codeSelect('DEPT')" class="w-full" size="md" />
+                <p v-if="errors.dept_code" class="text-xs text-red-500 mt-0.5">{{ errors.dept_code[0] }}</p>
+            </div>
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">직급</label>
+                <BaseSelect v-model="form.position_code" :options="codeSelect('POSITION')" class="w-full" size="md" />
+                <p v-if="errors.position_code" class="text-xs text-red-500 mt-0.5">{{ errors.position_code[0] }}</p>
             </div>
             <div class="flex items-end">
                 <BaseCheckbox variant="switch" v-model="form.is_use">{{ form.is_use ? '사용' : '미사용' }}</BaseCheckbox>
@@ -53,6 +68,11 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { showAlert } from '@core/Utils/message.js';
+import { useCommonCode } from '@core/Composables/useCommonCode';
+
+// 부서 · 직급 = 공통코드 ( 코드관리에서 더하고 고친다 )
+const { options: codeOptions } = useCommonCode(['DEPT', 'POSITION']);
+const codeSelect = (group) => [{ value: '', label: '— 선택 안 함 —' }, ...codeOptions(group)];
 
 const props = defineProps({
     member:    { type: Object,   default: null },   // 있으면 수정, 없으면 등록
@@ -81,6 +101,9 @@ const form = reactive({
     account_idx: props.member?.account_idx ?? null,
     user_id:     props.member?.user_id ?? '',
     user_name:   props.member?.user_name ?? '',
+    emp_no:        props.member?.emp_no ?? '',
+    dept_code:     props.member?.dept_code ?? '',
+    position_code: props.member?.position_code ?? '',
     user_level:  props.member?.user_level ?? 99,
     is_use:      props.member?.is_use ?? true,
     user_pw:     '',
@@ -104,7 +127,7 @@ async function save() {
     errors.value = {};
     errorMsg.value = '';
     try {
-        await window.axios.post(route('basic.mem.save'), { ...form });
+        await window.axios.post(route('basic.mem.save'), { ...form, dept_code: form.dept_code || null, position_code: form.position_code || null });
         props.onSaved?.();
         emit('close');
     } catch (e) {

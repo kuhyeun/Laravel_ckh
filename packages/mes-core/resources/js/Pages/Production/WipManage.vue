@@ -91,7 +91,9 @@ const qtyCell = (unitOf) => ({ row, value }) => {
 };
 
 // ---- 재공 이력 ----
-const historyColumns = [
+const showLot = ref(false);   // 실적 LOT 지시가 있을 때만 LOT 열 ( formData.show_lot )
+const lotColumn = { header: 'LOT', name: 'lot_no', width: 200, className: 'cursor-pointer', escapeHTML: true, dash: true };
+const baseColumns = [
     { header: '일시', name: 'occurred_at', width: 150, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '지시번호', name: 'wo_no', width: 180, sortable: true, className: 'cursor-pointer' },
     { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
@@ -102,6 +104,10 @@ const historyColumns = [
     { header: '투입한 공정', name: 'to_label', width: 120, className: 'cursor-pointer', escapeHTML: true },
     { header: '작업자', name: 'operator_name', width: 80, align: 'center', className: 'cursor-pointer', escapeHTML: true },
 ];
+// LOT 열은 수량 다음 ( 생산 + = 그 실적 LOT · 투입 − = 가져간 앞 공정 LOT )
+const historyColumns = computed(() => showLot.value
+    ? [...baseColumns.slice(0, 7), lotColumn, ...baseColumns.slice(7)]
+    : baseColumns);
 const historyRows = ref([]);
 const paging = reactive({ page: 1, perPage: 50, total: 0 });
 const sort   = reactive({ key: '', dir: '' });
@@ -146,6 +152,7 @@ onMounted(async () => {
         const { data } = await window.axios.get(route('production.wip.formData'));
         processes.value = data.processes ?? [];
         opResultUrl.value = data.op_result_url ?? null;
+        showLot.value = !!data.show_lot;
     } catch (e) {
         showFlash('선택지를 불러오지 못했습니다.', true);
     }

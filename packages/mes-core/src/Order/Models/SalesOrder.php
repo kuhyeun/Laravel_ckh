@@ -35,6 +35,7 @@ class SalesOrder extends Model {
         'order_no',
         'order_date',
         'partner_idx',
+        'manager_name',
         'order_name',
         'customer_po_no',
         'status',

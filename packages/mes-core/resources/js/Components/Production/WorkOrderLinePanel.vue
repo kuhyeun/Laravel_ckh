@@ -32,7 +32,7 @@
                     <p class="h-9 flex items-center text-gray-700">{{ line.wo_no || '저장할 때 매깁니다' }}</p>
                 </div>
                 <div>
-                    <label class="lbl">출처</label>
+                    <label class="lbl">사용처</label>
                     <div v-if="line.sources.length" class="h-9 flex items-center"><span class="text-blue-700 font-semibold">수주</span><span class="ml-1 text-xs text-gray-400">( 수주 연결이 있음 )</span></div>
                     <div v-else class="h-9 flex items-center gap-3">
                         <label v-for="s in [{ v: 'MANUAL', l: '수동' }, { v: 'STOCK', l: '재고' }]" :key="s.v" class="inline-flex items-center gap-1" :class="!structEditable ? 'opacity-60' : 'cursor-pointer'">
@@ -42,7 +42,7 @@
                 </div>
                 <div>
                     <label class="lbl">LOT</label>
-                    <p class="h-9 flex items-center text-gray-700">{{ line.lot_no || ( ctx.lot.enabled ? '저장할 때 발급합니다' : 'LOT 미사용' ) }}</p>
+                    <p class="h-9 flex items-center text-gray-700">{{ line.lot_no || ( !ctx.lot.enabled ? 'LOT 미사용' : ctx.lot.run_lot ? '실적마다 발급합니다' : '저장할 때 발급합니다' ) }}</p>
                 </div>
                 <div>
                     <label class="lbl">상태</label>
@@ -129,7 +129,7 @@
                                 <td class="px-2 py-1 text-center">{{ s.due_date }}</td>
                                 <td class="px-2 py-1 text-right">{{ fmt(s.remaining) }}</td>
                                 <td class="px-1.5 py-1">
-                                    <BaseInput v-model="s.qty" type="number" min="0" size="sm" class="w-full text-right" :disabled="!structEditable" />
+                                    <BaseInput v-model="s.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="!structEditable" />
                                     <p v-if="errors[`sources.${i}.qty`]" class="err">{{ errors[`sources.${i}.qty`][0] }}</p>
                                     <p v-else-if="num(s.qty) > num(s.remaining)" class="text-[11px] text-amber-600">남은 지시 수량 초과</p>
                                 </td>
@@ -173,12 +173,12 @@
                             </td>
                             <td class="px-2 py-1 text-center text-gray-500">{{ processKindLabel(procOf(o)) }}</td>
                             <td class="px-1.5 py-1">
-                                <BaseSelect v-if="procOf(o)?.equipments?.length" v-model="o.equipment_idx" :options="equipOptions(o)" size="sm" class="w-full" :disabled="!structEditable" />
+                                <BaseSelect v-if="procOf(o)?.equipments?.length" v-model="o.equipment_idx" :options="equipOptions(o)" size="md" class="w-full" :disabled="!structEditable" />
                                 <span v-else class="text-gray-300">—</span>
                                 <p v-if="errors[`ops.${i}.equipment_idx`]" class="err">{{ errors[`ops.${i}.equipment_idx`][0] }}</p>
                             </td>
-                            <td class="px-1.5 py-1"><BaseSelect v-model="o.worker_idx" :options="workerOptions" size="sm" class="w-full" :disabled="!runEditable" /></td>
-                            <td class="px-1.5 py-1"><BaseDatePicker v-model="o.due_date" size="sm" class="w-full" :disabled="!runEditable" /></td>
+                            <td class="px-1.5 py-1"><BaseSelect v-model="o.worker_idx" :options="workerOptions" size="md" class="w-full" :disabled="!runEditable" /></td>
+                            <td class="px-1.5 py-1"><BaseDatePicker v-model="o.due_date" size="md" class="w-full" :disabled="!runEditable" /></td>
                             <td class="px-2 py-1 text-center">
                                 <template v-if="isIfl(procOf(o))">
                                     <input v-for="k in ['insp_first', 'insp_middle', 'insp_last']" :key="k" type="checkbox" class="accent-blue-600 mx-0.5" true-value="Y" false-value="N" v-model="o[k]" :disabled="!structEditable" />
@@ -191,7 +191,7 @@
                 </table>
             </div>
             <div v-if="structEditable" class="flex items-center gap-2 mt-2">
-                <BaseSelect v-model="addProcessIdx" :options="processOptions" size="sm" class="w-64" placeholder="더할 공정" />
+                <BaseSelect v-model="addProcessIdx" :options="processOptions" size="md" class="w-64" placeholder="더할 공정" />
                 <BaseButton size="sm" variant="secondary" :disabled="!addProcessIdx" @click="addOp">+ 공정</BaseButton>
                 <span class="text-xs text-gray-400">줄을 끌어 순서를 바꿉니다. 라우팅 원본은 바뀌지 않습니다.</span>
             </div>

@@ -49,7 +49,7 @@ const lotEnabled = ref(true);
 
 const dateBases = computed(() => dir.value === 'forward' ? [{ value: 'in', label: '입고일' }] : [{ value: 'made', label: '생산일' }]);
 const fields = computed(() => dir.value === 'forward'
-    ? [{ value: 'lot_no', label: 'LOT · 공급처 LOT' }, { value: 'item_code', label: '품번' }, { value: 'item_name', label: '품명' }, { value: 'partner', label: '공급처' }]
+    ? [{ value: 'lot_no', label: 'LOT · 공급처 LOT · Heat No' }, { value: 'item_code', label: '품번' }, { value: 'item_name', label: '품명' }, { value: 'partner', label: '공급처' }]
     : [{ value: 'lot_no', label: 'LOT' }, { value: 'item_code', label: '품번' }, { value: 'item_name', label: '품명' }, { value: 'wo_no', label: '지시번호' }]);
 const blankFilters = () => ({});
 const search = reactive({ date_basis: 'in', from: '', to: '', keyword: '', search_field: '' });
@@ -57,6 +57,7 @@ const search = reactive({ date_basis: 'in', from: '', to: '', keyword: '', searc
 const qty = (name, header, width = 90) => ({ header, name, width, align: 'right', sortable: true, className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) });
 const MATERIAL_COLUMNS = [
     { header: 'LOT', name: 'lot_no', width: 250, sortable: true, className: 'cursor-pointer', escapeHTML: true },
+    { header: 'Heat No', name: 'heat_no', width: 110, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '품목', name: 'item_code', minWidth: 150, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '규격', name: 'item_spec', width: 150, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '공급처', name: 'partner_name', width: 150, sortable: true, className: 'cursor-pointer', escapeHTML: true },

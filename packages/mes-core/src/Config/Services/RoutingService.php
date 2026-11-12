@@ -244,7 +244,7 @@ class RoutingService {
 
     // 공정 선택지 ( 사용 중 · 시스템 공정 먼저 ) — 라우팅 관리 · 품목 · 수주 편집기
     public function processOptions(): Collection {
-        return Process::select('process_idx', 'process_code', 'process_name', 'process_type', 'class_code', 'is_system')
+        return Process::select('process_idx', 'process_code', 'process_name', 'process_type', 'class_code', 'is_system', 'system_key')
             ->where('is_use', 'Y')
             ->orderByRaw("CASE WHEN is_system = 'Y' THEN 0 ELSE 1 END")
             ->orderBy('process_code')

@@ -29,7 +29,7 @@
                             <!-- 그룹키는 등록 후 변경 불가 ( 하위 코드·업무 화면이 키로 참조 ) -->
                             <BaseInput
                                 v-model="groupForm.system_code_group_key"
-                                class="w-full" size="sm"
+                                class="w-full" size="md"
                                 placeholder="그룹키 * (예: prod_status)"
                                 :disabled="!!groupForm.system_code_group_idx"
                                 :title="groupForm.system_code_group_idx ? '그룹키는 등록 후 변경할 수 없습니다' : ''"
@@ -37,10 +37,10 @@
                             <p v-if="groupErrors.system_code_group_key" class="text-xs text-red-500 mt-0.5">{{ groupErrors.system_code_group_key[0] }}</p>
                         </div>
                         <div>
-                            <BaseInput v-model="groupForm.system_code_group_name" class="w-full" size="sm" placeholder="그룹명 *" />
+                            <BaseInput v-model="groupForm.system_code_group_name" class="w-full" size="md" placeholder="그룹명 *" />
                             <p v-if="groupErrors.system_code_group_name" class="text-xs text-red-500 mt-0.5">{{ groupErrors.system_code_group_name[0] }}</p>
                         </div>
-                        <BaseInput v-model="groupForm.system_code_group_desc" class="w-full" size="sm" placeholder="설명" />
+                        <BaseInput v-model="groupForm.system_code_group_desc" class="w-full" size="md" placeholder="설명" />
                     </div>
                 </div>
 

@@ -106,6 +106,8 @@ const columns = [
     { header: '출하 예정', name: 'plan_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.plan_date ?? '') },
     { header: '출하 일시', name: 'shipped_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.shipped_at ?? '') },
     { header: '고객사', name: 'partner_name', width: 140, className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.partner_name)) },
+    { header: '출고지', name: 'site_name', width: 110, className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.site_name)) },
+    { header: '담당자', name: 'manager_name', width: 80, align: 'center', className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.manager_name)) },
     { header: '품목', name: 'item_label', minWidth: 180, className: 'cursor-pointer', escapeHTML: true },
     { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
     { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },

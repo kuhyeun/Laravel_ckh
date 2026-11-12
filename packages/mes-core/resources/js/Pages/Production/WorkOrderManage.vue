@@ -85,7 +85,7 @@ const DATE_BASES = [
     { value: 'start_date', label: '착수 예정' },
     { value: 'due_date',   label: '생산 기한' },
 ];
-const SOURCE_FILTER = [{ value: '', label: '출처 전체' }, ...WO_SOURCES];
+const SOURCE_FILTER = [{ value: '', label: '사용처 전체' }, ...WO_SOURCES];
 // 검색 조건 ( 서버 WorkOrderController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
 const SEARCH_FIELDS = [
     { value: 'wo_no',     label: '지시번호' },
@@ -108,7 +108,7 @@ const gridOptions = {
 
 const columns = [
     { header: '지시번호', name: 'sheet_no', width: 200, sortable: true, className: 'cursor-pointer' },
-    { header: '출처', name: 'source', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? woSourceLabel(value) : '' },
+    { header: '사용처', name: 'source', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? woSourceLabel(value) : '' },
     { header: '품목', name: 'item_label', minWidth: 200, className: 'cursor-pointer', escapeHTML: true },
     { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
     { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },

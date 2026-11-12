@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\Validator;
 //   단, 화면 저장과 같이 구매처 · 외주처가 아니게 되면 입고검사 덮어쓰기를 해제한다
 class PartnerImport implements ImportHandler {
 
-    private const FIELDS = ['partner_code', 'partner_name', 'is_supplier', 'is_customer', 'is_subcon', 'biz_no', 'ceo_name', 'is_use', 'remark'];
+    private const FIELDS = ['partner_code', 'partner_name', 'is_supplier', 'is_customer', 'is_subcon', 'biz_no', 'ceo_name', 'address', 'tel', 'is_use', 'remark'];
 
     public function entity(): string {
         return 'partner';

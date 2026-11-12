@@ -12,9 +12,9 @@
 
         <div class="flex flex-1 min-h-0 gap-4">
             <!-- 좌 : 라우팅 목록 -->
-            <div class="w-72 shrink-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <BaseInput v-model="search.keyword" size="sm" class="w-full" placeholder="코드 · 라우팅명" @keyup.enter="loadRoutings" />
+                    <BaseInput v-model="search.keyword" size="md" class="w-full" placeholder="코드 · 라우팅명" @keyup.enter="loadRoutings" />
                     <label class="inline-flex items-center gap-1 mt-2 text-xs text-gray-500 cursor-pointer select-none">
                         <input type="checkbox" class="base-checkbox w-3.5 h-3.5" v-model="showInactive" @change="loadRoutings" />
                         미사용 포함
@@ -38,7 +38,7 @@
             </div>
 
             <!-- 우 : 상세 -->
-            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[3] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">
                         {{ form.routing_idx ? '라우팅 수정' : '라우팅 등록' }}
@@ -82,7 +82,7 @@
 
                         <div class="mt-4 max-w-2xl">
                             <label class="block text-gray-500 font-medium mb-1 text-sm">비고</label>
-                            <textarea v-model="form.remark" rows="2" class="base-input w-full resize-y" :disabled="!canWrite"></textarea>
+                            <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
                         </div>
                     </template>
                 </div>
@@ -100,7 +100,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
-import { toLinePayload, totalCycleOf } from '@core/Components/Config/routingLines';
+import { toLinePayload, totalCycleOf, defaultLines } from '@core/Components/Config/routingLines';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
@@ -185,7 +185,7 @@ function newRouting() {
     selectLatest.cancel();   // 불러오던 라우팅이 신규 폼을 덮지 않게
     loading.value = false;
     errors.value = {};
-    Object.assign(form, blankForm());
+    Object.assign(form, blankForm(), { lines: defaultLines(processes.value) });   // 원자재출고를 첫 줄로 ( 필요 없으면 지운다 )
 }
 
 async function save() {
@@ -240,6 +240,8 @@ async function removeRouting() {
 
 onMounted(async () => {
     await loadProcesses();
+    // 처음 열린 빈 폼도 신규 — 원자재출고 첫 줄 ( 그사이 라우팅을 골랐으면 그대로 )
+    if (!form.routing_idx && !form.lines.length) form.lines = defaultLines(processes.value);
     await loadRoutings();
 });
 </script>

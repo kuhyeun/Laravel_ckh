@@ -62,7 +62,7 @@ class OpResultController extends Controller {
             'item_material'  => $w->item?->material,
             'target_qty'     => (float) $w->target_qty,
             'spec_unit'      => $w->item?->spec_unit,
-            'lot_no'         => $w->lot?->lot_no,
+            'lot_no'         => $w->isRunLot() ? '실적별' : $w->lot?->lot_no,
             'due_date'       => $w->sheet?->due_date?->toDateString(),
             'ops_count'      => $w->ops_count,
             'done_ops_count' => $w->done_ops_count,
@@ -78,7 +78,7 @@ class OpResultController extends Controller {
         }
         $ops = WorkOrderOp::with([
             'process.equipments.equipment:equipment_idx,equipment_name,is_use',
-            'runs.operator:account_idx,user_id,user_name', 'runs.creator:account_idx,user_id,user_name', 'runs.equipment:equipment_idx,equipment_name',
+            'runs.operator:account_idx,user_id,user_name', 'runs.creator:account_idx,user_id,user_name', 'runs.equipment:equipment_idx,equipment_name', 'runs.lot:lot_idx,lot_no',
         ])->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get();
 
         $reasons = SystemCode::where('system_code_group_key', OpResultService::SHORT_GROUP)->pluck('system_code_name', 'system_code_key');
@@ -86,7 +86,11 @@ class OpResultController extends Controller {
         $left    = $this->results->receiveLeft($wo, $ops);
         $userName = fn ($u) => $u ? ($u->user_name ?: $u->user_id) : null;
 
-        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left) {
+        // 실적별 투입 LOT ( RUN 방식 — 실적LOT-설계 §5 )
+        $inputsBy = $wo->isRunLot()
+            ? app(\MesCore\Production\Services\RunInputService::class)->byRuns($ops->flatMap(fn ($o) => $o->runs->pluck('run_idx'))->all())
+            : [];
+        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left, $inputsBy) {
             $first = $ops->first(fn (WorkOrderOp $x) => $x->isQtyOp());
             return [
                 'work_order_op_idx' => $o->work_order_op_idx,
@@ -124,6 +128,8 @@ class OpResultController extends Controller {
                     'qty'            => (float) $r->qty,
                     'remark'         => $r->remark,
                     'received'       => (bool) $r->stock_txn_line_idx,
+                    'lot_no'         => $r->lot?->lot_no,   // 실적 LOT ( RUN 방식 )
+                    'inputs'         => $inputsBy[$r->run_idx] ?? [],   // 투입 LOT
                 ])->values(),
             ];
         })->values();
@@ -139,7 +145,8 @@ class OpResultController extends Controller {
             'item_label'     => \MesCore\Config\Models\Item::labelOf($wo->item),
             'spec_unit'      => $wo->item?->spec_unit,
             'target_qty'     => (float) $wo->target_qty,
-            'lot_no'         => $wo->lot?->lot_no,
+            'lot_no'         => $wo->isRunLot() ? '실적별' : $wo->lot?->lot_no,
+            'lot_mode'       => $wo->lot_mode,
             'due_date'       => $wo->sheet?->due_date?->toDateString(),
             'status'         => $wo->status,
             'received_qty'   => $this->results->receivedQty($wo),
@@ -188,7 +195,12 @@ class OpResultController extends Controller {
             'worked_at'         => 'required|date',
             'remark'            => 'nullable|string|max:200',
             'warehouse_idx'     => 'nullable|integer',
-        ], ['qty.gt' => '수량은 0보다 커야 합니다.'], ['qty' => '수량', 'operator_idx' => '작업자', 'worked_at' => '작업 일시', 'equipment_idx' => '설비', 'warehouse_idx' => '입고 창고']);
+            // 투입 LOT ( 공정 LOT 추적 지시 — 실적LOT-설계 §5 ) : [ input_type MATERIAL · RUN, lot_idx, qty ]
+            'inputs'              => 'nullable|array|max:100',
+            'inputs.*.input_type' => 'required|in:MATERIAL,RUN',
+            'inputs.*.lot_idx'    => 'required|integer',
+            'inputs.*.qty'        => 'required|numeric|gt:0|max:999999999999',
+        ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => '투입 수량은 0보다 커야 합니다.'], ['qty' => '수량', 'operator_idx' => '작업자', 'worked_at' => '작업 일시', 'equipment_idx' => '설비', 'warehouse_idx' => '입고 창고', 'inputs.*.qty' => '투입 수량']);
 
         $op = WorkOrderOp::find($v['work_order_op_idx']);
         if (!$op) {
@@ -196,6 +208,46 @@ class OpResultController extends Controller {
         }
         [, $warnings] = $this->results->addRun($op, $v);
         return response()->json(['message' => 'Success', 'warnings' => $warnings]);
+    }
+
+    // ---- 투입 LOT ( 실적LOT-설계 §5 ) ----
+
+    // 그 공정 실적에 고를 수 있는 투입 LOT ( 자재 LOT · 앞 공정 실적 LOT )
+    public function inputCandidates(Request $request) {
+        $v  = $request->validate(['work_order_op_idx' => 'required|integer']);
+        $op = WorkOrderOp::find($v['work_order_op_idx']);
+        if (!$op) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        return response()->json($this->results->inputCandidates($op));
+    }
+
+    // 저장된 실적 LOT 에 투입 LOT 더하기 ( 나중에 출고한 자재 등 )
+    public function addInputs(Request $request) {
+        $v = $request->validate([
+            'run_idx'             => 'required|integer',
+            'inputs'              => 'required|array|min:1|max:100',
+            'inputs.*.input_type' => 'required|in:MATERIAL,RUN',
+            'inputs.*.lot_idx'    => 'required|integer',
+            'inputs.*.qty'        => 'required|numeric|gt:0|max:999999999999',
+        ], ['inputs.*.qty.gt' => '투입 수량은 0보다 커야 합니다.'], ['inputs.*.qty' => '투입 수량']);
+        $run = WorkOrderOpRun::with('op')->find($v['run_idx']);
+        if (!$run) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        $warnings = $this->results->addInputs($run, $v['inputs']);
+        return response()->json(['message' => 'Success', 'warnings' => $warnings]);
+    }
+
+    // 투입 연결 해제 ( 취소 표시 )
+    public function cancelInput(Request $request) {
+        $v     = $request->validate(['run_input_idx' => 'required|integer']);
+        $input = \MesCore\Production\Models\WorkOrderRunInput::with('run.op')->find($v['run_input_idx']);
+        if (!$input) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        $this->results->cancelInput($input);
+        return response()->json(['message' => 'Success']);
     }
 
     public function cancelRun(Request $request) {

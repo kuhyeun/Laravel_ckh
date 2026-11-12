@@ -86,6 +86,7 @@ const SEARCH_FIELDS = [
     { value: 'item_name',       label: '품명' },
     { value: 'lot_no',          label: 'LOT' },
     { value: 'external_lot_no', label: '공급처 LOT' },
+    { value: 'heat_no',         label: 'Heat No' },
 ];
 const blankFilters = () => ({ partner_idx: '', status: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', ...blankFilters() });

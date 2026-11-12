@@ -80,6 +80,7 @@ const SEARCH_FIELDS = [
     { value: 'item_name',       label: '품명' },
     { value: 'lot_no',          label: 'LOT' },
     { value: 'external_lot_no', label: '공급처 LOT' },
+    { value: 'heat_no',         label: 'Heat No' },
 ];
 const blankFilters = () => ({ status: 'WAIT' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ date_basis: 'occurred_at', from: '', to: '', keyword: '', ...blankFilters() });
@@ -95,6 +96,7 @@ const columns = [
     { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', width: 150, className: 'cursor-pointer', escapeHTML: true },
     { header: '공급처 LOT', name: 'external_lot_no', width: 120, className: 'cursor-pointer', escapeHTML: true },
+    { header: 'Heat No', name: 'heat_no', width: 110, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '수량', name: 'qty', width: 110, align: 'right', className: 'cursor-pointer',
       formatter: ({ row }) => qtyText(row.qty, row.spec_unit) },
     { header: '검사', name: 'insp_mode', width: 100, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => inspModeLabel(value) },

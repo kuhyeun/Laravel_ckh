@@ -26,7 +26,7 @@ class Shipment extends Model {
     const SLOTS = ['ext_c01', 'ext_c02', 'ext_c03', 'ext_n01', 'ext_n02', 'ext_d01', 'ext_d02'];
 
     protected $fillable = [
-        'shipment_no', 'partner_idx', 'plan_date', 'shipped_at', 'status',
+        'shipment_no', 'partner_idx', 'manager_name', 'site_idx', 'ship_address', 'plan_date', 'shipped_at', 'status',
         'approval_status', 'approval_doc_idx', 'approval_requested_by', 'approval_requested_at', 'approved_by', 'approved_at', 'reject_reason',
         'shipped_by', 'canceled_by', 'canceled_at', 'remark',
     ];
@@ -55,6 +55,11 @@ class Shipment extends Model {
         static::updating(function (self $m) {
             $m->update_account_idx = Auth::id();
         });
+    }
+
+    // 출고지 ( 거래처 출고지 )
+    public function site() {
+        return $this->belongsTo(\MesCore\Config\Models\PartnerSite::class, 'site_idx', 'site_idx');
     }
 
     public function partner() {

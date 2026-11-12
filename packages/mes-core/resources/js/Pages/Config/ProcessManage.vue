@@ -21,8 +21,8 @@
                 placeholder="공정코드 · 공정명"
                 @keyup.enter="loadProcesses"
             />
-            <BaseSelect v-model="search.process_type" :options="typeFilterOptions" class="w-32" size="sm" />
-            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="sm" />
+            <BaseSelect v-model="search.process_type" :options="typeFilterOptions" class="w-32" size="md" />
+            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="md" />
             <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="loadProcesses">조회</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="resetSearch">초기화</BaseButton>
         </div>

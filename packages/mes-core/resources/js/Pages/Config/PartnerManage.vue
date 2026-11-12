@@ -6,6 +6,10 @@
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 헤더 -->
         <div class="flex items-center gap-1 pb-2 shrink-0">
+            <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
+            <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0 || deleting" @click="deleteChecked">
+                삭제
+            </BaseButton>
             <ExcelImportButton
                 v-if="canWrite"
                 layout="partner.import"
@@ -14,10 +18,6 @@
                 filename="거래처_일괄등록"
                 :on-done="onImported"
             />
-            <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
-            <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="checkedCount === 0 || deleting" @click="deleteChecked">
-                삭제
-            </BaseButton>
         </div>
 
         <!-- 검색바 -->
@@ -28,8 +28,8 @@
                 placeholder="거래처코드 · 거래처명"
                 @keyup.enter="loadPartners"
             />
-            <BaseSelect v-model="search.role" :options="roleFilterOptions" class="w-32" size="sm" />
-            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="sm" />
+            <BaseSelect v-model="search.role" :options="roleFilterOptions" class="w-32" size="md" />
+            <BaseSelect v-model="search.is_use" :options="USE_FILTER_OPTIONS" class="w-28" size="md" />
             <BaseButton size="sm" variant="primary" :disabled="showBusy" @click="loadPartners">조회</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="resetSearch">초기화</BaseButton>
         </div>
@@ -120,6 +120,7 @@ const partnerColumns = [
     { header: '구분',       name: 'roles',        minWidth: 150, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => partnerRoleText(row) },
     { header: '사업자번호', name: 'biz_no',       width: 130, align: 'center', className: 'cursor-pointer' },
     { header: '대표자',     name: 'ceo_name',     width: 100, align: 'center', className: 'cursor-pointer' },
+    { header: '전화번호',   name: 'tel',          width: 120, align: 'center', className: 'cursor-pointer' },
     {
         // 입고검사 덮어쓰기 ( 없으면 업체 설정을 따름 · 입고가 없는 거래처는 빈칸 )
         header: '입고검사', name: 'incoming_inspection', width: 90, align: 'center', className: 'cursor-pointer',

@@ -50,7 +50,7 @@ class LotService {
 
     /**
      * 입고 LOT 하나 발급 ( 트랜잭션 안에서 )
-     * @param array{partner_idx:int, partner_code:string, with_partner:bool, external_lot_no:?string, spec_value:?string, date:string} $ctx
+     * @param array{partner_idx:int, partner_code:string, with_partner:bool, external_lot_no:?string, heat_no:?string, spec_value:?string, date:string} $ctx
      * @return Lot|null  LOT 을 쓰지 않으면 null
      */
     public function issueMaterialLot(Item $item, ?LotRule $rule, array $ctx): ?Lot {
@@ -84,6 +84,7 @@ class LotService {
             'item_idx'        => $item->item_idx,
             'lot_no'          => mb_substr($lotNo, 0, 50),
             'external_lot_no' => $external,
+            'heat_no'         => trim((string) ($ctx['heat_no'] ?? '')) ?: null,   // 공급처 LOT 과 따로 ( 11-12 )
             'partner_idx'     => $ctx['partner_idx'] ?? null,
             'spec_value'      => $ctx['spec_value'] ?? null,
             'source'          => 'PURCHASE',

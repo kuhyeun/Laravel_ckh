@@ -48,6 +48,7 @@ Route::prefix('shipment')->name('shipment.')->middleware([UserAuth::class])->gro
         Route::get('/graph', [LotTraceController::class, 'graph'])->name('graph');
         Route::get('/history', [LotTraceController::class, 'history'])->name('history');
         Route::get('/ops', [LotTraceController::class, 'ops'])->name('ops');
+        Route::get('/run', [LotTraceController::class, 'run'])->name('run');   // 실적 LOT 의 실적 · 투입 LOT ( 공정 LOT 추적 )
     });
 
     // 현품표 ( Shipment/ShipmentTag — 메뉴 출하관리 > 현품표 7005 ) — 출하 완료 품목 라벨 미리보기 · 인쇄 ( 없으면 발행 → 쓰기 권한 )

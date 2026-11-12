@@ -26,7 +26,8 @@ class StockController extends Controller {
     use ScopesItemType;
 
     private const SORTABLE = ['item_code', 'lot_no', 'in_at', 'qty', 'warehouse_name'];
-    private const HISTORY_LIMIT = 500;   // LOT 이력 한 번에 보여 줄 줄 ( 최근 것 )
+    private const HISTORY_PER_PAGE     = 50;    // LOT 이력 한 페이지 줄 수 ( 최근 것부터 )
+    private const HISTORY_PER_PAGE_MAX = 200;
 
     // 목록 : 품목 × LOT × 창고 ( group=item 이면 품목 × 창고 합계 )
     public function list(Request $request) {
@@ -56,7 +57,7 @@ class StockController extends Controller {
                 ->leftJoin('partner as p', 'p.partner_idx', '=', 'l.partner_idx')
                 ->select('b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty',
                     'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.item_type', 'i.spec_unit', 'w.warehouse_name',
-                    'l.lot_no', 'l.external_lot_no', 'l.spec_value', 'l.in_at', 'p.partner_name')
+                    'l.lot_no', 'l.external_lot_no', 'l.heat_no', 'l.spec_value', 'l.in_at', 'p.partner_name')
                 // 이 LOT 에 발행된 라벨 장수 ( 폐기 제외 ) — 원문 "해당 LOT 에 발행된 바코드가 있는지 표시"
                 ->selectSub(fn ($q) => $q->from('barcode_label as bl')->selectRaw('COALESCE(SUM(bl.label_count), 0)')
                     ->whereColumn('bl.lot_idx', 'b.lot_idx')->where('bl.status', 'ISSUED'), 'label_count')
@@ -79,6 +80,7 @@ class StockController extends Controller {
         ] + ($byItem ? [] : [
             'lot_no'          => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
             'external_lot_no' => fn ($q, $kw) => $q->where('l.external_lot_no', 'like', $kw),
+            'heat_no'         => fn ($q, $kw) => $q->where('l.heat_no', 'like', $kw),
         ]));
 
         // 품목별 합계는 정렬 허용 열이 다르다 ( 그룹 결과의 별칭 )
@@ -98,6 +100,7 @@ class StockController extends Controller {
             'warehouse_name' => $r->warehouse_name,
             'lot_no'         => $r->lot_no ?? null,
             'external_lot_no'=> $r->external_lot_no ?? null,
+            'heat_no'        => $r->heat_no ?? null,
             'spec_value'     => isset($r->spec_value) ? (float) $r->spec_value : null,
             'in_at'          => isset($r->in_at) ? substr((string) $r->in_at, 0, 10) : null,
             'partner_name'   => $r->partner_name ?? null,
@@ -108,34 +111,38 @@ class StockController extends Controller {
     }
 
     // LOT 입출고 이력 ( 원장 — 한 LOT 의 행만, 집계 없음 ). 발생 · 등록 시각 둘 다
+    //   페이지로 나눠 최근 것부터 ( 11-12 — 전에는 최근 500 행만 잘라 보였다 )
+    //   누계 = 그 행까지의 합 : 페이지 맨 위( 가장 최근 ) 행까지의 합에서 아래로 빼 내려간다
     public function history(Request $request) {
         $v = $request->validate([
             'item_idx'      => 'required|integer',
             'lot_idx'       => 'required|integer',
             'warehouse_idx' => 'nullable|integer',
+            'page'          => 'nullable|integer|min:1',
+            'per_page'      => 'nullable|integer|min:10|max:' . self::HISTORY_PER_PAGE_MAX,
         ]);
         $this->assertItemInScope($request, (int) $v['item_idx']);
 
-        // 최근 500 행 ( 전에는 오래된 500 행이라 이력이 많은 LOT 은 최근 이동이 빠졌다 ) → 화면은 그대로 오래된 순
-        //   누적 = 앞에서 잘린 행의 합( 시작 잔량 )부터 이어 간다
         $base = StockLedger::query()
             ->where('item_idx', $v['item_idx'])->where('lot_idx', $v['lot_idx'])
             ->when(!empty($v['warehouse_idx']), fn ($q) => $q->where('warehouse_idx', $v['warehouse_idx']));
-        $rows = (clone $base)->orderByDesc('occurred_at')->orderByDesc('stock_ledger_idx')->limit(self::HISTORY_LIMIT + 1)->get();
-        $truncated = $rows->count() > self::HISTORY_LIMIT;
-        $rows = $rows->take(self::HISTORY_LIMIT)->reverse()->values();
-        $start = 0.0;
-        if ($truncated && ($first = $rows->first())) {
-            $start = (float) (clone $base)->where(fn ($q) => $q->where('occurred_at', '<', $first->occurred_at)
-                ->orWhere(fn ($w) => $w->where('occurred_at', $first->occurred_at)->where('stock_ledger_idx', '<', $first->stock_ledger_idx)))->sum('qty_delta');
+        $total   = (clone $base)->count();
+        $perPage = (int) ($v['per_page'] ?? self::HISTORY_PER_PAGE);
+        $page    = min((int) ($v['page'] ?? 1), max(1, (int) ceil($total / $perPage)));
+        $rows = (clone $base)->orderByDesc('occurred_at')->orderByDesc('stock_ledger_idx')
+            ->offset(($page - 1) * $perPage)->limit($perPage)->get();
+        $running = 0.0;
+        if ($top = $rows->first()) {
+            $running = (float) (clone $base)->where(fn ($q) => $q->where('occurred_at', '<', $top->occurred_at)
+                ->orWhere(fn ($w) => $w->where('occurred_at', $top->occurred_at)->where('stock_ledger_idx', '<=', $top->stock_ledger_idx)))->sum('qty_delta');
         }
 
         $txns = StockTxn::whereIn('stock_txn_idx', $rows->pluck('stock_txn_idx')->unique())->pluck('txn_no', 'stock_txn_idx');
         $whs  = Warehouse::whereIn('warehouse_idx', $rows->pluck('warehouse_idx')->unique())->pluck('warehouse_name', 'warehouse_idx');
 
-        $running = $start;
         $out = $rows->map(function (StockLedger $l) use (&$running, $txns, $whs) {
-            $running += (float) $l->qty_delta;
+            $after    = $running;
+            $running -= (float) $l->qty_delta;   // 다음( 더 오래된 ) 행의 누계
             return [
                 'stock_ledger_idx' => $l->stock_ledger_idx,
                 'occurred_at'      => $l->occurred_at?->format('Y-m-d H:i'),
@@ -145,12 +152,12 @@ class StockController extends Controller {
                 'txn_type_label'   => (StockTxn::TYPES[$l->txn_type] ?? $l->txn_type) . ($l->reverses_idx ? ' 취소' : ''),
                 'warehouse_name'   => $whs[$l->warehouse_idx] ?? '',
                 'qty_delta'        => (float) $l->qty_delta,
-                'running'          => $running,
+                'running'          => $after,
                 'reversed'         => (bool) $l->reversed_by_idx,
             ];
         });
 
-        return response()->json(['rows' => $out, 'truncated' => $truncated, 'start_balance' => $start]);
+        return response()->json(['rows' => $out, 'pagination' => ['page' => $page, 'per_page' => $perPage, 'total' => $total]]);
     }
 
     // 창고 선택지 ( 입고 등록과 같은 트리 이름 ) + 재고현황 팝업에서 열 수 있는 처리 ( 각 처리 메뉴 쓰기 권한 )
@@ -182,7 +189,7 @@ class StockController extends Controller {
             ->leftJoin('lot as l', 'l.lot_idx', '=', 'b.lot_idx')
             ->where('b.stock_balance_idx', $balanceIdx)
             ->first(['b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty',
-                     'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'w.warehouse_name', 'l.lot_no', 'l.external_lot_no', 'l.spec_value']);
+                     'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'w.warehouse_name', 'l.lot_no', 'l.external_lot_no', 'l.heat_no', 'l.spec_value']);
         if (!$b) {
             abort(404, '재고를 찾을 수 없습니다.');
         }
@@ -201,6 +208,7 @@ class StockController extends Controller {
                 'warehouse_name'    => $b->warehouse_name,
                 'lot_no'            => $b->lot_no,
                 'external_lot_no'   => $b->external_lot_no,
+                'heat_no'           => $b->heat_no,
                 'spec_value'        => $b->spec_value !== null ? (float) $b->spec_value : null,
                 'qty'               => (float) $b->qty,
             ],

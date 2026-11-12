@@ -11,9 +11,9 @@
 
         <div class="flex flex-1 min-h-0 gap-4 pt-4">
             <!-- 좌: 사용자 목록 -->
-            <div class="w-72 shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
                 <div class="px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <span class="text-sm font-semibold text-gray-600">사용자 ( 중간관리자 및 일반사용자 )</span>
+                    <span class="text-sm font-semibold text-gray-600">사용자 리스트</span>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto py-1">
                     <p v-if="!users.length" class="px-3 py-4 text-sm text-gray-400">대상 사용자가 없습니다.</p>
@@ -32,7 +32,7 @@
             </div>
 
             <!-- 우: 권한 그리드 -->
-            <div class="flex-1 min-w-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+            <div class="flex-[3] min-w-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="flex items-center gap-1 h-7 min-w-0 text-sm font-semibold text-gray-600">
                         <span class="shrink-0">메뉴 권한</span>
@@ -81,13 +81,15 @@
                     <p v-if="!selectedUser" class="px-3 py-6 text-sm text-gray-400">왼쪽에서 사용자를 선택하세요.</p>
                     <p v-else-if="!perm.length" class="px-3 py-6 text-sm text-gray-400">이 레벨에 표시할 메뉴가 없습니다.</p>
 
-                    <table v-else class="w-full min-w-[560px] table-fixed text-sm">
+                    <table v-else class="w-full min-w-[620px] table-fixed text-sm">
                         <colgroup>
-                            <col><col class="w-28"><col class="w-28"><col class="w-24">
+                            <col><col class="w-16"><col class="w-28"><col class="w-28"><col class="w-24">
                         </colgroup>
                         <thead>
                             <tr class="text-gray-500">
                                 <th class="sticky top-0 z-10 bg-white px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)]"></th>
+                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
+                                    @click="toggleAll">전체</th>
                                 <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
                                     @click="toggleColumn('can_read')">노출(읽기)</th>
                                 <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
@@ -106,6 +108,17 @@
                                         <span v-if="row.url_path" class="text-[11px] text-gray-300">{{ row.url_path }}</span>
                                         <span v-if="row.is_override === 'Y'" class="text-[11px] px-1 rounded bg-amber-50 text-amber-600" title="템플릿/레벨 기본값과 다르게 개인 지정됨">개인</span>
                                     </span>
+                                </td>
+                                <!-- 이 메뉴 세 권한 한 번에 ( 일부만 켜짐 = 중간 표시 · 레벨이 막은 칸은 제외 ) -->
+                                <td class="px-3 py-1.5 text-center">
+                                    <input
+                                        type="checkbox"
+                                        class="base-checkbox align-middle"
+                                        :checked="rowState(row) === 'on'"
+                                        :indeterminate="rowState(row) === 'some'"
+                                        :disabled="rowState(row) === 'none'"
+                                        @change="toggleRow(row)"
+                                    />
                                 </td>
                                 <td class="px-3 py-1.5 text-center">
                                     <BaseCheckbox
@@ -288,26 +301,69 @@ function applyPerm(next) {
 
 // 권한 토글 → 아래 메뉴 전부 같은 값 ( 레벨 상한(cap)이 Y 인 것만 )
 //   perm 은 부모 → 자식 순서( orderTree )라 바로 뒤에 이어지는 더 깊은 행 = 아래 메뉴
-//   노출(읽기)을 켜면 상위 메뉴 노출도 자동 허용 ( 상위가 꺼져 있으면 사이드바에 안 보인다 )
+//   상위 메뉴도 같은 권한을 맞춘다 ( 읽기 · 수정 · 삭제 모두 — syncAncestors )
 const CAP_OF = { can_read: 'cap_read', can_write: 'cap_write', can_delete: 'cap_delete' };
+const FIELDS = Object.keys(CAP_OF);
+
+// 아래 메뉴 ( 바로 뒤에 이어지는 더 깊은 행 )
+function descendants(row) {
+    const list  = perm.value;
+    const out   = [];
+    for (let i = list.indexOf(row) + 1; i < list.length && list[i]._depth > row._depth; i++) out.push(list[i]);
+    return out;
+}
 
 function setPerm(row, field, v) {
     row[field] = v;
+    descendants(row).forEach(d => { if (d[CAP_OF[field]] === 'Y') d[field] = v; });
+    syncAncestors(row, field, v);
+}
 
-    const list  = perm.value;
-    const start = list.indexOf(row);
-    for (let i = start + 1; i < list.length && list[i]._depth > row._depth; i++) {
-        if (list[i][CAP_OF[field]] === 'Y') list[i][field] = v;
-    }
-
-    if (field !== 'can_read' || v !== 'Y') return;
-    let parentCode = row.parent_menu_code;
-    while (parentCode) {
-        const p = list.find(r => r.menu_code === parentCode);
+// 상위 메뉴 : 켜면 같이 켠다 ( 상위가 꺼져 있으면 사이드바에 안 보인다 )
+//   끄면 그 아래에 켜진 메뉴가 하나도 남지 않을 때만 같이 끈다 — 화면 없는 메뉴 묶음( url_path 없음 )만
+//   레벨이 막은( cap N ) 상위는 건드리지 않고 그 위로
+function syncAncestors(row, field, v) {
+    const list = perm.value;
+    let code = row.parent_menu_code;
+    while (code) {
+        const p = list.find(r => r.menu_code === code);
         if (!p) break;
-        if (p.cap_read === 'Y') p.can_read = 'Y';   // 레벨이 허용한 경우만
-        parentCode = p.parent_menu_code;
+        if (p[CAP_OF[field]] === 'Y') {
+            if (v === 'Y') {
+                p[field] = 'Y';
+            } else if (!p.url_path && !descendants(p).some(d => d[field] === 'Y')) {
+                p[field] = 'N';
+            } else {
+                break;   // 이 상위는 켜진 채 → 그 위도 켜진 아래 메뉴가 있다
+            }
+        }
+        code = p.parent_menu_code;
     }
+}
+
+// 행의 전체 상태 : 레벨이 허용한 권한만 본다 ( on 모두 · some 일부 · off 없음 · none 허용된 권한 없음 )
+const rowFields = (row) => FIELDS.filter(f => row[CAP_OF[f]] === 'Y');
+function rowState(row) {
+    const fs = rowFields(row);
+    if (!fs.length) return 'none';
+    const on = fs.filter(f => row[f] === 'Y').length;
+    return on === 0 ? 'off' : (on === fs.length ? 'on' : 'some');
+}
+
+// 행 [전체] : 모두 켜져 있으면 모두 끄고, 아니면 모두 켠다 ( 아래 · 상위 메뉴도 setPerm 규칙 그대로 )
+function toggleRow(row) {
+    const fs = rowFields(row);
+    if (!fs.length) return;
+    const next = fs.every(f => row[f] === 'Y') ? 'N' : 'Y';
+    fs.forEach(f => setPerm(row, f, next));
+}
+
+// 헤더 [전체] : 표 전체 세 권한을 한 번에
+function toggleAll() {
+    const cells = perm.value.flatMap(r => rowFields(r).map(f => [r, f]));
+    if (!cells.length) return;
+    const next = cells.every(([r, f]) => r[f] === 'Y') ? 'N' : 'Y';
+    cells.forEach(([r, f]) => { r[f] = next; });
 }
 
 // 헤더 클릭 → 컬럼 전체 Y/N 토글 ( 레벨 상한(cap)이 Y 인 행만 대상 )
