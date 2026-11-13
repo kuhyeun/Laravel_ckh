@@ -26,9 +26,8 @@ class StockTxnLine extends Model {
     ];
 
     const INSP_MODES = [
-        'NONE'     => '무검사',
-        'SAMPLING' => '샘플링',
-        'FULL'     => '전수',
+        'NONE' => '무검사',
+        'FULL' => '검사',
     ];
 
     protected $fillable = [

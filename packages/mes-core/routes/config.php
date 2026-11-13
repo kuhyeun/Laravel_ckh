@@ -131,10 +131,12 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
             Route::get('/show/{routingIdx}', [RoutingController::class, 'show'])->whereNumber('routingIdx')->name('show');
             // 라우팅 화면의 공정 선택지 ( 공정관리 권한 없이도 조회 가능 )
             Route::get('/processes', [RoutingController::class, 'processOptions'])->name('processes');
+            Route::get('/derived/{routingIdx}', [RoutingController::class, 'derived'])->whereNumber('routingIdx')->name('derived');   // 이 틀을 쓰는 품목
         });
 
         Route::middleware($routingWrite)->group(function() {
             Route::post('/save', [RoutingController::class, 'save'])->name('save');
+            Route::post('/applyToItems', [RoutingController::class, 'applyToItems'])->name('applyToItems');   // 틀 → 품목 라우팅 일괄 반영
         });
 
         Route::middleware($routingDelete)->group(function() {

@@ -323,6 +323,17 @@ return [
                 'menu_level' => 99,
             ],
             [
+                // 자재 LOT 라벨( 자재식별표 )만 바로 인쇄 ( 11-13 — 출하관리 > 현품표 7005 와 같은 방식 )
+                'menu_code' => '3012',
+                'menu_name' => '물품표',
+                'menu_icon' => null,
+                'module_code' => 'Material',
+                'menu_route_name' => '',
+                'url_path' => '/purchase/tag',
+                'page_component' => 'Purchase/MaterialTag',
+                'menu_level' => 99,
+            ],
+            [
                 'menu_code' => '3004',
                 'menu_name' => '출고관리',
                 'menu_icon' => null,

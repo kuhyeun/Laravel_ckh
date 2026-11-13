@@ -310,7 +310,8 @@ const canCreateItem = ref(false);   // [+ 새 품목 등록] ( 품목관리 쓰�
 
 
 // 품목 고르기 : 제품 · 사용 중 · 판매단가 함께 ( 서버에서 30개씩 — ItemPicker 서버 모드 )
-const ITEM_REMOTE = { types: ['PRODUCT'], extra: ['std_sale_price'] };
+// 수주할 수 있는 품목 = 판매 여부가 켜진 제품 ( 품목관리 · 11-13 )
+const ITEM_REMOTE = { types: ['PRODUCT'], use: 'SALE', extra: ['std_sale_price'] };
 
 // 품목을 고르면( 고른 줄 ) 단위 · 판매단가를 채우고 품목 공정( ② ) · 품목 BOM 을 불러온다
 async function onItemPicked(line, it) {

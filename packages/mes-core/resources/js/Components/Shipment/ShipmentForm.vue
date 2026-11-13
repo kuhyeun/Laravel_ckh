@@ -76,7 +76,7 @@
                 <div class="flex-1"></div>
                 <template v-if="editable">
                     <BaseButton variant="secondary" :disabled="!form.partner_idx" @click="togglePicker">+ 수주 줄</BaseButton>
-                    <ItemPicker v-model="addItemIdx" :remote="{ types: ['PRODUCT'], extra: ['std_sale_price'] }" class="w-56" placeholder="+ 품목 ( 수주 없이 )" @select="addItemLine" />
+                    <ItemPicker v-model="addItemIdx" :remote="SALE_REMOTE" show-type class="w-56" placeholder="+ 품목 ( 수주 없이 )" @select="addItemLine" />
                 </template>
             </div>
 
@@ -340,6 +340,8 @@ async function addSoLine(p) {
     l.qty = String(+Math.min(p.remaining, available(l)).toFixed(6));
     fillFifo(l);
 }
+// 수주 없이 출하할 수 있는 품목 = 판매 여부가 켜진 것 ( 제품 + 판매하는 자재 — 품목관리 · 11-13 )
+const SALE_REMOTE = { use: 'SALE', extra: ['std_sale_price'] };
 // 수주 없이 품목 줄 더하기 ( 고른 줄 — 서버 모드 ItemPicker )
 async function addItemLine(it) {
     setTimeout(() => { addItemIdx.value = ''; });   // 고르기 칸은 늘 비워 둔다 ( v-model 갱신 뒤에 )

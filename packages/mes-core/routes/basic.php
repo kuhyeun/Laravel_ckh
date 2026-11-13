@@ -82,7 +82,14 @@ Route::middleware([AdminAuth::class])->group(function() {
                 Route::post('/save', [MemberAuthController::class, 'save'])->name('save');
                 Route::post('/applyTemplate', [MemberAuthController::class, 'applyTemplate'])->name('template.apply');
                 Route::post('/saveTemplate', [MemberAuthController::class, 'saveTemplate'])->name('template.save');
+                // 템플릿 관리 탭 ( 11-13 ) — 직접 고치기 · 복사 · 일괄 지정 · 개인 지정 초기화
+                Route::post('/template/edit', [MemberAuthController::class, 'templateSave'])->name('template.edit');
+                Route::post('/template/copy', [MemberAuthController::class, 'templateCopy'])->name('template.copy');
+                Route::post('/template/assign', [MemberAuthController::class, 'assignTemplate'])->name('template.assign');
+                Route::post('/overrides/reset', [MemberAuthController::class, 'resetOverrides'])->name('overrides.reset');
             });
+            Route::middleware($authRead)->get('/template/menus', [MemberAuthController::class, 'templateMenus'])->name('template.menus');
+            Route::middleware(MenuAuth::class . ':Basic/MemberAuth,can_delete')->post('/template/delete', [MemberAuthController::class, 'templateDelete'])->name('template.del');
         });
     });
 

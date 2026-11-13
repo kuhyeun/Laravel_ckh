@@ -4,11 +4,13 @@
      - 막대 모양은 화면이 정한다 : barStyle( item ) → { background, color } · barText( item ) · barTitle( item )( 툴팁 )
      - 끌기 : movable( item ) 이 true 인 막대만 · 4px 넘게 움직여야 끌기( 아니면 누르기 = item-click ) · 끄는 동안 옮겨질 자리에 미리 그린다
        놓으면 move( item, start, end ) — 기간 유지 · 저장 · 되돌림은 화면이 ( 컴포넌트는 item 을 고치지 않는다 )
+     - 늘리기 · 줄이기 ( 11-13 ) : resizable( item )( 안 주면 movable 과 같다 ) 이 true 인 막대는 양쪽 끝을 좌우로 끌어 시작 · 끝 날짜를 바꾼다
+       시작 끝은 끝 날짜를 넘지 못하고 끝 끝은 시작 날짜 앞으로 못 간다( 최소 하루 ) · 놓으면 같은 move( item, start, end ) — 한쪽 날짜만 바뀐 값
      - 고르기 : selectable( item ) 이면 막대 왼쪽 체크 → toggle( item ) · 체크 상태는 checked( id 배열 · Set )
      - 빈 날짜 누르기 : dayClickable 이면 day-click( 'YYYY-MM-DD' )
      - 높이 : 부모가 정한다 ( 이 컴포넌트는 안에서 스크롤 — 요일 머리는 고정 ) -->
 <template>
-    <div class="overflow-auto select-none" :class="drag.active ? 'cursor-grabbing' : ''">
+    <div class="overflow-auto select-none" :class="drag.active ? (drag.mode === 'move' ? 'cursor-grabbing' : 'cursor-ew-resize') : ''">
         <div class="grid grid-cols-7 bg-gray-50 text-xs text-gray-500 sticky top-0 z-10 border-b">
             <div v-for="(d, i) in WEEKDAYS" :key="d" class="px-2 py-1.5 text-center" :class="i === 0 ? 'text-red-500' : (i === 6 ? 'text-blue-600' : '')">{{ d }}</div>
         </div>
@@ -25,7 +27,7 @@
             <!-- 막대 ( 주마다 줄을 나눠 겹치지 않게 ) -->
             <div class="relative grid grid-cols-7 gap-y-1 pt-6 pb-1 pointer-events-none" :style="{ gridTemplateRows: `repeat(${w.laneCount}, 20px)` }">
                 <div v-for="s in w.segs" :key="`${keyOf(s.item)}-${wi}`"
-                    class="pointer-events-auto mx-0.5 h-5 px-1 flex items-center gap-1 text-[11px] overflow-hidden shadow-sm"
+                    class="pointer-events-auto relative mx-0.5 h-5 px-1 flex items-center gap-1 text-[11px] overflow-hidden shadow-sm"
                     :class="[s.isStart ? 'rounded-l ml-1' : '', s.isEnd ? 'rounded-r mr-1' : '', isDragging(s.item) ? 'opacity-80 ring-2 ring-blue-300' : '', movable(s.item) ? 'cursor-grab' : 'cursor-pointer']"
                     :style="{ gridColumn: `${s.col + 1} / span ${s.span}`, gridRow: s.lane + 1, ...barStyle(s.item) }"
                     :title="barTitle(s.item)"
@@ -33,6 +35,13 @@
                     <input v-if="s.isStart && selectable(s.item)" type="checkbox" class="accent-white shrink-0 w-3 h-3" :checked="isChecked(s.item)"
                         @pointerdown.stop @click.stop="emit('toggle', s.item)" />
                     <span class="truncate font-semibold">{{ s.isStart || s.col === 0 ? barText(s.item) : '' }}</span>
+                    <!-- 양쪽 끝 손잡이 ( 시작 조각의 왼쪽 · 끝 조각의 오른쪽 ) — 끌어서 날짜 늘리기 · 줄이기 -->
+                    <template v-if="canResize(s.item)">
+                        <span v-if="s.isStart" class="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize hover:bg-white/50" title="끌어서 시작 날짜 바꾸기"
+                            @pointerdown.stop="e => onBarDown(e, s.item, 'start')"></span>
+                        <span v-if="s.isEnd" class="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize hover:bg-white/50" title="끌어서 끝 날짜 바꾸기"
+                            @pointerdown.stop="e => onBarDown(e, s.item, 'end')"></span>
+                    </template>
                 </div>
             </div>
         </div>
@@ -55,6 +64,7 @@ const props = defineProps({
     barText:       { type: Function, default: () => '' },
     barTitle:      { type: Function, default: () => '' },
     movable:       { type: Function, default: () => false },
+    resizable:     { type: Function, default: null },                  // 양쪽 끝을 끌어 날짜 늘리기 · 줄이기 ( 안 주면 movable 과 같다 )
     selectable:    { type: Function, default: () => false },
     checked:       { type: [Array, Set], default: () => [] },
     dayClickable:  { type: Boolean,  default: false },
@@ -68,10 +78,19 @@ const today    = todayYmd();
 const keyOf    = (it) => it[props.itemKey];
 const isChecked = (it) => props.checked instanceof Set ? props.checked.has(keyOf(it)) : props.checked.includes(keyOf(it));
 
+const canResize = (it) => (props.resizable ?? props.movable)(it);
+
+// 끈 뒤의 날짜 ( mode : move 통째로 · start 시작만 · end 끝만 — 시작은 끝을 넘지 못하고 끝은 시작 앞으로 못 간다 )
+function moved(it, mode, delta) {
+    const start = it[props.startKey], end = it[props.endKey];
+    if (!delta) return { start, end };
+    if (mode === 'start') { const s = addDays(start, delta); return { start: s > end ? end : s, end }; }
+    if (mode === 'end')   { const e = addDays(end, delta);   return { start, end: e < start ? start : e }; }
+    return { start: addDays(start, delta), end: addDays(end, delta) };
+}
+
 // ---- 배치 : 주마다 막대 조각 · 겹치지 않게 줄( lane ) — 끄는 중인 막대는 옮긴 날짜로 ----
-const shown = (it) => isDragging(it) && drag.delta
-    ? { start: addDays(it[props.startKey], drag.delta), end: addDays(it[props.endKey], drag.delta) }
-    : { start: it[props.startKey], end: it[props.endKey] };
+const shown = (it) => isDragging(it) ? moved(it, drag.mode, drag.delta) : { start: it[props.startKey], end: it[props.endKey] };
 const weeks = computed(() => {
     const { from, weeks: count } = monthRange(props.month);
     const ordered = [...props.items].filter(it => it[props.startKey] && it[props.endKey])
@@ -100,21 +119,24 @@ const weeks = computed(() => {
 });
 
 // ---- 끌기 ( 포인터 — 4px 넘게 움직여야 끌기 · 아니면 누르기 ) ----
-const drag = reactive({ item: null, active: false, grabDate: '', delta: 0, x: 0, y: 0 });
+const drag = reactive({ item: null, active: false, mode: 'move', grabDate: '', delta: 0, x: 0, y: 0 });
 const isDragging = (it) => drag.active && drag.item && keyOf(drag.item) === keyOf(it);
 // 막대 밑의 날짜 칸까지 ( 겹친 요소를 위에서부터 다 돌려준다 )
 const dateAt = (x, y) => document.elementsFromPoint(x, y).find(el => el.dataset?.date)?.dataset.date ?? '';
 
-function onBarDown(e, it) {
+// mode : move( 막대 ) · start / end( 양쪽 끝 손잡이 ) — 손잡이는 그 끝의 날짜를 기준으로 ( 포인터가 있는 날짜가 곧 새 시작 · 끝 )
+function onBarDown(e, it, mode = 'move') {
     if (e.button !== 0) return;
-    Object.assign(drag, { item: it, active: false, grabDate: dateAt(e.clientX, e.clientY), delta: 0, x: e.clientX, y: e.clientY });
+    const grabDate = mode === 'start' ? it[props.startKey] : (mode === 'end' ? it[props.endKey] : dateAt(e.clientX, e.clientY));
+    Object.assign(drag, { item: it, active: false, mode, grabDate, delta: 0, x: e.clientX, y: e.clientY });
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp, { once: true });
 }
 function onMove(e) {
     if (!drag.item) return;
     if (!drag.active) {
-        if (!props.movable(drag.item) || Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) return;
+        const allowed = drag.mode === 'move' ? props.movable(drag.item) : canResize(drag.item);
+        if (!allowed || Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) return;
         drag.active = true;
     }
     const d = dateAt(e.clientX, e.clientY);
@@ -122,11 +144,12 @@ function onMove(e) {
 }
 function onUp() {
     window.removeEventListener('pointermove', onMove);
-    const it = drag.item, wasDrag = drag.active, delta = drag.delta;
-    Object.assign(drag, { item: null, active: false, delta: 0 });
+    const it = drag.item, wasDrag = drag.active, delta = drag.delta, mode = drag.mode;
+    Object.assign(drag, { item: null, active: false, mode: 'move', delta: 0 });
     if (!it) return;
     if (!wasDrag) { emit('item-click', it); return; }
-    if (delta) emit('move', it, addDays(it[props.startKey], delta), addDays(it[props.endKey], delta));
+    const next = moved(it, mode, delta);
+    if (next.start !== it[props.startKey] || next.end !== it[props.endKey]) emit('move', it, next.start, next.end);
 }
 onBeforeUnmount(() => window.removeEventListener('pointermove', onMove));
 </script>

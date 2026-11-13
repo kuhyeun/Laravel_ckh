@@ -134,7 +134,7 @@
                                 <td class="px-2 py-1.5 text-center text-gray-400">{{ i + 1 }}</td>
                                 <td class="px-1.5 py-1">
                                     <p v-if="l.purchase_order_line_idx" class="py-1.5 truncate" :title="`${l.item_code} ${l.item_name}`">{{ l.item_code }} {{ l.item_name }}</p>
-                                    <ItemPicker v-else v-model="l.item_idx" :remote="{}" show-type @select="row => onItemPicked(l, row)" />
+                                    <ItemPicker v-else v-model="l.item_idx" :remote="RECEIPT_REMOTE" show-type @select="row => onItemPicked(l, row)" />
                                     <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                 </td>
                                 <td class="px-2 py-1.5 text-gray-600 whitespace-nowrap">{{ l.order_label || '( 직접 )' }}
@@ -193,6 +193,9 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { inspModeLabel } from '@core/Components/Stock/stockCodes';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+
+// 수동 입고할 수 있는 품목 = 자재 전부 + 구매품으로 지정한 제품 ( 품목관리의 조달 구분 · 11-13 )
+const RECEIPT_REMOTE = { use: 'RECEIPT' };
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
 import { fmtNum } from '@core/Utils/format';

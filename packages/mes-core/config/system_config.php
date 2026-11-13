@@ -126,21 +126,23 @@ return [
 
     // ---- B-3. 품질 ----
     'quality' => [
-        // 끄면 입고검사 정책( 업체 · 품목 · 거래처 )을 모두 무시하고 무검사 — 입고하면 바로 재고 ( 품목 · 거래처 화면의 입고검사 칸도 숨김 · 덮어쓴 값은 남겨 둠 )
+        // 켜면 입고는 검사대기로 ( 거래처 · 품목에서 '검사 안 함' 으로 뺄 수 있다 ) / 끄면 입고검사 정책( 품목 · 거래처 )을 모두 무시하고 무검사 — 입고하면 바로 재고 ( 품목 · 거래처 화면의 입고검사 칸도 숨김 · 덮어쓴 값은 남겨 둠 )
         'incoming_use'   => [ 'name' => '입고검사 사용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL',
-                              'remark' => '끄면 모든 입고가 검사 없이 바로 재고에 잡힙니다 ( 품목 · 거래처별 입고검사 설정은 남아 있고, 다시 켜면 그대로 적용 )' ],
+                              'remark' => '켜면 입고한 자재는 입고검사를 거쳐야 재고에 잡힙니다 ( 거래처 · 품목 화면에서 검사 안 함으로 뺄 수 있습니다 ). 끄면 모든 입고가 검사 없이 바로 재고에 잡힙니다' ],
         'mode.incoming'  => [ 'name' => '입고검사 완료 방식', 'value' => 'SIMPLE', 'category' => 'RULE', 'type' => 'ENUM', 'visible' => false,
                               'options' => [ 'SIMPLE' => '검사완료 버튼', 'SHEET' => '검사시트 작성' ] ],
         'mode.process'   => [ 'name' => '공정검사 완료 방식', 'value' => 'SIMPLE', 'category' => 'RULE', 'type' => 'ENUM', 'visible' => false,
                               'options' => [ 'SIMPLE' => '검사완료 버튼', 'SHEET' => '검사시트 작성' ] ],
         'mode.shipping'  => [ 'name' => '출하검사 완료 방식', 'value' => 'SIMPLE', 'category' => 'RULE', 'type' => 'ENUM', 'visible' => false,
                               'options' => [ 'SIMPLE' => '검사완료 버튼', 'SHEET' => '검사시트 작성' ] ],
-        // 품목이 무검사면 거래처를 무시, 그 외에는 거래처 값이 있을 때만 거래처가 이긴다
-        // 업체 기본값은 설정 화면, 품목 · 거래처별 값은 각 마스터 화면( 탭 4 · 거래처 기본 탭 )
-        'incoming_inspection' => [ 'name' => '입고검사', 'value' => 'NONE', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM,PARTNER',
-                                   'options' => [ 'NONE' => '무검사', 'SAMPLING' => '샘플링', 'FULL' => '전수' ],
-                                   'remark' => '업체 기본값. 품목 · 거래처 화면에서 따로 정할 수 있습니다 ( 품목이 무검사면 거래처 설정 무시 )',
-                                   'merge' => [ 'strategy' => 'EXEMPT_THEN_PRIORITY', 'exempt_value' => 'NONE', 'exempt_scope' => 'ITEM', 'priority_scope' => 'PARTNER' ],
+        // 입고검사를 하는가 ( 11-13 — 무검사 · 샘플링 · 전수를 한다 / 안 한다 로 · 샘플링과 전수는 동작이 같았다 )
+        //   우선순위 : 거래처에 값이 있으면 거래처( 그 거래처에서 사는 자재는 모두 그렇게 ) → 없으면 품목 → 없으면 시스템 설정
+        //   시스템 설정 = '입고검사 사용'( incoming_use ) 하나 — 켜면 기본이 검사함( 이 값의 기본값 FULL ) · 이 칸은 설정 화면에 없다 ( visible false )
+        //   품목 · 거래처별 값은 각 마스터 화면( 품목 추가정보 탭 · 거래처 기본 탭 )
+        'incoming_inspection' => [ 'name' => '입고검사', 'value' => 'FULL', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM,PARTNER', 'visible' => false,
+                                   'options' => [ 'FULL' => '검사함', 'NONE' => '검사 안 함' ],
+                                   'remark' => '품목 · 거래처 화면에서 정합니다 ( 거래처 → 품목 → 시스템 설정 순서 )',
+                                   'merge' => [ 'strategy' => 'EXEMPT_THEN_PRIORITY', 'priority_scope' => 'PARTNER' ],
                                    'depends_on' => [ 'quality.incoming_use', 'Y' ] ],
         'incoming_confirm_required' => [ 'name' => '입고 확인 필수', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'visible' => false ],
         // 켜면 외주 입고는 검사대기 → 외주관리 > 품질검사에서 합격 · 불합격 → 합격분만 외주 공정 실적 / 끄면 입고 등록 = 바로 실적 ( 11-05 )

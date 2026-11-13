@@ -29,6 +29,7 @@ class MemberController extends Controller {
                 'user_type',
                 'user_level',
                 'is_use',
+                'permission_template_idx',
                 'create_datetime',
                 'update_datetime'
             )
@@ -36,13 +37,17 @@ class MemberController extends Controller {
             ->addSelect([
                 'dept_name'     => DB::table('system_code')->select('system_code_name')->where('system_code_group_key', 'DEPT')->whereColumn('system_code_key', 'account_member.dept_code')->limit(1),
                 'position_name' => DB::table('system_code')->select('system_code_name')->where('system_code_group_key', 'POSITION')->whereColumn('system_code_key', 'account_member.position_code')->limit(1),
+                'template_name' => DB::table('permission_template')->select('template_name')->whereColumn('template_idx', 'account_member.permission_template_idx')->limit(1),
             ])
             ->where('user_level', $myLevel === User::SYSTEM_LEVEL ? '>=' : '>', $myLevel)   // 나보다 하위만 ( 시스템 계정은 전부 )
             ->where('account_idx', '!=', $myIdx)
             ->orderBy('account_idx')
             ->get();
 
-        return response()->json(['members' => $members]);
+        // 권한 템플릿 고르기 ( 등록 · 수정 모달 — 11-13 )
+        $templates = DB::table('permission_template')->where('is_use', 'Y')->orderBy('template_name')->get(['template_idx', 'template_name']);
+
+        return response()->json(['members' => $members, 'templates' => $templates]);
     }
 
     // 등록/수정 ( account_idx 있으면 수정, 없으면 신규 )
@@ -63,6 +68,9 @@ class MemberController extends Controller {
             'is_use'     => ['required', 'boolean'],
             // 신규는 비밀번호 필수, 수정은 비우면 유지
             'user_pw'    => [$idx ? 'nullable' : 'required', 'string', 'min:8'],
+            // 권한 템플릿 ( 11-13 — 등록하면서 바로 지정 · 관리자( 레벨 1 이하 )는 템플릿 대상이 아니라 비운다 )
+            //   키가 없으면 그대로 둔다 · 수정에서 바꾸면 개인 지정( 예외 )은 초기화 ( 사용자권한관리의 템플릿 적용과 같다 )
+            'permission_template_idx' => ['sometimes', 'nullable', 'integer', Rule::exists('permission_template', 'template_idx')],
         ], ['user_level.min' => '나보다 하위 권한 레벨만 지정할 수 있습니다.']);
 
         try {
@@ -90,7 +98,25 @@ class MemberController extends Controller {
             } else {
                 $user->create_account_idx = Auth::id();
             }
-            $user->save();
+            $templateChanged = false;
+            if ((int) $validated['user_level'] <= 1) {
+                $templateChanged = $user->permission_template_idx !== null;
+                $user->permission_template_idx = null;
+            } elseif (array_key_exists('permission_template_idx', $validated)) {
+                $next = $validated['permission_template_idx'] ?: null;
+                $templateChanged = (int) $user->permission_template_idx !== (int) $next;
+                $user->permission_template_idx = $next;
+            }
+            $levelChanged = $user->isDirty('user_level');
+            DB::transaction(function () use ($user, $idx, $templateChanged) {
+                $user->save();
+                if ($idx && $templateChanged) {
+                    DB::table('account_menu_permission')->where('account_idx', $user->account_idx)->delete();
+                }
+            });
+            if ($templateChanged || $levelChanged) {
+                app(\MesCore\Menu\Services\MenuPermissionService::class)->bumpVersion();
+            }
 
             return response()->json(['message' => 'Success', 'member' => $user], 200);
         } catch (\Throwable $e) {

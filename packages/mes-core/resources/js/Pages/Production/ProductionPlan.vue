@@ -172,7 +172,9 @@ async function onMove(p, start, end) {
     Object.assign(p, { start_date: start, end_date: end });
     try {
         await window.axios.post(route('production.plan.move'), { production_plan_idx: p.production_plan_idx, start_date: start, end_date: end });
-        showFlash(`${p.plan_no} : ${start} ~ ${end} 로 옮겼습니다.`);
+        // 양쪽 끝을 끌어 기간을 늘리거나 줄인 경우( 한쪽 날짜만 바뀜 )와 통째로 옮긴 경우
+        const resized = before.start === start || before.end === end;
+        showFlash(`${p.plan_no} : ${start} ~ ${end} 로 ${resized ? '기간을 바꿨습니다' : '옮겼습니다'}.`);
     } catch (err) {
         Object.assign(p, { start_date: before.start, end_date: before.end });
         const msg = err.response?.status === 422 ? Object.values(err.response.data.errors ?? {}).flat().join(' / ') : '옮기지 못했습니다.';

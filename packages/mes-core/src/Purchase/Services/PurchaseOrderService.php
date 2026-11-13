@@ -114,8 +114,11 @@ class PurchaseOrderService {
                 && (!$old || $old->due_date?->toDateString() !== $row['due_date'])) {
                 $warnings[] = "{$label} : 입고 예정일이 이미 지났습니다.";   // W_DUE_PAST ( 바꾼 줄만 )
             }
-            if ($item && $item->item_type === 'PRODUCT' && !$sameItem) {
-                $warnings[] = "{$label} : 제품 품목입니다. 사서 쓰는 상품 · 반제품이면 정상입니다.";   // W_PO_ITEM_PRODUCT
+            // 발주는 조달 구분이 구매인 품목만 ( 11-13 — 자재 · 제품 상관없이 · 사급 자재 · 만들어 쓰는 제품은 발주하지 않는다 ) · 이미 저장된 줄은 그대로
+            if ($item && $item->procure_type !== 'BUY' && !$sameItem) {
+                $errors["lines.{$i}.item_idx"] = [$item->procure_type === 'SUPPLIED'
+                    ? '사급 자재는 발주할 수 없습니다. ( 품목관리의 조달 구분 )'
+                    : '구매품으로 지정되지 않은 품목입니다. ( 품목관리에서 조달 구분을 구매로 )'];   // E_PO_ITEM_NOT_BUY
             }
             if ((float) ($row['unit_price'] ?? 0) == 0) {
                 $warnings[] = "{$label} : 단가가 0 입니다.";   // W_PRICE_ZERO

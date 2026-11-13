@@ -1,33 +1,55 @@
 <!-- 사용자 권한 관리 / 권한레벨 1 ~ 10
-     - 좌: 사용자(레벨 10·99) 목록 / 우: 선택 사용자의 메뉴별 R/W/D 권한
-     - 레벨(메뉴관리)에서 허용한 것(cap)만 토글 가능 → cap N 이면 비활성
-     - 템플릿 선택 시 적용 전에 그 권한을 미리 표시( 미리보기 ) → [템플릿 적용] 을 눌러야 저장
-     - 권한 템플릿 적용 시 템플릿이 기본값( 개인 override 초기화 ), 미지정이면 기본값 = 권한 없음
-     - 기본값과 동일하면 override 미저장( 기본값 따라감 )
-     - 상위 메뉴 토글 → 아래 메뉴 전부 같은 값 ( cap Y 인 것만 )
-     - [템플릿으로 저장] : 지금 화면 값을 권한 템플릿으로 저장 ( 사용자에게 적용은 안 함 ) -->
+     권한 = 레벨 상한( 메뉴관리 ) AND ( 개인 지정 ?? 템플릿 ) — 사용자는 템플릿에 '연결'된다 → 템플릿을 고치면 연결된 사용자 전원에게 바로 반영
+     탭 ( 11-13 — 회의 '권한 템플릿 일괄 적용' )
+     - [사용자별 권한] 좌: 사용자( 레벨 10 · 99 ) — 템플릿 이름 · 개인 지정 표시 · 체크 → [템플릿 일괄 지정] · [개인 지정 초기화]
+                       우: 고른 사용자의 메뉴별 권한 — 템플릿과 다르게 바꾼 칸( 개인 지정 )은 노랗게
+         · 템플릿을 고르면 적용 전에 미리 보기 → [템플릿 적용]( 개인 지정 초기화 )
+         · 템플릿 값과 같으면 개인 지정으로 저장하지 않는다 ( 템플릿을 따라간다 )
+         · [템플릿으로 저장] : 지금 화면 값을 템플릿으로 ( 사용자에게 적용은 안 함 )
+     - [템플릿 관리] 템플릿을 직접 고치고 · 복사 · 삭제 · 사용자를 여러 명 한 번에 붙인다 ( Components/Basic/PermissionTemplateTab ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
+        <!-- 탭 -->
+        <div class="flex items-end gap-1 border-b border-gray-200 shrink-0">
+            <button v-for="t in TABS" :key="t.key" type="button"
+                class="px-4 py-2 text-sm border-b-2 -mb-px transition-colors"
+                :class="tab === t.key ? 'border-blue-600 text-blue-700 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                @click="switchTab(t.key)">{{ t.label }}</button>
+            <span class="ml-auto pb-2 text-xs text-gray-400">템플릿을 고치면 그 템플릿을 쓰는 사용자 전원에게 바로 반영됩니다 — 다시 적용할 필요가 없습니다.</span>
+        </div>
 
-        <div class="flex flex-1 min-h-0 gap-4 pt-4">
+        <PermissionTemplateTab v-if="tab === 'template'" ref="templateTab" class="pt-4"
+            :users="users" :templates="templates" :can-write="canWrite" :can-delete="canDelete" @changed="reloadAll" />
+
+        <div v-else class="flex flex-1 min-h-0 gap-4 pt-4">
             <!-- 좌: 사용자 목록 -->
-            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
-                <div class="px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <span class="text-sm font-semibold text-gray-600">사용자 리스트</span>
+            <div class="flex-[1.2] min-w-[380px] flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+                <div class="flex items-center justify-between gap-2 px-3 py-2 border-b bg-gray-50/70 shrink-0">
+                    <label class="flex items-center gap-2 text-sm font-semibold text-gray-600 min-w-0">
+                        <input v-if="canWrite" type="checkbox" class="base-checkbox" :checked="allChecked" :indeterminate="checked.size > 0 && !allChecked" @change="toggleCheckAll" />
+                        <span class="truncate">사용자 <span class="text-xs text-gray-400 font-normal">{{ checked.size ? `${checked.size}명 고름` : users.length }}</span></span>
+                    </label>
+                    <div v-if="canWrite" class="flex items-center gap-1.5 shrink-0">
+                        <BaseButton size="sm" variant="secondary" :disabled="!checked.size || saving" title="체크한 사용자에게 템플릿을 한 번에 지정합니다" @click="assignChecked">템플릿 일괄 지정</BaseButton>
+                        <BaseButton size="sm" variant="secondary" :disabled="!checkedOverrideCount || saving" title="체크한 사용자의 개인 지정을 지우고 템플릿 그대로 씁니다" @click="resetChecked">개인 지정 초기화</BaseButton>
+                    </div>
                 </div>
                 <div class="flex-1 min-h-0 overflow-y-auto py-1">
                     <p v-if="!users.length" class="px-3 py-4 text-sm text-gray-400">대상 사용자가 없습니다.</p>
-                    <button
+                    <div
                         v-for="u in users"
                         :key="u.account_idx"
-                        type="button"
-                        class="w-full text-left px-3 py-1.5 text-sm flex items-center justify-between gap-2 transition-colors"
+                        class="w-full px-3 py-1.5 text-sm flex items-center gap-2 transition-colors cursor-pointer"
                         :class="selectedUser?.account_idx === u.account_idx ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-50 text-gray-700'"
                         @click="selectUser(u)"
                     >
-                        <span class="truncate">{{ u.user_name || u.user_id }}</span>
-                        <span class="text-xs text-gray-400 shrink-0">{{ LEVELS[u.user_level] ?? u.user_level }}</span>
-                    </button>
+                        <input v-if="canWrite" type="checkbox" class="base-checkbox shrink-0" :checked="checked.has(u.account_idx)" @click.stop @change="toggleCheck(u)" />
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate">{{ u.user_name || u.user_id }} <span class="text-xs text-gray-400 font-normal">{{ LEVELS[u.user_level] ?? u.user_level }}</span></span>
+                            <span class="block truncate text-xs font-normal" :class="u.template_name ? 'text-gray-500' : 'text-amber-600'">{{ u.template_name || '템플릿 없음' }}</span>
+                        </span>
+                        <span v-if="u.override_count > 0" class="shrink-0 text-[11px] font-normal px-1 rounded bg-amber-50 text-amber-600" :title="`개인 지정 ${u.override_count}개 메뉴 — 템플릿과 다르게 쓰는 칸이 있습니다`">개인 {{ u.override_count }}</span>
+                    </div>
                 </div>
             </div>
 
@@ -78,66 +100,9 @@
                 </div>
 
                 <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
-                    <p v-if="!selectedUser" class="px-3 py-6 text-sm text-gray-400">왼쪽에서 사용자를 선택하세요.</p>
+                    <p v-if="!selectedUser" class="px-3 py-6 text-sm text-gray-400">왼쪽에서 사용자를 선택하세요.<br>여러 명에게 같은 템플릿을 주려면 체크한 뒤 [템플릿 일괄 지정]을 누르세요.</p>
                     <p v-else-if="!perm.length" class="px-3 py-6 text-sm text-gray-400">이 레벨에 표시할 메뉴가 없습니다.</p>
-
-                    <table v-else class="w-full min-w-[620px] table-fixed text-sm">
-                        <colgroup>
-                            <col><col class="w-16"><col class="w-28"><col class="w-28"><col class="w-24">
-                        </colgroup>
-                        <thead>
-                            <tr class="text-gray-500">
-                                <th class="sticky top-0 z-10 bg-white px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)]"></th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
-                                    @click="toggleAll">전체</th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
-                                    @click="toggleColumn('can_read')">노출(읽기)</th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
-                                    @click="toggleColumn('can_write')">등록·수정</th>
-                                <th class="sticky top-0 z-10 bg-white font-medium px-3 py-2 shadow-[inset_0_-1px_0_0_theme(colors.gray.200)] cursor-pointer select-none hover:text-blue-500"
-                                    @click="toggleColumn('can_delete')">삭제</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="row in perm" :key="row.menu_idx" class="border-t first:border-t-0 last:border-0 transition-colors hover:bg-blue-50/70" :class="{ 'bg-gray-100': row._depth === 0 }">
-                                <td class="px-3 py-1.5 text-gray-700 truncate" :title="row.menu_name">
-                                    <span :style="{ paddingLeft: (row._depth * 16) + 'px' }" class="inline-flex items-center gap-1.5">
-                                        <span v-if="row._depth > 0" class="text-gray-300">└</span>
-                                        <span :class="row._depth === 0 ? 'font-semibold' : ''">{{ row.menu_name }}</span>
-                                        <span class="text-[11px] text-gray-400">[{{ row.menu_code }}]</span>
-                                        <span v-if="row.url_path" class="text-[11px] text-gray-300">{{ row.url_path }}</span>
-                                        <span v-if="row.is_override === 'Y'" class="text-[11px] px-1 rounded bg-amber-50 text-amber-600" title="템플릿/레벨 기본값과 다르게 개인 지정됨">개인</span>
-                                    </span>
-                                </td>
-                                <!-- 이 메뉴 세 권한 한 번에 ( 일부만 켜짐 = 중간 표시 · 레벨이 막은 칸은 제외 ) -->
-                                <td class="px-3 py-1.5 text-center">
-                                    <input
-                                        type="checkbox"
-                                        class="base-checkbox align-middle"
-                                        :checked="rowState(row) === 'on'"
-                                        :indeterminate="rowState(row) === 'some'"
-                                        :disabled="rowState(row) === 'none'"
-                                        @change="toggleRow(row)"
-                                    />
-                                </td>
-                                <td class="px-3 py-1.5 text-center">
-                                    <BaseCheckbox
-                                        variant="switch"
-                                        :model-value="row.can_read"
-                                        true-value="Y" false-value="N"
-                                        :disabled="row.cap_read === 'N'"
-                                        @update:model-value="v => setPerm(row, 'can_read', v)"
-                                    />
-                                </td>
-                                <td class="px-3 py-1.5 text-center">
-                                    <BaseCheckbox variant="switch" :model-value="row.can_write" true-value="Y" false-value="N" :disabled="row.cap_write === 'N'" @update:model-value="v => setPerm(row, 'can_write', v)" />
-                                </td>
-                                <td class="px-3 py-1.5 text-center">
-                                    <BaseCheckbox variant="switch" :model-value="row.can_delete" true-value="Y" false-value="N" :disabled="row.cap_delete === 'N'" @update:model-value="v => setPerm(row, 'can_delete', v)" />
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <PermissionGrid v-else :rows="perm" :disabled="!canWrite" />
                 </div>
             </div>
         </div>
@@ -151,27 +116,59 @@ import { route } from 'ziggy-js';
 import { showAlert } from '@core/Utils/message.js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
-import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import PermissionGrid, { orderMenuTree } from '@core/Components/Basic/PermissionGrid.vue';
+import PermissionTemplateTab from '@core/Components/Basic/PermissionTemplateTab.vue';
+import TemplateAssignModal from '@core/Components/Basic/TemplateAssignModal.vue';
+import { useModalStore } from '@core/Stores/modalStore';
 import { useToast } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
 
 defineOptions({ layout: AppLayout });
 
 const LEVELS = { 0: '시스템관리자', 1: '관리자', 10: '중간관리자', 99: '사용자' };
+const TABS   = [{ key: 'user', label: '사용자별 권한' }, { key: 'template', label: '템플릿 관리' }];
 
 // 이 페이지( 사용자권한관리 ) 권한
-const page     = usePage();
-const menuCode = page.props.menuCode;
-const myPerm   = computed(() => page.props.permissions?.[menuCode] ?? {});
-const canWrite = computed(() => myPerm.value.can_write === true);
+const page      = usePage();
+const menuCode  = page.props.menuCode;
+const myPerm    = computed(() => page.props.permissions?.[menuCode] ?? {});
+const canWrite  = computed(() => myPerm.value.can_write === true);
+const canDelete = computed(() => myPerm.value.can_delete === true);
+
+const modalStore = useModalStore();
+
+// ---- 탭 ----
+const tab = ref('user');
+const templateTab = ref(null);
+async function switchTab(key) {
+    if (key === tab.value) return;
+    // 템플릿 탭에 저장 전 변경이 있으면 묻는다
+    if (tab.value === 'template' && templateTab.value && !(await templateTab.value.confirmDiscard())) return;
+    tab.value = key;
+    if (key === 'user' && selectedUser.value) selectUser(selectedUser.value);   // 템플릿을 고쳤을 수 있다
+}
 
 const users        = ref([]);
 const selectedUser = ref(null);
-const perm         = ref([]);   // [{ menu_idx, menu_name, menu_depth, is_admin, cap_*, can_* }]
+const perm         = ref([]);   // [{ menu_idx, menu_name, menu_depth, is_admin, cap_*, base_*, can_* }]
 const saving       = ref(false);
 const permLoading  = ref(false);   // 고른 사용자의 권한을 불러오는 중 — 그동안 저장 · 적용을 막는다 ( 앞 사용자 권한이 뒤 사용자로 저장되지 않게 )
 const permLatest   = useLatest();  // 사용자 · 템플릿을 빠르게 바꿀 때 마지막 것만 반영
+
+// ---- 여러 명 고르기 ( 일괄 지정 · 개인 지정 초기화 ) ----
+const checked = ref(new Set());
+const allChecked = computed(() => users.value.length > 0 && users.value.every(u => checked.value.has(u.account_idx)));
+const checkedUsers = computed(() => users.value.filter(u => checked.value.has(u.account_idx)));
+const checkedOverrideCount = computed(() => checkedUsers.value.filter(u => u.override_count > 0).length);
+function toggleCheck(u) {
+    const s = new Set(checked.value);
+    s.has(u.account_idx) ? s.delete(u.account_idx) : s.add(u.account_idx);
+    checked.value = s;
+}
+function toggleCheckAll() {
+    checked.value = allChecked.value ? new Set() : new Set(users.value.map(u => u.account_idx));
+}
 
 // ---- 권한 템플릿 ----
 const templates   = ref([]);
@@ -197,6 +194,9 @@ async function loadUsers() {
     try {
         const { data } = await window.axios.get(route('basic.memauth.users'));
         users.value = data.users ?? [];
+        // 고른 사용자 · 체크는 새 목록의 같은 사람으로 잇는다
+        if (selectedUser.value) selectedUser.value = users.value.find(u => u.account_idx === selectedUser.value.account_idx) ?? null;
+        checked.value = new Set(users.value.filter(u => checked.value.has(u.account_idx)).map(u => u.account_idx));
     } catch (e) {
         showFlash('사용자 목록을 불러오지 못했습니다', true);
     }
@@ -210,26 +210,7 @@ async function loadTemplates() {
         showFlash('권한 템플릿을 불러오지 못했습니다', true);
     }
 }
-
-// 부모(parent_menu_code) 기준 DFS 정렬 + _depth 부여 ( 그룹별로 부모→자식 순서 )
-function orderTree(rows) {
-    const codes = new Set(rows.map(r => r.menu_code));
-    const byParent = {};
-    for (const r of rows) {
-        const key = (r.parent_menu_code && codes.has(r.parent_menu_code)) ? r.parent_menu_code : '__root__';
-        (byParent[key] ||= []).push(r);
-    }
-    const out = [];
-    const walk = (parent, depth) => {
-        for (const r of (byParent[parent] || [])) {
-            r._depth = depth;
-            out.push(r);
-            walk(r.menu_code, depth + 1);
-        }
-    };
-    walk('__root__', 0);
-    return out;
-}
+const reloadAll = () => Promise.all([loadUsers(), loadTemplates()]);
 
 async function selectUser(u) {
     selectedUser.value = u;
@@ -241,7 +222,7 @@ async function selectUser(u) {
         if (!isLatest()) return;
         templateSel.value = data.permission_template_idx ? String(data.permission_template_idx) : '';
         u.permission_template_idx = data.permission_template_idx;
-        applyPerm(orderTree(data.menus ?? []));
+        applyPerm(orderMenuTree(data.menus ?? []));
     } catch (e) {
         if (isLatest()) showFlash('메뉴 권한을 불러오지 못했습니다', true);
     } finally {
@@ -270,7 +251,7 @@ async function onTemplateChange(value) {
             params: { preview: 1, preview_template_idx: value === '' ? null : Number(value) },
         });
         if (!isLatest()) return;
-        applyPerm(orderTree(data.menus ?? []));
+        applyPerm(orderMenuTree(data.menus ?? []));
         previewing.value = true;
     } catch (e) {
         if (isLatest()) showFlash('템플릿 권한을 불러오지 못했습니다', true);
@@ -289,90 +270,14 @@ function applyPerm(next) {
     if (sameShape) {
         next.forEach((n, i) => {
             const r = cur[i];
-            r.can_read = n.can_read;   r.cap_read = n.cap_read;
-            r.can_write = n.can_write; r.cap_write = n.cap_write;
-            r.can_delete = n.can_delete; r.cap_delete = n.cap_delete;
+            r.can_read = n.can_read;   r.cap_read = n.cap_read;   r.base_read = n.base_read;
+            r.can_write = n.can_write; r.cap_write = n.cap_write; r.base_write = n.base_write;
+            r.can_delete = n.can_delete; r.cap_delete = n.cap_delete; r.base_delete = n.base_delete;
             r.is_override = n.is_override;
         });
     } else {
         perm.value = next;
     }
-}
-
-// 권한 토글 → 아래 메뉴 전부 같은 값 ( 레벨 상한(cap)이 Y 인 것만 )
-//   perm 은 부모 → 자식 순서( orderTree )라 바로 뒤에 이어지는 더 깊은 행 = 아래 메뉴
-//   상위 메뉴도 같은 권한을 맞춘다 ( 읽기 · 수정 · 삭제 모두 — syncAncestors )
-const CAP_OF = { can_read: 'cap_read', can_write: 'cap_write', can_delete: 'cap_delete' };
-const FIELDS = Object.keys(CAP_OF);
-
-// 아래 메뉴 ( 바로 뒤에 이어지는 더 깊은 행 )
-function descendants(row) {
-    const list  = perm.value;
-    const out   = [];
-    for (let i = list.indexOf(row) + 1; i < list.length && list[i]._depth > row._depth; i++) out.push(list[i]);
-    return out;
-}
-
-function setPerm(row, field, v) {
-    row[field] = v;
-    descendants(row).forEach(d => { if (d[CAP_OF[field]] === 'Y') d[field] = v; });
-    syncAncestors(row, field, v);
-}
-
-// 상위 메뉴 : 켜면 같이 켠다 ( 상위가 꺼져 있으면 사이드바에 안 보인다 )
-//   끄면 그 아래에 켜진 메뉴가 하나도 남지 않을 때만 같이 끈다 — 화면 없는 메뉴 묶음( url_path 없음 )만
-//   레벨이 막은( cap N ) 상위는 건드리지 않고 그 위로
-function syncAncestors(row, field, v) {
-    const list = perm.value;
-    let code = row.parent_menu_code;
-    while (code) {
-        const p = list.find(r => r.menu_code === code);
-        if (!p) break;
-        if (p[CAP_OF[field]] === 'Y') {
-            if (v === 'Y') {
-                p[field] = 'Y';
-            } else if (!p.url_path && !descendants(p).some(d => d[field] === 'Y')) {
-                p[field] = 'N';
-            } else {
-                break;   // 이 상위는 켜진 채 → 그 위도 켜진 아래 메뉴가 있다
-            }
-        }
-        code = p.parent_menu_code;
-    }
-}
-
-// 행의 전체 상태 : 레벨이 허용한 권한만 본다 ( on 모두 · some 일부 · off 없음 · none 허용된 권한 없음 )
-const rowFields = (row) => FIELDS.filter(f => row[CAP_OF[f]] === 'Y');
-function rowState(row) {
-    const fs = rowFields(row);
-    if (!fs.length) return 'none';
-    const on = fs.filter(f => row[f] === 'Y').length;
-    return on === 0 ? 'off' : (on === fs.length ? 'on' : 'some');
-}
-
-// 행 [전체] : 모두 켜져 있으면 모두 끄고, 아니면 모두 켠다 ( 아래 · 상위 메뉴도 setPerm 규칙 그대로 )
-function toggleRow(row) {
-    const fs = rowFields(row);
-    if (!fs.length) return;
-    const next = fs.every(f => row[f] === 'Y') ? 'N' : 'Y';
-    fs.forEach(f => setPerm(row, f, next));
-}
-
-// 헤더 [전체] : 표 전체 세 권한을 한 번에
-function toggleAll() {
-    const cells = perm.value.flatMap(r => rowFields(r).map(f => [r, f]));
-    if (!cells.length) return;
-    const next = cells.every(([r, f]) => r[f] === 'Y') ? 'N' : 'Y';
-    cells.forEach(([r, f]) => { r[f] = next; });
-}
-
-// 헤더 클릭 → 컬럼 전체 Y/N 토글 ( 레벨 상한(cap)이 Y 인 행만 대상 )
-function toggleColumn(field) {
-    const targets = perm.value.filter(r => r[CAP_OF[field]] === 'Y');
-    if (!targets.length) return;
-
-    const next = targets.every(r => r[field] === 'Y') ? 'N' : 'Y';
-    targets.forEach(r => { r[field] = next; });
 }
 
 async function save() {
@@ -388,8 +293,9 @@ async function save() {
                 can_delete: r.can_delete,
             })),
         });
-        // 저장 후 최신값(클램프/정리 반영) 재조회
-        await selectUser(selectedUser.value);
+        // 저장 후 최신값(클램프/정리 반영) 재조회 · 목록의 개인 지정 수도
+        await loadUsers();
+        if (selectedUser.value) await selectUser(selectedUser.value);
         showFlash('권한이 저장되었습니다');
     } catch (e) {
         if (e.response?.status === 403)      showFlash('저장 권한이 없습니다', true);
@@ -417,11 +323,52 @@ async function applyTemplate() {
             permission_template_idx: templateSel.value === '' ? null : Number(templateSel.value),
         });
         previewing.value = false;
-        await selectUser(selectedUser.value);
+        await reloadAll();
+        if (selectedUser.value) await selectUser(selectedUser.value);
         showFlash('템플릿이 적용되었습니다');
     } catch (e) {
         if (e.response?.status === 403)      showFlash('저장 권한이 없습니다', true);
         else                                 showFlash('템플릿 적용에 실패했습니다', true);
+    } finally {
+        saving.value = false;
+    }
+}
+
+// 체크한 사용자들에게 템플릿 한 번에
+function assignChecked() {
+    if (!checkedUsers.value.length) return;
+    const list = checkedUsers.value;
+    // 모두 같은 템플릿이면 그것을 처음 값으로
+    const first = list[0].permission_template_idx ?? '';
+    const same  = list.every(u => (u.permission_template_idx ?? '') === first);
+    modalStore.open(TemplateAssignModal, {
+        modalTitle: '템플릿 일괄 지정',
+        users: list, checked: list.map(u => u.account_idx), lockUsers: true,
+        templates: templates.value, templateIdx: same ? first : '',
+        onDone: async ({ count, templateName }) => {
+            checked.value = new Set();
+            await reloadAll();
+            if (selectedUser.value) await selectUser(selectedUser.value);
+            showFlash(`${count}명에게 '${templateName}' 이(가) 지정되었습니다`);
+        },
+    }, { size: 'lg', closeOnClickOutside: false, closeOnEsc: true });
+}
+
+// 체크한 사용자의 개인 지정을 지운다 ( 템플릿 그대로 )
+async function resetChecked() {
+    const list = checkedUsers.value.filter(u => u.override_count > 0);
+    if (!list.length || saving.value) return;
+    const ok = await showAlert('확인', `${list.length}명의 개인 지정을 지우고 템플릿 그대로 씁니다.\n( ${list.slice(0, 5).map(u => u.user_name || u.user_id).join(', ')}${list.length > 5 ? ' …' : ''} )`, 'warning', 'confirm');
+    if (!ok.isConfirmed) return;
+    saving.value = true;
+    try {
+        await window.axios.post(route('basic.memauth.overrides.reset'), { account_idxs: list.map(u => u.account_idx) });
+        checked.value = new Set();
+        await loadUsers();
+        if (selectedUser.value) await selectUser(selectedUser.value);
+        showFlash('개인 지정을 초기화했습니다');
+    } catch (e) {
+        showFlash(e.response?.status === 403 ? '저장 권한이 없습니다' : '초기화에 실패했습니다', true);
     } finally {
         saving.value = false;
     }

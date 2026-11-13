@@ -3,7 +3,7 @@
      - 탭 : 기본 / 담당자(N) / 출고지(N)  → 저장은 한 번에 ( 거래처 + 출고지 + 담당자 )
        첨부 탭은 저장한 뒤 첨부 ( AttachFiles — 올리기 · 삭제는 바로 저장 )
      - 담당자 소속은 출고지 key 로 연결 ( 새로 추가한 출고지도 저장 전에 고를 수 있음 )
-     - 입고검사 : 정책 quality.incoming_inspection 의 거래처 덮어쓰기. 구매처 · 외주처일 때만 ( 아니면 서버가 해제 )
+     - 입고검사( 검사함 / 검사 안 함 — 거래처 값이 가장 먼저 · 11-13 ) : 정책 quality.incoming_inspection 의 거래처 덮어쓰기. 구매처 · 외주처일 때만 ( 아니면 서버가 해제 )
        품목이 무검사면 거래처 값은 무시되고, 그 외에는 거래처 값이 있으면 거래처가 이긴다
      - 삭제 없음 : 사용 여부로 내림 -->
 <template>
@@ -64,10 +64,13 @@
                     >
                         <template #default="{ effective }">
                             <p class="text-xs text-gray-400 mt-1">
-                                품목이 무검사면 거래처 설정은 무시됩니다. 그 외에는 거래처에 값이 있으면 거래처 설정을 따릅니다.
+                                여기에 값을 정하면 이 거래처에서 들어오는 자재는 품목 설정과 상관없이 모두 그렇게 처리합니다. 정하지 않으면 품목 → 시스템 설정 순서로 따릅니다.
+                            </p>
+                            <p v-if="policies['quality.incoming_inspection'] === 'FULL'" class="text-xs text-blue-600 mt-0.5">
+                                이 거래처에서 들어오는 자재는 모두 입고검사를 합니다.
                             </p>
                             <p v-if="policies['quality.incoming_inspection'] === 'NONE'" class="text-xs text-amber-600 mt-0.5">
-                                이 거래처에서 들어오는 자재는 품목이 샘플링 · 전수여도 검사하지 않습니다.
+                                이 거래처에서 들어오는 자재는 품목이 검사함이어도 검사하지 않습니다.
                             </p>
                         </template>
                     </PolicyOverrideField>

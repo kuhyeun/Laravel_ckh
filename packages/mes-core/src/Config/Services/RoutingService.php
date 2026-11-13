@@ -321,6 +321,62 @@ class RoutingService {
         return $warnings;
     }
 
+    // ---- ① 틀 → ② 품목 라우팅 일괄 반영 ( 11-13 · 회의 '라우팅 일괄 적용' ) ----
+
+    /**
+     * 이 틀에서 복사한 품목 라우팅( ② ) 목록 — 사용 중인 제품만
+     *   differs : 지금 틀과 다른가 ( 틀을 고친 뒤면 전부 다르다 )
+     * @return array<int, array{routing_idx:int, item_idx:int, item_code:string, item_name:string, spec:?string, differs:bool, line_count:int}>
+     */
+    public function derivedItemRoutings(Routing $template): array {
+        return Routing::where('owner_type', Routing::OWNER_ITEM)->where('base_routing_idx', $template->routing_idx)
+            ->join('item', 'item.item_idx', '=', 'routing.item_idx')
+            ->where('item.is_use', 'Y')->where('item.item_type', 'PRODUCT')
+            ->orderBy('item.item_code')
+            ->get(['routing.*', 'item.item_code', 'item.item_name', 'item.spec'])
+            ->map(fn (Routing $r) => [
+                'routing_idx' => (int) $r->routing_idx,
+                'item_idx'    => (int) $r->item_idx,
+                'item_code'   => $r->item_code,
+                'item_name'   => $r->item_name,
+                'spec'        => $r->spec,
+                'differs'     => $this->differsFromBase($r),
+                'line_count'  => $r->lines()->count(),
+            ])->values()->all();
+    }
+
+    /**
+     * 틀의 공정 구성을 고른 품목의 품목 라우팅( ② )에 그대로 — 품목에서 따로 고친 공정은 틀 값으로 덮인다
+     *   같은 원본 줄( source_routing_line_idx )에서 온 품목 줄은 그 줄을 갱신만 한다 → BOM 투입 지점이 유지된다
+     *   이미 등록된 수주( ③ ) · 작업지시는 건드리지 않는다 · 변경 이력( 품목 )을 남긴다
+     * @return array{applied:int, warnings:string[]}
+     */
+    public function applyTemplateToItems(Routing $template, array $itemIdxs): array {
+        $rows = $this->copyRows($template);
+        $owns = Routing::where('owner_type', Routing::OWNER_ITEM)->where('base_routing_idx', $template->routing_idx)
+            ->whereIn('item_idx', $itemIdxs)->get();
+        $warnings = [];
+        foreach ($owns as $own) {
+            // 원본 줄 → 품목의 기존 줄 ( 같은 원본에서 온 줄이 여럿이면 순서대로 하나씩 )
+            $bySource = RoutingLine::where('routing_idx', $own->routing_idx)->whereNotNull('source_routing_line_idx')
+                ->orderBy('seq')->get()->groupBy('source_routing_line_idx')->map(fn ($g) => $g->pluck('routing_line_idx')->all())->all();
+            $lines = array_map(function ($row) use (&$bySource) {
+                $src = $row['source_routing_line_idx'];
+                $row['routing_line_idx'] = !empty($bySource[$src]) ? array_shift($bySource[$src]) : null;
+                return $row;
+            }, $rows);
+            $warnings = array_merge($warnings, $this->syncLines($own, $lines, [RoutingChangeLog::SCOPE_ITEM, $own->item_idx]));
+            if ($own->is_use !== 'Y' && $lines) {
+                $own->fill(['is_use' => 'Y'])->save();
+            }
+            DB::table('item')->where('item_idx', $own->item_idx)->update(['routing_idx' => $lines ? $own->routing_idx : null]);
+        }
+        if ($owns->isNotEmpty()) {
+            Item::refreshCycleTime($owns->pluck('item_idx')->all());
+        }
+        return ['applied' => $owns->count(), 'warnings' => array_values(array_unique($warnings))];
+    }
+
     // ---- ③ 수주 라우팅 ----
 
     public function orderLineRouting(int $lineIdx): ?Routing {

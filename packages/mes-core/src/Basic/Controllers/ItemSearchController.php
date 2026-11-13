@@ -11,6 +11,10 @@ use MesCore\Http\Controller;
 //   code 를 주면 그 품번만( 정확히 — 같은 품번의 규격들 : 수주 [자재] 창 규격 칸 )
 //   ids 를 주면 그 품목만 ( 고른 값의 이름 표시 — 다른 거르기는 보지 않는다 )
 //   extra : 화면이 고른 뒤 쓰는 칸만 허용 ( 단가 · 포장 수량 · 라우팅 )
+//   용도 거르기 ( 11-13 · 품목의 조달 구분 · 판매 여부 ) — 하나만 준다
+//     use=PURCHASE : 발주서 — 조달 구분이 구매인 것만 ( 자재 · 제품 상관없이 )
+//     use=RECEIPT  : 수동 입고 — 자재 전부 + 구매인 제품
+//     use=SALE     : 출하 — 판매 여부가 켜진 것 ( 자재도 ) · types 를 같이 주면 그 대분류 안에서 ( 수주 = 제품만 )
 class ItemSearchController extends Controller {
 
     private const LIMIT = 30;
@@ -22,6 +26,7 @@ class ItemSearchController extends Controller {
             'code'             => 'nullable|string|max:40',
             'types'            => 'nullable|array',
             'types.*'          => 'in:MATERIAL,PRODUCT',
+            'use'              => 'nullable|in:PURCHASE,RECEIPT,SALE',
             'exclude'          => 'nullable|array|max:50',
             'exclude.*'        => 'integer',
             'ids'              => 'nullable|array|max:50',
@@ -45,6 +50,9 @@ class ItemSearchController extends Controller {
         $rows = Item::forPicker($extra)
             ->when(empty($v['include_inactive']), fn ($q) => $q->where('is_use', 'Y'))
             ->when(!empty($v['types']), fn ($q) => $q->whereIn('item_type', $v['types']))
+            ->when(($v['use'] ?? null) === 'PURCHASE', fn ($q) => $q->where('procure_type', 'BUY'))
+            ->when(($v['use'] ?? null) === 'RECEIPT', fn ($q) => $q->where(fn ($o) => $o->where('item_type', 'MATERIAL')->orWhere('procure_type', 'BUY')))
+            ->when(($v['use'] ?? null) === 'SALE', fn ($q) => $q->where('is_sale', 'Y'))
             ->when(isset($v['code']) && $v['code'] !== '', fn ($q) => $q->where('item_code', $v['code']))
             ->when(!empty($v['exclude']), fn ($q) => $q->whereNotIn('item_idx', $v['exclude']))
             ->when($words, function ($q) use ($words) {

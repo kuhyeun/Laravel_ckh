@@ -103,6 +103,11 @@ class RoutingController extends Controller {
         $lines    = array_values($validated['lines']);
         $warnings = $this->routings->assertLines($lines, $routing->exists ? $routing : null);
 
+        // 고치기 전 : 이 틀에서 복사한 품목 중 품목에서 따로 고친 것 ( 저장 뒤에는 전부 틀과 달라져 구분할 수 없다 )
+        $customized = $routing->exists
+            ? collect($this->routings->derivedItemRoutings($routing))->where('differs', true)->pluck('item_idx')->all()
+            : [];
+
         try {
             DB::transaction(function () use ($routing, $validated, $lines, &$warnings) {
                 $routing->fill(collect($validated)->except('lines')->all())->save();
@@ -124,12 +129,47 @@ class RoutingController extends Controller {
                 'message'  => 'Success',
                 'warnings' => $warnings,
                 'routing'  => $this->toPayload($routing),
+                // 이 틀을 쓰는 품목 ( 화면이 "품목에도 반영할까요" 를 묻는다 ) — customized = 품목에서 따로 고친 것 · differs = 지금 틀과 다른 것
+                'derived'  => $this->derivedPayload($routing, $customized),
             ], 200);
         } catch (\Throwable $e) {
             Log::error('라우팅 저장 실패 : ' . $e->getMessage());
 
             return response()->json(['message' => 'Failed'], 500);
         }
+    }
+
+    // 이 틀에서 복사한 품목 ( [품목에 반영] 을 따로 누를 때 — 품목에서 고쳤는지는 알 수 없고 틀과 다른지만 )
+    public function derived(int $routingIdx) {
+        $routing = Routing::templates()->find($routingIdx);
+        if (!$routing) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        return response()->json(['derived' => $this->derivedPayload($routing, null)]);
+    }
+
+    // 틀의 공정 구성을 고른 품목의 품목 라우팅에 반영 ( 11-13 · 회의 '라우팅 일괄 적용' ) — 수주 · 작업지시는 그대로
+    public function applyToItems(Request $request) {
+        $v = $request->validate([
+            'routing_idx' => 'required|integer',
+            'item_idxs'   => 'required|array|min:1|max:2000',
+            'item_idxs.*' => 'integer|distinct',
+        ]);
+        $routing = Routing::templates()->find($v['routing_idx']);
+        if (!$routing) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        if (!$routing->lines()->exists()) {
+            return response()->json(['message' => '공정이 없는 라우팅은 품목에 반영할 수 없습니다.'], 422);
+        }
+        $result = DB::transaction(fn () => $this->routings->applyTemplateToItems($routing, $v['item_idxs']));
+
+        return response()->json(['message' => 'Success'] + $result);
+    }
+
+    private function derivedPayload(Routing $routing, ?array $customized): array {
+        return array_map(fn ($d) => $d + ['customized' => $customized === null ? null : in_array($d['item_idx'], $customized, true)],
+            $this->routings->derivedItemRoutings($routing));
     }
 
     // 선택 삭제 = 미사용 처리 ( 소프트 삭제 )

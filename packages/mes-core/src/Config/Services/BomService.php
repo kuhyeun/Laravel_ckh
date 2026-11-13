@@ -598,6 +598,7 @@ class BomService {
             'child_item_idx'      => $l->child_item_idx,
             'child_item_code'     => $l->childItem?->item_code,
             'child_item_name'     => $l->childItem?->item_name,
+            'child_procure_type'  => $l->childItem?->procure_type,   // 사급 자재 표시 ( 11-13 )
             'child_item_spec'     => $l->childItem?->spec,
             'child_item_unit'     => $l->childItem?->spec_unit,
             'child_item_kind'     => $l->childItem?->item_kind,

@@ -13,6 +13,7 @@ use MesCore\Config\Models\Bom;
  *     — 같은 ( 수주 줄 · 자재 )는 한 줄로 합친다 ( 발주됨 · 남은 소요가 그 단위 ) · via = 거쳐 온 반제품
  *   소요   = 개당 소요 × 수주 수량
  *   발주됨 = 그 수주 줄 · 자재로 연결된 발주 수량 ( 취소된 발주 · 발주 줄 제외 · $exceptPoIdx 발주는 빼고 — 지금 고치는 발주는 화면이 센다 )
+ *   사급 자재( 품목의 조달 구분 SUPPLIED )는 목록에서 뺀다 ( 11-13 — 고객이 주는 자재 · 발주 대상이 아니다 )
  *   남은   = 소요 − 발주됨 ( 현재고는 참고로만 — 같은 재고를 여러 수주가 나눠 쓰므로 빼지 않는다 )
  */
 class OrderMaterialDemand {
@@ -20,7 +21,7 @@ class OrderMaterialDemand {
     private const LIMIT     = 300;
     private const MAX_DEPTH = 10;
 
-    private const ITEM_COLS = ['item_idx', 'item_code', 'item_name', 'spec', 'spec_unit', 'item_type', 'std_buy_price'];
+    private const ITEM_COLS = ['item_idx', 'item_code', 'item_name', 'spec', 'spec_unit', 'item_type', 'procure_type', 'std_buy_price'];
 
     /** @var array<int, array> 반제품 품목 → 활성 품목 BOM 의 주 자재 줄 [ [child_item_idx, qty], … ] ( 빈 배열 = 전개 안 함 ) */
     private array $bomLines = [];
@@ -111,6 +112,9 @@ class OrderMaterialDemand {
         foreach ($merged as $key => $m) {
             $r    = $m['head'];
             $item = $this->items[$m['item_idx']];
+            if ($pairs === null && ($item->procure_type ?? null) === 'SUPPLIED') {
+                continue;   // 사급 자재는 발주하지 않는다
+            }
             $need = round($m['need'], 6);
             $o    = $ordered->get($key);
             $done = (float) ($o->qty ?? 0);

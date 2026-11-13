@@ -125,6 +125,11 @@ const itemColumns = [
     { header: '재질',     name: 'material',     width: 180, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '안전재고', name: 'safety_stock', width: 100, align: 'right',  className: 'cursor-pointer', formatter: fmtNum },
     { header: '판매단가', name: 'std_sale_price', width: 110, align: 'right', className: 'cursor-pointer', formatter: fmtNum },
+    // 조달 구분 · 판매 여부 ( 11-13 ) — 발주서 = 구매만 · 수주 / 출하 = 판매만
+    { header: '조달', name: 'procure_type', width: 70, align: 'center', className: 'cursor-pointer',
+      formatter: ({ value }) => value === 'BUY' ? '구매' : value === 'SUPPLIED' ? '<span style="color:#7e22ce">사급</span>' : '<span style="color:#d1d5db">-</span>' },
+    { header: '판매', name: 'is_sale', width: 60, align: 'center', className: 'cursor-pointer',
+      formatter: ({ value }) => value === 'Y' ? '판매' : '<span style="color:#d1d5db">-</span>' },
     {
         header: '사용', name: 'is_use', width: 60, align: 'center', className: 'cursor-pointer',
         // 미사용은 회색 텍스트

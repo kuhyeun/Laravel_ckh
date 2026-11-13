@@ -42,6 +42,13 @@
                 <BaseSelect v-model="form.position_code" :options="codeSelect('POSITION')" class="w-full" size="md" />
                 <p v-if="errors.position_code" class="text-xs text-red-500 mt-0.5">{{ errors.position_code[0] }}</p>
             </div>
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">권한 템플릿</label>
+                <BaseSelect v-if="Number(form.user_level) > 1" v-model="form.permission_template_idx" :options="templateOptions" class="w-full" size="md" />
+                <p v-else class="h-9 flex items-center text-xs text-gray-400">관리자는 템플릿 없이 메뉴관리의 레벨 권한을 씁니다.</p>
+                <p v-if="templateChanged" class="text-xs text-amber-600 mt-0.5">템플릿을 바꾸면 이 사용자의 개인 지정 권한은 초기화됩니다.</p>
+                <p v-if="errors.permission_template_idx" class="text-xs text-red-500 mt-0.5">{{ errors.permission_template_idx[0] }}</p>
+            </div>
             <div class="flex items-end">
                 <BaseCheckbox variant="switch" v-model="form.is_use">{{ form.is_use ? '사용' : '미사용' }}</BaseCheckbox>
             </div>
@@ -76,6 +83,7 @@ const codeSelect = (group) => [{ value: '', label: '— 선택 안 함 —' }, .
 
 const props = defineProps({
     member:    { type: Object,   default: null },   // 있으면 수정, 없으면 등록
+    templates: { type: Array,    default: () => [] },   // 권한 템플릿 [{ template_idx, template_name }]
     canWrite:  { type: Boolean,  default: false },
     canDelete: { type: Boolean,  default: false },
     onSaved:   { type: Function, default: null },   // 저장/삭제 후 호출 ( 목록 새로고침 )
@@ -107,7 +115,12 @@ const form = reactive({
     user_level:  props.member?.user_level ?? 99,
     is_use:      props.member?.is_use ?? true,
     user_pw:     '',
+    // 권한 템플릿 ( 11-13 — 등록하면서 바로 지정 · 세부 조정은 사용자권한관리 )
+    permission_template_idx: props.member?.permission_template_idx ? String(props.member.permission_template_idx) : '',
 });
+const templateOptions = computed(() => [{ value: '', label: '템플릿 없음' }, ...props.templates.map(t => ({ value: String(t.template_idx), label: t.template_name }))]);
+const templateChanged = computed(() => isEdit.value && Number(form.user_level) > 1
+    && String(props.member?.permission_template_idx ?? '') !== String(form.permission_template_idx ?? ''));
 
 const errors   = ref({});
 const errorMsg = ref('');
@@ -127,7 +140,8 @@ async function save() {
     errors.value = {};
     errorMsg.value = '';
     try {
-        await window.axios.post(route('basic.mem.save'), { ...form, dept_code: form.dept_code || null, position_code: form.position_code || null });
+        await window.axios.post(route('basic.mem.save'), { ...form, dept_code: form.dept_code || null, position_code: form.position_code || null,
+            permission_template_idx: form.permission_template_idx ? Number(form.permission_template_idx) : null });
         props.onSaved?.();
         emit('close');
     } catch (e) {

@@ -1,6 +1,6 @@
 <!-- 작업지시 일정 배치 ( 작업지시서 등록 · 수정 창의 [달력에서 배치] · 11-11 회의 '달력에 배치해보거나 계획을 확인할 수 있는 Modal' ) — 모달 본체 ( size: full )
      - 생산계획관리 달력과 같은 데이터( production.plan.list · 그 달 · 취소 계획 제외 ) 위에 작성 중인 지시서( 착수 예정일 ~ 생산 기한 )를 막대로 올려 본다
-     - 지시서 막대 : 끌어서 옮김( 기간 유지 ) · 빈 날짜를 누르면 그 날을 착수일로 · 위쪽 날짜 칸으로 착수 · 기한을 따로 고침
+     - 지시서 막대 : 끌어서 옮김( 기간 유지 ) · 양쪽 끝을 끌어 착수일 · 기한을 늘리고 줄임( 11-13 ) · 빈 날짜를 누르면 그 날을 착수일로 · 위쪽 날짜 칸으로 착수 · 기한을 따로 고침
        이 지시서의 출처 계획( 계획에서 만든 줄 )은 굵은 테두리
      - [이 날짜로 적용] → onApply( 착수, 기한 ) 로 등록 창의 날짜 칸에 넣는다 ( DB 저장은 등록 창의 [저장] — 지시서 · 줄과 함께 )
      - 생산계획 조회 권한이 없으면 계획 없이 이 지시서만 보여 준다 -->
@@ -35,7 +35,7 @@
             <span class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm" :style="{ background: DRAFT.background }"></span>이 지시서 ( 작성 중 )</span>
             <span v-for="s in PLAN_STATUSES.filter(x => x.value !== 'CANCELED')" :key="s.value" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm" :style="{ background: s.bar }"></span>계획 · {{ s.label }}</span>
             <span v-if="planIdxs.length" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm border-2 border-gray-800"></span>이 지시서의 출처 계획</span>
-            <span v-if="editable" class="ml-2 text-gray-400">지시서 막대를 끌어 옮기거나( 기간 유지 ) 빈 날짜를 누르면 그 날이 착수일 · [이 날짜로 적용] 뒤 등록 창에서 [저장]</span>
+            <span v-if="editable" class="ml-2 text-gray-400">지시서 막대를 끌어 옮기거나( 기간 유지 ) 양쪽 끝을 끌어 기간을 늘리고 줄입니다 · 빈 날짜를 누르면 그 날이 착수일 · [이 날짜로 적용] 뒤 등록 창에서 [저장]</span>
         </div>
     </div>
 </template>

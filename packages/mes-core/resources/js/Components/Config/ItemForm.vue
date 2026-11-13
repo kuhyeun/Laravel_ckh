@@ -104,6 +104,23 @@
                 </div>
             </div>
 
+            <!-- 조달 구분 · 판매 여부 ( 11-13 ) — 발주서에는 구매만 · 수주 / 출하에는 판매만 나온다 -->
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">조달 구분</label>
+                <BaseSelect v-model="form.procure_type" :options="procureOptions" class="w-full" :disabled="!canWrite" />
+                <p class="text-xs text-gray-400 mt-0.5">{{ procureHint }}</p>
+                <p v-if="errors.procure_type" class="text-xs text-red-500 mt-0.5">{{ errors.procure_type[0] }}</p>
+            </div>
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">판매 여부</label>
+                <div class="h-9 flex items-center">
+                    <BaseCheckbox variant="switch" v-model="form.is_sale" true-value="Y" false-value="N" :disabled="!canWrite">
+                        {{ form.is_sale === 'Y' ? '판매함' : '판매 안 함' }}
+                    </BaseCheckbox>
+                </div>
+                <p v-if="errors.is_sale" class="text-xs text-red-500 mt-0.5">{{ errors.is_sale[0] }}</p>
+            </div>
+
             <div class="flex items-center gap-6 col-span-2 pt-1">
                 <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
                     {{ form.is_use === 'Y' ? '사용' : '미사용' }}
@@ -218,7 +235,7 @@
                         :error="policyError('quality.incoming_inspection')"
                     >
                         <p class="text-xs text-gray-400 mt-1">
-                            무검사로 두면 어느 거래처에서 들어와도 검사하지 않습니다. 그 외에는 거래처에 설정이 있으면 거래처를 따릅니다.
+                            거래처에 입고검사 설정이 있으면 거래처를 먼저 따릅니다. 거래처에 없을 때 이 값을, 이 값도 없으면 시스템 설정( 입고검사 사용 )을 따릅니다.
                         </p>
                     </PolicyOverrideField>
                     <PolicyOverrideField
@@ -404,6 +421,9 @@ const form = reactive({
     spec:             src.spec ?? '',
     material:         src.material ?? '',
     serial_use:       src.serial_use ?? 'N',
+    // 조달 구분 · 판매 여부 — 새 품목은 대분류 기본값 ( 자재 = 구매 · 판매 안 함 / 제품 = 해당 없음 · 판매 )
+    procure_type:     src.procure_type ?? ((src.item_type ?? props.onlyTypes?.[0] ?? 'PRODUCT') === 'MATERIAL' ? 'BUY' : 'NONE'),
+    is_sale:          src.is_sale ?? ((src.item_type ?? props.onlyTypes?.[0] ?? 'PRODUCT') === 'MATERIAL' ? 'N' : 'Y'),
     pack_qty:         src.pack_qty ?? '',
     safety_stock:     src.safety_stock ?? 0,
     order_cycle_days: src.order_cycle_days ?? 0,
@@ -549,7 +569,20 @@ const defaultLeadText = computed(() => {
 const isProduct = computed(() => form.item_type === 'PRODUCT');
 const visibleTabs = computed(() => TABS.filter(t => t.key !== 'routing' || isProduct.value));
 
+// 조달 구분 선택지 — 자재 : 구매 · 사급 / 제품 : 해당 없음( 만들어 쓴다 ) · 구매( 사서 쓰는 상품 · 반제품 )
+const procureOptions = computed(() => form.item_type === 'MATERIAL'
+    ? [{ value: 'BUY', label: '구매' }, { value: 'SUPPLIED', label: '사급' }]
+    : [{ value: 'NONE', label: '해당 없음' }, { value: 'BUY', label: '구매' }]);
+const procureHint = computed(() => ({
+    BUY:      '발주서( 구매관리 )에서 고를 수 있습니다.',
+    SUPPLIED: '발주하지 않습니다. 수동 입고로 받습니다.',
+    NONE:     '발주서 · 수동 입고에 나오지 않습니다.',
+}[form.procure_type] ?? ''));
+
 function onTypeChange(type) {
+    // 대분류를 바꾸면 조달 구분 · 판매 여부도 그 대분류 기본값으로
+    form.procure_type = type === 'MATERIAL' ? 'BUY' : 'NONE';
+    form.is_sale      = type === 'MATERIAL' ? 'N' : 'Y';
     const kinds = ITEM_KINDS[type] ?? [];
     if (!kinds.some(k => k.value === form.item_kind)) {
         form.item_kind = kinds[0]?.value ?? '';

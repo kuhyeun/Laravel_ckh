@@ -269,7 +269,8 @@ const today    = ref('');
 
 
 // 품목 고르기 : 사용 중 전부( 자재 먼저 · 제품은 배지 ) · 발주단가 함께 ( 서버에서 30개씩 )
-const ITEM_REMOTE = { extra: ['std_buy_price'] };
+// 발주할 수 있는 품목 = 조달 구분이 구매인 것 ( 자재 · 제품 상관없이 — 품목관리 · 11-13 )
+const ITEM_REMOTE = { use: 'PURCHASE', extra: ['std_buy_price'] };
 
 // 품목을 고르면( 고른 줄 ) 단위 · 발주단가를 채운다
 function onItemPicked(line, it) {

@@ -2,6 +2,7 @@
      - 좌 : 라우팅 목록  /  우 : 선택 라우팅의 공정 줄
      - 공정 줄 편집은 공통 RoutingLinesEditor ( 품목 · 수주와 같은 편집기 )
      - 여기는 ① 공용 틀만 — 품목 저장 때 품목 전용 라우팅으로 복사된다 ( 틀을 고쳐도 이미 복사한 품목은 그대로 · docs/라우팅-3단계-설계.md )
+     - 틀을 저장하면 이 틀을 쓰는 품목에도 반영할지 묻는다 · [품목에 반영] 으로 나중에도 ( RoutingApplyModal · 11-13 ) — 수주 · 작업지시는 그대로
      - 삭제 없음 : 사용 여부로 내림 ( ADR 0019 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
@@ -45,6 +46,7 @@
                         <span v-if="totalCycle > 0" class="text-gray-400 font-normal">[ 개당 합계 {{ totalCycle }}초 ]</span>
                     </span>
                     <div class="flex items-center gap-2">
+                        <BaseButton v-if="canWrite && form.routing_idx" size="sm" variant="secondary" :disabled="saving" title="이 라우팅을 쓰는 품목의 공정을 지금 저장된 구성으로 맞춥니다" @click="openApplyLater">품목에 반영</BaseButton>
                         <BaseButton v-if="canDelete && form.routing_idx" size="sm" variant="danger" :disabled="saving" @click="removeRouting">삭제</BaseButton>
                         <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="saving" @click="save">저장</BaseButton>
                     </div>
@@ -101,6 +103,8 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
 import { toLinePayload, totalCycleOf, defaultLines } from '@core/Components/Config/routingLines';
+import RoutingApplyModal from '@core/Components/Config/RoutingApplyModal.vue';
+import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
@@ -200,6 +204,9 @@ async function save() {
         await loadRoutings();
         await selectRouting({ routing_idx: data.routing.routing_idx });
         showFlash((data.warnings ?? []).length ? `저장되었습니다. ⚠ ${data.warnings.join(' / ')}` : '저장되었습니다.');
+        // 이 틀을 쓰는 품목 중 틀과 달라진 것이 있으면 반영할지 묻는다
+        const derived = data.derived ?? [];
+        if (derived.some(d => d.differs)) openApply(data.routing, derived, true);
     } catch (e) {
         const status = e.response?.status;
         if (status === 422)      { errors.value = e.response.data.errors || {}; showFlash('입력값을 확인하세요', true); }
@@ -208,6 +215,29 @@ async function save() {
         else                     showFlash('저장에 실패했습니다.', true);
     } finally {
         saving.value = false;
+    }
+}
+
+// ---- 틀 → 품목 라우팅 일괄 반영 ----
+const modalStore = useModalStore();
+function openApply(routing, items, fromSave) {
+    modalStore.open(RoutingApplyModal, {
+        modalTitle: '품목 라우팅에 반영',
+        routingIdx: routing.routing_idx, routingName: routing.routing_name, items, fromSave,
+        onDone: (res) => showFlash((res.warnings ?? []).length ? `${res.applied}개 품목에 반영했습니다. ⚠ ${res.warnings.join(' / ')}` : `${res.applied}개 품목에 반영했습니다.`),
+    }, { size: 'lg', closeOnClickOutside: false, closeOnEsc: true });
+}
+// [품목에 반영] — 저장된 구성 기준 ( 고치는 중인 값은 먼저 저장 )
+async function openApplyLater() {
+    if (!form.routing_idx) return;
+    try {
+        const { data } = await window.axios.get(route('config.routing.derived', form.routing_idx));
+        const items = data.derived ?? [];
+        if (!items.length) { showFlash('이 라우팅을 쓰는 품목이 없습니다.'); return; }
+        if (!items.some(d => d.differs)) { showFlash(`이 라우팅을 쓰는 품목 ${items.length}개가 모두 지금 구성과 같습니다.`); return; }
+        openApply({ routing_idx: form.routing_idx, routing_name: form.routing_name }, items, false);
+    } catch (e) {
+        showFlash('품목 목록을 불러오지 못했습니다.', true);
     }
 }
 

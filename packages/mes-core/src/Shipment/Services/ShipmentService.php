@@ -201,6 +201,12 @@ class ShipmentService {
                 }
                 $qty = (float) $l['qty'];
 
+                // 수주 없이 더하는 줄 : 판매 여부가 켜진 품목만 ( 11-13 — 자재도 켜면 출하할 수 있다 · 이미 저장된 줄 · 수주 줄은 그대로 )
+                if (!$line && empty($l['sales_order_line_idx']) && $item->is_sale !== 'Y') {
+                    $errors["lines.{$n}.item_idx"] = ["{$item->item_code} 는 판매하지 않는 품목입니다. ( 품목관리의 판매 여부 )"];   // E_SHIP_ITEM_NOT_SALE
+                    continue;
+                }
+
                 // 수주 줄 : 같은 고객사 · 확정 · 진행 줄 · 같은 품목
                 $so = null;
                 if (!empty($l['sales_order_line_idx'])) {

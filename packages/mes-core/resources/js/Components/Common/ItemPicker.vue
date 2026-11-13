@@ -74,7 +74,7 @@ const props = defineProps({
     currentNote: { type: String,  default: '현재 선택 불가' },   // 그 값 뒤에 붙는 말
     showType:    { type: Boolean, default: false },      // 대분류 배지 ( 자재 · 제품이 섞인 선택지 )
     size:        { type: String,  default: 'md' },
-    remote:      { type: Object,  default: null },       // 서버 모드 { types: ['PRODUCT'], extra: ['std_sale_price'], includeInactive }
+    remote:      { type: Object,  default: null },       // 서버 모드 { types: ['PRODUCT'], use: 'PURCHASE' | 'RECEIPT' | 'SALE'( 조달 구분 · 판매 여부 ), extra: ['std_sale_price'], includeInactive }
 });
 const emit = defineEmits(['update:modelValue', 'select', 'created']);
 
@@ -109,7 +109,7 @@ async function fetchRows(reset) {
     try {
         const { data } = await window.axios.get(route('common.items.search'), { params: {
             q: q.value.trim() || undefined,
-            types: props.remote.types, extra: props.remote.extra,
+            types: props.remote.types, extra: props.remote.extra, use: props.remote.use,
             include_inactive: props.remote.includeInactive ? 1 : undefined,
             exclude: props.exclude.filter(x => x !== null && x !== undefined && x !== ''),
             offset: reset ? 0 : rows.value.length, limit: PAGE,

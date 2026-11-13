@@ -73,6 +73,11 @@ class SalesOrderService {
                 $errors["lines.{$i}.item_idx"] = ['수주할 수 있는 품목이 아닙니다. ( 제품 대분류의 사용 중 품목 )'];   // E_ORDER_ITEM_NOT_PRODUCT
                 continue;
             }
+            // 판매 여부가 꺼진 제품( 안 파는 반제품 등 )은 수주하지 않는다 ( 11-13 · 기존 줄은 그대로 )
+            if (!$sameItem && $item->is_sale !== 'Y') {
+                $errors["lines.{$i}.item_idx"] = ['판매하지 않는 품목입니다. ( 품목관리의 판매 여부 )'];   // E_ORDER_ITEM_NOT_SALE
+                continue;
+            }
 
             // 아래 단계가 붙은 줄
             if ($old && $old->hasDownstream()) {

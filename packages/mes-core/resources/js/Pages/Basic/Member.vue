@@ -88,12 +88,15 @@ const memberColumns = [
     { header: '직급', name: 'position_name', width: 90, align: 'center', className: 'cursor-pointer', dash: true },
     { header: '유형', name: 'user_type', minWidth: 100, align: 'center', className: 'cursor-pointer', dash: true, hidden: true },
     { header: '레벨', name: 'user_level', width: 150, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => LEVELS[value] ?? value },
+    { header: '권한 템플릿', name: 'template_name', width: 150, align: 'center', className: 'cursor-pointer',
+      formatter: ({ row, value }) => row.user_level <= 1 ? '<span style="color:#9ca3af">전체 권한</span>' : (value ? String(value).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])) : '<span style="color:#d97706">없음</span>') },
     { header: '사용여부', name: 'is_use', width: 100, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => (value ? '사용' : '미사용') },
     { header: '가입일', name: 'create_datetime', width: 180, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => fmtDateTime(value) },
     { header: '최근 수정일', name: 'update_datetime', width: 180, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => fmtDateTime(value) },
 ];
 
 const members = ref([]);
+const templates = ref([]);   // 권한 템플릿 ( 등록 · 수정 모달에서 고른다 )
 
 // ---- 그리드 체크박스 ----
 const gridRef      = ref(null);
@@ -121,6 +124,7 @@ async function loadMembers() {
     try {
         const { data } = await window.axios.get( route('basic.mem.list') );
         members.value = data.members ?? [];
+        templates.value = data.templates ?? [];
         checkedCount.value = 0;   // 데이터 리셋 → 체크 해제됨
     } catch (e) {
         showFlash('사용자 목록을 불러오지 못했습니다', true);
@@ -133,6 +137,7 @@ function openModal(member) {
         MemberDetail,
         {
             member,
+            templates: templates.value,
             canWrite:  canWrite.value,
             canDelete: canDelete.value,
             onSaved: () => {

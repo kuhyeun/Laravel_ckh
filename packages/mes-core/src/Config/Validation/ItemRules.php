@@ -25,6 +25,8 @@ class ItemRules {
         'spec'             => '규격',
         'material'         => '재질',
         'serial_use'       => '시리얼 사용',
+        'procure_type'     => '조달 구분',
+        'is_sale'          => '판매 여부',
         'pack_qty'         => '포장 수량',
         'safety_stock'     => '안전재고',
         'order_cycle_days' => '발주 주기',
@@ -79,6 +81,9 @@ class ItemRules {
             'spec'             => 'nullable|string|max:100',
             'material'         => 'nullable|string|max:100',
             'serial_use'       => 'required|in:Y,N',
+            // 조달 구분 · 판매 여부 ( 비우면 대분류 기본값 — Item saving · 있던 품목은 그대로 )
+            'procure_type'     => 'nullable|in:BUY,SUPPLIED,NONE',
+            'is_sale'          => 'nullable|in:Y,N',
             'pack_qty'         => 'nullable|numeric|min:0|max:999999999999',
             'safety_stock'     => 'nullable|numeric|min:0|max:999999999999',
             'order_cycle_days' => 'nullable|integer|min:0|max:3650',
@@ -124,6 +129,13 @@ class ItemRules {
             $v[$field] = $v[$field] ?? 0;
         }
         $v['spec_dim'] = $v['spec_dim'] ?? 1;
+
+        // 조달 구분 · 판매 여부 : 비워 보낸 칸은 건드리지 않는다 ( 새 품목은 Item saving 이 대분류 기본값을 넣는다 )
+        foreach (['procure_type', 'is_sale'] as $field) {
+            if (array_key_exists($field, $v) && ($v[$field] === null || $v[$field] === '')) {
+                unset($v[$field]);
+            }
+        }
 
         // 소재 항목( 최소 사용 규격 · 계산식 )은 원소재 전용이었다 — 원소재를 없앴으므로( 11-12 ) 늘 비운다 ( 칸은 남겨 둠 )
         $v['min_usable_spec'] = null;

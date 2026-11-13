@@ -126,7 +126,7 @@ const partnerColumns = [
         header: '입고검사', name: 'incoming_inspection', width: 90, align: 'center', className: 'cursor-pointer',
         formatter: ({ row, value }) => (row.is_supplier !== 'Y' && row.is_subcon !== 'Y')
             ? ''
-            : ({ NONE: '무검사', SAMPLING: '샘플링', FULL: '전수' }[value] ?? `<span style="color:${COLORS.gray400}">설정에 맞춤</span>`),
+            : ({ NONE: '검사 안 함', FULL: '검사함' }[value] ?? `<span style="color:${COLORS.gray400}">설정에 맞춤</span>`),
     },
     { header: '담당자',     name: 'contacts_count', width: 70, align: 'right', className: 'cursor-pointer' },
     { header: '출고지',     name: 'sites_count',    width: 70, align: 'right', className: 'cursor-pointer' },

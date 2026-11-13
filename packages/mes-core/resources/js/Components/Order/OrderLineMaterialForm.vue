@@ -59,6 +59,7 @@
                             <td class="px-1.5 py-1">
                                 <ItemPicker placeholder="자재 선택" v-model="l.child_item_idx" :remote="MATERIAL_ONLY" :exclude="[itemIdx]" :can-create="canCreate" :disabled="ro"
                                     :current="{ item_code: l.child_item_code, item_name: l.child_item_name, spec: l._item_spec }" @select="it => applyItem(l, it)" />
+                                <span v-if="l.child_procure_type === 'SUPPLIED'" class="inline-block mt-0.5 text-[11px] px-1 rounded bg-purple-50 text-purple-700" title="고객이 주는 자재입니다 ( 품목관리의 조달 구분 ) — 발주 대상에서 빠집니다">사급</span>
                                 <p v-if="err(i, 'child_item_idx')" class="text-[11px] text-red-500">{{ err(i, 'child_item_idx') }}</p>
                                 <p v-if="!SHOW_SUBS && subHasError(i)" class="mt-0.5 text-[11px] text-red-500">대체 자재에 오류가 있습니다. BOM관리에서 품목 BOM 을 확인하세요.</p>
                                 <button v-if="SHOW_SUBS" type="button" class="mt-0.5 text-[11px] hover:underline" :class="subHasError(i) ? 'text-red-500' : (l.substitutes.length ? 'text-blue-700' : 'text-gray-400')" @click="toggle(l)">
@@ -273,6 +274,7 @@ function applyItem(row, it) {
     Object.assign(row, {
         child_item_idx: it.item_idx, child_item_code: it.item_code, child_item_name: it.item_name,
         child_item_spec: it.spec ?? '', _item_spec: it.spec ?? '', _new_spec: null, child_item_kind: it.item_kind, child_item_unit: it.spec_unit,
+        child_procure_type: it.procure_type ?? null,
     });
 }
 

@@ -99,7 +99,7 @@ async function fetchRows(reset) {
     try {
         const { data } = await window.axios.get(route('common.items.search'), { params: {
             q: q.value.trim() || undefined,
-            types: props.remote.types, extra: props.remote.extra,
+            types: props.remote.types, extra: props.remote.extra, use: props.remote.use,
             include_inactive: props.remote.includeInactive ? 1 : undefined,
             exclude: props.exclude.filter(x => x !== null && x !== undefined && x !== ''),
             offset: reset ? 0 : rows.value.length, limit: PAGE,

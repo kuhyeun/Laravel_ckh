@@ -25,7 +25,7 @@ use MesCore\Stock\Services\StockService;
  * 구매 입고 ( PUR-03 ) — docs/screens/40-구매자재.md §10 · §11
  *
  *   등록 : 줄마다 LOT 발급 → 입고검사 정책( 품목 · 구매처 )으로 갈림
- *          무검사 → 바로 입고완료( 원장 + ) / 샘플링 · 전수 → 검사대기( 재고 없음 )
+ *          검사 안 함 → 바로 입고완료( 원장 + ) / 검사함 → 검사대기( 재고 없음 )
  *   입고완료( confirm ) : 재고에 잡을 수량( 무검사 = 수량, 검사 = 합격 )만 원장 + · 발주 줄 입고 수량 +
  *   되돌리기( unconfirm ) : 역분개 · 발주 입고 수량 − . 그 LOT 이 이미 출고 · 이동됐으면 막음 ( §16-4 )
  *   수정은 없다 — 취소 후 다시 입고 ( 원장이 추가만이므로 )
@@ -44,8 +44,12 @@ class ReceiptService {
         private LabelService $labels,
     ) {}
 
-    // 입고검사 방식 — 품목 · 구매처로 정책을 읽는다 ( 품목 무검사면 거래처 무시 )
+    // 입고검사를 하는가 ( NONE 안 함 · FULL 함 ) — 거래처에 값이 있으면 거래처 → 없으면 품목 → 없으면 시스템 설정( 입고검사 사용 = 검사함 ) · 11-13
+    //   입고검사 사용이 꺼져 있으면 늘 안 한다
     public function inspectionMode(int $itemIdx, int $partnerIdx): string {
+        if (!$this->policy->isEnabled('quality.incoming_use')) {
+            return 'NONE';
+        }
         return (string) ($this->policy->get('quality.incoming_inspection', ['item' => $itemIdx, 'partner' => $partnerIdx]) ?? 'NONE');
     }
 
@@ -115,8 +119,9 @@ class ReceiptService {
                         $warnings[] = "{$label} : 발주 남은 수량( " . $this->num(max(0, $remain)) . ' )보다 많이 입고합니다.';   // 과입고 — 허용
                     }
                 }
-            } elseif ($item->item_type === 'PRODUCT') {
-                $warnings[] = "{$label} : 제품 품목입니다. 사서 쓰는 상품 · 반제품이면 정상입니다.";
+            } elseif ($item->item_type === 'PRODUCT' && $item->procure_type !== 'BUY') {
+                // 수동 입고 : 자재 전부 + 구매품으로 지정한 제품 ( 11-13 · 품목관리의 조달 구분 )
+                $errors["lines.{$i}.item_idx"] = ['구매품으로 지정되지 않은 제품은 수동 입고할 수 없습니다. ( 품목관리에서 조달 구분을 구매로 )'];
             }
         }
 

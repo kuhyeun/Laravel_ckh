@@ -8,9 +8,9 @@ export const RECEIPT_STATUSES = [
 ];
 
 export const INSP_MODES = [
-    { value: 'NONE',     label: '무검사' },
-    { value: 'SAMPLING', label: '샘플링' },
-    { value: 'FULL',     label: '전수' },
+    // 입고검사 = 한다 / 안 한다 ( 11-13 — 샘플링 · 전수 구분을 없앴다 )
+    { value: 'NONE', label: '무검사' },
+    { value: 'FULL', label: '검사' },
 ];
 
 export const INSP_RESULTS = { PASS: '합격', FAIL: '불합격', PARTIAL: '부분 합격' };

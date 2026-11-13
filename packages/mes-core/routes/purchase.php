@@ -55,4 +55,13 @@ Route::prefix('purchase')->name('purchase.')->middleware([UserAuth::class])->gro
             Route::post('/cancel', [ReceiptController::class, 'cancel'])->name('cancel');
         });
     });
+
+    // 물품표 ( Purchase/MaterialTag — 메뉴 자재관리 > 물품표 3012 ) — 자재 LOT 라벨 미리보기 · 인쇄 ( 없으면 발행 → 쓰기 권한 )
+    Route::prefix('tag')->name('tag.')->group(function() {
+        Route::middleware(MenuAuth::class . ':Purchase/MaterialTag,can_read')->group(function() {
+            Route::get('/list', [\MesCore\Purchase\Controllers\MaterialTagController::class, 'list'])->name('list');
+            Route::get('/formData', [\MesCore\Purchase\Controllers\MaterialTagController::class, 'formData'])->name('formData');
+        });
+        Route::post('/sheets', [\MesCore\Purchase\Controllers\MaterialTagController::class, 'sheets'])->middleware(MenuAuth::class . ':Purchase/MaterialTag,can_write')->name('sheets');
+    });
 });
