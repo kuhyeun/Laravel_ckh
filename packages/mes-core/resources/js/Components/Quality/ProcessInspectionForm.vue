@@ -83,12 +83,12 @@
                 <template v-if="!op.is_ifl">
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">합격 <span class="text-red-500">*</span></label>
-                        <BaseInput v-model="form.pass_qty" type="number" min="0" class="w-full text-right" @update:modelValue="onPass" />
+                        <BaseInput v-model="form.pass_qty" type="number" min="0" class="w-full text-right" />
                         <p v-if="errors.pass_qty" class="text-xs text-red-500 mt-0.5">{{ errors.pass_qty[0] }}</p>
                     </div>
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">불합격</label>
-                        <BaseInput v-model="form.fail_qty" type="number" min="0" class="w-full text-right" @update:modelValue="onFail" />
+                        <BaseInput :model-value="form.fail_qty" class="w-full text-right" disabled title="아래 불량 내역 합계" />
                         <p class="text-[11px] mt-0.5" :class="sumOk ? 'text-gray-400' : 'text-red-500'">합 {{ fmtNum(sum) }} / 검사 {{ fmtNum(op.base_qty) }}</p>
                     </div>
                 </template>
@@ -105,18 +105,10 @@
                     <BaseDatePicker v-model="form.inspected_at" mode="datetime" class="w-full" />
                     <p v-if="errors.inspected_at" class="text-xs text-red-500 mt-0.5">{{ errors.inspected_at[0] }}</p>
                 </div>
-                <template v-if="!op.is_ifl && num(form.fail_qty) > 0">
-                    <div>
-                        <label class="block text-gray-500 font-medium mb-1">불량 유형 <span class="text-red-500">*</span></label>
-                        <BaseSelect v-model="form.defect_type_code" :options="options('DEFECT_TYPE')" class="w-full" placeholder="유형 선택" />
-                        <p v-if="errors.defect_type_code" class="text-xs text-red-500 mt-0.5">{{ errors.defect_type_code[0] }}</p>
-                    </div>
-                    <div class="col-span-3">
-                        <label class="block text-gray-500 font-medium mb-1">상세 <span v-if="form.defect_type_code === 'ETC'" class="text-red-500">*</span></label>
-                        <BaseInput v-model="form.reason" class="w-full" maxlength="200" placeholder="예: 버 발생 3개" />
-                        <p v-if="errors.reason" class="text-xs text-red-500 mt-0.5">{{ errors.reason[0] }}</p>
-                    </div>
-                </template>
+                <!-- 불량 내역 ( 11-12 — 처음엔 줄 없이 · [+ 줄] 의 수량 합 = 불합격 ) -->
+                <div v-if="!op.is_ifl" class="col-span-4">
+                    <DefectRows v-model="form.defects" :type-options="options('DEFECT_TYPE')" :errors="errors" placeholder="예: 버 발생 3개" @total="onDefects" />
+                </div>
                 <div v-if="op.needs_warehouse">
                     <label class="block text-gray-500 font-medium mb-1">입고 창고 <span class="text-red-500">*</span></label>
                     <WarehouseSelect v-model="form.warehouse_idx" :options="warehouses" class="w-full" placeholder="창고" />
@@ -187,6 +179,7 @@ import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import DefectRows from '@core/Components/Quality/DefectRows.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { showAlert } from '@core/Utils/message';
 import { useCommonCode } from '@core/Composables/useCommonCode';
@@ -222,7 +215,7 @@ const canCancel  = ref(false);
 const inspectors = ref([]);
 const warehouses = ref([]);
 
-const form      = reactive({ pass_qty: '', fail_qty: '0', defect_type_code: '', reason: '', inspector_idx: '', inspected_at: '', remark: '', warehouse_idx: '' });
+const form      = reactive({ pass_qty: '', fail_qty: '0', defects: [], inspector_idx: '', inspected_at: '', remark: '', warehouse_idx: '' });
 const stageForm = reactive({ stage: '', result: '', fail_qty: '', defect_type_code: '', reason: '', inspector_idx: '', inspected_at: '', remark: '' });
 const { options } = useCommonCode(['DEFECT_TYPE']);
 
@@ -236,9 +229,12 @@ const sumOk = computed(() => op.value && Math.abs(sum.value - num(op.value.base_
 const stageFail = computed(() => history.value.filter(h => h.stage && !h.is_canceled).reduce((s, h) => s + num(h.fail_qty), 0));
 const iflPass   = computed(() => Math.max(0, num(op.value?.base_qty) - stageFail.value));
 
-// 한쪽을 넣으면 나머지를 채운다 ( 합 = 검사 수량 )
-function onPass(v) { const rest = num(op.value?.base_qty) - num(v); if (rest >= 0) form.fail_qty = String(+rest.toFixed(6)); }
-function onFail(v) { const rest = num(op.value?.base_qty) - num(v); if (rest >= 0) form.pass_qty = String(+rest.toFixed(6)); }
+// 불합격 = 불량 내역 합계 → 합격 = 검사 − 불합격 ( 11-12 )
+function onDefects(t) {
+    form.fail_qty = String(t);
+    const rest = +(num(op.value?.base_qty) - t).toFixed(6);
+    if (rest >= 0) form.pass_qty = String(rest);
+}
 
 let me = null, now = '';
 async function load() {
@@ -257,7 +253,7 @@ async function load() {
         warehouses.value = data.warehouses ?? [];
         me = data.me; now = data.now;
         Object.assign(form, {
-            pass_qty: String(data.op.base_qty), fail_qty: '0', defect_type_code: '', reason: '', remark: '',
+            pass_qty: String(data.op.base_qty), fail_qty: '0', defects: [], remark: '',
             inspector_idx: me ?? '', inspected_at: now, warehouse_idx: form.warehouse_idx || (warehouses.value[0]?.warehouse_idx ?? ''),
         });
         stageForm.stage = '';
@@ -282,7 +278,7 @@ async function run(fn, fallback) {
         if (status === 422) {
             errors.value = e.response.data.errors || {};
             const shown = ['pass_qty', 'inspected_at', 'defect_type_code', 'reason'];
-            const other = Object.entries(errors.value).filter(([k]) => !shown.includes(k)).flatMap(([, v]) => v);
+            const other = Object.entries(errors.value).filter(([k]) => !shown.includes(k) && !k.startsWith('defects')).flatMap(([, v]) => v);
             if (other.length) errorMsg.value = other.join('\n');
         } else {
             errorMsg.value = status === 403 ? '권한이 없습니다.' : (e.response?.data?.message || fallback);
@@ -297,8 +293,7 @@ async function complete() {
     const res = await run(() => window.axios.post(route('quality.process.complete', props.opIdx), {
         pass_qty:         op.value.is_ifl ? null : form.pass_qty,
         fail_qty:         op.value.is_ifl ? null : (form.fail_qty === '' ? 0 : form.fail_qty),
-        defect_type_code: form.defect_type_code || null,
-        reason:           form.reason || null,
+        defects: num(form.fail_qty) > 0 ? form.defects.map(r => ({ defect_type_code: r.defect_type_code || null, qty: r.qty === '' ? null : r.qty, reason: r.reason || null })) : [],
         inspector_idx:    Number(form.inspector_idx),
         inspected_at:     form.inspected_at,
         remark:           form.remark || null,

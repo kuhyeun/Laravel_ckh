@@ -35,9 +35,10 @@ class ClaimController extends Controller {
         ]);
         $q = DB::table('claim_line as cl')
             ->join('claim as c', 'c.claim_idx', '=', 'cl.claim_idx')
-            ->join('shipment as s', 's.shipment_idx', '=', 'c.shipment_idx')
-            ->join('shipment_line as sl', 'sl.shipment_line_idx', '=', 'cl.shipment_line_idx')
-            ->join('partner as pt', 'pt.partner_idx', '=', 'c.partner_idx')
+            // 출하 없이 등록한 클레임( 11-12 )은 출하 · 출하 줄 · 고객사가 비어 있다 → leftJoin
+            ->leftJoin('shipment as s', 's.shipment_idx', '=', 'c.shipment_idx')
+            ->leftJoin('shipment_line as sl', 'sl.shipment_line_idx', '=', 'cl.shipment_line_idx')
+            ->leftJoin('partner as pt', 'pt.partner_idx', '=', 'c.partner_idx')
             ->join('item as i', 'i.item_idx', '=', 'cl.item_idx')
             ->leftJoin('system_code as sc', fn ($j) => $j->on('sc.system_code_key', '=', 'cl.claim_type_code')->where('sc.system_code_group_key', 'DEFECT_TYPE'))
             ->leftJoin('account_member as u', 'u.account_idx', '=', 'c.create_account_idx')
@@ -56,20 +57,20 @@ class ClaimController extends Controller {
         ]);
         // 서버 페이징 · 정렬 · 엑셀 전체 ( 전에는 기간을 넓히면 전부 내려받았다 )
         $totalQty = (float) (clone $q)->sum('cl.qty');   // 조건 전체의 클레임 수량 합 ( 화면 머리 — 페이지와 상관없이 )
-        $q->orderByDesc('c.claim_date')->orderByDesc('c.claim_idx')->orderBy('sl.line_no');
+        $q->orderByDesc('c.claim_date')->orderByDesc('c.claim_idx')->orderBy('sl.line_no')->orderBy('cl.claim_line_idx');
         $res = $this->listResponse($request, $q, self::SORTABLE, 'rows', fn ($r) => [
             'claim_line_idx' => $r->claim_line_idx,
             'claim_idx'      => $r->claim_idx,
             'claim_no'       => $r->claim_no,
             'claim_date'     => substr((string) $r->claim_date, 0, 10),
             'shipment_no'    => $r->shipment_no,
-            'shipped_at'     => substr((string) $r->shipped_at, 0, 10),
+            'shipped_at'     => $r->shipped_at ? substr((string) $r->shipped_at, 0, 10) : null,
             'partner_name'   => $r->partner_name,
             'item_code'      => $r->item_code,
             'item_name'      => $r->item_name,
             'item_spec'      => $r->item_spec,
             'spec_unit'      => $r->spec_unit,
-            'shipped_qty'    => (float) $r->shipped_qty,
+            'shipped_qty'    => $r->shipped_qty !== null ? (float) $r->shipped_qty : null,   // 출하 없는 클레임은 없음
             'qty'            => (float) $r->qty,
             'claim_type'     => $r->claim_type,
             'content'        => $r->content,
@@ -82,7 +83,9 @@ class ClaimController extends Controller {
 
     public function formData() {
         return response()->json([
-            'partners' => Partner::whereIn('partner_idx', DB::table('claim')->select('partner_idx')->distinct())->orderBy('partner_name')->forPicker()->get(),
+            'partners' => Partner::whereIn('partner_idx', DB::table('claim')->whereNotNull('partner_idx')->select('partner_idx')->distinct())->orderBy('partner_name')->forPicker()->get(),
+            // 출하 없이 등록할 때 고르는 고객사 ( 사용 중 고객사 전체 )
+            'customers' => Partner::where('is_use', 'Y')->where('is_customer', 'Y')->orderBy('partner_name')->forPicker()->get(),
             'today'    => now()->toDateString(),
         ]);
     }
@@ -116,6 +119,20 @@ class ClaimController extends Controller {
     public function show(Request $request) {
         $v = $request->validate(['claim_idx' => 'nullable|integer', 'shipment_idx' => 'nullable|integer']);
         $claim = !empty($v['claim_idx']) ? DB::table('claim')->where('claim_idx', $v['claim_idx'])->first() : null;
+        // 출하 없이 등록한 클레임 ( 11-12 ) : 줄 = 클레임 줄 그대로 ( 품목 · 수량 · 유형 · 내용 )
+        if ($claim && $claim->shipment_idx === null) {
+            $lines = DB::table('claim_line as cl')->join('item as i', 'i.item_idx', '=', 'cl.item_idx')->where('cl.claim_idx', $claim->claim_idx)->orderBy('cl.claim_line_idx')
+                ->get(['cl.claim_line_idx', 'cl.item_idx', 'cl.qty', 'cl.claim_type_code', 'cl.content', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.spec_unit'])
+                ->map(fn ($l) => [
+                    'claim_line_idx' => $l->claim_line_idx, 'item_idx' => (int) $l->item_idx,
+                    'item_code' => $l->item_code, 'item_name' => $l->item_name, 'item_spec' => $l->item_spec, 'spec_unit' => $l->spec_unit,
+                    'qty' => (float) $l->qty, 'claim_type_code' => $l->claim_type_code ?? '', 'content' => $l->content ?? '',
+                ])->values();
+            return response()->json(['claim' => [
+                'claim_idx' => $claim->claim_idx, 'claim_no' => $claim->claim_no, 'claim_date' => substr((string) $claim->claim_date, 0, 10), 'remark' => $claim->remark,
+                'partner_idx' => $claim->partner_idx, 'partner_name' => $claim->partner_idx ? DB::table('partner')->where('partner_idx', $claim->partner_idx)->value('partner_name') : null,
+            ], 'direct' => true, 'shipment' => null, 'lines' => $lines, 'today' => now()->toDateString()]);
+        }
         $shipmentIdx = $claim?->shipment_idx ?? ($v['shipment_idx'] ?? null);
         $s = DB::table('shipment as s')->join('partner as pt', 'pt.partner_idx', '=', 's.partner_idx')->where('s.shipment_idx', $shipmentIdx)
             ->first(['s.shipment_idx', 's.shipment_no', 's.shipped_at', 's.status', 'pt.partner_name']);
@@ -151,11 +168,14 @@ class ClaimController extends Controller {
     public function save(Request $request) {
         $d = $request->validate([
             'claim_idx'                 => 'nullable|integer',
-            'shipment_idx'              => 'required|integer',
+            'shipment_idx'              => 'nullable|integer',   // 비우면 출하 없는 클레임 ( 11-12 — 품목만 )
+            'partner_idx'               => 'nullable|integer|exists:partner,partner_idx',   // 출하 없는 클레임의 고객사 ( 선택 )
             'claim_date'                => 'required|date_format:Y-m-d',
             'remark'                    => 'nullable|string|max:2000',
             'lines'                     => 'required|array|min:1|max:200',
-            'lines.*.shipment_line_idx' => 'required|integer',
+            'lines.*.shipment_line_idx' => 'nullable|integer',
+            'lines.*.claim_line_idx'    => 'nullable|integer',
+            'lines.*.item_idx'          => 'nullable|integer',
             'lines.*.qty'               => 'required|numeric|gt:0|max:999999999999',
             'lines.*.claim_type_code'   => 'nullable|string|max:30',
             'lines.*.content'           => 'nullable|string|max:500',
@@ -166,6 +186,10 @@ class ClaimController extends Controller {
             if (!empty($d['claim_idx']) && !$claim) {
                 throw ValidationException::withMessages(['claim_idx' => ['없는 클레임입니다.']]);
             }
+            // 출하 없는 클레임 : 새로 = 출하를 안 보냄 / 수정 = 그 클레임에 출하가 없음
+            if ($claim ? $claim->shipment_idx === null : empty($d['shipment_idx'])) {
+                return $this->saveDirect($claim, $d);
+            }
             $shipmentIdx = $claim?->shipment_idx ?? (int) $d['shipment_idx'];
             $s = DB::table('shipment')->where('shipment_idx', $shipmentIdx)->first();
             if (!$s || (!$claim && $s->status !== 'DONE')) {
@@ -175,7 +199,7 @@ class ClaimController extends Controller {
             $others = $this->claimedByLine($shipmentIdx, $claim?->claim_idx);
             $errors = [];
             foreach ($d['lines'] as $i => $l) {
-                $sl = $sLines[$l['shipment_line_idx']] ?? null;
+                $sl = $sLines[$l['shipment_line_idx'] ?? 0] ?? null;
                 if (!$sl) { $errors["lines.{$i}.qty"] = ['이 출하의 품목이 아닙니다.']; continue; }
                 $max = (float) $sl->qty - (float) ($others[$sl->shipment_line_idx] ?? 0);
                 if ((float) $l['qty'] > $max + self::EPS) {
@@ -230,6 +254,47 @@ class ClaimController extends Controller {
     }
 
     // ---- 내부 ----
+
+    // 출하 없는 클레임 저장 ( 트랜잭션 안 ) — 품목 · 수량 · 유형 · 내용만 · 출하 수량과 견주지 않는다 · 고객사는 선택
+    //   줄은 claim_line_idx 로 잇는다 ( 있으면 고치고 · 없으면 넣고 · 빠진 줄은 지운다 — 첨부가 있으면 막음 )
+    private function saveDirect(?object $claim, array $d): object {
+        $errors = [];
+        $items  = DB::table('item')->whereIn('item_idx', collect($d['lines'])->pluck('item_idx')->filter()->all())->where('is_use', 'Y')->pluck('item_idx')->flip();
+        foreach ($d['lines'] as $i => $l) {
+            if (empty($l['item_idx']) || !$items->has((int) $l['item_idx'])) {
+                $errors["lines.{$i}.item_idx"] = ['품목을 고르세요. ( 사용 중 품목 )'];
+            }
+        }
+        if ($errors) throw ValidationException::withMessages($errors);
+
+        $by  = Auth::id() ?? 0;
+        $now = now();
+        $partner = !empty($d['partner_idx']) ? (int) $d['partner_idx'] : null;
+        if ($claim) {
+            DB::table('claim')->where('claim_idx', $claim->claim_idx)->update(['partner_idx' => $partner, 'claim_date' => $d['claim_date'], 'remark' => $d['remark'] ?? null, 'update_account_idx' => $by]);
+        } else {
+            $idx = DB::table('claim')->insertGetId([
+                'claim_no' => $this->nextNo(Carbon::parse($d['claim_date'])), 'shipment_idx' => null, 'partner_idx' => $partner,
+                'claim_date' => $d['claim_date'], 'remark' => $d['remark'] ?? null, 'create_account_idx' => $by, 'create_datetime' => $now,
+            ]);
+            $claim = DB::table('claim')->where('claim_idx', $idx)->first();
+        }
+
+        $mine = DB::table('claim_line')->where('claim_idx', $claim->claim_idx)->pluck('claim_line_idx')->flip();
+        $keep = collect($d['lines'])->pluck('claim_line_idx')->filter()->map(fn ($x) => (int) $x)->filter(fn ($x) => $mine->has($x))->all();
+        $gone = $mine->keys()->diff($keep)->values()->all();
+        $this->blockIfFiles($gone, '첨부가 있는 품목 줄은 뺄 수 없습니다. 그 줄의 첨부를 먼저 지우세요.');
+        DB::table('claim_line')->whereIn('claim_line_idx', $gone)->delete();
+        foreach ($d['lines'] as $l) {
+            $vals = ['item_idx' => (int) $l['item_idx'], 'qty' => number_format((float) $l['qty'], 6, '.', ''), 'claim_type_code' => ($l['claim_type_code'] ?? null) ?: null, 'content' => $l['content'] ?? null];
+            if (!empty($l['claim_line_idx']) && $mine->has((int) $l['claim_line_idx'])) {
+                DB::table('claim_line')->where('claim_line_idx', $l['claim_line_idx'])->update($vals + ['update_account_idx' => $by]);
+            } else {
+                DB::table('claim_line')->insert($vals + ['claim_idx' => $claim->claim_idx, 'shipment_line_idx' => null, 'create_account_idx' => $by, 'create_datetime' => $now]);
+            }
+        }
+        return $claim;
+    }
 
     /** @return array<int,float> 출하 줄 → 다른 클레임의 수량 합 */
     private function claimedByLine(int $shipmentIdx, ?int $exceptClaim): array {

@@ -19,7 +19,7 @@ class Item extends Model {
     // 대분류 → 허용 소분류 ( E_ITEM_KIND_MISMATCH 검증 기준 )
     //   구분 기준은 "단독으로 파는가" — 단독 판매 FINISHED / 사내 소비 SEMI / 미조립 세트 SET
     const KINDS_BY_TYPE = [
-        'MATERIAL' => ['RAW', 'STOCK'],
+        'MATERIAL' => ['RAW', 'SUB', 'OUTSOURCED'],   // 원자재 · 부자재 · 외주가공품 ( 11-12 — 원소재 STOCK 은 없앰 )
         'PRODUCT'  => ['FINISHED', 'SEMI', 'SET'],
     ];
 
@@ -137,8 +137,4 @@ class Item extends Model {
         });
     }
 
-    // 원소재( STOCK )만 소재 항목( 최소 사용 규격 · 계산식 )을 가진다
-    public function isStock(): bool {
-        return $this->item_kind === 'STOCK';
-    }
 }

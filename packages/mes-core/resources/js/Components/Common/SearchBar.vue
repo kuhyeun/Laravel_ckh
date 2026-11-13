@@ -3,6 +3,7 @@
      - date-bases : 기간 기준 [{ value, label }] — 비우면 기간 칸이 없다. 하나면 고르는 칸 없이 이름만
      - 기간 기본값은 화면이 정하지 않는다 : 정책 ui.search_range_* ( GET /common/search-defaults )
        처음 열릴 때 from · to 가 비어 있으면 기본값을 채우고 search 를 한 번 쏜다 ( auto-search )
+     - 주소에 ?kw= 가 있으면( 알림에서 온 화면 ) 그 값을 검색어로, 기간은 비우고 조회
      - 조회하지 않는다 — search · reset 을 쏘기만. 조회는 화면이
      - 슬롯 : default( 화면별 칸 — 상태 · 고객사 … ) — 검색 조건 · 검색어 앞에 놓인다
      - 높이는 모두 36px( md · 버튼과 같다 ) — 화면별 칸도 size 를 주지 않는다 ( 2026-10-30 )
@@ -28,6 +29,7 @@
         <BaseInput v-model="model.keyword" :placeholder="placeholder" class="w-60" @keyup.enter="emitSearch" />
         <BaseButton variant="primary" :disabled="showBusy" @click="emitSearch">조회</BaseButton>
         <BaseButton variant="secondary" @click="reset">초기화</BaseButton>
+        <slot name="append"></slot>
         <p v-if="rangeError" class="w-full text-xs text-red-500">{{ rangeError }}</p>
     </div>
 </template>
@@ -49,8 +51,8 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 
 const QUICK = [
     { key: 'today', label: '오늘' },
-    { key: 'week',  label: '이번 주' },
-    { key: 'month', label: '이번 달' },
+    // { key: 'week',  label: '이번 주' },
+    // { key: 'month', label: '이번 달' },
 ];
 
 const props = defineProps({
@@ -129,8 +131,26 @@ function quick(key) {
     emitSearch();
 }
 
+// 주소의 ?kw= ( 알림을 눌러 온 화면 — 문서 번호 ) : 검색어로 넣고 기간은 비운다( 전체 ) ( 11-13 )
+function keywordFromUrl() {
+    try {
+        return new URLSearchParams(window.location.search).get('kw')?.trim() || '';
+    } catch (e) {
+        return '';
+    }
+}
+
 onMounted(async () => {
-    if (props.dateBases.length && !model.value.from && !model.value.to) {
+    const kw = keywordFromUrl();
+    if (kw) {
+        model.value.keyword = kw;
+        model.value.search_field = '';
+        if (props.dateBases.length) {
+            model.value.from = '';
+            model.value.to   = '';
+            if (!model.value.date_basis) model.value.date_basis = props.dateBases[0].value;
+        }
+    } else if (props.dateBases.length && !model.value.from && !model.value.to) {
         await applyDefaults();
     }
     if (props.autoSearch) emit('search');

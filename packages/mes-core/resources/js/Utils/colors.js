@@ -22,6 +22,7 @@ export const COLORS = {
     blue600:  '#2563eb',
     blue700:  '#1d4ed8',
     blue800:  '#1e40af',
+    blue950:  '#172554',   // 옅은 파랑 바탕 위 글자 ( 달력 막대 — 11-12 )
 
     red50:    '#fef2f2',
     red500:   '#ef4444',
@@ -35,11 +36,13 @@ export const COLORS = {
     amber400: '#fbbf24',
     amber600: '#d97706',
     amber700: '#b45309',
+    amber900: '#78350f',   // 노랑 바탕 위 글자 ( 달력 막대 — 11-12 )
 
     green50:  '#f0fdf4',
     green200: '#bbf7d0',
     green600: '#16a34a',
     green700: '#15803d',
+    green950: '#052e16',   // 초록 바탕 위 글자 ( 달력 막대 — 11-12 )
 
     sky100:   '#e0f2fe',   // 그리드 고른 행( row-selected ) — 이 하나만 다른 계열
 };

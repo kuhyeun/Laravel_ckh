@@ -118,18 +118,16 @@ class ItemRules {
         }
     }
 
-    // 검증 뒤 저장 전 정리 ( 빈 숫자 → 0, 소재 항목은 원소재만 )
+    // 검증 뒤 저장 전 정리 ( 빈 숫자 → 0, 소재 항목은 비움 )
     public static function normalize(array $v): array {
         foreach (self::ZERO_DEFAULTS as $field) {
             $v[$field] = $v[$field] ?? 0;
         }
         $v['spec_dim'] = $v['spec_dim'] ?? 1;
 
-        // 소재 항목은 원소재( STOCK )만 의미가 있음 → 그 외는 비움
-        if (($v['item_kind'] ?? null) !== 'STOCK') {
-            $v['min_usable_spec'] = null;
-            $v['calc_code']       = null;
-        }
+        // 소재 항목( 최소 사용 규격 · 계산식 )은 원소재 전용이었다 — 원소재를 없앴으므로( 11-12 ) 늘 비운다 ( 칸은 남겨 둠 )
+        $v['min_usable_spec'] = null;
+        $v['calc_code']       = null;
 
         // 라우팅 · BOM 은 만드는 품목( 제품 )만 → 자재는 기본 라우팅 비움 ( 주 자재 BOM 은 ItemController 에서 건너뜀 )
         if (($v['item_type'] ?? null) !== 'PRODUCT') {

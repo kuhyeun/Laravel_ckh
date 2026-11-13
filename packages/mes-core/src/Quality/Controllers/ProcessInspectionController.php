@@ -127,7 +127,6 @@ class ProcessInspectionController extends Controller {
         $userName = fn ($u) => $u ? ($u->user_name ?: $u->user_id) : null;
         $latest   = $op->isIflOp() ? $this->inspections->stageLatest($op) : [];
         $lastOpen = $ops->where('status', '!=', 'DONE')->count() === 1 && $op->status !== 'DONE';
-        $typeName = fn ($i) => $this->defects->typeName($i->defects->first()?->defect_type_code);
 
         return response()->json([
             'op' => [
@@ -163,8 +162,7 @@ class ProcessInspectionController extends Controller {
                 'result'         => $i->result,
                 'pass_qty'       => (float) $i->pass_qty,
                 'fail_qty'       => (float) $i->fail_qty,
-                'defect_type'    => $typeName($i),
-                'reason'         => $i->defects->first()?->reason,
+                ...$this->defects->summary($i->defects),   // defect_type · reason ( 불량 여러 줄 요약 )
                 'remark'         => $i->remark,
                 'inspected_at'   => $i->inspected_at?->format('Y-m-d H:i'),
                 'inspector_name' => $userName($i->inspector),
@@ -191,6 +189,10 @@ class ProcessInspectionController extends Controller {
             'fail_qty'         => 'nullable|numeric|min:0|max:999999999999',
             'defect_type_code' => 'nullable|string|max:30',
             'reason'           => 'nullable|string|max:200',
+            'defects'                    => 'nullable|array|max:20',   // 불량 여러 줄 ( 11-12 )
+            'defects.*.defect_type_code' => 'nullable|string|max:30',
+            'defects.*.qty'              => 'nullable|numeric|min:0|max:999999999999',
+            'defects.*.reason'           => 'nullable|string|max:200',
             'inspector_idx'    => ['required', 'integer', User::pickableRule()],
             'inspected_at'     => 'required|date_format:Y-m-d\TH:i',
             'remark'           => 'nullable|string|max:2000',

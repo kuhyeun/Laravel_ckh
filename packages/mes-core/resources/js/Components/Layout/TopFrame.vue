@@ -16,13 +16,8 @@
             <button id="user-info" class="mr-3" @click="openUserInfo">
                 <InformationCircleIcon class="h-6 w-6 fill-gray-700 hover:fill-blue-500"/>
             </button>
-            <!-- <button id="alarm" class="relative mr-3 hover:text-blue-500" @click="openGridModal">
-                <BellIcon class="h-6 w-6" />
-                <span v-if="alarmCount > 0"
-                    class="absolute -top-1 -right-[5px] bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-start justify-center px-0.5">
-                    {{ alarmCount > 99 ? '99+' : alarmCount }}
-                </span>
-            </button> -->
+            <!-- 내 알림 ( 11-13 — 결재 요청 · 승인 · 반려 ) -->
+            <NotificationBell />
             <Link :href="route('user.dashboard')" class="mr-3 text-gray-700  hover:text-blue-500">대시보드</Link>
             <button type="button" class="text-gray-700 hover:text-blue-500" @click="logout">로그아웃</button>
         </div>
@@ -36,9 +31,8 @@ import { storeToRefs } from 'pinia';
 import { useUiStore } from '@core/Stores/uiStore';
 import { useModalStore } from '@core/Stores/modalStore';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BellIcon } from '@heroicons/vue/24/outline';
 import { Bars3BottomLeftIcon, InformationCircleIcon } from '@heroicons/vue/24/solid';
-import GridModal from '@core/Components/Modals/ModalGridList.vue';
+import NotificationBell from '@core/Components/Layout/NotificationBell.vue';
 
 // 로그아웃은 POST ( 11-09 코드 검사 A-4 — GET 이면 다른 사이트의 링크 · 이미지 하나로 강제 로그아웃됐다 ) · axios 가 XSRF 토큰을 붙인다
 async function logout() {
@@ -66,7 +60,6 @@ const pageTitle = computed(() => {
     };
     return find(page.props.userMenu) || find(page.props.adminMenu);
 });
-const alarmCount = ref(15); // 뱃지 카운트 예시
 
 const toggleSidebar = () => {
     const sidebarStateKey = 'sidebar-collapsed';
@@ -94,16 +87,6 @@ const openUserInfo = () => {
     };
 
     modalStore.open( UserDetail, { modalTitle: "로그인 정보", user }, modalOptions );
-};
-
-const openGridModal = () => {
-    const modalOptions = {
-        size: "lg",
-        closeOnClickOutside: true,
-        closeOnEsc: true
-    };
-
-    modalStore.open( GridModal, { modalTitle: "알림 리스트" }, modalOptions );
 };
 </script>
 

@@ -42,7 +42,8 @@ import ClaimForm from '@core/Components/Shipment/ClaimForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
-import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
+import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
+import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
 const { showFlash } = useToast();
@@ -62,12 +63,12 @@ const partners = ref([]);
 const columns = [
     { header: '접수일', name: 'claim_date', width: 90, align: 'center', className: 'cursor-pointer' },
     { header: '클레임 번호', name: 'claim_no', width: 130, className: 'cursor-pointer' },
-    { header: '출하번호', name: 'shipment_no', width: 130, className: 'cursor-pointer' },
+    { header: '출하번호', name: 'shipment_no', width: 130, className: 'cursor-pointer', formatter: ({ value }) => value || `<span style="color:${COLORS.gray400}">출하 없음</span>` },
     { header: '출하일', name: 'shipped_at', width: 90, align: 'center', className: 'cursor-pointer' },
     { header: '고객사', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
     { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '클레임 수량', name: 'qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) },
-    { header: '출하 수량', name: 'shipped_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) },
+    { header: '출하 수량', name: 'shipped_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => value === null || value === undefined ? '' : fmtQty(value, row.spec_unit) },
     { header: '유형', name: 'claim_type', width: 100, className: 'cursor-pointer', escapeHTML: true },
     { header: '내용', name: 'content', minWidth: 160, className: 'cursor-pointer', escapeHTML: true },
     { header: '첨부', name: 'file_count', width: 60, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? `📎 ${value}` : '' },

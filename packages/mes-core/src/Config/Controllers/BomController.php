@@ -110,7 +110,37 @@ class BomController extends Controller {
         ]);
     }
 
-    // 품목의 라우팅 줄 ( 새 BOM 작성 시 투입 지점 선택지 )
+    // BOM 트리 ( 활성 BOM 을 하위까지 · 11-12 ) — qty = 맨 위 품목 수량 ( 누적 소요 기준 · 기본 1 )
+    public function tree(Request $request, int $itemIdx) {
+        $item = Item::find($itemIdx);
+        if (!$item) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        return response()->json([
+            'item'      => ['item_idx' => $item->item_idx, 'item_code' => $item->item_code, 'item_name' => $item->item_name, 'spec' => $item->spec, 'spec_unit' => $item->spec_unit],
+            'can_write' => app(\MesCore\Menu\Services\MenuPermissionService::class)->canPageForMe('Config/BomManage', 'can_write'),
+        ] + $this->boms->treeData((int) $item->item_idx));
+    }
+
+    // BOM 트리에서 저장 ( 11-12 ) — 고친 품목들의 활성 BOM 을 한 번에 · 하나라도 틀리면 전부 되돌린다
+    public function saveTree(Request $request) {
+        $validated = $request->validate([
+            'boms'            => 'required|array|min:1|max:100',
+            'boms.*.item_idx' => 'required|integer|distinct|exists:item,item_idx',
+            'boms.*.lines'    => 'present|array|max:200',
+        ] + BomService::lineRules('boms.*.lines'), BomService::lineMessages('boms.*.lines'), BomService::lineAttributes('boms.*.lines'));
+
+        try {
+            $result = DB::transaction(fn () => $this->boms->saveTree($validated['boms']));
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Throwable $e) {
+            Log::error('BOM 트리 저장 실패 : ' . $e->getMessage());
+            return response()->json(['message' => 'Failed'], 500);
+        }
+        return response()->json(['message' => 'Success'] + $result, 200);
+    }
+
     public function routingLines(int $itemIdx) {
         $item = Item::find($itemIdx);
         if (!$item) {
@@ -336,6 +366,7 @@ class BomController extends Controller {
             'routing_line_seq' => $l->routingLine?->seq,
             'routing_line_name' => $l->routingLine?->process?->process_name,
             'qty'              => $l->qty,
+            'yield_qty'        => $l->yield_qty,   // 생산 가능 수량 ( 11-12 )
             'calc_code'        => $l->calc_code,
             'ext_n01'          => $l->ext_n01,
             'remark'           => $l->remark,

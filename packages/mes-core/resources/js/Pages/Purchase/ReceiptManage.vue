@@ -105,15 +105,21 @@ const blank = () => '';
 const HEAD_FIELDS = ['occurred_at', 'recorded_at', 'partner_name'];
 
 const columns = [
-    { header: '입고번호', name: 'txn_no', width: 200, sortable: true, className: 'cursor-pointer', formatter: ({ row }) => row.is_line ? `${row.txn_no} - ${row.line_no}` : row.txn_no },
+    { header: '입고번호', name: 'txn_no', width: 180, sortable: true, className: 'cursor-pointer', formatter: ({ row }) => row.is_line ? `${row.txn_no} - ${row.line_no}` : row.txn_no },
     { header: '입고일시', name: 'occurred_at', width: 125, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.occurred_at) },
-    { header: '구매처', name: 'partner_name', width: 180, sortable: true, className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.partner_name)) },
+    { header: '구매처', name: 'partner_name', width: 160, sortable: true, className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.partner_name)) },
     { header: '발주', name: 'po_summary', width: 140, className: 'cursor-pointer', escapeHTML: true, formatter: pick(r => r.po_summary, r => r.order_no ?? '( 직접 )') },
     { header: '품목', name: 'item_summary', minWidth: 180, className: 'cursor-pointer', escapeHTML: true,
       formatter: pick(r => r.item_summary, r => itemLabel(r)) },
     { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
     { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', minWidth: 150, className: 'cursor-pointer', escapeHTML: true, formatter: pick(blank, r => r.lot_no ?? '') },
+    { header: '상태', name: 'status', width: 110, align: 'center', className: 'cursor-pointer',
+      formatter: ({ row }) => {
+          const s = lineLike(row) ? row.line_status : row.status;
+          const t = !lineLike(row) && s === 'WAIT' ? `검사대기 ${row.wait_count} / ${row.line_count}` : receiptStatusLabel(s);
+          return `<span style="color:${receiptStatusColor(s)};font-weight:${row.is_line ? 400 : 600}">${t}</span>`;
+        } },
     // 발주 · 불량 · 입고 — 입고 = 재고에 잡힌 수량( 합격분 · 무검사면 전부 ). 검사대기는 입고 칸에 회색으로 ( 아직 재고 아님 )
     { header: '발주 수량', name: 'po_qty_total', width: 90, align: 'right', className: 'cursor-pointer',
       formatter: pick(r => r.po_qty_total === null ? '-' : num(r.po_qty_total), r => r.po_qty === null ? `<span style="color:${COLORS.gray400}">( 직접 )</span>` : num(r.po_qty)) },
@@ -124,14 +130,8 @@ const columns = [
           r => r.pass_total === null ? '-' : `${num(r.pass_total)}${r.wait_total > 0 ? ` <span style="color:${COLORS.gray400}">· 대기 ${num(r.wait_total)}</span>` : ''}`,
           r => r.line_status === 'WAIT' ? `<span style="color:${COLORS.gray400}">검사대기 ${num(r.qty)}</span>`
               : r.line_status === 'CANCELED' ? `<span style="color:${COLORS.gray400}">-</span>`
-              : (r.spec_value !== null && r.spec_value !== undefined && r.spec_value !== '' ? `${num(r.spec_value)} × ${num(r.pass_qty)}` : num(r.pass_qty))) },   // 단위 없이 ( 원소재는 규격 × 개수 )
+              : num(r.pass_qty)) },   // 단위 없이
     { header: '검사', name: 'insp_mode', width: 70, align: 'center', className: 'cursor-pointer', formatter: pick(blank, r => inspModeLabel(r.insp_mode)) },
-    { header: '상태', name: 'status', width: 110, align: 'center', className: 'cursor-pointer',
-      formatter: ({ row }) => {
-          const s = lineLike(row) ? row.line_status : row.status;
-          const t = !lineLike(row) && s === 'WAIT' ? `검사대기 ${row.wait_count} / ${row.line_count}` : receiptStatusLabel(s);
-          return `<span style="color:${receiptStatusColor(s)};font-weight:${row.is_line ? 400 : 600}">${t}</span>`;
-        } },
     { header: '등록', name: 'recorded_at', width: 125, align: 'center', sortable: true, className: 'cursor-pointer',
         formatter: ditto(r => `<span style="color:${COLORS.gray400}">${r.recorded_at}</span>`) },
 ];

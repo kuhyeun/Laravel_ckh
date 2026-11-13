@@ -6,6 +6,7 @@ use MesCore\Basic\Controllers\CodeController;
 use MesCore\Basic\Controllers\ConfigController;
 use MesCore\Basic\Controllers\MemberController;
 use MesCore\Basic\Controllers\MemberAuthController;
+use MesCore\Basic\Controllers\ActivityLogController;
 use MesCore\Auth\Middleware\AdminAuth;
 use MesCore\Auth\Middleware\LevelAuth;
 use MesCore\Auth\Middleware\MenuAuth;
@@ -23,6 +24,13 @@ Route::middleware([AdminAuth::class])->group(function() {
             Route::post('/save', [ConfigController::class, 'save'])->middleware(MenuAuth::class . ':Basic/SystemConfig,can_write')->name('save');
         });
         
+        // 활동 로그 ( ActivityLog 페이지 · 조회 전용 — 11-12 )
+        Route::prefix('activity')->name('activity.')->middleware(MenuAuth::class . ':Basic/ActivityLog,can_read')->group(function() {
+            Route::get('/formData', [ActivityLogController::class, 'formData'])->name('formData');
+            Route::get('/list', [ActivityLogController::class, 'list'])->name('list');
+            Route::get('/show/{idx}', [ActivityLogController::class, 'show'])->whereNumber('idx')->name('show');
+        });
+
         // 공통 코드관리 ( CodeManage 페이지 ). 등록·수정·삭제는 해당 페이지 권한 검사
         Route::prefix('code')->name('code.')->group(function() {
             $codeWrite  = MenuAuth::class . ':Basic/CodeManage,can_write';

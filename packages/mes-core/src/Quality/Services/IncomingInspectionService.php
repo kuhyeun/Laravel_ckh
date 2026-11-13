@@ -36,7 +36,7 @@ class IncomingInspectionService {
         if (abs(($pass + $fail) - (float) $line->qty) > 0.000001) {
             throw ValidationException::withMessages(['pass_qty' => ['합격과 불합격을 더하면 입고 수량( ' . $this->num((float) $line->qty) . ' )이 되어야 합니다.']]);
         }
-        $this->defects->validate($fail, $data['defect_type_code'] ?? null, $data['reason'] ?? null);
+        $this->defects->validateRows($fail, $data);   // 불량 여러 줄 ( 11-12 )
 
         $at = Carbon::parse($data['inspected_at']);
         if ($at->gt(now()->addMinutes(10))) {
@@ -62,15 +62,12 @@ class IncomingInspectionService {
                 'remark'        => $data['remark'] ?? null,
             ]);
 
-            $this->defects->record($inspection, [
+            $this->defects->recordRows($inspection, [
                 'item_idx'         => $line->item_idx,
                 'lot_idx'          => $line->lot_idx,
                 'partner_idx'      => $line->txn->partner_idx,
-                'qty'              => $fail,
-                'defect_type_code' => $data['defect_type_code'] ?? null,
-                'reason'           => $data['reason'] ?? null,
                 'occurred_at'      => $at,
-            ]);
+            ], $fail, $data);
 
             $this->receipts->confirm($line, (string) $pass, (string) $fail, $at);
             $line->txn->refreshStatus();

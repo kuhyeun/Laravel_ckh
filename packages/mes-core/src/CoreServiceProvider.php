@@ -90,6 +90,9 @@ class CoreServiceProvider extends ServiceProvider {
         // 쿼리 로그 · 쿼리 오류 ( sql.log )
         \MesCore\Support\Logging\MesLogging::boot($this->app);
 
+        // 활동 로그 ( 누가 · 어느 메뉴에서 · 무엇을 — 표 activity_log · 11-12 ) : web 묶음 맨 뒤 ( 세션 · 로그인 뒤 · 라우트 미들웨어 바깥 )
+        $this->app['router']->pushMiddlewareToGroup('web', \MesCore\Support\ActivityLogger::class);
+
         // 마이그레이션 등록
         $this->loadMigrationsFrom(__DIR__ . '/../database/migrations');
 

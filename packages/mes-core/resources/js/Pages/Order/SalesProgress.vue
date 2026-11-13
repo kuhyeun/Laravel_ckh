@@ -1,7 +1,8 @@
 <!-- 수주진행관리 ( SAL-03 · 2002 ) / 수주관리 > 수주진행관리 — docs/screens/30-수주.md §10 · 조회만
      - 한 행 = 수주, ▸ 로 줄 펼침( 줄이 하나면 한 행 — 스타일 가이드 §5 트리 )
      - 줄마다 지시 · 원자재 입고 / 출고 · 공정 요약 · 생산 · 출고검사 · 출하 · 진행 단계 · 납기 지연
-     - 줄 클릭 → 공정 상세 모달( SalesProgressDetail ) / 머리 클릭 → 펼침 · 접기 -->
+     - 줄 클릭 → 공정 상세 모달( SalesProgressDetail ) / 머리 클릭 → 펼침 · 접기
+     - 한 줄에 작업지시가 여럿이면 그 줄 아래로 지시마다 한 행 ( 지시 수량 · 생산 · 공정 · 원자재 출고 · 상태 — 11-12 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
 
@@ -65,6 +66,7 @@ import { ditto, escapeHtml } from '@core/Utils/gridTree';
 import { COLORS, STATUS_COLOR } from '@core/Utils/colors';
 import { PROGRESS_STATUS_FILTER, progressLabel, progressColor } from '@core/Components/Order/orderCodes';
 import { inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
+import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 
 defineOptions({ layout: AppLayout });
@@ -96,8 +98,10 @@ const gridOptions = {
     treeColumnOptions: { name: 'order_no', useIcon: false, useCascadingCheckbox: false },
 };
 
-const lineLike = (row) => row.is_line || row._single;
+const lineLike = (row) => !row.is_wo && (row.is_line || row._single);
 const onLine   = (fn) => ({ row }) => lineLike(row) ? fn(row) : '';
+// 지시 행 ( 줄에 지시가 여럿일 때 ) 은 woFn · 줄 행은 lineFn
+const onLineOrWo = (lineFn, woFn) => ({ row }) => row.is_wo ? woFn(row) : lineLike(row) ? lineFn(row) : '';
 const tint     = (color, text, bold = false) => `<span style="color:${color}${bold ? ';font-weight:600' : ''}">${text}</span>`;
 const muted    = (text) => tint(COLORS.gray400, text);
 
@@ -121,7 +125,7 @@ const qtyOf = (done, total, color) => `${tint(color, fmtNum(done))} ${muted(`/ $
 
 const columns = [
     { header: '수주번호', name: 'order_no', width: 180, sortable: true, className: 'cursor-pointer', lockHide: true,
-      formatter: ({ row }) => row.is_line ? `${row.order_no} - ${row.line_no}` : row.order_no },
+      formatter: ({ row }) => row.is_wo ? muted(`└ ${escapeHtml(row.wo_no)}`) : row.is_line ? `${row.order_no} - ${row.line_no}` : row.order_no },
     { header: '수주일', name: 'order_date', width: 95, align: 'center', sortable: true, className: 'cursor-pointer',
       formatter: ditto(r => r.order_date ?? '') },
     { header: '고객사', name: 'partner_name', width: 130, sortable: true, className: 'cursor-pointer',
@@ -133,22 +137,23 @@ const columns = [
     { header: '규격', name: 'item_spec', width: 100, className: 'cursor-pointer', escapeHTML: true },
     { header: '재질', name: 'item_material', width: 80, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'qty', width: 90, align: 'right', className: 'cursor-pointer',
-      formatter: onLine(r => `${fmtNum(r.qty)} ${r.spec_unit ?? ''}`) },
+      formatter: onLineOrWo(r => `${fmtNum(r.qty)} ${r.spec_unit ?? ''}`, r => tint(COLORS.gray500, `지시 ${fmtNum(r.wo_qty)}`)) },
     { header: '납기', name: 'next_due_date', width: 95, align: 'center', sortable: true, className: 'cursor-pointer',
       formatter: ({ row }) => {
           const d = lineLike(row) ? row.due_date : row.next_due_date;
           return d ? (row.late ? tint(STATUS_COLOR.bad, d, true) : d) : '';
       } },
     { header: '작업지시', name: 'wo_label', width: 160, className: 'cursor-pointer',
-      formatter: onLine(r => r.wo_count ? escapeHtml(r.wo_label) : muted('미지시')) },
+      formatter: onLineOrWo(r => r.wo_count ? escapeHtml(r.wo_label) : muted('미지시'), r => tint(woStatusColor(r.wo_status), woStatusLabel(r.wo_status), true)) },
     { header: '원자재 입고', name: 'mat_in_at', width: 95, align: 'center', className: 'cursor-pointer',
       formatter: onLine(r => r.mat_in_at ?? '') },
     { header: '원자재 출고', name: 'mat_out_at', width: 110, align: 'center', className: 'cursor-pointer',
-      formatter: onLine(matOut) },
+      formatter: onLineOrWo(matOut, r => matOut({ ...r, wo_count: 1 })) },
     { header: '공정', name: 'op_current', width: 150, className: 'cursor-pointer',
-      formatter: onLine(opCell) },
+      formatter: onLineOrWo(opCell, opCell) },
     { header: '생산', name: 'produced_qty', width: 100, align: 'right', className: 'cursor-pointer',
-      formatter: onLine(r => qtyOf(r.produced_qty, r.qty, r.produced_qty + 0.000001 >= r.qty ? STATUS_COLOR.done : COLORS.gray700)) },
+      formatter: onLineOrWo(r => qtyOf(r.produced_qty, r.qty, r.produced_qty + 0.000001 >= r.qty ? STATUS_COLOR.done : COLORS.gray700),
+          r => qtyOf(r.wo_made, r.wo_qty, r.wo_made + 0.000001 >= r.wo_qty ? STATUS_COLOR.done : COLORS.gray700)) },
     { header: '출고검사', name: 'ship_insp', width: 110, align: 'center', className: 'cursor-pointer',
       formatter: onLine(r => r.ship_insp === 'NONE' ? '' : tint(inspectColor(r.ship_insp), inspectLabel(r.ship_insp), true) + (r.ship_insp_at ? muted(` ${r.ship_insp_at.slice(5)}`) : '')) },
     { header: '출하', name: 'shipped_qty', width: 140, align: 'right', className: 'cursor-pointer',
@@ -157,7 +162,7 @@ const columns = [
     { header: '출하일', name: 'shipped_at', width: 95, align: 'center', className: 'cursor-pointer',
       formatter: onLine(r => r.shipped_at ?? '') },
     { header: '진행', name: 'stage', width: 120, align: 'center', className: 'cursor-pointer',
-      formatter: ({ row }) => tint(progressColor(row.stage), progressLabel(row.stage), true)
+      formatter: ({ row }) => row.is_wo ? '' : tint(progressColor(row.stage), progressLabel(row.stage), true)
           + (!lineLike(row) && row.line_count > 1 ? muted(` ${row.line_done}/${row.line_count}`) : '')
           + (row.late ? ' ' + tint(STATUS_COLOR.bad, '지연', true) : '') },
 ];
@@ -174,12 +179,15 @@ function params(extra = {}) {
 }
 
 // 줄이 하나면 머리 + 그 줄을 한 행으로 ( 진행 · 지연은 줄 값 )
+//   줄에 지시가 여럿이면( wos ) 그 줄 아래로 지시 행 ( is_wo — 줄 클릭과 같이 상세를 연다 )
+const woRows = (line) => (line.wos ?? []).map(w => ({ ...w, is_wo: true, sales_order_line_idx: line.sales_order_line_idx, order_no: line.order_no, line_no: line.line_no }));
+const withWos = (line) => (line.wos ?? []).length ? { ...line, _children: woRows(line), _attributes: { expanded: true } } : line;
 const toGridRows = (list) => list.map(r => {
     if ((r._children ?? []).length === 1) {
         const { _children, ...head } = r;
-        return { ...head, ..._children[0], is_line: false, _single: true };
+        return withWos({ ...head, ..._children[0], is_line: false, _single: true });
     }
-    return r;
+    return { ...r, _children: (r._children ?? []).map(withWos) };
 });
 
 async function load() {
@@ -202,7 +210,7 @@ function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage();
 
 // 줄 → 공정 상세 / 머리( 줄 여럿 ) → 펼침 · 접기
 function onRowClick(row) {
-    if (lineLike(row)) {
+    if (lineLike(row) || row.is_wo) {
         modalStore.open(
             SalesProgressDetail,
             { lineIdx: row.sales_order_line_idx, modalTitle: `수주 진행 [ ${row.order_no} - ${row.line_no} ]` },
@@ -246,6 +254,7 @@ async function exportRows() {
     return (data.rows ?? []).flatMap(o => (o._children ?? []).map(l => ({
         ...l,
         order_no:       `${l.order_no}-${l.line_no}`,
+        wo_label:       (l.wos ?? []).length ? l.wos.map(w => `${w.wo_no} ( ${fmtNum(w.wo_qty)} )`).join(', ') : l.wo_label,   // 지시가 여럿이면 지시별 수량
         op_text:        !l.op_total ? '' : l.op_state === 'DONE' ? `완료 ${l.op_done}/${l.op_total}` : `${l.op_current} ${l.op_state === 'RUN' ? '진행' : '대기'} ${l.op_done}/${l.op_total}`,
         ship_insp_text: l.ship_insp === 'NONE' ? '' : inspectLabel(l.ship_insp),
         stage_text:     progressLabel(l.stage),

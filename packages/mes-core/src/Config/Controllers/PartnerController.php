@@ -95,6 +95,11 @@ class PartnerController extends Controller {
 
         $siteKeys = collect($request->input('sites', []))->pluck('key')->filter()->all();
 
+        // 새 거래처인데 코드를 비웠으면 자동으로 매긴다 ( 고객사 CU · 구매처 SU · 외주처 SC + 일련번호 — CodeGenerator · 11-12 )
+        if (!$partner->exists && trim((string) $request->input('partner_code')) === '') {
+            $request->merge(['partner_code' => \MesCore\Config\Services\CodeGenerator::partner($request->only(Partner::ROLE_COLUMNS))]);
+        }
+
         // 기본 정보 규칙은 엑셀 일괄 등록과 같이 쓴다 ( PartnerRules ) + 화면 전용 칸
         $validated = $request->validate(PartnerRules::rules($partner) + [
             'sites'               => 'present|array',

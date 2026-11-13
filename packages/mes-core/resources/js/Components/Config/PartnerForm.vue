@@ -33,8 +33,9 @@
             <!-- 탭 1 · 기본 -->
             <div v-show="tab === 'basic'" class="grid grid-cols-2 gap-x-4 gap-y-3 pt-4">
                 <div>
-                    <label class="block text-gray-500 font-medium mb-1">거래처코드 <span class="text-red-400">*</span></label>
-                    <BaseInput v-model="form.partner_code" class="w-full" placeholder="예: PT-0012" :disabled="!canWrite" />
+                    <!-- 새 거래처는 비우면 자동 ( 고객사 CU · 구매처 SU · 외주처 SC + 일련번호 · 11-12 ) -->
+                    <label class="block text-gray-500 font-medium mb-1">거래처코드 <span v-if="isEdit" class="text-red-400">*</span><span v-else class="ml-1 text-xs font-normal text-gray-400">비우면 자동</span></label>
+                    <BaseInput v-model="form.partner_code" class="w-full" :placeholder="isEdit ? '예: PT-0012' : `비우면 자동 ( 예: ${autoCodeHint} )`" :disabled="!canWrite" />
                     <p v-if="errors.partner_code" class="text-xs text-red-500 mt-0.5">{{ errors.partner_code[0] }}</p>
                 </div>
                 <div>
@@ -220,9 +221,9 @@
                 </div>
             </div>
 
-            <!-- 탭 4 · 첨부 ( 사업자등록증 · 계약서 · 밀시트 등 — 올리기 · 삭제는 바로 저장된다 ) -->
+            <!-- 탭 4 · 첨부 ( 사업자등록증 · 계약서 · 밀시트 등 — 수정 : 올리기 · 삭제는 바로 저장 / 신규 : 골라 두면 저장할 때 올린다 ) -->
             <div v-show="tab === 'files'" class="pt-4">
-                <AttachFiles ref-type="partner" :ref-id="form.partner_idx" category="ETC" :readonly="!canWrite" @change="n => fileCount = n" />
+                <AttachFiles ref="attachRef" deferred ref-type="partner" :ref-id="form.partner_idx" category="ETC" :readonly="!canWrite" @change="n => fileCount = n" />
                 <p v-if="isEdit && canWrite" class="mt-2 text-xs text-gray-400">첨부는 올리거나 지우면 바로 반영됩니다. ( [수정]을 누르지 않아도 됩니다 )</p>
             </div>
         </template>
@@ -248,6 +249,14 @@ import { useCommonCode } from '@core/Composables/useCommonCode';
 import PolicyOverrideField from '@core/Components/Config/PolicyOverrideField.vue';
 import { PARTNER_ROLES } from '@core/Components/Config/partnerCodes';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
+import { showAlert } from '@core/Utils/message';
+
+// 신규 등록 때 골라 둔 첨부를 저장 뒤 올린다 ( AttachFiles deferred · 11-12 ) — 실패한 파일만 알린다
+const attachRef = ref(null);
+async function flushAttach(refId) {
+    const failed = (await attachRef.value?.flush(refId)) ?? [];
+    if (failed.length) await showAlert('첨부 일부 실패', `저장은 되었고, 아래 파일은 올리지 못했습니다. 수정 화면에서 다시 올리세요.\n${failed.join('\n')}`, 'warning');
+}
 
 const props = defineProps({
     partner:  { type: Object,   default: null },   // 목록 행 ( partner_idx 로 상세 재조회 )
@@ -257,6 +266,8 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const isEdit = computed(() => !!props.partner?.partner_idx);
+// 거래처코드 자동 생성 예시 ( 서버 CodeGenerator 와 같은 머리글자 )
+const autoCodeHint = computed(() => `${form.is_customer === 'Y' ? 'CU' : form.is_supplier === 'Y' ? 'SU' : form.is_subcon === 'Y' ? 'SC' : 'PT'}-0001`);
 
 const TABS = [
     { key: 'basic',    label: '기본' },
@@ -404,6 +415,7 @@ async function save() {
             policies: Object.fromEntries(Object.entries(policies).map(([k, v]) => [k, v === '' ? null : v])),
         };
         const { data } = await window.axios.post(route('config.partner.save'), payload);
+        await flushAttach(data.partner?.partner_idx);
         props.onSaved?.(data.partner);
         emit('close');
     } catch (e) {

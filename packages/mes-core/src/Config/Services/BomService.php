@@ -21,11 +21,13 @@ class BomService {
     public const LINE_ATTRIBUTES = [
         'child_item_idx'   => '자재',
         'qty'              => '소요',
+        'yield_qty'        => '생산 가능 수량',
         'routing_line_idx' => '투입 지점',
         'calc_code'        => '계산식',
         'ext_n01'          => '기능형 값',
         'substitutes.*.child_item_idx' => '대체 자재',
         'substitutes.*.qty'            => '대체 자재 소요',
+        'substitutes.*.yield_qty'      => '대체 자재 생산 가능 수량',
         'substitutes.*.calc_code'      => '대체 자재 계산식',
         'substitutes.*.ext_n01'        => '대체 자재 기능형 값',
     ];
@@ -37,12 +39,15 @@ class BomService {
             "{$prefix}.*.child_item_idx"   => 'required|integer|exists:item,item_idx',
             "{$prefix}.*.routing_line_idx" => 'nullable|integer|exists:routing_line,routing_line_idx',
             "{$prefix}.*.qty"              => 'required|numeric|gt:0|max:9999999999',
+            // 생산 가능 수량 ( 자재 1개로 제품 N개 — 11-12 ) : 있으면 소요 = 올림( 수량 ÷ N ) · qty 는 서버가 1 ÷ N 으로 맞춘다
+            "{$prefix}.*.yield_qty"        => 'nullable|numeric|gt:0|max:9999',
             "{$prefix}.*.calc_code"        => 'nullable|string|max:30',
             "{$prefix}.*.ext_n01"          => 'nullable|numeric|min:0|max:9999999999',
             "{$prefix}.*.remark"           => 'nullable|string|max:2000',
             "{$prefix}.*.substitutes"                           => 'nullable|array|max:20',
             "{$prefix}.*.substitutes.*.child_item_idx"          => 'required|integer|exists:item,item_idx',
             "{$prefix}.*.substitutes.*.qty"                     => 'required|numeric|gt:0|max:9999999999',
+            "{$prefix}.*.substitutes.*.yield_qty"               => 'nullable|numeric|gt:0|max:9999',
             "{$prefix}.*.substitutes.*.calc_code"               => 'nullable|string|max:30',
             "{$prefix}.*.substitutes.*.ext_n01"                 => 'nullable|numeric|min:0|max:9999999999',
             "{$prefix}.*.substitutes.*.remark"                  => 'nullable|string|max:2000',
@@ -139,14 +144,16 @@ class BomService {
 
     // 승인 해제 판단용 : 줄 · 대체 자재 구성이 바뀌었는가
     public function linesChanged(Bom $bom, array $lines): bool {
-        $sig = fn ($child, $rl, $qty, $calc, $ext, $subs) => json_encode([(int) $child, $rl ? (int) $rl : null, (float) $qty, $calc ?: null, (float) ($ext ?? 0),
-            collect($subs)->map(fn ($s) => [(int) $s['child_item_idx'], (float) $s['qty'], ($s['calc_code'] ?? null) ?: null, (float) ($s['ext_n01'] ?? 0)])->values()->all()]);
+        // 생산 가능 수량으로 넣은 줄은 그 값으로 견준다 ( qty 는 1 ÷ N 을 반올림한 값이라 )
+        $q   = fn ($qty, $yield) => (float) ($yield ?? 0) > 0 ? 'Y' . (float) $yield : (float) $qty;
+        $sig = fn ($child, $rl, $qty, $calc, $ext, $subs, $yield = null) => json_encode([(int) $child, $rl ? (int) $rl : null, $q($qty, $yield), $calc ?: null, (float) ($ext ?? 0),
+            collect($subs)->map(fn ($s) => [(int) $s['child_item_idx'], $q($s['qty'], $s['yield_qty'] ?? null), ($s['calc_code'] ?? null) ?: null, (float) ($s['ext_n01'] ?? 0)])->values()->all()]);
 
         $current = $bom->lines()->with('substitutes')->get()
-            ->map(fn (BomLine $l) => $sig($l->child_item_idx, $l->routing_line_idx, $l->qty, $l->calc_code, $l->ext_n01, $l->substitutes->toArray()))
+            ->map(fn (BomLine $l) => $sig($l->child_item_idx, $l->routing_line_idx, $l->qty, $l->calc_code, $l->ext_n01, $l->substitutes->toArray(), $l->yield_qty))
             ->sort()->values()->all();
         $next = collect($lines)
-            ->map(fn ($l) => $sig($l['child_item_idx'], $l['routing_line_idx'] ?? null, $l['qty'], $l['calc_code'] ?? null, $l['ext_n01'] ?? null, $l['substitutes'] ?? []))
+            ->map(fn ($l) => $sig($l['child_item_idx'], $l['routing_line_idx'] ?? null, $l['qty'], $l['calc_code'] ?? null, $l['ext_n01'] ?? null, $l['substitutes'] ?? [], $l['yield_qty'] ?? null))
             ->sort()->values()->all();
 
         return $current !== $next;
@@ -167,7 +174,7 @@ class BomService {
                 'seq'              => $order + 1,
                 'child_item_idx'   => $row['child_item_idx'],
                 'routing_line_idx' => $row['routing_line_idx'] ?? null,
-                'qty'              => (string) $row['qty'],
+                ...self::qtyColumns($row),
                 'calc_code'        => $row['calc_code'] ?? null,
                 'ext_n01'          => isset($row['ext_n01']) && $row['ext_n01'] !== '' ? (string) $row['ext_n01'] : null,
                 'remark'           => $row['remark'] ?? null,
@@ -193,12 +200,21 @@ class BomService {
             $sub->fill([
                 'seq'            => $order + 1,
                 'child_item_idx' => $row['child_item_idx'],
-                'qty'            => (string) $row['qty'],
+                ...self::qtyColumns($row),
                 'calc_code'      => $row['calc_code'] ?? null,
                 'ext_n01'        => isset($row['ext_n01']) && $row['ext_n01'] !== '' ? (string) $row['ext_n01'] : null,
                 'remark'         => $row['remark'] ?? null,
             ])->save();
         }
+    }
+
+    // 소요 칸 [ qty, yield_qty ] — 생산 가능 수량( 자재 1개로 제품 N개 · 11-12 )이 있으면 qty = 1 ÷ N ( 표시 · 호환용 — 계산은 MaterialNeed 가 yield 로 )
+    public static function qtyColumns(array $row): array {
+        $yield = isset($row['yield_qty']) && $row['yield_qty'] !== '' && (float) $row['yield_qty'] > 0 ? (float) $row['yield_qty'] : null;
+        return [
+            'qty'       => $yield ? \MesCore\Support\MaterialNeed::qtyOfYield($yield) : (string) $row['qty'],
+            'yield_qty' => $yield ? (string) $yield : null,
+        ];
     }
 
     // 다른 BOM 으로 줄 · 대체 자재 복사 ( 버전 추가 · 수주 자재 ) → [ 원본 줄 IDX => 새 줄 ]
@@ -212,6 +228,7 @@ class BomService {
                 'child_item_idx'   => $line->child_item_idx,
                 'routing_line_idx' => $routingLineOf ? $routingLineOf($line->routing_line_idx) : $line->routing_line_idx,
                 'qty'              => (string) $line->qty,
+                'yield_qty'        => $line->yield_qty !== null ? (string) $line->yield_qty : null,
                 'calc_code'        => $line->calc_code,
                 'ext_n01'          => $line->ext_n01 !== null ? (string) $line->ext_n01 : null,
                 'remark'           => $line->remark,
@@ -223,6 +240,7 @@ class BomService {
                     'seq'            => $sub->seq,
                     'child_item_idx' => $sub->child_item_idx,
                     'qty'            => (string) $sub->qty,
+                    'yield_qty'      => $sub->yield_qty !== null ? (string) $sub->yield_qty : null,
                     'calc_code'      => $sub->calc_code,
                     'ext_n01'        => $sub->ext_n01 !== null ? (string) $sub->ext_n01 : null,
                     'remark'         => $sub->remark,
@@ -238,6 +256,115 @@ class BomService {
     // 품목의 활성 품목 BOM ( 수주 자재 · 작업지시 자재의 원본 )
     public function activeItemBom(?int $itemIdx): ?Bom {
         return $itemIdx ? Bom::itemBoms()->where('item_idx', $itemIdx)->where('is_active', 'Y')->first() : null;
+    }
+
+    /**
+     * BOM 트리 데이터 ( BOM관리 [트리 보기] · 11-11 회의 → 11-12 트리에서 편집 )
+     *   맨 위 품목에서 활성 품목 BOM 을 따라 내려가며 닿는 품목 · BOM 을 품목별로 모은다 ( 화면이 트리로 그리고 소요를 곱한다 )
+     *   items : [ item_idx => 품목 ] / boms : [ item_idx => { bom_idx, version, approved, lines[ { bom_line_idx, child_item_idx, qty, substitutes[ { child_item_idx, qty } ] } ] } ]
+     *   대체 자재의 BOM 도 따라간다 · 같은 품목은 한 번만 ( 순환이 있어도 끝난다 ) · 품목 상한 500
+     */
+    public function treeData(int $rootIdx): array {
+        $items = [];
+        $boms  = [];
+        $queue = [$rootIdx];
+        $seen  = [$rootIdx => true];
+        while ($queue && count($seen) <= 500) {
+            $batch = $queue;
+            $queue = [];
+            $active = Bom::itemBoms()->whereIn('item_idx', $batch)->where('is_active', 'Y')
+                ->with(['lines.substitutes'])->get()->keyBy('item_idx');
+            foreach ($batch as $idx) {
+                $bom = $active->get($idx);
+                if (!$bom) continue;
+                $boms[$idx] = [
+                    'bom_idx'  => (int) $bom->bom_idx,
+                    'version'  => $bom->version,
+                    'approved' => $bom->isApproved(),
+                    'lines'    => $bom->lines->map(fn (BomLine $l) => [
+                        'bom_line_idx'   => (int) $l->bom_line_idx,
+                        'child_item_idx' => (int) $l->child_item_idx,
+                        'qty'            => (float) $l->qty,
+                        'yield_qty'      => $l->yield_qty !== null ? (float) $l->yield_qty : null,
+                        'substitutes'    => $l->substitutes->map(fn ($x) => ['child_item_idx' => (int) $x->child_item_idx, 'qty' => (float) $x->qty, 'yield_qty' => $x->yield_qty !== null ? (float) $x->yield_qty : null])->values()->all(),
+                    ])->values()->all(),
+                ];
+                foreach ($boms[$idx]['lines'] as $l) {
+                    foreach ([$l['child_item_idx'], ...array_column($l['substitutes'], 'child_item_idx')] as $child) {
+                        if (!isset($seen[$child])) {
+                            $seen[$child] = true;
+                            $queue[] = $child;
+                        }
+                    }
+                }
+            }
+        }
+        foreach (DB::table('item')->whereIn('item_idx', array_keys($seen))
+            ->get(['item_idx', 'item_code', 'item_name', 'spec', 'material', 'spec_unit', 'item_type', 'item_kind']) as $it) {
+            $items[(int) $it->item_idx] = (array) $it;
+        }
+        return ['items' => $items, 'boms' => $boms];
+    }
+
+    /**
+     * BOM 트리에서 저장 ( 11-12 ) — 고친 품목들의 활성 BOM 을 한 번에 ( 부르는 쪽이 트랜잭션 )
+     *   $boms : [ { item_idx, lines[ { bom_line_idx?, child_item_idx, qty, substitutes[ { child_item_idx, qty } ] } ] } ]
+     *   트리는 자재 · 소요 · 대체 자재만 다룬다 → 기존 줄의 투입 지점 · 계산식 · 비고는 그대로 둔다 ( bom_line_idx 로 잇는다 )
+     *   활성 BOM 이 없으면 버전 1 을 만들어 활성으로 ( 비활성 버전만 있으면 막는다 — BOM관리에서 활성 전환 )
+     *   승인된 BOM 의 구성이 바뀌면 승인이 풀린다 ( BOM관리 저장과 같은 규칙 )
+     *   @return array{created: list<string>, unapproved: list<string>} 품번
+     */
+    public function saveTree(array $boms): array {
+        $created = $unapproved = [];
+        foreach (array_values($boms) as $i => $b) {
+            $itemIdx = (int) $b['item_idx'];
+            $item    = DB::table('item')->where('item_idx', $itemIdx)->first(['item_code', 'item_type']);
+            if (!$item || $item->item_type !== 'PRODUCT') {
+                throw ValidationException::withMessages(["boms.{$i}.item_idx" => [($item->item_code ?? '품목') . ' — 자재에는 BOM 을 만들 수 없습니다.']]);
+            }
+            $bom      = $this->activeItemBom($itemIdx);
+            $existing = $bom ? $bom->lines()->with('substitutes')->get()->keyBy('bom_line_idx') : collect();
+
+            $rows = [];
+            foreach (array_values($b['lines'] ?? []) as $row) {
+                $old     = !empty($row['bom_line_idx']) ? $existing->get($row['bom_line_idx']) : null;
+                $oldSubs = $old ? $old->substitutes->keyBy('child_item_idx') : collect();
+                $rows[] = [
+                    'bom_line_idx'     => $old?->bom_line_idx,
+                    'child_item_idx'   => (int) $row['child_item_idx'],
+                    'qty'              => $row['qty'],
+                    'yield_qty'        => $row['yield_qty'] ?? null,
+                    'routing_line_idx' => $old?->routing_line_idx,
+                    'calc_code'        => $old?->calc_code,
+                    'ext_n01'          => $old?->ext_n01,
+                    'remark'           => $old?->remark,
+                    'substitutes'      => array_map(function ($x) use ($oldSubs) {
+                        $o = $oldSubs->get((int) $x['child_item_idx']);
+                        return ['child_item_idx' => (int) $x['child_item_idx'], 'qty' => $x['qty'], 'yield_qty' => $x['yield_qty'] ?? null, 'calc_code' => $o?->calc_code, 'ext_n01' => $o?->ext_n01, 'remark' => $o?->remark];
+                    }, array_values($row['substitutes'] ?? [])),
+                ];
+            }
+
+            if (!$bom) {
+                if (!$rows) continue;
+                if (Bom::itemBoms()->where('item_idx', $itemIdx)->exists()) {
+                    throw ValidationException::withMessages(["boms.{$i}.item_idx" => ["{$item->item_code} — 활성 버전이 없습니다. BOM관리에서 버전을 활성으로 전환한 뒤 고치세요."]]);
+                }
+                $bom = Bom::create(['item_idx' => $itemIdx, 'version' => '1', 'is_active' => 'Y', 'activated_at' => now()]);
+                $created[] = $item->item_code;
+            }
+
+            // 자기 자신 · 순환 · 대체 자재 규칙 — 앞 품목의 저장 결과까지 보고 검사한다
+            $this->assertLines($itemIdx, $rows, "boms.{$i}.lines");
+
+            if ($bom->isApproved() && $this->linesChanged($bom, $rows)) {
+                $bom->clearApproval();
+                $bom->save();
+                $unapproved[] = $item->item_code;
+            }
+            $this->syncLines($bom, $rows);
+        }
+        return ['created' => $created, 'unapproved' => $unapproved];
     }
 
     public function orderLineBom(int $lineIdx): ?Bom {
@@ -335,11 +462,11 @@ class BomService {
         };
         $lineRow = fn (array $r, int $seq, int $bomIdx) => [
             'bom_idx' => $bomIdx, 'seq' => $seq, 'child_item_idx' => $r['child_item_idx'], 'routing_line_idx' => $itemRoutingLine($r),
-            'qty' => (string) $r['qty'], 'calc_code' => $r['calc_code'] ?? null,
+            ...self::qtyColumns($r), 'calc_code' => $r['calc_code'] ?? null,
             'ext_n01' => isset($r['ext_n01']) && $r['ext_n01'] !== '' ? (string) $r['ext_n01'] : null, 'remark' => $r['remark'] ?? null,
         ];
         $subRow = fn (array $s) => [
-            'qty' => (string) $s['qty'], 'calc_code' => $s['calc_code'] ?? null,
+            ...self::qtyColumns($s), 'calc_code' => $s['calc_code'] ?? null,
             'ext_n01' => isset($s['ext_n01']) && $s['ext_n01'] !== '' ? (string) $s['ext_n01'] : null, 'remark' => $s['remark'] ?? null,
         ];
 
@@ -436,7 +563,8 @@ class BomService {
             ->with(['lines.substitutes', 'lines.routingLine:routing_line_idx,seq'])->get()
             ->mapWithKeys(fn (Bom $b) => [$b->sales_order_line_idx => md5(json_encode($b->lines->map(fn (BomLine $l) => [
                 (int) $l->child_item_idx, (float) $l->qty, $l->calc_code ?: null, $l->ext_n01 !== null ? (float) $l->ext_n01 : null, $l->routingLine?->seq,
-                $l->substitutes->map(fn ($s) => [(int) $s->child_item_idx, (float) $s->qty, $s->calc_code ?: null, $s->ext_n01 !== null ? (float) $s->ext_n01 : null])->values()->all(),
+                $l->substitutes->map(fn ($s) => [(int) $s->child_item_idx, (float) $s->qty, $s->calc_code ?: null, $s->ext_n01 !== null ? (float) $s->ext_n01 : null, $s->yield_qty !== null ? (float) $s->yield_qty : null])->values()->all(),
+                $l->yield_qty !== null ? (float) $l->yield_qty : null,
             ])->values()->all()))])
             ->all();
     }
@@ -475,6 +603,7 @@ class BomService {
             'child_item_kind'     => $l->childItem?->item_kind,
             'routing_line_idx'    => $l->routing_line_idx,
             'qty'                 => $l->qty,
+            'yield_qty'           => $l->yield_qty,
             'calc_code'           => $l->calc_code,
             'ext_n01'             => $l->ext_n01,
             'remark'              => $l->remark,
@@ -514,12 +643,13 @@ class BomService {
             'child_item_idx' => (int) $l->child_item_idx,
             'values'         => [
                 'qty'              => (float) $l->qty,
+                'yield_qty'        => $l->yield_qty !== null ? (float) $l->yield_qty : null,
                 'routing_line_idx' => $l->routing_line_idx ? (int) $l->routing_line_idx : null,
                 'calc_code'        => $l->calc_code ?: null,
                 'ext_n01'          => $l->ext_n01 !== null ? (float) $l->ext_n01 : null,
             ],
             'subs'           => $l->substitutes->mapWithKeys(fn ($s) => [(int) $s->child_item_idx => [
-                'qty' => (float) $s->qty, 'calc_code' => $s->calc_code ?: null, 'ext_n01' => $s->ext_n01 !== null ? (float) $s->ext_n01 : null,
+                'qty' => (float) $s->qty, 'yield_qty' => $s->yield_qty !== null ? (float) $s->yield_qty : null, 'calc_code' => $s->calc_code ?: null, 'ext_n01' => $s->ext_n01 !== null ? (float) $s->ext_n01 : null,
             ]])->all(),
         ])->values()->all();
     }
@@ -585,6 +715,7 @@ class BomService {
             'child_item_unit'         => $s->childItem?->spec_unit,
             'child_item_kind'         => $s->childItem?->item_kind,
             'qty'                     => $s->qty,
+            'yield_qty'               => $s->yield_qty,
             'calc_code'               => $s->calc_code,
             'ext_n01'                 => $s->ext_n01,
             'remark'                  => $s->remark,

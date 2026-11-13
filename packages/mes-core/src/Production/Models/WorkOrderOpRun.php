@@ -20,7 +20,7 @@ class WorkOrderOpRun extends Model {
     const CREATED_AT = 'create_datetime';
     const UPDATED_AT = 'update_datetime';
 
-    protected $fillable = ['work_order_op_idx', 'equipment_idx', 'operator_idx', 'qty', 'lot_idx', 'worked_at', 'remark', 'stock_txn_line_idx', 'is_canceled', 'canceled_by', 'canceled_at'];
+    protected $fillable = ['work_order_op_idx', 'equipment_idx', 'operator_idx', 'qty', 'lot_idx', 'started_at', 'worked_at', 'remark', 'stock_txn_line_idx', 'is_canceled', 'canceled_by', 'canceled_at'];
 
     protected $attributes = [
         'is_canceled' => 'N',
@@ -29,6 +29,7 @@ class WorkOrderOpRun extends Model {
     protected function casts(): array {
         return [
             'qty'         => 'decimal:6',
+            'started_at'  => 'datetime',
             'worked_at'   => 'datetime',
             'canceled_at' => 'datetime',
         ];

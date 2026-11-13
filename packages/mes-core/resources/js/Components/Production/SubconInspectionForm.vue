@@ -17,12 +17,12 @@
         <div v-if="receipt.status === 'WAIT'" class="mt-4 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
             <div>
                 <label class="lbl">합격 <span class="text-red-500">*</span></label>
-                <BaseInput v-model="form.pass_qty" type="number" min="0" class="w-full text-right" :disabled="!canWrite" @update:modelValue="v => rest('fail_qty', v)" />
+                <BaseInput v-model="form.pass_qty" type="number" min="0" class="w-full text-right" :disabled="!canWrite"  />
                 <p v-if="errors.pass_qty" class="text-xs text-red-500 mt-0.5">{{ errors.pass_qty[0] }}</p>
             </div>
             <div>
                 <label class="lbl">불합격</label>
-                <BaseInput v-model="form.fail_qty" type="number" min="0" class="w-full text-right" :disabled="!canWrite" @update:modelValue="v => rest('pass_qty', v)" />
+                <BaseInput :model-value="form.fail_qty" class="w-full text-right" disabled title="아래 불량 내역 합계" />
                 <p class="text-[11px] mt-0.5" :class="sumOk ? 'text-gray-400' : 'text-red-500'">합 {{ fmtNum(sum) }} / 입고 {{ fmtNum(receipt.receipt_qty) }}</p>
             </div>
             <div>
@@ -34,18 +34,10 @@
                 <BaseDatePicker v-model="form.inspected_at" mode="datetime" class="w-full" :disabled="!canWrite" />
                 <p v-if="errors.inspected_at" class="text-xs text-red-500 mt-0.5">{{ errors.inspected_at[0] }}</p>
             </div>
-            <template v-if="num(form.fail_qty) > 0">
-                <div>
-                    <label class="lbl">불량 유형 <span class="text-red-500">*</span></label>
-                    <BaseSelect v-model="form.defect_type_code" :options="options('DEFECT_TYPE')" class="w-full" placeholder="유형 선택" :disabled="!canWrite" />
-                    <p v-if="errors.defect_type_code" class="text-xs text-red-500 mt-0.5">{{ errors.defect_type_code[0] }}</p>
-                </div>
-                <div class="col-span-3">
-                    <label class="lbl">상세 <span v-if="form.defect_type_code === 'ETC'" class="text-red-500">*</span></label>
-                    <BaseInput v-model="form.reason" class="w-full" placeholder="예: 도금 얼룩 2개" maxlength="200" :disabled="!canWrite" />
-                    <p v-if="errors.reason" class="text-xs text-red-500 mt-0.5">{{ errors.reason[0] }}</p>
-                </div>
-            </template>
+            <!-- 불량 내역 ( 11-12 — 처음엔 줄 없이 · [+ 줄] 의 수량 합 = 불합격 ) -->
+            <div class="col-span-4">
+                <DefectRows v-model="form.defects" :type-options="options('DEFECT_TYPE')" :errors="errors" :disabled="!canWrite" placeholder="예: 도금 얼룩 2개" @total="onDefects" />
+            </div>
             <div class="col-span-4">
                 <label class="lbl">비고</label>
                 <BaseInput v-model="form.remark" class="w-full" :disabled="!canWrite" />
@@ -73,6 +65,7 @@ import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import DefectRows from '@core/Components/Quality/DefectRows.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
@@ -89,15 +82,16 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 const { options } = useCommonCode(['DEFECT_TYPE']);
 
-const form = reactive({ pass_qty: String(props.receipt.receipt_qty), fail_qty: '0', defect_type_code: '', reason: '', inspector_idx: props.me ?? '', inspected_at: props.now, remark: '' });
+const form = reactive({ pass_qty: String(props.receipt.receipt_qty), fail_qty: '0', defects: [], inspector_idx: props.me ?? '', inspected_at: props.now, remark: '' });
 const inspectorOptions = computed(() => props.inspectors.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 const num   = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
 const sum   = computed(() => num(form.pass_qty) + num(form.fail_qty));
 const sumOk = computed(() => Math.abs(sum.value - num(props.receipt.receipt_qty)) < 0.000001);
-// 한쪽을 넣으면 나머지를 채운다 ( 합 = 입고 수량 )
-function rest(other, v) {
-    const r = num(props.receipt.receipt_qty) - num(v);
-    if (r >= 0) form[other] = String(r);
+// 불합격 = 불량 내역 합계 → 합격 = 입고 − 불합격 ( 11-12 )
+function onDefects(t) {
+    form.fail_qty = String(t);
+    const r = +(num(props.receipt.receipt_qty) - t).toFixed(6);
+    if (r >= 0) form.pass_qty = String(r);
 }
 
 const inspection = ref(null);
@@ -121,8 +115,7 @@ async function save() {
         await window.axios.post(route('production.subcon.inspection.save', props.receipt.subcon_receipt_idx), {
             pass_qty: form.pass_qty === '' ? null : form.pass_qty,
             fail_qty: form.fail_qty === '' ? 0 : form.fail_qty,
-            defect_type_code: form.defect_type_code || null,
-            reason: form.reason || null,
+            defects: num(form.fail_qty) > 0 ? form.defects.map(r => ({ defect_type_code: r.defect_type_code || null, qty: r.qty === '' ? null : r.qty, reason: r.reason || null })) : [],
             inspector_idx: form.inspector_idx === '' ? null : Number(form.inspector_idx),
             inspected_at: form.inspected_at,
             remark: form.remark || null,
@@ -133,7 +126,7 @@ async function save() {
         if (e.response?.status === 422) {
             errors.value = e.response.data.errors || {};
             const shown = ['pass_qty', 'inspected_at', 'defect_type_code', 'reason'];
-            errorMsg.value = Object.entries(errors.value).filter(([k]) => !shown.includes(k)).flatMap(([, v]) => v).join('\n');
+            errorMsg.value = Object.entries(errors.value).filter(([k]) => !shown.includes(k) && !k.startsWith('defects')).flatMap(([, v]) => v).join('\n');
         } else {
             errorMsg.value = e.response?.status === 403 ? '권한이 없습니다.' : '검사완료하지 못했습니다.';
         }

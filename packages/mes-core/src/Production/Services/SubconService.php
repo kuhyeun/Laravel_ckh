@@ -177,7 +177,7 @@ class SubconService {
             if (abs($pass + $fail - (float) $rc->qty) > self::EPS) {
                 throw ValidationException::withMessages(['pass_qty' => ["합격과 불합격을 더하면 입고 수량( {$this->num((float) $rc->qty)} )이 되어야 합니다."]]);
             }
-            $this->defects->validate($fail, $d['defect_type_code'] ?? null, $d['reason'] ?? null);
+            $this->defects->validateRows($fail, $d);   // 불량 여러 줄 ( 11-12 )
             $at = Carbon::parse($d['inspected_at']);
             if ($at->gt(now()->addMinutes(10))) {
                 throw ValidationException::withMessages(['inspected_at' => ['아직 오지 않은 시각입니다.']]);
@@ -197,16 +197,13 @@ class SubconService {
                 'inspector_idx' => $d['inspector_idx'],
                 'remark'        => $d['remark'] ?? null,
             ]);
-            $this->defects->record($inspection, [
+            $this->defects->recordRows($inspection, [
                 'item_idx'          => $wo->item_idx,
                 'lot_idx'           => $wo->lot_idx ?? 0,
                 'partner_idx'       => $issue->partner_idx,
                 'work_order_op_idx' => $issue->work_order_op_idx,
-                'qty'               => $fail,
-                'defect_type_code'  => $d['defect_type_code'] ?? null,
-                'reason'            => $d['reason'] ?? null,
                 'occurred_at'       => $at,
-            ]);
+            ], $fail, $d);
             DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->update(['inspection_idx' => $inspection->inspection_idx]);
             $this->complete($receiptIdx, $pass, $fail, $at, (int) $d['inspector_idx']);
             return DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->first();

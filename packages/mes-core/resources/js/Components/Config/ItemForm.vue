@@ -31,8 +31,9 @@
         <!-- 탭 1 · 기본 -->
         <div v-show="tab === 'basic'" class="grid grid-cols-2 gap-x-4 gap-y-3 pt-4">
             <div>
-                <label class="block text-gray-500 font-medium mb-1">품번 <span class="text-red-400">*</span></label>
-                <BaseInput v-model="form.item_code" class="w-full" placeholder="예: PN-A" :disabled="!canWrite" />
+                <!-- 새 품목은 비우면 자동 ( 자재 MT · 반제품 SM · 제품 PD + 일련번호 · 11-12 ) -->
+                <label class="block text-gray-500 font-medium mb-1">품번 <span v-if="isEdit" class="text-red-400">*</span><span v-else class="ml-1 text-xs font-normal text-gray-400">비우면 자동</span></label>
+                <BaseInput v-model="form.item_code" class="w-full" :placeholder="isEdit ? '예: PN-A' : `비우면 자동 ( 예: ${autoCodeHint} )`" :disabled="!canWrite" />
                 <p v-if="errors.item_code" class="text-xs text-red-500 mt-0.5">{{ errors.item_code[0] }}</p>
             </div>
             <div>
@@ -184,26 +185,6 @@
                 </p>
             </div>
 
-            <!-- 소재 항목 : 원소재( STOCK )만 -->
-            <template v-if="form.item_kind === 'STOCK'">
-                <div class="mt-4 mb-2 text-xs font-semibold text-gray-500 border-b pb-1">소재</div>
-                <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-                    <div>
-                        <label class="block text-gray-500 font-medium mb-1">최소 사용 규격 <span class="text-xs text-gray-400">( 미만은 폐기 대상 )</span></label>
-                        <BaseInput
-                            v-model="form.min_usable_spec" type="number" min="0" class="w-full text-right"
-                            placeholder="미입력"
-                            :disabled="!canWrite"
-                        />
-                        <p v-if="errors.min_usable_spec" class="text-xs text-red-500 mt-0.5">{{ errors.min_usable_spec[0] }}</p>
-                    </div>
-                    <div>
-                        <label class="block text-gray-500 font-medium mb-1">계산식 코드</label>
-                        <BaseInput v-model="form.calc_code" class="w-full" placeholder="예: BAR_CUT" :disabled="!canWrite" />
-                        <p v-if="errors.calc_code" class="text-xs text-red-500 mt-0.5">{{ errors.calc_code[0] }}</p>
-                    </div>
-                </div>
-            </template>
         </div>
 
         <!-- 탭 3 · 단가 -->
@@ -311,9 +292,9 @@
             </section>
         </div>
 
-        <!-- 탭 5 · 첨부 ( 도면 등 — 올리기 · 삭제는 바로 저장된다 ) -->
+        <!-- 탭 5 · 첨부 ( 도면 등 — 수정 : 올리기 · 삭제는 바로 저장 / 신규 : 골라 두면 저장할 때 올린다 ) -->
         <div v-show="tab === 'files'" class="pt-4">
-            <AttachFiles ref-type="item" :ref-id="form.item_idx" category="DRAWING" :readonly="!canWrite" @change="n => fileCount = n" />
+            <AttachFiles ref="attachRef" deferred ref-type="item" :ref-id="form.item_idx" category="DRAWING" :readonly="!canWrite" @change="n => fileCount = n" />
             <p v-if="isEdit && canWrite" class="mt-2 text-xs text-gray-400">첨부는 올리거나 지우면 바로 반영됩니다. ( [수정]을 누르지 않아도 됩니다 )</p>
         </div>
 
@@ -346,6 +327,13 @@ import { showAlert } from '@core/Utils/message';
 import UnitSelect from '@core/Components/Common/UnitSelect.vue';
 import { fmtNum } from '@core/Utils/format';
 
+// 신규 등록 때 골라 둔 첨부를 저장 뒤 올린다 ( AttachFiles deferred · 11-12 ) — 실패한 파일만 알린다
+const attachRef = ref(null);
+async function flushAttach(refId) {
+    const failed = (await attachRef.value?.flush(refId)) ?? [];
+    if (failed.length) await showAlert('첨부 일부 실패', `저장은 되었고, 아래 파일은 올리지 못했습니다. 수정 화면에서 다시 올리세요.\n${failed.join('\n')}`, 'warning');
+}
+
 const props = defineProps({
     item:     { type: Object,   default: null },   // 있으면 수정, 없으면 등록
     canWrite: { type: Boolean,  default: false },
@@ -355,6 +343,8 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const isEdit = computed(() => !!props.item?.item_idx);
+// 품번 자동 생성 예시 ( 서버 CodeGenerator 와 같은 머리글자 )
+const autoCodeHint = computed(() => `${form.item_type === 'MATERIAL' ? 'MT' : form.item_kind === 'SEMI' ? 'SM' : 'PD'}-0001`);
 
 const TABS = [
     { key: 'basic', label: '기본' },
@@ -621,6 +611,7 @@ async function save() {
             },
         };
         const { data } = await window.axios.post(route('config.item.save'), payload);
+        await flushAttach(data.item?.item_idx);
         props.onSaved?.(data.item, data.warnings ?? []);
         emit('close');
     } catch (e) {

@@ -108,10 +108,12 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
             Route::get('/versions/{itemIdx}', [BomController::class, 'versions'])->whereNumber('itemIdx')->name('versions');
             Route::get('/show/{bomIdx}', [BomController::class, 'show'])->whereNumber('bomIdx')->name('show');
             Route::get('/routingLines/{itemIdx}', [BomController::class, 'routingLines'])->whereNumber('itemIdx')->name('routingLines');
+            Route::get('/tree/{itemIdx}', [BomController::class, 'tree'])->whereNumber('itemIdx')->name('tree');   // 트리 보기 ( 11-12 )
         });
 
         Route::middleware($bomWrite)->group(function() {
             Route::post('/save', [BomController::class, 'save'])->name('save');
+            Route::post('/saveTree', [BomController::class, 'saveTree'])->name('saveTree');   // 트리에서 저장 ( 11-12 )
             Route::post('/activate', [BomController::class, 'activate'])->name('activate');
             Route::post('/approve', [BomController::class, 'approve'])->name('approve');
             Route::post('/copyVersion', [BomController::class, 'copyVersion'])->name('copyVersion');

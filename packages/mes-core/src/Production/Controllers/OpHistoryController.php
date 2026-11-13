@@ -165,6 +165,7 @@ class OpHistoryController extends Controller {
             'run_idx'           => $r->run_idx,
             'work_order_op_idx' => $r->work_order_op_idx,
             'op_label'          => ($o = $ops->firstWhere('work_order_op_idx', $r->work_order_op_idx)) ? $opName($o) : '',
+            'started_at'        => $r->started_at?->format('Y-m-d H:i'),
             'worked_at'         => $r->worked_at?->format('Y-m-d H:i'),
             'equipment_name'    => $r->equipment?->equipment_name,
             'operator'          => $name($r->operator),

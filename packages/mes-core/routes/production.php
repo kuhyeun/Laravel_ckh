@@ -90,12 +90,15 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::post('/addInputs', [OpResultController::class, 'addInputs'])->name('addInputs');
             Route::post('/cancelInput', [OpResultController::class, 'cancelInput'])->name('cancelInput');
             Route::post('/complete', [OpResultController::class, 'complete'])->name('complete');
+            Route::post('/completeAll', [OpResultController::class, 'completeAll'])->name('completeAll');   // 모든 공정 완료 ( 11-12 )
             Route::post('/issueSave', [MaterialIssueController::class, 'save'])->name('issueSave');
             Route::post('/returnSave', [MaterialIssueController::class, 'returnSave'])->name('returnSave');
+            Route::post('/leftoverSave', [MaterialIssueController::class, 'leftoverSave'])->name('leftoverSave');   // 잔재 입고 ( 11-12 )
         });
         Route::middleware($delete)->group(function() {
             Route::post('/issueCancel', [MaterialIssueController::class, 'cancel'])->name('issueCancel');
             Route::post('/returnCancel', [MaterialIssueController::class, 'returnCancel'])->name('returnCancel');
+            Route::post('/leftoverCancel', [MaterialIssueController::class, 'leftoverCancel'])->name('leftoverCancel');
             Route::post('/cancelRun', [OpResultController::class, 'cancelRun'])->name('cancelRun');
             Route::post('/cancelComplete', [OpResultController::class, 'cancelComplete'])->name('cancelComplete');
             Route::post('/cancelLineDone', [OpResultController::class, 'cancelLineDone'])->name('cancelLineDone');
@@ -170,6 +173,8 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::post('/cancel', [MaterialIssueController::class, 'cancel'])->name('cancel');
             Route::post('/returnSave', [MaterialIssueController::class, 'returnSave'])->name('returnSave');
             Route::post('/returnCancel', [MaterialIssueController::class, 'returnCancel'])->name('returnCancel');
+            Route::post('/leftoverSave', [MaterialIssueController::class, 'leftoverSave'])->name('leftoverSave');       // 잔재 입고 ( 11-12 )
+            Route::post('/leftoverCancel', [MaterialIssueController::class, 'leftoverCancel'])->name('leftoverCancel');
         });
     });
 });

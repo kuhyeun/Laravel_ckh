@@ -135,8 +135,7 @@ class IncomingInspectionController extends Controller {
                 'fail_qty'       => (float) $inspection->fail_qty,
                 'inspected_at'   => $inspection->inspected_at?->format('Y-m-d H:i'),
                 'inspector_name' => $inspection->inspector?->user_name ?: $inspection->inspector?->user_id,
-                'reason'         => $inspection->defects->first()?->reason,
-                'defect_type'    => app(\MesCore\Quality\Services\DefectService::class)->typeName($inspection->defects->first()?->defect_type_code),
+                ...app(\MesCore\Quality\Services\DefectService::class)->summary($inspection->defects),   // defect_type · reason ( 불량 여러 줄 요약 )
                 'remark'         => $inspection->remark,
             ] : null,
             'inspectors' => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
@@ -154,6 +153,10 @@ class IncomingInspectionController extends Controller {
             'fail_qty'      => 'nullable|numeric|min:0|max:999999999999',
             'defect_type_code' => 'nullable|string|max:30',
             'reason'        => 'nullable|string|max:200',
+            'defects'                    => 'nullable|array|max:20',   // 불량 여러 줄 ( 11-12 )
+            'defects.*.defect_type_code' => 'nullable|string|max:30',
+            'defects.*.qty'              => 'nullable|numeric|min:0|max:999999999999',
+            'defects.*.reason'           => 'nullable|string|max:200',
             'inspector_idx' => ['required', 'integer', User::pickableRule()],
             'inspected_at'  => 'required|date_format:Y-m-d\TH:i',
             'remark'        => 'nullable|string|max:2000',

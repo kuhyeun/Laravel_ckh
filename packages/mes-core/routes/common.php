@@ -6,6 +6,7 @@ use MesCore\Basic\Controllers\ExcelLayoutController;
 use MesCore\Basic\Controllers\SearchDefaultsController;
 use MesCore\Basic\Controllers\GridSettingController;
 use MesCore\Basic\Controllers\ItemSearchController;
+use MesCore\Basic\Controllers\NotificationController;
 use MesCore\Auth\Middleware\UserAuth;
 
 // 업무 화면 공용 조회 API ( 로그인만 필요, 메뉴 권한과 무관 )
@@ -31,4 +32,13 @@ Route::prefix('common')->name('common.')->middleware([UserAuth::class])->group(f
     Route::get('/grid-setting', [GridSettingController::class, 'show'])->name('gridSetting.show');
     Route::post('/grid-setting', [GridSettingController::class, 'save'])->name('gridSetting.save');
     Route::post('/grid-setting/reset', [GridSettingController::class, 'reset'])->name('gridSetting.reset');
+
+    // 내 알림 ( 상단 종 · 기준정보관리 > 알림관리 ) — 예외로 쓰기가 있다 : 로그인한 사용자 자신의 알림 읽음 표시만
+    Route::prefix('notifications')->name('notifications.')->controller(NotificationController::class)->group(function () {
+        Route::get('/summary', 'summary')->name('summary');
+        Route::get('/form-data', 'formData')->name('formData');
+        Route::get('/list', 'list')->name('list');
+        Route::post('/read/{idx}', 'read')->whereNumber('idx')->name('read');
+        Route::post('/read-all', 'readAll')->name('readAll');
+    });
 });

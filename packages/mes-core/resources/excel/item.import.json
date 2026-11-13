@@ -11,9 +11,9 @@
         { "field": "item_type",        "header": "대분류",      "type": "enum", "required": true, "width": 10, "example": "제품",
           "options": [ { "value": "MATERIAL", "label": "자재" }, { "value": "PRODUCT", "label": "제품" } ] },
         { "field": "item_kind",        "header": "소분류",      "type": "enum", "required": true, "width": 10, "example": "완제품",
-          "note": "자재 → 원자재 · 원소재 / 제품 → 완제품 · 반제품 · 세트",
+          "note": "자재 → 원자재 · 부자재 · 외주가공품 / 제품 → 완제품 · 반제품 · 세트",
           "options": [
-              { "value": "RAW", "label": "원자재" }, { "value": "STOCK", "label": "원소재" },
+              { "value": "RAW", "label": "원자재" }, { "value": "SUB", "label": "부자재" }, { "value": "OUTSOURCED", "label": "외주가공품" },
               { "value": "FINISHED", "label": "완제품" }, { "value": "SEMI", "label": "반제품" }, { "value": "SET", "label": "세트" } ] },
         { "field": "spec_unit",        "header": "단위",        "type": "code", "codeGroup": "UNIT", "required": true, "width": 8, "example": "EA", "note": "코드관리 UNIT 의 코드 또는 이름" },
         { "field": "spec",             "header": "규격",        "type": "text", "width": 16, "maxLength": 100, "example": "Ø20 x 100" },

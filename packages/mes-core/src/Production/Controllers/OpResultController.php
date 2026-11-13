@@ -120,6 +120,7 @@ class OpResultController extends Controller {
                     ->map(fn ($pe) => ['equipment_idx' => $pe->equipment_idx, 'equipment_name' => $pe->equipment->equipment_name])->values() ?? [],
                 'runs'              => $o->runs->map(fn (WorkOrderOpRun $r) => [
                     'run_idx'        => $r->run_idx,
+                    'started_at'     => $r->started_at?->format('Y-m-d H:i'),
                     'worked_at'      => $r->worked_at?->format('Y-m-d H:i'),
                     'equipment_name' => $r->equipment?->equipment_name,
                     'operator'       => $userName($r->operator),
@@ -147,9 +148,11 @@ class OpResultController extends Controller {
             'target_qty'     => (float) $wo->target_qty,
             'lot_no'         => $wo->isRunLot() ? '실적별' : $wo->lot?->lot_no,
             'lot_mode'       => $wo->lot_mode,
+            'lot_input_auto' => $wo->isRunLot() && $this->results->lotInputAuto(),   // 투입 LOT 자동( 선입선출 ) — 화면에서 고르지 않는다
             'due_date'       => $wo->sheet?->due_date?->toDateString(),
             'status'         => $wo->status,
             'received_qty'   => $this->results->receivedQty($wo),
+            'complete_all'   => $this->results->completeAllState($wo, $ops),   // [모든 공정 완료] ( 11-12 )
             'ops'            => $rows,
             'materials'      => $wo->materials->map(fn ($m) => [
                 'item_label' => \MesCore\Config\Models\Item::labelOf($m->childItem),
@@ -192,15 +195,16 @@ class OpResultController extends Controller {
             'qty'               => 'required|numeric|gt:0|max:999999999999',
             'equipment_idx'     => 'nullable|integer',
             'operator_idx'      => ['required', 'integer', User::pickableRule()],
-            'worked_at'         => 'required|date',
+            'started_at'        => 'nullable|date|before_or_equal:worked_at',   // 시작 ( 11-12 )
+            'worked_at'         => 'required|date',   // 종료
             'remark'            => 'nullable|string|max:200',
             'warehouse_idx'     => 'nullable|integer',
             // 투입 LOT ( 공정 LOT 추적 지시 — 실적LOT-설계 §5 ) : [ input_type MATERIAL · RUN, lot_idx, qty ]
             'inputs'              => 'nullable|array|max:100',
             'inputs.*.input_type' => 'required|in:MATERIAL,RUN',
             'inputs.*.lot_idx'    => 'required|integer',
-            'inputs.*.qty'        => 'required|numeric|gt:0|max:999999999999',
-        ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => '투입 수량은 0보다 커야 합니다.'], ['qty' => '수량', 'operator_idx' => '작업자', 'worked_at' => '작업 일시', 'equipment_idx' => '설비', 'warehouse_idx' => '입고 창고', 'inputs.*.qty' => '투입 수량']);
+            'inputs.*.qty'        => 'nullable|numeric|min:0|max:999999999999',   // 앞 공정 실적 LOT 만 ( 자재 LOT 는 수량 없음 · 11-12 — 0 보다 큰지는 서비스가 )
+        ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => '투입 수량은 0보다 커야 합니다.'], ['qty' => '수량', 'operator_idx' => '작업자', 'started_at' => '시작 시간', 'worked_at' => '종료 시간', 'equipment_idx' => '설비', 'warehouse_idx' => '입고 창고', 'inputs.*.qty' => '투입 수량']);
 
         $op = WorkOrderOp::find($v['work_order_op_idx']);
         if (!$op) {
@@ -229,7 +233,7 @@ class OpResultController extends Controller {
             'inputs'              => 'required|array|min:1|max:100',
             'inputs.*.input_type' => 'required|in:MATERIAL,RUN',
             'inputs.*.lot_idx'    => 'required|integer',
-            'inputs.*.qty'        => 'required|numeric|gt:0|max:999999999999',
+            'inputs.*.qty'        => 'nullable|numeric|min:0|max:999999999999',   // 앞 공정 실적 LOT 만 ( 자재 LOT 는 수량 없음 · 11-12 — 0 보다 큰지는 서비스가 )
         ], ['inputs.*.qty.gt' => '투입 수량은 0보다 커야 합니다.'], ['inputs.*.qty' => '투입 수량']);
         $run = WorkOrderOpRun::with('op')->find($v['run_idx']);
         if (!$run) {
@@ -273,6 +277,19 @@ class OpResultController extends Controller {
         }
         $warnings = $this->results->completeOp($op, $v);
         return response()->json(['message' => 'Success', 'warnings' => $warnings, 'line_status' => WorkOrder::whereKey($op->work_order_idx)->value('status')]);
+    }
+
+    // 모든 공정 완료 ( 11-12 ) — 마지막 수량 공정이 지시 수량을 채운 줄의 남은 공정을 한 번에
+    public function completeAll(Request $request) {
+        $v = $request->validate([
+            'work_order_idx' => 'required|integer',
+            'warehouse_idx'  => 'nullable|integer',
+        ]);
+        $wo = WorkOrder::find($v['work_order_idx']);
+        if (!$wo) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        return response()->json(['message' => 'Success'] + $this->results->completeAll($wo, $v));
     }
 
     public function cancelComplete(Request $request) {

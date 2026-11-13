@@ -124,6 +124,11 @@ class ItemController extends Controller {
 
         $type = $request->input('item_type');
 
+        // 새 품목인데 품번을 비웠으면 자동으로 매긴다 ( 자재 MT · 반제품 SM · 제품 PD + 일련번호 — CodeGenerator · 11-12 )
+        if (!$item->exists && trim((string) $request->input('item_code')) === '' && isset(Item::KINDS_BY_TYPE[$type])) {
+            $request->merge(['item_code' => \MesCore\Config\Services\CodeGenerator::item($type, $request->input('item_kind'))]);
+        }
+
         // 기본 정보 규칙은 엑셀 일괄 등록과 같이 쓴다 ( ItemRules ) + 화면 전용 칸
         $validated = $request->validate(ItemRules::rules($item, $type, $request->input('spec')) + [
             // 주 자재 : 가공품은 제품 1 : 원자재 1 이 대부분 → 저장 시 BOM V1 을 대신 만들어 준다

@@ -13,7 +13,8 @@
        같은 품번 · 규격이 이미 있으면 그 자재를 고른다 · 등록한 자재는 created 로 알려 여는 쪽 선택지에 더한다
      - 키보드 : 찾기 칸에서 ↓ / ↑ 로 목록 이동( 마우스를 올려도 ) · Enter 로 고름( 고른 줄이 없으면 결과가 하나일 때 그것 ) · Esc 닫기
        닫힌 칸에서 ↓ 로 열기 · 고르거나 닫으면 칸으로 포커스가 돌아온다 ( 다음 칸으로 Tab )
-     - 목록은 body 로 띄운다 ( 표 · 모달의 스크롤 영역에 잘리지 않게 · 겹친 모달보다 위 — z 5000 ) -->
+     - 목록은 body 로 띄운다 ( 표 · 모달의 스크롤 영역에 잘리지 않게 · 겹친 모달보다 위 — z 5000 )
+     - [크게] : 큰 찾기 창( ItemSearchModal — 품번 · 품명 · 규격 · 재질 · 단위 열 · 같은 모드 · 같은 찾기 ) — 11-12 -->
 <template>
     <div ref="root" class="relative">
         <!-- 고를 수 없을 때 : 배경만 회색( base-input:disabled ) · 고른 값은 읽히게 진하게 ( 흐리게 겹치면 안 보인다 ) · ▾ 숨김 -->
@@ -26,8 +27,9 @@
         <Teleport to="body">
             <!-- 모달은 z-index 1000 + 쌓인 순번( BaseModal ) — 모달 안에서 열어도 위에 오도록 그보다 높게 -->
             <div v-if="open" ref="pop" class="fixed z-[5000] bg-white border border-gray-300 rounded shadow-lg text-sm" :style="popStyle">
-                <div class="p-1.5 border-b">
-                    <input ref="search" v-model="q" class="base-input w-full text-sm px-2 py-1" placeholder="품번 · 품명 · 규격으로 찾기" @keydown.esc.stop="closeAndFocus" @keydown.enter.prevent="pickActive" @keydown.down.prevent="move(1)" @keydown.up.prevent="move(-1)" />
+                <div class="p-1.5 border-b flex items-center gap-1">
+                    <input ref="search" v-model="q" class="base-input flex-1 min-w-0 text-sm px-2 py-1" placeholder="품번 · 품명 · 규격으로 찾기" @keydown.esc.stop="closeAndFocus" @keydown.enter.prevent="pickActive" @keydown.down.prevent="move(1)" @keydown.up.prevent="move(-1)" />
+                    <button type="button" class="shrink-0 px-2 py-1 rounded border border-gray-300 text-xs text-gray-600 hover:bg-gray-50" title="큰 창에서 찾기" @click="openBig">크게</button>
                 </div>
                 <div ref="list" class="max-h-64 overflow-y-auto" @scroll="onListScroll">
                     <button v-if="allowEmpty" type="button" class="w-full text-left px-2.5 py-1.5 text-gray-400 hover:bg-gray-50" @click="pick(null)">( 없음 )</button>
@@ -58,6 +60,7 @@ import { route } from 'ziggy-js';
 import { itemSpecLabel, specKey } from '@core/Utils/format';
 import { useModalStore } from '@core/Stores/modalStore';
 import QuickMaterialForm from '@core/Components/Config/QuickMaterialForm.vue';
+import ItemSearchModal from '@core/Components/Common/ItemSearchModal.vue';
 
 const props = defineProps({
     modelValue:  { type: [Number, String], default: '' },
@@ -239,6 +242,17 @@ function pick(m) {
 }
 function pickFirst() {
     if (results.value.length === 1) pick(results.value[0]);
+}
+
+// 큰 찾기 창 ( 지금 찾는 말 · 같은 모드 그대로 ) — 고르면 여기서 고른 것과 같다
+function openBig() {
+    const text = q.value;
+    open.value = false;
+    modalStore.open(ItemSearchModal, {
+        modalTitle: '품목 찾기', value: props.modelValue, initialQ: text,
+        options: props.options, remote: props.remote, exclude: props.exclude, showType: props.showType || !!props.remote,
+        onPick: (m) => pick(m),
+    }, { size: 'xl' });
 }
 
 // 새 자재 : 첫 낱말이 있는 품번이면 품번 · 품명을 채우고 나머지를 규격으로 ( 같은 품번 · 다른 규격이 가장 흔하다 )

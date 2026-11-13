@@ -46,13 +46,14 @@ class SalesProgressService {
                 ->groupBy('work_order_idx');
             // 주 자재 기준 — 채운 정도 = 자기 출고 + 대체 출고 × ( 주 소요 ÷ 대체 소요 )
             $matRows = DB::table('work_order_material')->whereIn('work_order_idx', $woIdxs)
-                ->get(['work_order_material_idx', 'work_order_idx', 'substitute_of_idx', 'qty_per', 'required_qty', 'issued_qty']);
+                ->get(['work_order_material_idx', 'work_order_idx', 'substitute_of_idx', 'qty_per', 'yield_qty', 'required_qty', 'issued_qty']);
+            $per     = fn ($x) => \MesCore\Support\MaterialNeed::perUnit((float) $x->qty_per, $x->yield_qty);   // 생산 가능 수량이면 1 ÷ N ( 11-12 )
             $subsOf  = $matRows->whereNotNull('substitute_of_idx')->groupBy('substitute_of_idx');
             $mats    = $matRows->whereNull('substitute_of_idx')->groupBy('work_order_idx')->map(fn ($rows, $woIdx) => (object) [
                 'work_order_idx' => $woIdx,
                 'cnt'            => $rows->count(),
                 'done_cnt'       => $rows->filter(fn ($m) => (float) $m->issued_qty
-                    + ($subsOf[$m->work_order_material_idx] ?? collect())->sum(fn ($s) => (float) $s->qty_per > 0 ? (float) $s->issued_qty * (float) $m->qty_per / (float) $s->qty_per : 0)
+                    + ($subsOf[$m->work_order_material_idx] ?? collect())->sum(fn ($s) => $per($s) > 0 ? (float) $s->issued_qty * $per($m) / $per($s) : 0)
                     + self::EPS >= (float) $m->required_qty)->count(),
             ]);
             $issues = DB::table('stock_txn_line as l')
@@ -66,6 +67,13 @@ class SalesProgressService {
                 ->get(['l.work_order_idx', DB::raw('MAX(t.occurred_at) as issued_at'), DB::raw('MAX(lot.in_at) as lot_in_at')])
                 ->keyBy('work_order_idx');
         }
+
+        // 4-2) 지시별 생산 입고 ( 지시가 여럿인 줄의 지시 행 — 11-12 )
+        $made = $woIdxs ? DB::table('stock_txn_line as l')
+            ->join('stock_txn as t', 't.stock_txn_idx', '=', 'l.stock_txn_idx')
+            ->where('t.txn_type', 'IN_PRODUCTION')->where('t.status', '!=', 'CANCELED')->where('l.line_status', '!=', 'CANCELED')
+            ->whereIn('l.work_order_idx', $woIdxs)
+            ->groupBy('l.work_order_idx')->selectRaw('l.work_order_idx, SUM(l.qty) as qty')->pluck('qty', 'work_order_idx') : collect();
 
         // 5) 출하 ( 취소 제외 )
         $ships = DB::table('shipment_line as sl')
@@ -122,6 +130,25 @@ class SalesProgressService {
                 'shipped_at'       => $shippedAt ? substr($shippedAt, 0, 10) : null,
                 'late'             => $line->line_status === 'OPEN' && $line->due_date && $line->due_date->toDateString() < $today,
             ];
+            // 지시가 여럿이면 지시마다 한 행 ( 수주 진행 화면이 줄 아래로 펼친다 — 11-11 회의 '각 지시별 수량' )
+            $row['wos'] = $wos->count() < 2 ? [] : $wos->map(function ($w) use ($ops, $mats, $issues, $made) {
+                $wOps = $ops->get($w->work_order_idx, collect());
+                $cur  = $wOps->firstWhere('status', 'RUN') ?? $wOps->firstWhere('status', 'WAIT');
+                return [
+                    'work_order_idx' => (int) $w->work_order_idx,
+                    'wo_no'          => $w->wo_no,
+                    'wo_status'      => $w->status,
+                    'wo_qty'         => (float) $w->qty,   // 이 줄에서 지시에 담은 수량
+                    'wo_made'        => (float) ($made[$w->work_order_idx] ?? 0),
+                    'mat_count'      => (int) ($mats[$w->work_order_idx]->cnt ?? 0),
+                    'mat_done'       => (int) ($mats[$w->work_order_idx]->done_cnt ?? 0),
+                    'mat_out_at'     => ($at = $issues[$w->work_order_idx]->issued_at ?? null) ? substr($at, 0, 10) : null,
+                    'op_total'       => $wOps->count(),
+                    'op_done'        => $wOps->where('status', 'DONE')->count(),
+                    'op_current'     => $cur?->process_name,
+                    'op_state'       => $wOps->isEmpty() ? 'NONE' : ($cur ? $cur->status : 'DONE'),
+                ];
+            })->values()->all();
             $row['stage'] = $this->stage($line, $row, $allOps);
             $out[$id] = $row;
         }

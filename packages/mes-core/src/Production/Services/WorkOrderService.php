@@ -281,8 +281,9 @@ class WorkOrderService {
                 $label = $locked ? WorkOrder::STATUSES[$locked->status] : '없는';
                 throw ValidationException::withMessages(['status' => ["{$wo->wo_no} 는 {$label} 상태라 취소할 수 없습니다. ( 대기만 )"]]);
             }
-            if ($this->hasIssue($locked->work_order_idx)) {
-                throw ValidationException::withMessages(['status' => ["{$wo->wo_no} 는 출고된 자재가 있습니다. 자재출고에서 출고를 먼저 취소하세요."]]);
+            // 아직 지시가 들고 있는 자재( 출고 − 반납 > 0 )가 있을 때만 막는다 — 11-12 : 전에는 다 반납해도 출고한 적이 있으면 막았다
+            if ($this->holdsMaterial($locked->work_order_idx)) {
+                throw ValidationException::withMessages(['status' => ["{$wo->wo_no} 는 출고된 자재가 남아 있습니다. 자재출고에서 반납하거나 출고를 취소한 뒤 취소하세요."]]);
             }
             $locked->status = 'CANCELED';
             $locked->save();
@@ -403,9 +404,10 @@ class WorkOrderService {
                 'bom_line_idx'      => $l->bom_line_idx,
                 'work_order_op_idx' => $opIdx,
                 'qty_per'           => (string) $l->qty,
+                'yield_qty'         => $l->yield_qty !== null ? (string) $l->yield_qty : null,   // 생산 가능 수량 ( 11-12 — 소요 = 올림( 수량 ÷ N ) )
                 'calc_code'         => $l->calc_code,
                 'ext_n01'           => $l->ext_n01 !== null ? (string) $l->ext_n01 : null,
-                'required_qty'      => $this->str((float) $l->qty * (float) $wo->target_qty),
+                'required_qty'      => $this->str(\MesCore\Support\MaterialNeed::of((float) $wo->target_qty, (float) $l->qty, $l->yield_qty)),
             ]);
             // 대체 자재 행 : 같은 BOM 줄 · 같은 투입 공정 · 자기 소요 ( 투입 지점을 다시 맞출 때도 주 자재와 같이 움직인다 )
             foreach ($l->substitutes as $sub) {
@@ -418,9 +420,10 @@ class WorkOrderService {
                     'bom_line_substitute_idx' => $sub->bom_line_substitute_idx,
                     'work_order_op_idx'       => $opIdx,
                     'qty_per'                 => (string) $sub->qty,
+                    'yield_qty'               => $sub->yield_qty !== null ? (string) $sub->yield_qty : null,
                     'calc_code'               => $sub->calc_code,
                     'ext_n01'                 => $sub->ext_n01 !== null ? (string) $sub->ext_n01 : null,
-                    'required_qty'            => $this->str((float) $sub->qty * (float) $wo->target_qty),
+                    'required_qty'            => $this->str(\MesCore\Support\MaterialNeed::of((float) $wo->target_qty, (float) $sub->qty, $sub->yield_qty)),
                 ]);
             }
         }
@@ -435,14 +438,20 @@ class WorkOrderService {
             $rl = $rlOf[$m->bom_line_idx] ?? null;
             $m->fill([
                 'work_order_op_idx' => $rl ? ($opMap[$rl] ?? null) : null,
-                'required_qty'      => $this->str((float) $m->qty_per * (float) $wo->target_qty),
+                'required_qty'      => $this->str(\MesCore\Support\MaterialNeed::of((float) $wo->target_qty, (float) $m->qty_per, $m->yield_qty)),
             ])->save();
         }
     }
 
     // 출고( 취소 제외 )가 한 번이라도 있는지
+    // 출고한 적이 있는가 ( 반납했어도 — 출고 이력이 자재 줄에 붙어 있어 품목 변경 · 자재 다시 복사를 막는 기준 )
     private function hasIssue(int $woIdx): bool {
         return DB::table('wo_stock')->where('work_order_idx', $woIdx)->where('issued_qty', '>', 0)->exists();
+    }
+
+    // 지금 지시가 들고 있는 자재가 있는가 ( 출고 − 반납 > 0 ) — 지시 취소를 막는 기준
+    private function holdsMaterial(int $woIdx): bool {
+        return DB::table('wo_stock')->where('work_order_idx', $woIdx)->whereRaw('issued_qty - returned_qty > 0.000001')->exists();
     }
 
     // 병합 이력 유지 : 있던 연결은 담은 수량만 고치고( 수정자 · 수정일 ), 새 연결만 추가, 뺀 연결만 지운다

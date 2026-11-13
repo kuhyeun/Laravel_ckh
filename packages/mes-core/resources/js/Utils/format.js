@@ -28,3 +28,10 @@ export const withSpec = (label, spec) => spec ? `${label} · ${spec}` : label;
 
 // 규격 비교 값 ( 서버 Item::specKey 와 같다 — 공백 · 대소문자 무시 · x / × → X )
 export const specKey = (spec) => String(spec ?? '').replace(/\s+/g, '').replace(/[x×]/g, 'X').toUpperCase();
+
+// 실적 작업 시간 : '시작 ~ 종료' ( 같은 날이면 종료는 시각만 ) · 시작이 없으면 종료만 — 'YYYY-MM-DD HH:mm'
+export const runTimeText = (start, end) => {
+    if (!start) return end ?? '';
+    if (!end) return start;
+    return `${start} ~ ${start.slice(0, 10) === end.slice(0, 10) ? end.slice(11) : end}`;
+};

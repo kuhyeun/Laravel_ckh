@@ -36,8 +36,12 @@
             <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
             <p v-if="blocked" class="mt-3 text-xs text-amber-700">⚠ {{ blocked }}</p>
 
+            <!-- 탭 : 검사( 판정 · 불량 내역 ) · 첨부 ( 11-12 — 스크롤 없이 나눠서 ) -->
+            <InspectionTabs v-model="tab" :tabs="tabs" class="mt-4" />
+
+            <div v-show="tab === 'insp'">
             <!-- 검사대기 → 판정 -->
-            <div v-if="waiting && !blocked" class="mt-4 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
+            <div v-if="waiting && !blocked" class="mt-3 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
                 <div class="col-span-2">
                     <label class="block text-gray-500 font-medium mb-1">판정 <span class="text-red-500">*</span></label>
                     <div class="flex gap-2">
@@ -56,24 +60,16 @@
                     <BaseDatePicker v-model="form.inspected_at" mode="datetime" class="w-full" :disabled="!canWrite" />
                     <p v-if="errors.inspected_at" class="text-xs text-red-500 mt-0.5">{{ errors.inspected_at[0] }}</p>
                 </div>
-                <template v-if="form.result === 'FAIL'">
-                    <div>
-                        <label class="block text-gray-500 font-medium mb-1">불량 수량 <span class="text-red-500">*</span></label>
-                        <BaseInput v-model="form.fail_qty" type="number" min="0" class="w-full text-right" :disabled="!canWrite" />
-                        <p v-if="errors.fail_qty" class="text-xs text-red-500 mt-0.5">{{ errors.fail_qty[0] }}</p>
-                        <p v-else class="text-[11px] text-gray-400 mt-0.5">출하 {{ fmtNum(line.qty) }} 중</p>
-                    </div>
-                    <div>
-                        <label class="block text-gray-500 font-medium mb-1">불량 유형 <span class="text-red-500">*</span></label>
-                        <BaseSelect v-model="form.defect_type_code" :options="options('DEFECT_TYPE')" class="w-full" placeholder="유형 선택" :disabled="!canWrite" />
-                        <p v-if="errors.defect_type_code" class="text-xs text-red-500 mt-0.5">{{ errors.defect_type_code[0] }}</p>
-                    </div>
-                    <div class="col-span-2">
-                        <label class="block text-gray-500 font-medium mb-1">상세 <span v-if="form.defect_type_code === 'ETC'" class="text-red-500">*</span></label>
-                        <BaseInput v-model="form.reason" class="w-full" placeholder="예: 포장 파손 3박스" maxlength="200" :disabled="!canWrite" />
-                        <p v-if="errors.reason" class="text-xs text-red-500 mt-0.5">{{ errors.reason[0] }}</p>
-                    </div>
-                </template>
+                <div v-if="form.result === 'FAIL'">
+                    <label class="block text-gray-500 font-medium mb-1">불량 수량 <span class="text-red-500">*</span></label>
+                    <BaseInput :model-value="form.fail_qty" class="w-full text-right" disabled title="아래 불량 내역 합계" />
+                    <p v-if="errors.fail_qty" class="text-xs text-red-500 mt-0.5">{{ errors.fail_qty[0] }}</p>
+                    <p v-else class="text-[11px] text-gray-400 mt-0.5">출하 {{ fmtNum(line.qty) }} 중 · 아래 불량 내역 합계</p>
+                </div>
+                <!-- 불량 내역 ( 11-12 — 불합격일 때 · 처음엔 줄 없이 · [+ 줄] 의 수량 합 = 불량 수량 ) -->
+                <div v-if="form.result === 'FAIL'" class="col-span-4">
+                    <DefectRows v-model="form.defects" :type-options="options('DEFECT_TYPE')" :errors="errors" :disabled="!canWrite" placeholder="예: 포장 파손 3박스" @total="t => form.fail_qty = String(t)" />
+                </div>
                 <div class="col-span-4">
                     <label class="block text-gray-500 font-medium mb-1">비고</label>
                     <BaseInput v-model="form.remark" class="w-full" :disabled="!canWrite" />
@@ -84,16 +80,18 @@
             </div>
 
             <!-- 판정 뒤 → 결과 -->
-            <div v-else-if="inspection" class="mt-4 px-3 py-2.5 rounded border" :class="inspection.result === 'FAIL' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'">
+            <div v-else-if="inspection" class="mt-3 px-3 py-2.5 rounded border" :class="inspection.result === 'FAIL' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'">
                 <p class="font-medium">{{ inspection.result === 'FAIL' ? '불합격' : '합격' }}<template v-if="inspection.fail_qty > 0"> — 불량 {{ fmtNum(inspection.fail_qty) }}</template></p>
                 <p class="text-xs text-gray-600 mt-0.5">검사자 {{ inspection.inspector_name }} · {{ inspection.inspected_at }}<template v-if="inspection.defect_type || inspection.reason"> · 불량 : {{ [inspection.defect_type, inspection.reason].filter(Boolean).join(' — ') }}</template></p>
                 <p v-if="inspection.remark" class="text-xs text-gray-500 mt-0.5">{{ inspection.remark }}</p>
             </div>
 
+            </div>
+
             <!-- 첨부 ( 성적서 — 출하 줄 ) -->
-            <div class="mt-4">
-                <div class="mb-1.5 text-xs font-semibold text-gray-500">첨부 ( 성적서 )</div>
-                <AttachFiles ref-type="shipment_line" :ref-id="line.shipment_line_idx" category="CERT" :readonly="!canWrite || line.shipment_status !== 'WAIT'" />
+            <div v-show="tab === 'files'" class="mt-3">
+                <p class="mb-1.5 text-xs text-gray-500">성적서 — 출하 줄에 붙습니다</p>
+                <AttachFiles ref-type="shipment_line" :ref-id="line.shipment_line_idx" category="CERT" :readonly="!canWrite || line.shipment_status !== 'WAIT'" @change="n => fileCount = n" />
             </div>
         </template>
 
@@ -116,6 +114,8 @@ import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import DefectRows from '@core/Components/Quality/DefectRows.vue';
+import InspectionTabs from '@core/Components/Quality/InspectionTabs.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import { showAlert } from '@core/Utils/message';
@@ -144,11 +144,19 @@ const blocked    = ref(null);
 const canWrite   = ref(false);
 const inspectors = ref([]);
 
-const form = reactive({ result: '', fail_qty: '', defect_type_code: '', reason: '', inspector_idx: '', inspected_at: '', remark: '' });
+const form = reactive({ result: '', fail_qty: '', defects: [], inspector_idx: '', inspected_at: '', remark: '' });
 const { options } = useCommonCode(['DEFECT_TYPE']);
 
 const inspectorOptions = computed(() => inspectors.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 const waiting = computed(() => line.value?.inspect_status === 'WAIT' && line.value?.shipment_status === 'WAIT');
+
+// 탭 : 검사( 판정 · 불량 내역 ) · 첨부 — 첨부 개수 · 오류 점
+const tab       = ref('insp');
+const fileCount = ref(0);
+const tabs = computed(() => [
+    { key: 'insp', label: '검사', error: Object.keys(errors.value).length > 0 },
+    { key: 'files', label: '첨부', count: fileCount.value || '' },
+]);
 
 async function load() {
     loading.value  = true;
@@ -162,7 +170,7 @@ async function load() {
         canWrite.value   = data.can_write === true;
         inspectors.value = data.inspectors ?? [];
         Object.assign(form, {
-            result: '', fail_qty: String(data.line.qty), defect_type_code: '', reason: '', remark: '',
+            result: '', fail_qty: '0', defects: [], remark: '',
             inspector_idx: data.me ?? '', inspected_at: data.now,
         });
     } catch (e) {
@@ -181,8 +189,7 @@ async function complete() {
         const { data } = await window.axios.post(route('quality.shipping.complete', props.lineIdx), {
             result:           form.result,
             fail_qty:         form.result === 'FAIL' ? (form.fail_qty === '' ? null : form.fail_qty) : null,
-            defect_type_code: form.result === 'FAIL' ? (form.defect_type_code || null) : null,
-            reason:           form.result === 'FAIL' ? (form.reason || null) : null,
+            defects: form.result === 'FAIL' ? form.defects.map(r => ({ defect_type_code: r.defect_type_code || null, qty: r.qty === '' ? null : r.qty, reason: r.reason || null })) : [],
             inspector_idx:    Number(form.inspector_idx),
             inspected_at:     form.inspected_at,
             remark:           form.remark || null,
@@ -217,8 +224,9 @@ function handleError(e, fallback) {
     if (status === 422) {
         errors.value = e.response.data.errors || {};
         const shown = ['fail_qty', 'inspected_at', 'defect_type_code', 'reason'];
-        const other = Object.entries(errors.value).filter(([k]) => !shown.includes(k)).flatMap(([, v]) => v);
+        const other = Object.entries(errors.value).filter(([k]) => !shown.includes(k) && !k.startsWith('defects')).flatMap(([, v]) => v);
         if (other.length) errorMsg.value = other.join('\n');
+        tab.value = 'insp';   // 틀린 칸이 있는 검사 탭으로
     } else if (status === 403) {
         errorMsg.value = '권한이 없습니다.';
     } else {

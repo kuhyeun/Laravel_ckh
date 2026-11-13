@@ -8,8 +8,9 @@ export const ITEM_TYPES = [
 
 export const ITEM_KINDS = {
     MATERIAL: [
-        { value: 'RAW',   label: '원자재' },
-        { value: 'STOCK', label: '원소재' },   // 환봉·코일·판재 등 잘라 쓰는 소재
+        { value: 'RAW',        label: '원자재' },
+        { value: 'SUB',        label: '부자재' },
+        { value: 'OUTSOURCED', label: '외주가공품' },   // 11-12 : 원소재( STOCK )를 없애고 부자재 · 외주가공품 추가
     ],
     PRODUCT: [
         { value: 'FINISHED', label: '완제품' },

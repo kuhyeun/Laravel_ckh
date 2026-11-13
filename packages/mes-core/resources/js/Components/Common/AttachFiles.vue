@@ -1,13 +1,15 @@
 <!-- 첨부파일 — 화면정의 CMP-03 MesAttach
      - ref-type + ref-id 로 어떤 대상에도 붙는다 ( 서버에 등록된 ref_type 만 — AttachmentService::register )
      - ref-id 가 없으면( 저장 전 ) 첨부할 수 없다는 안내만 보인다 → 저장한 뒤 첨부
-     - 올리기 · 삭제는 바로 저장된다 ( 폼의 [저장]과 무관 )
+       단 deferred 면( 신규 등록 창 · 11-12 ) 고른 파일을 화면에만 담아 두고 '저장할 때 올림'으로 보인다
+       → 여는 쪽이 저장에 성공한 뒤 flush( 새 번호 )를 부르면 그때 올린다 · 취소하면 서버에 아무것도 남지 않는다
+     - 올리기 · 삭제는 바로 저장된다 ( 폼의 [저장]과 무관 — ref-id 가 있을 때 )
      - 권한을 판단하지 않는다 — 서버가 막는다. readonly 는 버튼을 숨기기만 한다
      - 미리보기 없음( Phase 2 ). 받기만 한다
      - emits : uploaded( 올린 개수 ) · deleted( 지운 행 ) · change( 파일 수 ) -->
 <template>
     <div class="text-sm">
-        <p v-if="!refId" class="px-3 py-6 text-center text-xs text-gray-400 border border-dashed rounded">
+        <p v-if="!refId && !deferred" class="px-3 py-6 text-center text-xs text-gray-400 border border-dashed rounded">
             저장한 뒤 파일을 첨부할 수 있습니다.
         </p>
 
@@ -23,7 +25,7 @@
             >
                 <BaseSelect v-model="category" :options="categoryOptions" size="md" class="w-28 shrink-0" :disabled="busy" />
                 <span class="flex-1 text-xs text-gray-400">
-                    파일을 끌어다 놓거나 [파일 선택] · 파일당 {{ MAX_MB }}MB · 한 번에 {{ MAX_FILES }}개
+                    파일을 끌어다 놓거나 [파일 선택] · 파일당 {{ MAX_MB }}MB · 한 번에 {{ MAX_FILES }}개<template v-if="!refId"> · 저장할 때 함께 올립니다</template>
                 </span>
                 <input ref="fileInput" type="file" multiple class="hidden" :accept="acceptAttr" @change="onPick" />
                 <BaseButton size="sm" variant="secondary" class="shrink-0" :disabled="busy || !category" @click="fileInput?.click()">
@@ -35,12 +37,13 @@
 
             <!-- 목록 -->
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[544px] table-fixed text-xs">
+                <!-- 크기 · 올린 사람 · 시각은 넉넉히 ( 11-12 — 글자가 잘리지 않게 · 좁으면 가로 스크롤 ) -->
+                <table class="w-full min-w-[720px] table-fixed text-xs">
                     <colgroup>
-                        <col class="w-20">
+                        <col class="w-24">
                         <col>
-                        <col class="w-20">
-                        <col class="w-44">
+                        <col class="w-28">
+                        <col class="w-64">
                         <col v-if="!readonly" class="w-12">
                     </colgroup>
                     <thead>
@@ -56,22 +59,34 @@
                         <tr v-if="loading">
                             <td :colspan="readonly ? 4 : 5" class="py-4 text-center text-gray-400">불러오는 중…</td>
                         </tr>
-                        <tr v-else-if="!files.length">
+                        <tr v-else-if="!files.length && !pending.length">
                             <td :colspan="readonly ? 4 : 5" class="py-4 text-center text-gray-400">첨부된 파일이 없습니다.</td>
                         </tr>
-                        <tr v-for="f in files" v-else :key="f.attachment_idx" class="border-b last:border-b-0 hover:bg-gray-50">
-                            <td class="py-1.5 px-2 text-gray-600 truncate" :title="nameOf('ATTACH_TYPE', f.category_code)">{{ nameOf('ATTACH_TYPE', f.category_code) }}</td>
-                            <td class="py-1.5 px-2 break-all">
-                                <a :href="route('attachment.download', f.attachment_idx)" class="text-blue-700 hover:underline">{{ f.file_name }}</a>
-                            </td>
-                            <td class="py-1.5 px-2 text-right text-gray-500 whitespace-nowrap">{{ sizeText(f.file_size) }}</td>
-                            <td class="py-1.5 px-2 text-gray-500 whitespace-nowrap truncate" :title="`${f.creator?.user_name || f.creator?.user_id || '-'} · ${dateText(f.create_datetime)}`">
-                                {{ f.creator?.user_name || f.creator?.user_id || '-' }} · {{ dateText(f.create_datetime) }}
-                            </td>
+                        <!-- 저장 전에 고른 파일 ( deferred ) -->
+                        <tr v-for="(p, i) in pending" :key="'p' + i" class="border-b last:border-b-0 bg-amber-50/40">
+                            <td class="py-1.5 px-2 text-gray-600 truncate">{{ nameOf('ATTACH_TYPE', p.category) }}</td>
+                            <td class="py-1.5 px-2 break-all text-gray-700">{{ p.file.name }}</td>
+                            <td class="py-1.5 px-2 text-right text-gray-500 whitespace-nowrap">{{ sizeText(p.file.size) }}</td>
+                            <td class="py-1.5 px-2 text-amber-700 whitespace-nowrap">저장할 때 올림</td>
                             <td v-if="!readonly" class="py-1.5 px-2 text-right">
-                                <button type="button" class="text-red-500 hover:underline disabled:opacity-40" :disabled="busy" @click="remove(f)">삭제</button>
+                                <button type="button" class="text-red-500 hover:underline disabled:opacity-40" :disabled="busy" @click="pending.splice(i, 1); emit('change', pending.length)">빼기</button>
                             </td>
                         </tr>
+                        <template v-if="!loading">
+                            <tr v-for="f in files" :key="f.attachment_idx" class="border-b last:border-b-0 hover:bg-gray-50">
+                                <td class="py-1.5 px-2 text-gray-600 truncate" :title="nameOf('ATTACH_TYPE', f.category_code)">{{ nameOf('ATTACH_TYPE', f.category_code) }}</td>
+                                <td class="py-1.5 px-2 break-all">
+                                    <a :href="route('attachment.download', f.attachment_idx)" class="text-blue-700 hover:underline">{{ f.file_name }}</a>
+                                </td>
+                                <td class="py-1.5 px-2 text-right text-gray-500 whitespace-nowrap">{{ sizeText(f.file_size) }}</td>
+                                <td class="py-1.5 px-2 text-gray-500 whitespace-nowrap truncate" :title="`${f.creator?.user_name || f.creator?.user_id || '-'} · ${dateText(f.create_datetime)}`">
+                                    {{ f.creator?.user_name || f.creator?.user_id || '-' }} · {{ dateText(f.create_datetime) }}
+                                </td>
+                                <td v-if="!readonly" class="py-1.5 px-2 text-right">
+                                    <button type="button" class="text-red-500 hover:underline disabled:opacity-40" :disabled="busy" @click="remove(f)">삭제</button>
+                                </td>
+                            </tr>
+                        </template>
                     </tbody>
                 </table>
             </div>
@@ -98,10 +113,12 @@ const props = defineProps({
     category: { type: String,  default: '' },      // 기본 구분 ( ATTACH_TYPE 코드 )
     readonly: { type: Boolean, default: false },
     accept:   { type: String,  default: '' },      // 파일 선택창 형식 ( 비우면 허용 형식 전부 )
+    deferred: { type: Boolean, default: false },   // 저장 전에도 골라 둔다 → 저장 뒤 flush( 번호 ) ( 신규 등록 창 )
 });
 const emit = defineEmits(['uploaded', 'deleted', 'change']);
 
 const files     = ref([]);
+const pending   = ref([]);   // 저장 전에 고른 파일 [ { file, category } ] ( deferred )
 const loading   = ref(false);
 const busy      = ref(false);
 const dragging  = ref(false);
@@ -168,6 +185,13 @@ async function upload(list) {
         return;
     }
 
+    // 저장 전 ( deferred ) : 화면에만 담아 둔다 — flush( 번호 ) 때 올린다
+    if (!props.refId) {
+        pending.value.push(...list.map(file => ({ file, category: category.value })));
+        emit('change', pending.value.length);
+        return;
+    }
+
     // 하나씩 보낸다 ( 요청 크기 한도 = 파일 하나 기준. 실패한 파일만 알려 준다 )
     busy.value = true;
     const failed = [];
@@ -190,6 +214,29 @@ async function upload(list) {
     if (failed.length) errorMsg.value = failed.join('\n');
     if (done) emit('uploaded', done);
     await load();
+}
+
+// ---- 저장 뒤 올리기 ( deferred ) — 여는 쪽이 저장에 성공하면 await flush( 새 번호 ) ----
+//   @return 실패 문구 목록 ( 비면 다 올림 ) — 여는 쪽이 알림에 붙인다
+async function flush(refId) {
+    if (!pending.value.length || !refId) return [];
+    busy.value = true;
+    const failed = [];
+    for (const p of pending.value) {
+        const body = new FormData();
+        body.append('ref_type', props.refType);
+        body.append('ref_idx', String(refId));
+        body.append('category_code', p.category);
+        body.append('files[]', p.file);
+        try {
+            await window.axios.post(route('attachment.upload'), body);
+        } catch (e) {
+            failed.push(`${p.file.name} : ${messageOf(e, '올리지 못했습니다.')}`);
+        }
+    }
+    busy.value = false;
+    pending.value = [];
+    return failed;
 }
 
 // ---- 삭제 ( 파일까지 지운다 ) ----
@@ -235,5 +282,5 @@ function messageOf(e, fallback) {
     return e.response?.data?.message || fallback;
 }
 
-defineExpose({ reload: load });
+defineExpose({ reload: load, flush, hasPending: () => pending.value.length > 0 });   // flush · hasPending : 신규 등록 때 골라 둔 파일 ( deferred )
 </script>

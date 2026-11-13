@@ -16,6 +16,7 @@ use MesCore\Production\Models\CalcDef;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderMaterial;
 use MesCore\Production\Models\WorkOrderOp;
+use MesCore\Stock\Models\Lot;
 use MesCore\Stock\Models\StockBalance;
 use MesCore\Stock\Models\StockLedger;
 use MesCore\Stock\Models\StockTxn;
@@ -32,6 +33,9 @@ use MesCore\Stock\Services\StockService;
  *   returnMaterials() : 반납 — 출고한 그대로( 같은 LOT )를 창고로. 원장 IN_RETURN + · 보유에서 먼저, 모자라면 사용에서( 덜 썼다 )
  *                       품목 줄 상태와 상관없이 ( 완료 · 취소된 줄의 남은 자재도 ). 잔재 재입고( 새 LOT ) · 폐기는 따로( 재고-수불 §8 )
  *   returnCancel()    : 반납 취소 = 역분개. 그 LOT · 창고에 반납 수량만큼 재고가 남아 있을 때
+ *   leftoverIn()      : 잔재 입고 ( 11-12 ) — 쓰고 남은 토막을 다른 품목( 규격이 다른 자재 )으로 창고에. 새 LOT( LEFTOVER · 원 LOT 의 잔재 ) · 원장 IN_LEFTOVER +
+ *                       원 자재( 출고한 것 )의 수량은 건드리지 않는다 — 통째로 소모된 것 · 잔재 수량은 사람이 넣는다( 견주지 않음 )
+ *   leftoverCancel()  : 잔재 입고 취소 = 역분개. 그 잔재 LOT · 창고에 재고가 남아 있을 때
  *
  *   계산 경고는 막지 않는다 ( W_* ). 한 LOT 의 잔고보다 많이 내는 것만 막는다 ( 그 조각이 없다 — §17-5 )
  *
@@ -48,6 +52,8 @@ class MaterialIssueService {
 
     public const RETURN_TYPE   = 'IN_RETURN';
     public const RETURN_PREFIX = 'RT';
+    public const LEFTOVER_TYPE   = 'IN_LEFTOVER';
+    public const LEFTOVER_PREFIX = 'LO';
     public const RETURN_MODES  = ['RETURN'];   // 이번에 켠 처리 — 잔재 재입고( LEFTOVER ) · 폐기( SCRAP ) 는 자리만 ( 화면에서 꺼 둠 )
 
     private const EPS = 0.000001;
@@ -74,7 +80,8 @@ class MaterialIssueService {
         $rows = [];
         foreach ($wo->materials as $m) {
             // 주 자재 : 채운 정도 = 자기 출고 + 대체 출고 환산 ( 주 소요 ÷ 대체 소요 )
-            $ratio   = fn (WorkOrderMaterial $s) => (float) $s->qty_per > 0 ? (float) $m->qty_per / (float) $s->qty_per : 0.0;
+            $per     = fn (WorkOrderMaterial $x) => \MesCore\Support\MaterialNeed::perUnit((float) $x->qty_per, $x->yield_qty);   // 생산 가능 수량이면 1 ÷ N ( 11-12 )
+            $ratio   = fn (WorkOrderMaterial $s) => $per($s) > 0 ? $per($m) / $per($s) : 0.0;
             $equiv   = $m->substitutes->sum(fn ($s) => $net($s) * $ratio($s));
             $main    = $this->planRow($m, $wo, $ctx, $net($m) + $equiv, true, null);
             $main   += ['substitute_of_idx' => null, 'own_issued_qty' => $net($m), 'substitute_issued_equiv' => $equiv, 'substitute_count' => $m->substitutes->count()];
@@ -82,7 +89,7 @@ class MaterialIssueService {
 
             foreach ($m->substitutes as $sub) {
                 // 대체 : 남은 소요 = 주 자재 남음을 대체 자재 기준으로 · 채우지 않는다
-                $toSub  = (float) $m->qty_per > 0 ? (float) $sub->qty_per / (float) $m->qty_per : 0.0;
+                $toSub  = $per($m) > 0 ? $per($sub) / $per($m) : 0.0;
                 $row    = $this->planRow($sub, $wo, $ctx, $net($sub), false, $main['need_qty'] * $toSub);
                 $rows[] = $row + [
                     'substitute_of_idx' => $m->work_order_material_idx,
@@ -104,6 +111,11 @@ class MaterialIssueService {
         // 식 : 자재 줄 → 자재 품목 → 정책 → BOM_BASIC ( 설계 §5 )
         $code = $m->calc_code ?: ($item->calc_code ?: ($this->policy->get('material.issue_calc') ?: CalcDef::DEFAULT_CODE));
         $def  = $this->def($defs, $code, $warnings);
+        // 생산 가능 수량( 자재 1개로 제품 N개 · 11-12 ) 줄 : 계산식 대신 올림( 지시 수량 ÷ N )
+        $yield = (float) ($m->yield_qty ?? 0);
+        if ($yield > 0) {
+            $def = ['code' => 'YIELD', 'name' => '생산 가능 수량', 'expr' => 'CEIL( ORDER_QTY / YIELD )', 'kind' => 'QTY'];
+        }
         try {
             $tree = Formula::parse($def['expr']);
         } catch (FormulaException $e) {
@@ -116,11 +128,12 @@ class MaterialIssueService {
         $op = $m->work_order_op_idx ? $ops->get($m->work_order_op_idx) : $firstOp;
         [$setup, $setupSrc] = $this->setup($op, $equips, $warnings);
 
-        $base   = (float) $m->qty_per * (float) $wo->target_qty;
+        $base   = \MesCore\Support\MaterialNeed::of((float) $wo->target_qty, (float) $m->qty_per, $m->yield_qty);
         $cands  = $lots->get($m->child_item_idx) ?? collect();
         $vars   = [
             'ORDER_QTY' => [(float) $wo->target_qty, '작업지시'],
             'BOM_QTY'   => [(float) $m->qty_per, '자재 줄'],
+            'YIELD'     => [$yield > 0 ? $yield : null, '자재 줄 — 자재 1개로 만드는 수'],
             'SPEC2'     => [null, 'Phase 2'],
             'PACK'      => [$item->pack_qty !== null ? (float) $item->pack_qty : null, '품목 포장 수량'],
             'STOCK'     => [(float) $cands->sum('qty'), '현재고 합계'],
@@ -157,8 +170,10 @@ class MaterialIssueService {
         if ($default) {
             $warnings += $default['warnings'];
         }
-        if ($needOverride === null && $result !== null && $result > ($default['stock'] ?? 0) + self::EPS) {   // 대체 행은 주 자재 대신이라 전체 소요와 견주지 않는다
-            $warnings['W_OVER'] = '계산된 소요가 재고보다 많습니다. ( 부족 ' . $this->num($result - ($default['stock'] ?? 0)) . ' )';
+        // 남은 소요( 계산 − 이미 출고 · 대체 환산 포함 )가 재고보다 많을 때만 — 11-12 : 전에는 전체 계산과 견줘 다 나간 자재에도 떴다
+        $remain = $result === null ? 0.0 : max(0, $result - $issued);
+        if ($needOverride === null && $remain > ($default['stock'] ?? 0) + self::EPS) {   // 대체 행은 주 자재 대신이라 전체 소요와 견주지 않는다
+            $warnings['W_OVER'] = '남은 소요가 재고보다 많습니다. ( 부족 ' . $this->num($remain - ($default['stock'] ?? 0)) . ' )';
         }
 
         // 채움 : 자동이면 기본 묶음의 LOT 을 선입선출로 위에서부터 ( 남은 소요 = 계산 − 이미 출고 — §17-4 )
@@ -193,6 +208,7 @@ class MaterialIssueService {
             'result_kind'   => $def['kind'],
             'op_label'      => $op ? sprintf('%03d %s', $op->seq, $op->process?->process_name) : '',
             'qty_per'       => (float) $m->qty_per,
+            'yield_qty'     => $yield > 0 ? $yield : null,
             'required_qty'  => $base,
             'calc_qty'      => $result,
             'issued_qty'    => $issued,   // 주 자재 행 = 대체 출고 환산 포함 ( 채운 정도 )
@@ -501,6 +517,8 @@ class MaterialIssueService {
                         ->update(['returned_qty' => DB::raw('returned_qty + ' . $this->str($qty))]);
                 }
             }
+            // 전부 반납했으면 원자재출고 공정을 대기로 ( 11-12 · 뒤 공정이 시작돼 있으면 그대로 )
+            $this->syncRmOutStatus($wo, WorkOrderOp::with('process')->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->lockForUpdate()->get(), $occurredAt);
             return $txn;
         });
 
@@ -545,6 +563,128 @@ class MaterialIssueService {
                     DB::table('work_order_material')->where('work_order_material_idx', $line->work_order_material_idx)
                         ->update(['returned_qty' => DB::raw('returned_qty - ' . $this->str((float) $line->qty))]);
                 }
+                $line->fill(['line_status' => 'CANCELED'])->save();
+            }
+            foreach ($lines->pluck('stock_txn_idx')->unique() as $txnIdx) {
+                if (!StockTxnLine::where('stock_txn_idx', $txnIdx)->where('line_status', '!=', 'CANCELED')->exists()) {
+                    StockTxn::whereKey($txnIdx)->first()?->fill(['status' => 'CANCELED'])->save();
+                }
+            }
+            // 반납을 되돌려 다시 나간 자재가 생겼으면 원자재출고 공정을 진행으로 ( 11-12 )
+            $this->syncRmOutStatus($wo, WorkOrderOp::with('process')->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->lockForUpdate()->get(), now());
+            return $lines->count();
+        });
+    }
+
+    // ---- 잔재 입고 ( 다른 품목으로 · 11-12 ) ----
+
+    /**
+     * @param array{occurred_at:string, remark:?string, lines: array<int, array{source_item_idx:int, source_lot_idx:int, item_idx:int, qty:string, warehouse_idx:int}>} $data
+     * @return array{0: StockTxn, 1: string[]}
+     */
+    public function leftoverIn(WorkOrder $wo, array $data): array {
+        $occurredAt = Carbon::parse($data['occurred_at']);
+        $warnings   = array_filter([$this->stock->checkBackdate($occurredAt)]);
+
+        $txn = DB::transaction(function () use ($wo, $data, $occurredAt) {
+            $wo  = WorkOrder::whereKey($wo->work_order_idx)->lockForUpdate()->first();
+            $txn = StockTxn::create([
+                'txn_no'      => $this->stock->nextTxnNo(self::LEFTOVER_PREFIX, $occurredAt),
+                'txn_type'    => self::LEFTOVER_TYPE,
+                'occurred_at' => $occurredAt,
+                'recorded_at' => now(),
+                'status'      => 'DONE',
+                'remark'      => $data['remark'] ?? "잔재 입고 {$wo->wo_no}",
+            ]);
+            $lotOn = $this->policy->isEnabled('feature.lot');
+
+            foreach (array_values($data['lines']) as $n => $l) {
+                // 원 자재 : 이 지시가 출고한 것이어야
+                $src = DB::table('wo_stock as s')->join('item as i', 'i.item_idx', '=', 's.item_idx')->leftJoin('lot as t', 't.lot_idx', '=', 's.lot_idx')
+                    ->where(['s.work_order_idx' => $wo->work_order_idx, 's.item_idx' => (int) $l['source_item_idx'], 's.lot_idx' => (int) $l['source_lot_idx']])
+                    ->where('s.issued_qty', '>', 0)->first(['s.lot_idx', 'i.item_code', 't.lot_no', 't.partner_idx']);
+                if (!$src) {
+                    throw ValidationException::withMessages(["lines.{$n}.source_item_idx" => ['이 작업지시가 출고한 자재가 아닙니다. 새로고침하세요.']]);
+                }
+                $item = \MesCore\Config\Models\Item::whereKey($l['item_idx'])->where('is_use', 'Y')->first();
+                if (!$item) {
+                    throw ValidationException::withMessages(["lines.{$n}.item_idx" => ['잔재 품목을 고르세요. ( 사용 중 품목 )']]);
+                }
+                if ((int) $item->item_idx === (int) $l['source_item_idx']) {
+                    throw ValidationException::withMessages(["lines.{$n}.item_idx" => ['원 자재와 같은 품목입니다. 안 쓴 자재를 그대로 돌려놓을 때는 [반납] 을 쓰세요.']]);
+                }
+                $wh = Warehouse::whereKey($l['warehouse_idx'])->where('is_use', 'Y')->first();
+                if (!$wh) {
+                    throw ValidationException::withMessages(["lines.{$n}.warehouse_idx" => ['넣을 창고를 고르세요. ( 사용 중 창고 )']]);
+                }
+                $qty = (float) $l['qty'];
+
+                // 잔재 LOT : 원 LOT 번호 + -R순번 ( LOT 을 안 쓰면 LOT 없이 )
+                $lot = null;
+                if ($lotOn) {
+                    $base = ($src->lot_no ?: $wo->wo_no) . '-R';
+                    $seq  = (int) Lot::where('lot_no', 'like', $base . '%')->count();
+                    do {
+                        $lotNo = mb_substr($base . str_pad((string) ++$seq, 2, '0', STR_PAD_LEFT), 0, 50);
+                    } while (Lot::where('lot_no', $lotNo)->exists());
+                    $lot = Lot::create([
+                        'item_idx'       => $item->item_idx,
+                        'lot_no'         => $lotNo,
+                        'partner_idx'    => $src->partner_idx,
+                        'parent_lot_idx' => (int) $src->lot_idx ?: null,
+                        'source'         => 'LEFTOVER',
+                        'in_at'          => $occurredAt,
+                    ]);
+                }
+
+                $line = StockTxnLine::create([
+                    'stock_txn_idx'  => $txn->stock_txn_idx,
+                    'line_no'        => $n + 1,
+                    'item_idx'       => $item->item_idx,
+                    'lot_idx'        => $lot?->lot_idx,
+                    'warehouse_idx'  => $wh->warehouse_idx,
+                    'qty'            => $this->str($qty),
+                    'work_order_idx' => $wo->work_order_idx,
+                    'line_status'    => 'DONE',
+                    'pass_qty'       => $this->str($qty),
+                    'done_at'        => $occurredAt,
+                    'remark'         => mb_substr('원 자재 ' . $src->item_code . ($src->lot_no ? " · {$src->lot_no}" : ''), 0, 200),
+                ]);
+                $this->stock->post([
+                    'stock_txn_idx'      => $txn->stock_txn_idx,
+                    'stock_txn_line_idx' => $line->stock_txn_line_idx,
+                    'item_idx'           => $item->item_idx,
+                    'lot_idx'            => (int) $lot?->lot_idx,
+                    'warehouse_idx'      => $wh->warehouse_idx,
+                    'txn_type'           => self::LEFTOVER_TYPE,
+                ], $this->str($qty), $occurredAt);
+            }
+            return $txn;
+        });
+
+        return [$txn, array_values($warnings)];
+    }
+
+    // 잔재 입고 취소 — 줄 단위 역분개 ( 그 잔재가 창고에 그대로 남아 있을 때만 · LOT 은 재고 0 으로 남는다 )
+    public function leftoverCancel(WorkOrder $wo, array $lineIdxs): int {
+        return DB::transaction(function () use ($wo, $lineIdxs) {
+            WorkOrder::whereKey($wo->work_order_idx)->lockForUpdate()->first();
+            $lines = StockTxnLine::with(['lot', 'item:item_idx,item_code'])->whereIn('stock_txn_line_idx', $lineIdxs)
+                ->where('work_order_idx', $wo->work_order_idx)->where('line_status', 'DONE')
+                ->whereHas('txn', fn ($q) => $q->where('txn_type', self::LEFTOVER_TYPE))
+                ->lockForUpdate()->get();
+            if (!$lines->count()) {
+                throw ValidationException::withMessages(['lines' => ['취소할 수 있는 잔재 입고 줄이 없습니다.']]);
+            }
+            foreach ($lines as $line) {
+                $have = $this->stock->balanceQty($line->item_idx, (int) $line->lot_idx, $line->warehouse_idx);
+                if ($have + self::EPS < (float) $line->qty) {
+                    throw ValidationException::withMessages(['lines' => [
+                        ($line->lot?->lot_no ?: $line->item?->item_code) . " 의 창고 재고( {$this->num($have)} )가 잔재 수량( {$this->num((float) $line->qty)} )보다 적어 취소할 수 없습니다. ( 이미 쓰였거나 옮겨졌습니다 )",
+                    ]]);
+                }
+                StockLedger::where('stock_txn_line_idx', $line->stock_txn_line_idx)->whereNull('reverses_idx')->whereNull('reversed_by_idx')->get()
+                    ->each(fn (StockLedger $l) => $this->stock->reverse($l, now()));
                 $line->fill(['line_status' => 'CANCELED'])->save();
             }
             foreach ($lines->pluck('stock_txn_idx')->unique() as $txnIdx) {
@@ -630,9 +770,15 @@ class MaterialIssueService {
 
     // ---- 내부 ----
 
-    // 그 품목 줄에 나간 자재가 있는지 ( 출고 − 출고 취소 > 0 · 주 · 대체 모두 ) — 원자재출고 완료 전 다음 공정 진행의 기준 ( 실적LOT-설계 §3 )
+    // 그 품목 줄에 나간 자재가 있는지 ( 출고 − 출고 취소 − 반납 > 0 · 주 · 대체 모두 ) — 원자재출고 완료 전 다음 공정 진행의 기준 ( 실적LOT-설계 §3 )
+    //   11-12 : 반납한 몫을 뺀다 — 전부 반납했으면 나간 자재가 없는 것 ( 전에는 반납해도 '출고됨' 으로 남았다 )
     public function hasIssued(int $woIdx): bool {
-        return (float) DB::table('work_order_material')->where('work_order_idx', $woIdx)->sum('issued_qty') > self::EPS;
+        return (float) DB::table('work_order_material')->where('work_order_idx', $woIdx)->sum(DB::raw('issued_qty - returned_qty')) > self::EPS;
+    }
+
+    // 원자재출고 공정 상태를 다시 맞춘다 ( 실적 취소로 뒤 공정이 대기로 돌아갔을 때 — OpResultService · 11-12 )
+    public function refreshRmOut(WorkOrder $wo, $ops): void {
+        $this->syncRmOutStatus($wo, $ops, now());
     }
 
     // 원자재출고 공정 상태 ( 정책 production.op_before_rm_out_done 이 켜져 있을 때 — 완료 전에도 뒤 공정이 진행되므로 )
@@ -641,6 +787,9 @@ class MaterialIssueService {
     private function syncRmOutStatus(WorkOrder $wo, $ops, Carbon $at): void {
         if (!$this->policy->get('production.op_before_rm_out_done')) {
             return;
+        }
+        if (!in_array($wo->status, ['WAIT', 'RUN'], true)) {
+            return;   // 완료 · 취소된 줄의 반납은 공정 · 줄 상태를 건드리지 않는다
         }
         $rm = $ops->first(fn (WorkOrderOp $o) => $o->isRmOut());
         if (!$rm || $rm->status === 'DONE') {

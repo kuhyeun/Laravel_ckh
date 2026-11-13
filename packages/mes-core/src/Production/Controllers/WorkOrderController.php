@@ -374,6 +374,7 @@ class WorkOrderController extends Controller {
             'item_material'  => $item?->material,
             'spec_unit'      => $item?->spec_unit,
             'qty_per'        => (float) $l->qty,
+            'yield_qty'      => $l->yield_qty !== null ? (float) $l->yield_qty : null,   // 생산 가능 수량 ( 있으면 소요 = 올림( 수량 ÷ N ) )
             'stock_qty'      => (float) ($stock[$l->child_item_idx] ?? 0),
         ];
         return [
@@ -460,6 +461,7 @@ class WorkOrderController extends Controller {
                 'item_material'     => $m->childItem?->material,
                 'spec_unit'         => $m->childItem?->spec_unit,
                 'qty_per'           => (float) $m->qty_per,
+                'yield_qty'         => $m->yield_qty !== null ? (float) $m->yield_qty : null,
                 'required_qty'      => (float) $m->required_qty,
                 'work_order_op_idx' => $m->work_order_op_idx,
                 'stock_qty'         => (float) ($stock[$m->child_item_idx] ?? 0),
@@ -474,6 +476,7 @@ class WorkOrderController extends Controller {
                     'item_spec'      => $s->childItem?->spec,
                     'spec_unit'      => $s->childItem?->spec_unit,
                     'qty_per'        => (float) $s->qty_per,
+                    'yield_qty'      => $s->yield_qty !== null ? (float) $s->yield_qty : null,
                     'required_qty'   => (float) $s->required_qty,
                     'stock_qty'      => (float) ($stock[$s->child_item_idx] ?? 0),
                     'issued_qty'     => (float) $s->issued_qty,

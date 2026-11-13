@@ -202,17 +202,17 @@
             <div class="border rounded">
                 <table class="w-full text-xs">
                     <thead class="bg-gray-50 text-gray-500">
-                        <tr><th class="px-2 py-1.5 text-left">자재</th><th class="px-2 py-1.5 text-right">개당</th><th class="px-2 py-1.5 text-right">소요 ( × {{ fmt(line.target_qty) }} )</th><th class="px-2 py-1.5 text-left">투입 공정</th><th class="px-2 py-1.5 text-right">현재고</th><template v-if="showIssued"><th class="px-2 py-1.5 text-right">출고</th><th class="px-2 py-1.5 text-right">사용</th><th class="px-2 py-1.5 text-right">보유</th></template></tr>
+                        <tr><th class="px-2 py-1.5 text-left">자재</th><th class="px-2 py-1.5 text-right">개당 / 생산 가능</th><th class="px-2 py-1.5 text-right">소요 ( 지시 {{ fmt(line.target_qty) }} )</th><th v-if="SHOW_OP" class="px-2 py-1.5 text-left">투입 공정</th><th class="px-2 py-1.5 text-right">현재고</th><template v-if="showIssued"><th class="px-2 py-1.5 text-right">출고</th><th class="px-2 py-1.5 text-right">사용</th><th class="px-2 py-1.5 text-right">보유</th></template></tr>
                     </thead>
                     <tbody>
-                        <tr v-if="!materials.length"><td :colspan="showIssued ? 8 : 5" class="px-2 py-4 text-center text-gray-400">자재가 없습니다 ( 사용 중 BOM 없음 )</td></tr>
+                        <tr v-if="!materials.length"><td :colspan="(showIssued ? 8 : 5) - (SHOW_OP ? 0 : 1)" class="px-2 py-4 text-center text-gray-400">자재가 없습니다 ( 사용 중 BOM 없음 )</td></tr>
                         <template v-for="m in materials" :key="m.child_item_idx + '-' + m.qty_per">
                         <tr class="border-t">
                             <td class="px-2 py-1">{{ m.item_code }} {{ m.item_name }}</td>
-                            <td class="px-2 py-1 text-right">{{ fmt(m.qty_per) }}</td>
-                            <td class="px-2 py-1 text-right font-semibold">{{ fmt(m.qty_per * num(line.target_qty)) }} {{ m.spec_unit }}</td>
-                            <td class="px-2 py-1">{{ inputOpLabel(m) }}</td>
-                            <td class="px-2 py-1 text-right" :class="m.stock_qty < m.qty_per * num(line.target_qty) ? 'text-red-600' : 'text-gray-600'">{{ fmt(m.stock_qty) }}</td>
+                            <td class="px-2 py-1 text-right">{{ perLabel(m) }}</td>
+                            <td class="px-2 py-1 text-right font-semibold">{{ fmt(need(m)) }} {{ m.spec_unit }}</td>
+                            <td v-if="SHOW_OP" class="px-2 py-1">{{ inputOpLabel(m) }}</td>
+                            <td class="px-2 py-1 text-right" :class="m.stock_qty < need(m) ? 'text-red-600' : 'text-gray-600'">{{ fmt(m.stock_qty) }}</td>
                             <template v-if="showIssued">
                                 <td class="px-2 py-1 text-right">{{ fmt(m.issued_qty) }}</td>
                                 <td class="px-2 py-1 text-right text-gray-500">{{ fmt(m.consumed_qty) }}</td>
@@ -222,9 +222,9 @@
                         <!-- 대체 자재 : 주 자재 대신 · 섞어서 출고할 수 있다 ( 자기 소요 · 투입 공정은 주 자재와 같음 · 자동 채움 안 함 ) -->
                         <tr v-for="sub in (m.substitutes ?? [])" :key="'s' + m.child_item_idx + '-' + sub.child_item_idx" class="text-gray-500">
                             <td class="px-2 py-1 pl-5"><span class="text-gray-300">└</span> <span class="text-[10px] px-1 rounded bg-gray-100">대체</span> {{ sub.item_code }} {{ sub.item_name }}</td>
-                            <td class="px-2 py-1 text-right">{{ fmt(sub.qty_per) }}</td>
-                            <td class="px-2 py-1 text-right">{{ fmt(sub.qty_per * num(line.target_qty)) }} {{ sub.spec_unit }}</td>
-                            <td class="px-2 py-1 text-gray-400">주 자재와 같음</td>
+                            <td class="px-2 py-1 text-right">{{ perLabel(sub) }}</td>
+                            <td class="px-2 py-1 text-right">{{ fmt(need(sub)) }} {{ sub.spec_unit }}</td>
+                            <td v-if="SHOW_OP" class="px-2 py-1 text-gray-400">주 자재와 같음</td>
                             <td class="px-2 py-1 text-right">{{ fmt(sub.stock_qty) }}</td>
                             <template v-if="showIssued">
                                 <td class="px-2 py-1 text-right">{{ fmt(sub.issued_qty) }}</td>
@@ -252,6 +252,7 @@
 </template>
 
 <script setup>
+import { SHOW_INPUT_OP as SHOW_OP } from '@core/Utils/features';
 import { ref, reactive, computed, watch } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
@@ -264,6 +265,7 @@ import { woStatusLabel, woStatusColor, processKindLabel, isIfl } from '@core/Com
 import { blankOp, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import { withSpec, fmtNum } from '@core/Utils/format';
+import { needOf } from '@core/Utils/materialNeed';
 
 const props = defineProps({
     line:     { type: Object,  required: true },   // 부모의 줄 객체 ( workOrderLine.blankLine )
@@ -316,6 +318,9 @@ const equipOptions = (o) => [{ value: '', label: '( 미지정 )' }, ...(procOf(o
 
 const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
 const fmt = (v) => fmtNum(num(v));   // 빈 칸 · 글자는 0 ( 입력 칸용 ) — 모양은 공용 fmtNum
+// 자재 소요 : 개당 × 지시 수량 / 생산 가능 수량( 자재 1개로 제품 N개 · 11-12 )이면 올림( 지시 수량 ÷ N ) — 서버 MaterialNeed 와 같은 규칙
+const need     = (m) => needOf(props.line.target_qty, m.qty_per, m.yield_qty);
+const perLabel = (m) => m.yield_qty ? `1개로 ${fmtNum(num(m.yield_qty))}개` : fmt(m.qty_per);
 
 // ---- 자재 ( 새로 고른 품목이면 BOM 미리보기, 아니면 저장된 사본 ) ----
 const materials = computed(() => props.line.bom ? props.line.bom.lines.map(l => ({ ...l })) : props.line.savedMaterials);

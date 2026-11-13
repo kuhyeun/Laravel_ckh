@@ -36,6 +36,18 @@ return [
                 'page_component' => 'Basic/MenuManage',
                 'menu_level' => 0,
             ],
+            // 활동 로그 ( 누가 · 어느 메뉴에서 · 무엇을 — 조회 전용 · 관리자 · 11-12 )
+            [
+                'menu_code' => '0003',
+                'menu_name' => '활동 로그',
+                'menu_icon' => null,
+                'module_code' => 'Basic',
+                'menu_route_name' => 'basic.activity',
+                'url_path' => '/basic/activity',
+                'page_component' => 'Basic/ActivityLog',
+                'menu_level' => 1,
+                'read_only' => 'Y',
+            ],
         ],
     ],
     [
@@ -116,6 +128,18 @@ return [
                 'is_admin' => 'N',
                 // 프로그램이 쓰는 코드 그룹이 있어 관리자 삭제는 막음
                 'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
+            ],
+            [
+                'menu_code' => '1016',
+                'menu_name' => '알림관리',
+                'menu_icon' => null,
+                'module_code' => 'Config',
+                'menu_route_name' => 'config.notification',
+                'url_path' => '/config/notification',
+                'page_component' => 'Config/NotificationManage',
+                'menu_level' => 99,
+                // 내 알림 보기 · 읽음 표시 ( 공통 API common.notifications.* ) · 상단 종에서도 같은 알림
+                'read_only' => 'Y',
             ],
             [
                 'menu_code' => '1003',

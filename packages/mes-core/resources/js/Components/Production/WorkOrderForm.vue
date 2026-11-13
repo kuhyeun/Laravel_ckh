@@ -42,9 +42,14 @@
                     <p v-if="errors.due_date" class="err">{{ errors.due_date[0] }}</p>
                     <p v-else-if="sheet.due_date && sheet.start_date && sheet.due_date < sheet.start_date" class="text-[11px] text-amber-600">착수 예정일보다 앞입니다</p>
                 </div>
-                <div class="col-span-2">
+                <div>
                     <label class="lbl">담당</label>
                     <BaseSelect v-model="sheet.manager_idx" :options="managerOptions" class="w-full" :disabled="!sheetEditable" />
+                </div>
+                <!-- 달력에서 배치 ( 11-12 ) : 생산계획 달력 위에 이 지시서를 올려 보고 날짜를 정한다 → 착수 예정일 · 생산 기한 칸에 -->
+                <div>
+                    <label class="lbl">일정</label>
+                    <BaseButton variant="secondary" class="w-full" title="생산계획 달력 위에 이 지시서를 올려 보고 착수 예정일 · 생산 기한을 정합니다" @click="openCalendar">달력에서 {{ sheetEditable ? '배치' : '보기' }}</BaseButton>
                 </div>
                 <div class="col-span-6">
                     <label class="lbl">비고</label>
@@ -141,6 +146,8 @@ import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import WorkOrderLinePanel from '@core/Components/Production/WorkOrderLinePanel.vue';
+import WorkOrderCalendar from '@core/Components/Production/WorkOrderCalendar.vue';
+import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import { blankLine, lineFromServer, applyItemDefaults, linePayload, sameRouting } from '@core/Components/Production/workOrderLine';
@@ -176,6 +183,20 @@ const fmt = (v) => fmtNum(num(v));   // 빈 칸 · 글자는 0 ( 입력 칸용 )
 const itemLabel = (l) => (l.item_idx ? l.savedItem || `#${l.item_idx}` : '');
 const lineLabel = (l) => `${String(lines.value.indexOf(l) + 1).padStart(2, '0')} ${itemLabel(l)}`;
 
+// ---- 달력에서 배치 ( 11-12 ) — 정한 날짜는 지시서 칸에만 넣는다 ( DB 저장은 아래 [저장] ) ----
+const modalStore = useModalStore();
+function openCalendar() {
+    const named = lines.value.filter(l => l.item_idx);
+    modalStore.open(WorkOrderCalendar, {
+        modalTitle: `작업지시 일정 배치${sheet.sheet_no ? ` [ ${sheet.sheet_no} ]` : ''}`,
+        startDate: sheet.start_date || '', dueDate: sheet.due_date || '', sheetNo: sheet.sheet_no || '',
+        title: named.length ? named.map(l => `${itemLabel(l)} ${fmt(l.target_qty)}`).join(' · ') : '품목 없음',
+        planIdxs: [...new Set(lines.value.map(l => l.production_plan_idx).filter(Boolean))],
+        editable: sheetEditable.value,
+        onApply: (start, due) => { sheet.start_date = start; sheet.due_date = due; },
+    }, { size: 'full' });
+}
+
 // ---- 줄 ----
 const newLine = () => blankLine({ lot_rule_idx: ctx.lot.rules[0]?.lot_rule_idx ?? '' });
 function addLine() {
@@ -194,7 +215,8 @@ function removeLine(i) {
 //   완제품 줄을 담을 때 서버가 준 하위 반제품( semi_parts — 깊은 것부터 )마다 재고 지시 줄을 그 완제품 줄 위에 넣는다 → 1 반제품 · 2 완제품
 //   수량 = 완제품 1개당 × 완제품 수량 ( 손대지 않은 동안은 완제품 수량을 따라간다 ) · 재고가 충분하면 체크를 끄거나 그 줄만 ✕
 const withSemi = ref(true);
-const semiQty  = (per, parentQty) => Math.round(Number(per) * num(parentQty) * 1000) / 1000;
+//   생산 가능 수량( 반제품 1개로 제품 N개 · 11-12 )으로 넣은 줄을 거친 반제품은 올림 ( 서버 SemiPartService 의 ceil )
+const semiQty  = (per, parentQty, ceil = false) => ceil ? Math.ceil(Number(per) * num(parentQty) - 1e-6) : Math.round(Number(per) * num(parentQty) * 1000) / 1000;
 // 이 반제품 줄을 쓰는 완제품 줄 ( 저장 전 = 화면의 줄 · 저장 후 = 부모 지시 — 이력 )
 const semiParentNo = (l) => {
     if (l._semiOf) {
@@ -214,10 +236,10 @@ async function addSemiFor(parent, parts) {
         if (lines.value.some(x => x._semiOf === parent._key && Number(x.item_idx) === Number(part.item_idx))) continue;
         const line = newLine();
         await applyItemDefaults(line, part.item_idx);   // 반제품의 품목 공정 · 활성 BOM
-        const q = semiQty(part.qty_per, parent.target_qty);
+        const q = semiQty(part.qty_per, parent.target_qty, part.ceil);
         Object.assign(line, {
             item_idx: part.item_idx, savedItem: part.item_label, item_kind: 'SEMI', source: 'STOCK',
-            target_qty: String(q), _semiOf: parent._key, _semiPer: part.qty_per, _semiAuto: String(q), _semiStock: Number(part.stock_qty ?? 0),
+            target_qty: String(q), _semiOf: parent._key, _semiPer: part.qty_per, _semiCeil: !!part.ceil, _semiAuto: String(q), _semiStock: Number(part.stock_qty ?? 0),
         });
         made.push(line);
     }
@@ -243,7 +265,7 @@ watch(() => lines.value.map(l => `${l._key}:${l.target_qty}`).join(','), () => {
         if (!s._semiOf || s.work_order_idx || s.target_qty !== s._semiAuto) continue;
         const p = lines.value.find(x => x._key === s._semiOf);
         if (!p) continue;
-        const q = String(semiQty(s._semiPer, p.target_qty));
+        const q = String(semiQty(s._semiPer, p.target_qty, s._semiCeil));
         if (q !== s.target_qty) { s.target_qty = q; s._semiAuto = q; }
     }
 });

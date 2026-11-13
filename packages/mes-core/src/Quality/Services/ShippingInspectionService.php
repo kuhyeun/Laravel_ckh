@@ -46,7 +46,7 @@ class ShippingInspectionService {
         if ($data['result'] === 'FAIL' && ($fail <= 0 || $fail > $qty + 0.000001)) {
             throw ValidationException::withMessages(['fail_qty' => ['불량 수량은 0보다 크고 출하 수량( ' . $this->num($qty) . ' ) 이하여야 합니다.']]);
         }
-        $this->defects->validate($fail, $data['defect_type_code'] ?? null, $data['reason'] ?? null);
+        $this->defects->validateRows($fail, $data);   // 불량 여러 줄 ( 11-12 )
 
         return DB::transaction(function () use ($line, $data, $fail, $qty, $at) {
             $line = ShipmentLine::with(['shipment', 'picks'])->whereKey($line->shipment_line_idx)->lockForUpdate()->first();
@@ -70,22 +70,20 @@ class ShippingInspectionService {
                 'remark'        => $data['remark'] ?? null,
             ]);
             $lots = $line->picks->pluck('lot_idx')->unique();
-            $this->defects->record($inspection, [
+            $this->defects->recordRows($inspection, [
                 'item_idx'          => $line->item_idx,
                 'lot_idx'           => $lots->count() === 1 ? (int) $lots->first() : 0,   // LOT 이 여럿이면 줄 단위로만
                 'partner_idx'       => $line->shipment->partner_idx,
                 'shipment_line_idx' => $line->shipment_line_idx,
-                'qty'               => $fail,
-                'defect_type_code'  => $data['defect_type_code'] ?? null,
-                'reason'            => $data['reason'] ?? null,
                 'occurred_at'       => $at,
-            ]);
+            ], $fail, $data);
+            $sum = $this->defects->summary(\MesCore\Quality\Models\Defect::where('inspection_idx', $inspection->inspection_idx)->get());
 
             $line->fill([
                 'inspect_status' => $data['result'],
                 'inspected_by'   => $data['inspector_idx'],
                 'inspected_at'   => $at,
-                'inspect_remark' => $data['result'] === 'FAIL' ? mb_substr((string) ($data['reason'] ?: $this->defects->typeName($data['defect_type_code'] ?? null)), 0, 200) : ($data['remark'] ?? null),
+                'inspect_remark' => $data['result'] === 'FAIL' ? mb_substr((string) ($sum['reason'] ?: $sum['defect_type']), 0, 200) : ($data['remark'] ?? null),
             ])->save();
 
             return $inspection;

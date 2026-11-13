@@ -116,7 +116,7 @@ class SubconController extends Controller {
             'inputs'              => 'nullable|array|max:100',
             'inputs.*.input_type' => 'required|in:MATERIAL,RUN',
             'inputs.*.lot_idx'    => 'required|integer',
-            'inputs.*.qty'        => 'required|numeric|gt:0|max:999999999999',
+            'inputs.*.qty'        => 'nullable|numeric|min:0|max:999999999999',   // 앞 공정 실적 LOT 만 ( 자재 LOT 는 수량 없음 · 11-12 — 0 보다 큰지는 서비스가 )
         ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => 'LOT 수량은 0보다 커야 합니다.'], ['partner_idx' => '외주처', 'qty' => '수량', 'amount' => '외주 금액', 'issued_at' => '출고 일시', 'inputs.*.qty' => 'LOT 수량']);
         $issue = $this->subcon->issue($d);
         return response()->json(['message' => 'Success', 'issue_no' => $issue->issue_no, 'warnings' => $issue->warnings ?? []]);
@@ -243,6 +243,10 @@ class SubconController extends Controller {
             'fail_qty'         => 'nullable|numeric|min:0|max:999999999999',
             'defect_type_code' => 'nullable|string|max:30',
             'reason'           => 'nullable|string|max:200',
+            'defects'                    => 'nullable|array|max:20',   // 불량 여러 줄 ( 11-12 )
+            'defects.*.defect_type_code' => 'nullable|string|max:30',
+            'defects.*.qty'              => 'nullable|numeric|min:0|max:999999999999',
+            'defects.*.reason'           => 'nullable|string|max:200',
             'inspector_idx'    => ['required', 'integer', User::pickableRule()],
             'inspected_at'     => 'required|date_format:Y-m-d\TH:i',
             'remark'           => 'nullable|string|max:2000',
@@ -261,8 +265,7 @@ class SubconController extends Controller {
             'fail_qty'       => (float) $insp->fail_qty,
             'inspected_at'   => $insp->inspected_at?->format('Y-m-d H:i'),
             'inspector_name' => $insp->inspector?->user_name ?: $insp->inspector?->user_id,
-            'defect_type'    => $defects->typeName($insp->defects->first()?->defect_type_code),
-            'reason'         => $insp->defects->first()?->reason,
+            ...$defects->summary($insp->defects),   // defect_type · reason ( 불량 여러 줄 요약 )
             'remark'         => $insp->remark,
         ] : null]);
     }

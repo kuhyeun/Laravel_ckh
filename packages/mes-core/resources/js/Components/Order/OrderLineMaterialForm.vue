@@ -29,12 +29,12 @@
         <p v-if="errors[errorPrefix]" class="mb-2 text-xs text-red-500">{{ errors[errorPrefix][0] }}</p>
 
         <div class="flex-1 min-h-0 overflow-y-auto overflow-x-auto border rounded">
-            <table class="w-full table-fixed min-w-[880px] text-sm">
+            <table class="w-full table-fixed min-w-[960px] text-sm">
                 <colgroup>
                     <col>
                     <col class="w-40">
-                    <col class="w-24">
                     <col class="w-44">
+                    <col v-if="SHOW_OP" class="w-44">
                     <col v-if="SHOW_CALC" class="w-28">
                     <col v-if="SHOW_CALC" class="w-24">
                     <col v-if="!ro" class="w-10">
@@ -43,8 +43,8 @@
                     <tr>
                         <th class="px-2 py-1.5 font-medium text-left">자재 <span class="text-red-400">*</span></th>
                         <th class="px-2 py-1.5 font-medium text-left">규격</th>
-                        <th class="px-2 py-1.5 font-medium">소요 <span class="text-red-400">*</span></th>
-                        <th class="px-2 py-1.5 font-medium">투입 공정</th>
+                        <th class="px-2 py-1.5 font-medium" title="[개당] 제품 1개에 드는 양 · [1개로] 자재 1개로 만드는 제품 수 ( 필요량 = 수량 ÷ 이 값을 올림 ) — 줄마다 왼쪽 단추로 바꿉니다">소요 / 생산 가능 <span class="text-red-400">*</span></th>
+                        <th v-if="SHOW_OP" class="px-2 py-1.5 font-medium">투입 공정</th>
                         <th v-if="SHOW_CALC" class="px-2 py-1.5 font-medium">계산식</th>
                         <th v-if="SHOW_CALC" class="px-2 py-1.5 font-medium">절단(CUT)</th>
                         <th v-if="!ro" class="px-2 py-1.5"></th>
@@ -52,7 +52,7 @@
                 </thead>
                 <tbody>
                     <tr v-if="!lines.length">
-                        <td :colspan="(ro ? 4 : 5) + (SHOW_CALC ? 2 : 0)" class="px-2 py-6 text-center text-gray-400">자재가 없습니다. ( 품목에 활성 BOM 이 없으면 비어 있습니다 )</td>
+                        <td :colspan="(ro ? 4 : 5) + (SHOW_CALC ? 2 : 0) - (SHOW_OP ? 0 : 1)" class="px-2 py-6 text-center text-gray-400">자재가 없습니다. ( 품목에 활성 BOM 이 없으면 비어 있습니다 )</td>
                     </tr>
                     <template v-for="(l, i) in lines" :key="keyOf(l)">
                         <tr class="border-t align-top">
@@ -79,10 +79,11 @@
                                     @open="loadSpecs(l.child_item_code)" @commit="v => onSpecCommit(l, v)" />
                             </td>
                             <td class="px-1.5 py-1">
-                                <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="ro" />
-                                <p v-if="err(i, 'qty')" class="text-[11px] text-red-500">{{ err(i, 'qty') }}</p>
+                                <!-- 소요량 / 생산 가능 수량 ( 11-12 ) -->
+                                <QtyModeInput v-model:qty="l.qty" v-model:yield="l.yield_qty" :disabled="ro" />
+                                <p v-if="err(i, 'qty') || err(i, 'yield_qty')" class="text-[11px] text-red-500">{{ err(i, 'yield_qty') || err(i, 'qty') }}</p>
                             </td>
-                            <td class="px-1.5 py-1">
+                            <td v-if="SHOW_OP" class="px-1.5 py-1">
                                 <BaseSelect v-model="l._routing_rk" :options="routingOptions" size="md" class="w-full" :disabled="ro" />
                             </td>
                             <td v-if="SHOW_CALC" class="px-1.5 py-1"><BaseInput v-model="l.calc_code" size="md" class="w-full" placeholder="예: BAR_CUT" :disabled="ro" /></td>
@@ -92,21 +93,21 @@
                             </td>
                         </tr>
                         <tr v-if="SHOW_SUBS && open.has(keyOf(l))" class="bg-gray-50/70">
-                            <td :colspan="(ro ? 4 : 5) + (SHOW_CALC ? 2 : 0)" class="pl-6 pr-1.5 py-1.5">
+                            <td :colspan="(ro ? 4 : 5) + (SHOW_CALC ? 2 : 0) - (SHOW_OP ? 0 : 1)" class="pl-6 pr-1.5 py-1.5">
                                 <!-- 바깥 표가 min-w 를 가지므로 안쪽 표는 셀 너비를 그대로 채운다 -->
                                 <table class="w-full table-fixed text-xs">
                                     <colgroup>
                                         <col class="w-6">
                                         <col>
                                         <col class="w-40">
-                                        <col class="w-24">
                                         <col class="w-44">
+                                        <col v-if="SHOW_OP" class="w-44">
                                         <col v-if="SHOW_CALC" class="w-28">
                                         <col v-if="SHOW_CALC" class="w-24">
                                         <col v-if="!ro" class="w-10">
                                     </colgroup>
                                     <tbody>
-                                        <tr v-if="!l.substitutes.length"><td :colspan="(ro ? 5 : 6) + (SHOW_CALC ? 2 : 0)" class="py-1 text-gray-400">대체 자재가 없습니다.</td></tr>
+                                        <tr v-if="!l.substitutes.length"><td :colspan="(ro ? 5 : 6) + (SHOW_CALC ? 2 : 0) - (SHOW_OP ? 0 : 1)" class="py-1 text-gray-400">대체 자재가 없습니다.</td></tr>
                                         <tr v-for="(sub, j) in l.substitutes" :key="keyOf(sub)" class="align-top">
                                             <td class="text-gray-300 py-1 leading-9">└</td>
                                             <td class="pr-1.5 py-1">
@@ -120,10 +121,10 @@
                                     @open="loadSpecs(sub.child_item_code)" @commit="v => onSpecCommit(sub, v)" />
                                             </td>
                                             <td class="pr-1.5 py-1">
-                                                <BaseInput v-model="sub.qty" type="number" min="0" size="md" class="w-full text-right" placeholder="소요" :disabled="ro" />
-                                                <p v-if="subErr(i, j, 'qty')" class="text-[11px] text-red-500">{{ subErr(i, j, 'qty') }}</p>
+                                                <QtyModeInput v-model:qty="sub.qty" v-model:yield="sub.yield_qty" :disabled="ro" />
+                                                <p v-if="subErr(i, j, 'qty') || subErr(i, j, 'yield_qty')" class="text-[11px] text-red-500">{{ subErr(i, j, 'yield_qty') || subErr(i, j, 'qty') }}</p>
                                             </td>
-                                            <td class="pr-1.5 text-gray-400 py-1 leading-9">투입 공정은 주 자재와 같음</td>
+                                            <td v-if="SHOW_OP" class="pr-1.5 text-gray-400 py-1 leading-9">투입 공정은 주 자재와 같음</td>
                                             <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="md" class="w-full" placeholder="계산식" :disabled="ro" /></td>
                                             <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="ro" /></td>
                                             <td v-if="!ro" class="text-center py-1 leading-9">
@@ -159,6 +160,7 @@ import { specKey, withSpec } from '@core/Utils/format';
 import { showAlert } from '@core/Utils/message';
 import { quickMaterial } from '@core/Components/Config/quickMaterial';
 import { rkOf, linkRouting } from '@core/Components/Order/orderMaterial';
+import QtyModeInput from '@core/Components/Config/QtyModeInput.vue';
 
 const props = defineProps({
     initial:     { type: Array,    default: () => [] },   // 지금 줄 자재 ( 복사해서 고친다 — [취소] 하면 그대로 )
@@ -181,6 +183,7 @@ const clone = (rows) => rows.map(l => ({ ...withItemSpec(l), substitutes: (l.sub
 // 계산식 · 절단(CUT) 칸 : 지금은 숨김 ( 값은 그대로 오가므로 저장해도 지워지지 않는다 — 출고 계산은 비어 있으면 품목 → 정책 → 개당 × 지시 )
 //   다시 쓰려면 true ( 계산식은 자유 입력 대신 등록된 식에서 고르기로 바꿀 것 )
 const SHOW_CALC = false;
+import { SHOW_INPUT_OP as SHOW_OP } from '@core/Utils/features';
 // 대체 자재 칸( ▾ 대체 자재 n ) : 숨김 — 자재를 바꾸면 품목 BOM 에 대체 자재로 등록되므로 같은 일을 두 곳에서 하면 헷갈린다
 //   값은 그대로 오간다 ( 품목 BOM 에서 온 대체 자재는 이 수주 자재에 복사되어 자재 출고 때 섞어 낼 수 있다 ) · 다시 쓰려면 true
 const SHOW_SUBS = false;

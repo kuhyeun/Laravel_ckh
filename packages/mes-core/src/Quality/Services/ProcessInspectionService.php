@@ -96,7 +96,7 @@ class ProcessInspectionService {
                 if (abs(($pass + $fail) - $base) > self::EPS) {
                     throw ValidationException::withMessages(['pass_qty' => ["합격과 불합격을 더하면 검사 수량( {$this->num($base)} )이 되어야 합니다."]]);
                 }
-                $this->defects->validate($fail, $data['defect_type_code'] ?? null, $data['reason'] ?? null);
+                $this->defects->validateRows($fail, $data);   // 불량 여러 줄 ( 11-12 )
             }
 
             $inspection = Inspection::create([
@@ -106,7 +106,7 @@ class ProcessInspectionService {
                 'inspected_at' => $at, 'inspector_idx' => $data['inspector_idx'], 'remark' => $data['remark'] ?? null,
             ]);
             if (!$op->isIflOp()) {   // IFL 은 단계 기록 때 불량을 남겼다
-                $this->defects->record($inspection, $this->defectRow($wo, $op, $fail, $data, $at));
+                $this->defects->recordRows($inspection, $this->defectBase($wo, $op, $at), $fail, $data);
             }
 
             return $this->results->completeOp($op, ['_pass_qty' => $pass, 'warehouse_idx' => $data['warehouse_idx'] ?? null]);
@@ -191,6 +191,11 @@ class ProcessInspectionService {
     }
 
     // ---- 내부 ----
+
+    // 불량 줄의 공통 값 ( 유형 · 수량 · 상세는 줄마다 — DefectService::recordRows )
+    private function defectBase(WorkOrder $wo, WorkOrderOp $op, Carbon $at): array {
+        return ['item_idx' => $wo->item_idx, 'lot_idx' => (int) ($wo->lot_idx ?? 0), 'work_order_op_idx' => $op->work_order_op_idx, 'occurred_at' => $at];
+    }
 
     private function defectRow(WorkOrder $wo, WorkOrderOp $op, float $fail, array $data, Carbon $at): array {
         return [

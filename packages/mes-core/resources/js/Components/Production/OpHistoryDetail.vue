@@ -44,7 +44,7 @@
                             <span v-if="o.is_qty" class="text-xs text-gray-500">기준 {{ dash(o.base_qty) }} · 실적 <b class="text-gray-800">{{ fmtNum(o.qty) }}</b></span>
                             <span v-else class="text-xs text-gray-400">( 완료만 )</span>
                             <span class="text-xs font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</span>
-                            <span v-if="o.short_qty" class="text-xs text-amber-700">미달 {{ fmtNum(o.short_qty) }} · {{ o.short_reason }}</span>
+                            <span v-if="o.short_qty" class="text-xs text-amber-700">미달 {{ fmtNum(o.short_qty) }}<template v-if="o.short_reason"> · {{ o.short_reason }}</template></span>
                             <div class="flex-1"></div>
                             <span class="text-xs text-gray-400">
                                 <template v-if="o.started_at">시작 {{ o.started_at }}</template>
@@ -67,12 +67,12 @@
                 <!-- 자재 -->
                 <div v-show="tab === 'materials'">
                     <table class="w-full text-xs border">
-                        <thead class="bg-gray-50 text-gray-500"><tr><th class="px-2 py-1.5 text-left">자재</th><th class="px-2 py-1.5 text-left">투입 공정</th><th class="px-2 py-1.5 text-right">출고</th><th class="px-2 py-1.5 text-right">사용</th><th class="px-2 py-1.5 text-right">반납</th><th class="px-2 py-1.5 text-right">보유</th></tr></thead>
+                        <thead class="bg-gray-50 text-gray-500"><tr><th class="px-2 py-1.5 text-left">자재</th><th v-if="SHOW_OP" class="px-2 py-1.5 text-left">투입 공정</th><th class="px-2 py-1.5 text-right">출고</th><th class="px-2 py-1.5 text-right">사용</th><th class="px-2 py-1.5 text-right">반납</th><th class="px-2 py-1.5 text-right">보유</th></tr></thead>
                         <tbody>
-                            <tr v-if="!line.materials.length"><td colspan="6" class="px-2 py-3 text-center text-gray-400">자재가 없습니다.</td></tr>
+                            <tr v-if="!line.materials.length"><td :colspan="SHOW_OP ? 6 : 5" class="px-2 py-3 text-center text-gray-400">자재가 없습니다.</td></tr>
                             <tr v-for="(m, i) in line.materials" :key="i" class="border-t">
                                 <td class="px-2 py-1">{{ m.item_label }}</td>
-                                <td class="px-2 py-1 text-gray-500">{{ m.input_op }}</td>
+                                <td v-if="SHOW_OP" class="px-2 py-1 text-gray-500">{{ m.input_op }}</td>
                                 <td class="px-2 py-1 text-right" :class="m.issued ? '' : 'text-gray-400'">{{ m.issued ? fmtQty(m.issued, m.spec_unit) : '미출고' }}</td>
                                 <td class="px-2 py-1 text-right text-gray-500">{{ fmtNum(m.consumed) }}</td>
                                 <td class="px-2 py-1 text-right text-gray-500">{{ fmtNum(m.returned) }}</td>
@@ -110,13 +110,14 @@
 </template>
 
 <script setup>
+import { SHOW_INPUT_OP as SHOW_OP } from '@core/Utils/features';
 import { ref, reactive, onMounted, h } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import { failMsg } from '@core/Composables/useFlash';
-import { fmtNum, fmtQty, dash } from '@core/Utils/format';
+import { fmtNum, fmtQty, dash, runTimeText } from '@core/Utils/format';
 
 const props = defineProps({
     woIdx:       { type: Number, required: true },
@@ -141,7 +142,7 @@ const TABS = [
 // 실적 줄 표 ( 공정별 · 전체 공통 ) — 취소는 회색 줄긋기, 누른 실적은 노란 배경
 const RunTable = (p) => h('table', { class: 'w-full text-xs' }, [
     h('thead', { class: 'text-gray-500' }, h('tr', [
-        h('th', { class: 'px-3 py-1.5 text-left' }, '작업 일시'),
+        h('th', { class: 'px-3 py-1.5 text-left' }, '작업 시간'),
         p.showOp ? h('th', { class: 'px-2 py-1.5 text-left' }, '공정') : null,
         h('th', { class: 'px-2 py-1.5 text-left' }, '설비'),
         h('th', { class: 'px-2 py-1.5 text-left' }, '작업자'),
@@ -153,7 +154,7 @@ const RunTable = (p) => h('table', { class: 'w-full text-xs' }, [
         key: r.run_idx,
         class: ['border-t', r.is_canceled ? 'text-gray-400 line-through' : '', r.run_idx === p.focus ? 'bg-amber-50' : ''],
     }, [
-        h('td', { class: 'px-3 py-1.5' }, r.worked_at),
+        h('td', { class: 'px-3 py-1.5 whitespace-nowrap' }, runTimeText(r.started_at, r.worked_at)),
         p.showOp ? h('td', { class: 'px-2 py-1.5' }, r.op_label) : null,
         h('td', { class: 'px-2 py-1.5' }, r.equipment_name ?? '—'),
         h('td', { class: 'px-2 py-1.5' }, [r.operator, r.creator ? h('span', { class: 'text-gray-400' }, ` ( 입력 : ${r.creator} )`) : null]),

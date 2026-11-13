@@ -245,7 +245,7 @@
             <!-- 6-1. 월 달력 ( MonthCalendar ) -->
             <section id="calendar" class="scroll-mt-4">
                 <SectionHead title="월 달력" note="MonthCalendar — 기간 막대 · 끌어 날짜 옮기기 · 체크 · 빈 날짜 누르기 ( 생산계획 ) · 그 달 1일 ~ 마지막 날이 든 주 ( md §5-2 )" />
-                <ShowcaseCard title="기간 막대 — 막대를 끌어 보세요 ( 예시 · 저장 안 함 )" :code="code.calendar">
+                <ShowcaseCard title="기간 막대 — 막대를 끌어 보세요 ( 예시 · 저장 안 함 / 파란색 - 이동 가능, 초록색 - 이동 불가 )" :code="code.calendar">
                     <div class="w-full flex flex-col gap-2">
                         <div class="flex items-center gap-2">
                             <BaseButton variant="secondary" @click="cal.month = shiftOf(cal.month, -1)">◀</BaseButton>

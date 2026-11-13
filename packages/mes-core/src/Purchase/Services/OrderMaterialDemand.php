@@ -49,7 +49,7 @@ class OrderMaterialDemand {
                 'sol.sales_order_line_idx', 'so.sales_order_idx', 'so.order_no', 'sol.line_no', 'so.status as order_status', 'sol.line_status',
                 'c.partner_name', 'sol.due_date', 'sol.qty as order_qty',
                 'p.item_code as product_code', 'p.item_name as product_name', 'p.spec as product_spec',
-                'bl.child_item_idx', 'bl.qty as qty_per',
+                'bl.child_item_idx', 'bl.qty as qty_per', 'bl.yield_qty',
             ])
             ->orderBy('sol.due_date')->orderBy('so.order_no')->orderBy('sol.line_no')->orderBy('bl.seq')->orderBy('bl.bom_line_idx');
 
@@ -64,16 +64,18 @@ class OrderMaterialDemand {
             return [];
         }
 
-        // 2단계 : 반제품 전개 → ( 수주 줄 · 자재 ) 별 개당 소요 합
+        // 2단계 : 반제품 전개 → ( 수주 줄 · 자재 ) 별 소요 합
+        //   수주 수량으로 한 단계씩 구한다 ( 11-12 — 생산 가능 수량 줄은 단계마다 올림 · MaterialNeed ) · 개당 소요( qty_per )는 소요 ÷ 수주 수량 ( 표시용 )
         $this->loadItems($lines->pluck('child_item_idx')->all());
-        $merged = [];   // "sol:item" => [ head, item_idx, qty_per, via[] ]
+        $merged = [];   // "sol:item" => [ head, item_idx, need, via[] ]
         foreach ($lines as $l) {
-            foreach ($this->explode((int) $l->child_item_idx, (float) $l->qty_per, [], 0) as [$itemIdx, $qtyPer, $via]) {
+            $top = \MesCore\Support\MaterialNeed::of((float) $l->order_qty, (float) $l->qty_per, $l->yield_qty);
+            foreach ($this->explode((int) $l->child_item_idx, $top, [], 0) as [$itemIdx, $qty, $via]) {
                 $key = $l->sales_order_line_idx . ':' . $itemIdx;
                 if (!isset($merged[$key])) {
-                    $merged[$key] = ['head' => $l, 'item_idx' => $itemIdx, 'qty_per' => 0.0, 'via' => []];
+                    $merged[$key] = ['head' => $l, 'item_idx' => $itemIdx, 'need' => 0.0, 'via' => []];
                 }
-                $merged[$key]['qty_per'] += $qtyPer;
+                $merged[$key]['need'] += $qty;
                 if ($via) {
                     $merged[$key]['via'][implode(' › ', $via)] = true;
                 }
@@ -109,7 +111,7 @@ class OrderMaterialDemand {
         foreach ($merged as $key => $m) {
             $r    = $m['head'];
             $item = $this->items[$m['item_idx']];
-            $need = round($m['qty_per'] * (float) $r->order_qty, 6);
+            $need = round($m['need'], 6);
             $o    = $ordered->get($key);
             $done = (float) ($o->qty ?? 0);
             $left = max(0, round($need - $done, 6));
@@ -135,7 +137,7 @@ class OrderMaterialDemand {
                 'item_type'            => $item->item_type,
                 'spec_unit'            => $item->spec_unit,
                 'std_buy_price'        => (float) $item->std_buy_price,
-                'qty_per'              => round($m['qty_per'], 6),
+                'qty_per'              => (float) $r->order_qty > 0 ? round($need / (float) $r->order_qty, 6) : 0.0,
                 'via'                  => $m['via'] ? implode(' / ', array_keys($m['via'])) : null,   // 거쳐 온 반제품
                 'need_qty'             => $need,
                 'ordered_qty'          => $done,
@@ -150,7 +152,7 @@ class OrderMaterialDemand {
         return $out;
     }
 
-    // 품목 하나를 발주할 자재로 펼친다 → [ [item_idx, 개당 소요, 거쳐 온 반제품 이름들], … ]
+    // 품목 하나를 발주할 자재로 펼친다 → [ [item_idx, 소요( 그 품목이 $qty 개 필요할 때 ), 거쳐 온 반제품 이름들], … ]
     //   제품이고 활성 품목 BOM( 주 자재 줄 )이 있으면 내려가고, 아니면 그 품목 그대로
     private function explode(int $itemIdx, float $qtyPer, array $via, int $depth): array {
         $item     = $this->items[$itemIdx] ?? null;
@@ -163,8 +165,8 @@ class OrderMaterialDemand {
 
         $via[$itemIdx] = $item->item_name;
         $out = [];
-        foreach ($children as [$childIdx, $childQty]) {
-            array_push($out, ...$this->explode($childIdx, $qtyPer * $childQty, $via, $depth + 1));
+        foreach ($children as [$childIdx, $childQty, $childYield]) {
+            array_push($out, ...$this->explode($childIdx, \MesCore\Support\MaterialNeed::of($qtyPer, $childQty, $childYield), $via, $depth + 1));
         }
         return $out;
     }
@@ -178,8 +180,8 @@ class OrderMaterialDemand {
                 ->where('b.item_idx', $itemIdx)
                 ->where('b.is_active', 'Y')
                 ->orderBy('bl.seq')->orderBy('bl.bom_line_idx')
-                ->get(['bl.child_item_idx', 'bl.qty']);
-            $this->bomLines[$itemIdx] = $rows->map(fn ($r) => [(int) $r->child_item_idx, (float) $r->qty])->all();
+                ->get(['bl.child_item_idx', 'bl.qty', 'bl.yield_qty']);
+            $this->bomLines[$itemIdx] = $rows->map(fn ($r) => [(int) $r->child_item_idx, (float) $r->qty, $r->yield_qty])->all();
             $this->loadItems($rows->pluck('child_item_idx')->all());
         }
         return $this->bomLines[$itemIdx];

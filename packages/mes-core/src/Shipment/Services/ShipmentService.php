@@ -306,6 +306,9 @@ class ShipmentService {
             }
             $s->fill(['approval_status' => 'PENDING', 'approval_requested_by' => Auth::id(), 'approval_requested_at' => now(), 'approved_by' => null, 'approved_at' => null, 'reject_reason' => null]);
         });
+        // 알림 : 승인할 수 있는 사람( 출하관리 삭제 권한 — 승인 · 반려 주소의 권한 )에게 ( 11-13 )
+        $notes = app(\MesCore\Support\NotificationService::class);
+        $notes->send('APPROVAL_REQUEST', $notes->usersWithPage(self::PAGE, 'can_delete'), $this->noteMsg($s, '출하 결재 요청', "{$this->actorName()} 님이 결재를 요청했습니다."));
     }
 
     public function approve(Shipment $s): void {
@@ -315,6 +318,8 @@ class ShipmentService {
             }
             $s->fill(['approval_status' => 'APPROVED', 'approved_by' => Auth::id(), 'approved_at' => now()]);
         });
+        // 알림 : 요청한 사람에게
+        app(\MesCore\Support\NotificationService::class)->send('APPROVAL_APPROVED', [(int) $s->approval_requested_by], $this->noteMsg($s, '출하 결재 승인', "{$this->actorName()} 님이 승인했습니다."));
     }
 
     public function reject(Shipment $s, string $reason): void {
@@ -324,6 +329,21 @@ class ShipmentService {
             }
             $s->fill(['approval_status' => 'REJECTED', 'approved_by' => Auth::id(), 'approved_at' => now(), 'reject_reason' => $reason]);
         });
+        app(\MesCore\Support\NotificationService::class)->send('APPROVAL_REJECTED', [(int) $s->approval_requested_by], $this->noteMsg($s, '출하 결재 반려', "{$this->actorName()} 님이 반려했습니다. 사유 : {$reason}"));
+    }
+
+    // 알림 내용 ( 출하 결재 ) — 누르면 출하관리 · 검색어 = 출하번호
+    private const PAGE = 'Shipment/ShipmentManage';
+    private function noteMsg(Shipment $s, string $title, string $body): array {
+        $partner = DB::table('partner')->where('partner_idx', $s->partner_idx)->value('partner_name');
+        return [
+            'title' => "{$title} · {$s->shipment_no}", 'body' => trim(($partner ? "{$partner} · " : '') . $body),
+            'page' => self::PAGE, 'keyword' => $s->shipment_no, 'ref_type' => 'shipment', 'ref_idx' => (int) $s->shipment_idx,
+        ];
+    }
+    private function actorName(): string {
+        $u = Auth::user();
+        return $u ? ($u->user_name ?: $u->user_id) : '';
     }
 
     private function transition(Shipment $s, callable $fn): void {
@@ -335,6 +355,7 @@ class ShipmentService {
             $fn($s);
             $s->save();
         });
+        $s->refresh();   // 넘겨받은 객체도 저장된 값으로 ( 뒤의 알림이 요청자 · 번호를 읽는다 )
     }
 
     // ---- 출하처리 ----

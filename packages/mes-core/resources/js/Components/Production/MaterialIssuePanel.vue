@@ -52,7 +52,7 @@
                             · 남음 <b :class="m.need_qty > 0 ? 'text-blue-700' : 'text-green-600'">{{ fmtNum(m.need_qty) }}</b>
                             {{ unitOf(m) }}<template v-if="m.substitute_of_idx"> ( 주 자재 남음을 이 자재 기준으로 )</template>
                         </span>
-                        <button v-if="!m.uses_spec && m.groups[0]?.trace" type="button" class="text-gray-400 hover:text-blue-600 text-sm" title="계산 과정" @click.stop="toggleTrace(m.groups[0])">ⓘ</button>
+                        <button v-if="!m.uses_spec && m.groups[0]?.trace" type="button" class="inline-flex items-center justify-center w-5 h-5 shrink-0 text-gray-400 hover:text-blue-600" title="계산 과정" @click.stop="toggleTrace(m.groups[0])"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" class="w-4 h-4"><circle cx="10" cy="10" r="7.5" /><path d="M10 9v5" stroke-linecap="round" /><circle cx="10" cy="6.3" r="0.9" fill="currentColor" stroke="none" /></svg></button>
                     </div>
 
                     <div v-if="m._open" class="px-2 py-1.5">
@@ -66,7 +66,7 @@
                                 <span v-if="g.excluded">· {{ g.reason }} — 후보 제외</span>
                                 <span v-else>· 계산 <b>{{ fmtNum(g.value) }}</b> {{ unitOf(m) }}</span>
                                 <span v-if="g.key === m.default_key" class="px-1 rounded bg-green-50 text-green-700">기본</span>
-                                <button v-if="g.trace && g.spec !== null" type="button" class="text-gray-400 hover:text-blue-600" title="계산 과정" @click="toggleTrace(g)">ⓘ</button>
+                                <button v-if="g.trace && g.spec !== null" type="button" class="inline-flex items-center justify-center w-5 h-5 shrink-0 text-gray-400 hover:text-blue-600" title="계산 과정" @click="toggleTrace(g)"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" class="w-4 h-4"><circle cx="10" cy="10" r="7.5" /><path d="M10 9v5" stroke-linecap="round" /><circle cx="10" cy="6.3" r="0.9" fill="currentColor" stroke="none" /></svg></button>
                             </div>
                             <TracePanel v-if="m.uses_spec && g._trace" :trace="g.trace" :unit="unitOf(m)" />
 
@@ -75,20 +75,20 @@
                                     <colgroup>
                                         <col class="w-56"><col><col class="w-24"><col class="w-24"><col class="w-32">
                                     </colgroup>
-                                    <thead class="text-gray-400">
-                                        <tr><th class="text-left font-normal px-1">LOT</th><th class="text-left font-normal px-1">창고</th><th class="text-center font-normal px-1">입고일</th><th class="text-right font-normal px-1">잔고</th><th class="text-right font-normal px-1">출고</th></tr>
+                                    <thead class="bg-gray-50 text-gray-500">
+                                        <tr><th class="text-left px-2 py-1.5">LOT</th><th class="text-left px-2 py-1.5">창고</th><th class="text-center px-2 py-1.5">입고일</th><th class="text-right px-2 py-1.5">잔고</th><th class="text-right px-2 py-1.5">출고</th></tr>
                                     </thead>
                                     <tbody>
-                                        <tr v-if="!g.lots.length"><td colspan="5" class="px-1 py-1 text-gray-400">출고할 수 있는 재고가 없습니다.</td></tr>
+                                        <tr v-if="!g.lots.length"><td colspan="5" class="text-gray-400 px-2 py-1.5">출고할 수 있는 재고가 없습니다.</td></tr>
                                         <tr v-for="l in g.lots" :key="l.stock_balance_idx" class="border-t border-gray-100">
-                                            <td class="px-1 py-0.5">
+                                            <td class="px-2 py-1.5">
                                                 {{ l.lot_no || '( LOT 미사용 )' }}
                                                 <span v-if="l.remnant" class="ml-1 px-1 rounded bg-amber-50 text-amber-700">잔재</span>
                                             </td>
-                                            <td class="px-1 truncate" :title="l.warehouse_name">{{ l.warehouse_name }}</td>
-                                            <td class="px-1 text-center text-gray-500">{{ l.in_at }}</td>
-                                            <td class="px-1 text-right">{{ fmtNum(l.qty) }}</td>
-                                            <td class="px-1 py-0.5">
+                                            <td class="truncate px-2 py-1.5" :title="l.warehouse_name">{{ l.warehouse_name }}</td>
+                                            <td class="text-center text-gray-500 px-2 py-1.5">{{ l.in_at }}</td>
+                                            <td class="text-right px-2 py-1.5">{{ fmtNum(l.qty) }}</td>
+                                            <td class="px-1.5 py-1">
                                                 <BaseInput v-model="l.fill" type="number" min="0" size="md" class="w-full text-right"
                                                     :class="over(l) ? '!border-red-400 !text-red-600' : ''" :disabled="!canIssue" />
                                             </td>
@@ -122,38 +122,38 @@
             </div>
 
             <!-- 출고 이력 -->
-            <div class="shrink-0 border-t border-gray-200 max-h-56 flex flex-col">
+            <div class="shrink-0 border-t border-gray-200 max-h-72 flex flex-col">
                 <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50/70">
                     <span class="text-sm font-semibold text-gray-600">출고 이력 <span class="text-xs text-gray-400">{{ history.length }} 줄</span></span>
                     <div class="flex-1"></div>
                     <BaseButton v-if="canCancel && isOpen" variant="danger" :disabled="!checked.length || saving" @click="cancelChecked">출고 취소</BaseButton>
                 </div>
                 <div class="overflow-auto">
-                    <table class="w-full min-w-[976px] table-fixed text-xs">
+                    <table class="w-full min-w-[1008px] table-fixed text-xs">
                         <colgroup>
                             <col class="w-8"><col class="w-32"><col class="w-36">
                             <col><col class="w-32"><col class="w-28">
-                            <col class="w-36"><col class="w-12"><col class="w-20">
+                            <col class="w-36"><col class="w-14"><col class="w-24">
                         </colgroup>
-                        <thead class="text-gray-400 sticky top-0 bg-white">
+                        <thead class="bg-gray-50 text-gray-500 sticky top-0">
                             <tr>
-                                <th></th><th class="text-left font-normal px-1">전표</th><th class="text-left font-normal px-1">출고일시</th>
-                                <th class="text-left font-normal px-1">자재</th><th class="text-left font-normal px-1">LOT</th><th class="text-left font-normal px-1">창고</th>
-                                <th class="text-right font-normal px-1">수량</th><th class="text-center font-normal px-1">상태</th><th class="text-left font-normal px-1">등록자</th>
+                                <th class="px-2 py-1.5"></th><th class="text-left px-2 py-1.5">전표</th><th class="text-left px-2 py-1.5">출고일시</th>
+                                <th class="text-left px-2 py-1.5">자재</th><th class="text-left px-2 py-1.5">LOT</th><th class="text-left px-2 py-1.5">창고</th>
+                                <th class="text-right px-2 py-1.5">수량</th><th class="text-center px-2 py-1.5">상태</th><th class="text-left px-2 py-1.5">등록자</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-if="!history.length"><td colspan="9" class="px-2 py-2 text-center text-gray-400">출고 이력이 없습니다.</td></tr>
                             <tr v-for="h in history" :key="h.stock_txn_line_idx" class="border-t border-gray-100" :class="h.status === 'CANCELED' ? 'text-gray-400 line-through' : ''">
-                                <td class="text-center"><input v-if="canCancel && isOpen && h.status === 'DONE'" type="checkbox" class="row-check" :value="h.stock_txn_line_idx" v-model="checked" /></td>
-                                <td class="px-1 py-[3px]">{{ h.txn_no }}</td>
-                                <td class="px-1">{{ h.occurred_at.replace('T', ' ') }}</td>
-                                <td class="px-1 truncate" :title="`${h.item_code} ${h.item_name}`">{{ h.item_code }} {{ h.item_name }}</td>
-                                <td class="px-1 truncate" :title="h.lot_no">{{ h.lot_no }}</td>
-                                <td class="px-1 truncate" :title="h.warehouse_name">{{ h.warehouse_name }}</td>
-                                <td class="px-1 text-right">{{ qtyText(h.qty, h.spec_unit, h.spec_value) }}<span v-if="h.consumed_qty" class="text-gray-400"> ( 사용 {{ fmtNum(h.consumed_qty) }} )</span></td>
-                                <td class="px-1 text-center">{{ h.status === 'CANCELED' ? '취소' : '출고' }}</td>
-                                <td class="px-1">{{ h.user_name }}</td>
+                                <td class="text-center px-2 py-1.5"><input v-if="canCancel && isOpen && h.status === 'DONE'" type="checkbox" class="row-check" :value="h.stock_txn_line_idx" v-model="checked" /></td>
+                                <td class="px-2 py-1.5">{{ h.txn_no }}</td>
+                                <td class="px-2 py-1.5">{{ h.occurred_at.replace('T', ' ') }}</td>
+                                <td class="truncate px-2 py-1.5" :title="`${h.item_code} ${h.item_name}`">{{ h.item_code }} {{ h.item_name }}</td>
+                                <td class="truncate px-2 py-1.5" :title="h.lot_no">{{ h.lot_no }}</td>
+                                <td class="truncate px-2 py-1.5" :title="h.warehouse_name">{{ h.warehouse_name }}</td>
+                                <td class="text-right px-2 py-1.5">{{ qtyText(h.qty, h.spec_unit, h.spec_value) }}<span v-if="h.consumed_qty" class="text-gray-400"> ( 사용 {{ fmtNum(h.consumed_qty) }} )</span></td>
+                                <td class="text-center px-2 py-1.5">{{ h.status === 'CANCELED' ? '취소' : '출고' }}</td>
+                                <td class="px-2 py-1.5">{{ h.user_name }}</td>
                             </tr>
                         </tbody>
                     </table>
@@ -181,10 +181,12 @@ const props = defineProps({
     canWrite:  { type: Boolean, default: false },
     canCancel: { type: Boolean, default: false },
     preferBalanceIdx: { type: Number, default: null },   // 이 잔고 행을 선입선출보다 먼저 채운다 ( 같은 규격 묶음 안에서 )
+    initialMode: { type: String, default: 'issue' },     // 처음 탭 : issue 출고 · return 반납 ( 공정실적의 [출고] · [반납] — 11-12 )
     routes:    { type: Object, default: () => ({
         plan: 'production.materialIssue.plan', history: 'production.materialIssue.history',
         save: 'production.materialIssue.save', cancel: 'production.materialIssue.cancel',
         returnPlan: 'production.materialIssue.returnPlan', returnSave: 'production.materialIssue.returnSave', returnCancel: 'production.materialIssue.returnCancel',
+        leftoverSave: 'production.materialIssue.leftoverSave', leftoverCancel: 'production.materialIssue.leftoverCancel',   // 잔재 입고 ( 11-12 )
     }) },
 });
 const emit = defineEmits(['changed', 'flash']);
@@ -215,7 +217,7 @@ const form        = reactive({ occurred_at: '', remark: '' });
 
 // 출고 / 반납 — 출고는 대기 · 진행인 줄만
 const MODE_TABS = [{ key: 'issue', label: '출고' }, { key: 'return', label: '반납' }];
-const mode      = ref('issue');
+const mode      = ref(props.initialMode === 'return' ? 'return' : 'issue');
 const isOpen    = computed(() => ['WAIT', 'RUN'].includes(order.value?.status));
 const canIssue  = computed(() => props.canWrite && isOpen.value);
 async function onReturnChanged() {

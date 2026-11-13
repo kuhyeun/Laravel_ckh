@@ -21,6 +21,7 @@ class BomLineSubstitute extends Model {
         'seq',
         'child_item_idx',
         'qty',
+        'yield_qty',
         'calc_code',
         'ext_n01',
         'remark',
@@ -31,6 +32,7 @@ class BomLineSubstitute extends Model {
     protected function casts(): array {
         return [
             'qty'     => 'float',
+            'yield_qty' => 'float',
             'ext_n01' => 'float',
         ];
     }

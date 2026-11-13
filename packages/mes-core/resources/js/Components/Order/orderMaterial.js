@@ -2,6 +2,8 @@
 //   수주 공정은 저장 전에도 화면에서 바뀐다( 새 줄은 IDX 가 없다 ) → 자재 줄은 공정 줄의 화면 열쇠( _rk )를 기억하고
 //   저장할 때 그 공정 줄의 순서( routing_seq )로 보낸다 — 서버가 저장된 수주 공정 줄로 바꾼다
 
+import { qtyPayload } from '@core/Utils/materialNeed';
+
 let rkSeq = 0;
 
 // 공정 줄의 화면 열쇠 ( 공정 창의 [적용] 은 줄을 복사하므로 객체가 아니라 열쇠로 찾는다 )
@@ -38,13 +40,13 @@ export function toMaterialPayload(materialRows, routingRows) {
             item_bom_target: m.item_bom_target ? String(m.item_bom_target) : null,   // 새 자재 줄 → 품목 BOM 어디에 ( 줄 IDX · NEW_LINE )
             child_item_idx: m.child_item_idx === '' ? null : Number(m.child_item_idx),
             routing_seq: pos >= 0 ? pos + 1 : null,
-            qty: numOrNull(m.qty),
+            ...qtyPayload(m),   // { qty, yield_qty } — 생산 가능 수량( 11-12 )이면 qty 는 서버가 맞춘다
             calc_code: m.calc_code || null,
             ext_n01: numOrNull(m.ext_n01),
             remark: m.remark ?? null,
             substitutes: (m.substitutes ?? []).map(s => ({
                 child_item_idx: s.child_item_idx === '' ? null : Number(s.child_item_idx),
-                qty: numOrNull(s.qty), calc_code: s.calc_code || null, ext_n01: numOrNull(s.ext_n01), remark: s.remark ?? null,
+                ...qtyPayload(s), calc_code: s.calc_code || null, ext_n01: numOrNull(s.ext_n01), remark: s.remark ?? null,
             })),
         };
     });

@@ -1,14 +1,16 @@
 <!-- LOT 추적 흐름도 창 ( 7006 ) — 모달 본체 ( size: full ) · docs/LOT추적-설계.md §7
-     - 왼쪽( 3 ) : Vue Flow 흐름도 ( lotTrace.graph ) — 위에서 아래로 ( 정추적 = 맨 위 자재 LOT → 아래로 지시 · 제품 · 출하 / 역추적 = 맨 위 제품 → 아래로 지시 · 투입 자재 · 입고 )
+     - 왼쪽( 3 ) : Vue Flow 흐름도 ( lotTrace.graph ) — 위에서 아래로 ( 정추적 = 맨 위 자재 LOT → 아래로 지시 · 제품 · 출하 / 역추적 = 맨 위 출하( 나갔으면 ) → 제품 → 아래로 지시 · 투입 자재 · 입고 )
        자동 배치 dagre ( rankdir TB ) · 선 위에 수량 · 노드 누르면 고른 노드 → 오른쪽 패널이 그 LOT / 지시로 · 확대 · 이동 · 전체 보기 · 미니맵 ( 편집 없음 )
      - 오른쪽( 1 ) : [이력]( lotTrace.history — LOT 원장 ) · [공정]( lotTrace.ops — 작업지시 공정 ) — 노드를 누를 때 불러온다 ( 한 번 부른 것은 다시 부르지 않는다 ) -->
 <template>
     <div class="mt-2 flex flex-col flex-1 min-h-0 h-full text-sm">
         <!-- 머리 -->
         <div class="flex items-center gap-2 pb-2 shrink-0">
-            <span class="px-2 py-0.5 rounded text-xs" :class="dir === 'forward' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'">{{ dir === 'forward' ? '정추적 · 자재 → 출하' : '역추적 · 제품 → 자재' }}</span>
-            <span class="font-semibold">{{ root.lot_no }}</span>
-            <span class="text-gray-500">{{ root.item_code }} {{ root.item_name }}</span>
+            <!-- 고른 LOT 로 바꿔 본 뒤 : [← 이전] 으로 앞 흐름으로 ( 11-12 ) -->
+            <BaseButton v-if="trail.length" size="sm" variant="secondary" :title="`${trail[trail.length - 1].dir === 'forward' ? '정추적' : '역추적'} ${trail[trail.length - 1].root.lot_no}`" @click="back">← 이전</BaseButton>
+            <span class="px-2 py-0.5 rounded text-xs" :class="cur.dir === 'forward' ? 'bg-amber-50 text-amber-700' : 'bg-blue-50 text-blue-700'">{{ cur.dir === 'forward' ? '정추적 · 자재 → 출하' : '역추적 · 제품 → 자재' }}</span>
+            <span class="font-semibold">{{ cur.root.lot_no }}</span>
+            <span class="text-gray-500">{{ cur.root.item_code }} {{ cur.root.item_name }}</span>
             <span v-if="truncated" class="ml-2 px-1.5 rounded bg-amber-50 text-[11px] text-amber-700">흐름이 길어 일부를 "외 N건" 으로 접었습니다</span>
             <div class="flex-1"></div>
             <span class="text-xs text-gray-400">노드를 누르면 오른쪽에 이력 · 실적 · 공정 · 지시의 [공정 펼치기] 로 공정 LOT · 휠로 확대 · 끌어서 이동</span>
@@ -55,6 +57,19 @@
                         </template>
                         <Background :gap="18" pattern-color="#e5e7eb" />
                         <Controls :show-interactive="false" position="top-right" />
+                        <!-- 고른 LOT 로 다시 추적 : 미니맵 바로 위 ( 미니맵 200 x 150 · 여백 15 ) — 추적할 수 있는 LOT 를 누르면 켜진다 ( 11-12 ) -->
+                        <Panel position="bottom-right" class="!mb-[173px] w-[200px] rounded-md border border-gray-200 bg-white/95 shadow-sm p-2">
+                            <p class="text-[11px] text-gray-500">{{ traceHint.msg }}</p>
+                            <p class="h-4 text-xs font-semibold text-gray-800 truncate" :title="traceHint.lot">{{ traceHint.lot }}</p>
+                            <div class="mt-1.5 grid grid-cols-2 gap-1.5">
+                                <button type="button" class="h-9 rounded text-sm font-semibold transition-colors"
+                                    :class="canTrace(selected, 'backward') ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'"
+                                    :disabled="!canTrace(selected, 'backward')" title="이 LOT 를 만든 자재까지 거슬러 올라갑니다" @click="retrace(selected, 'backward')">◀ 역추적</button>
+                                <button type="button" class="h-9 rounded text-sm font-semibold transition-colors"
+                                    :class="canTrace(selected, 'forward') ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'"
+                                    :disabled="!canTrace(selected, 'forward')" title="이 LOT 가 쓰인 곳 · 출하까지 따라갑니다" @click="retrace(selected, 'forward')">정추적 ▶</button>
+                            </div>
+                        </Panel>
                         <MiniMap pannable zoomable :node-color="n => kindOf(n.data.kind).mini" position="bottom-right" />
                     </VueFlow>
                     <p v-else-if="!loading" class="absolute inset-0 flex items-center justify-center text-xs text-gray-400">{{ error || '그릴 흐름이 없습니다.' }}</p>
@@ -76,9 +91,11 @@
                         :class="[panel === t.key ? 'border-blue-600 text-blue-700 font-semibold' : 'border-transparent text-gray-500 hover:text-gray-700', !panelOn(t.key) ? 'opacity-40 pointer-events-none' : '']"
                         @click="panel = t.key">{{ t.label }}</button>
                 </div>
-                <p v-if="selected" class="px-2 py-1 border-b text-xs text-gray-600 truncate shrink-0" :title="`${kindOf(selected.kind).label} ${selected.title}`">
-                    <span class="text-gray-400">{{ kindOf(selected.kind).label }}</span> {{ selected.title }}
-                </p>
+                <div v-if="selected" class="px-2 py-1 border-b flex items-center gap-1 text-xs text-gray-600 shrink-0">
+                    <p class="flex-1 min-w-0 truncate" :title="`${kindOf(selected.kind).label} ${selected.title}`">
+                        <span class="text-gray-400">{{ kindOf(selected.kind).label }}</span> {{ selected.title }}
+                    </p>
+                </div>
                 <div class="relative flex-1 min-h-0 overflow-auto">
                     <!-- 실적 : 공정 LOT · 실적 제품 LOT 의 실적 + 투입 LOT + 받아 간 뒤 공정 -->
                     <div v-if="panel === 'run' && runInfo?.run" class="text-xs">
@@ -92,14 +109,14 @@
                         <div v-for="(x, i) in runInfo.inputs" :key="'i' + i" class="px-2 py-1 border-b border-gray-100 flex items-center gap-2">
                             <span class="shrink-0 px-1 rounded text-[11px]" :class="x.type === '자재' ? 'bg-amber-50 text-amber-800' : 'bg-gray-100 text-gray-600'">{{ x.type }}</span>
                             <span class="truncate font-medium" :title="x.lot_no">{{ x.lot_no }}</span>
-                            <span class="ml-auto shrink-0">{{ fmtNum(x.qty) }}</span>
+                            <span class="ml-auto shrink-0">{{ x.qty ? fmtNum(x.qty) : '' }}</span>
                         </div>
                         <p class="px-2 pt-1.5 pb-0.5 text-[11px] text-gray-400">받아 간 뒤 공정</p>
                         <p v-if="!runInfo.used_by.length" class="px-2 pb-1.5 text-gray-400">아직 없습니다.</p>
                         <div v-for="(x, i) in runInfo.used_by" :key="'u' + i" class="px-2 py-1 border-b border-gray-100 flex items-center gap-2">
                             <span class="shrink-0 text-gray-500">{{ x.process }}</span>
                             <span class="truncate font-medium" :title="x.lot_no">{{ x.lot_no }}</span>
-                            <span class="ml-auto shrink-0">{{ fmtNum(x.qty) }}</span>
+                            <span class="ml-auto shrink-0">{{ x.qty ? fmtNum(x.qty) : '' }}</span>
                         </div>
                     </div>
                     <!-- 이력 : 1줄 = 일시 · 구분 · 수량 / 2줄 = 전표 · 창고 · 거래처 · 지시 · 잔량 -->
@@ -145,8 +162,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { VueFlow } from '@vue-flow/core';
+import { ref, reactive, computed, onMounted } from 'vue';
+import { VueFlow, Panel } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { MiniMap } from '@vue-flow/minimap';
@@ -164,6 +181,37 @@ const props = defineProps({
 });
 defineEmits(['close']);
 
+// 지금 보는 흐름 ( 처음 = 목록에서 고른 LOT · 노드에서 [역추적] · [정추적] 으로 바꾼다 ) · trail = 앞 흐름들 ( [← 이전] )
+const cur   = reactive({ dir: props.dir, root: props.root });
+const trail = ref([]);
+// LOT 노드만 · 지금 보는 것과 같은 흐름이면 숨김 / 역추적 = 만든 LOT( 제품 · 공정 ) · 정추적 = 자재 · 제품 · 공정 LOT
+const canTrace = (n, dir) => !!n?.lot_idx && !(dir === cur.dir && n.lot_idx === cur.root.lot_idx)
+    && (dir === 'backward' ? ['PRODUCT', 'PROCESS'] : ['MATERIAL', 'PRODUCT', 'PROCESS']).includes(n.kind);
+// 추적 패널 안내 ( 고른 노드 · 켜지는 조건 )
+const traceHint = computed(() => {
+    const n = selected.value;
+    if (!n) return { msg: '노드를 누르면 그 LOT 로 다시 추적', lot: '' };
+    if (!n.lot_idx) return { msg: `${kindOf(n.kind).label} — LOT 만 추적할 수 있습니다`, lot: n.title };
+    if (!canTrace(n, 'backward') && !canTrace(n, 'forward')) return { msg: '지금 보는 흐름입니다', lot: n.title };
+    return { msg: '고른 LOT 로 다시 추적', lot: n.title };
+});
+function retrace(n, dir) {
+    trail.value.push({ dir: cur.dir, root: cur.root });
+    const [code, ...name] = String(n.item ?? '').split(' ');
+    go(dir, { lot_idx: n.lot_idx, lot_no: n.title, item_code: code, item_name: name.join(' ') });
+}
+function back() {
+    const prev = trail.value.pop();
+    if (prev) go(prev.dir, prev.root);
+}
+function go(dir, root) {
+    cur.dir = dir;
+    cur.root = root;
+    expanded.value = [];
+    selectedId.value = null;
+    loadGraph();
+}
+
 // 노드 종류 : 머리 색 · 미니맵 색
 const KIND = {
     RECEIPT:  { label: '입고',     head: 'bg-amber-100 text-amber-800', mini: '#fcd34d' },
@@ -178,7 +226,8 @@ const KIND = {
 const kindOf = (k) => KIND[k] ?? KIND.STOCK;
 // 범례 — 흐름 순서대로 ( 정추적 : 자재 → 출하 / 역추적 : 제품 → 입고 ) · "더 있음" 은 접힌 노드가 있을 때만
 const legend = computed(() => {
-    const order = props.dir === 'forward' ? ['MATERIAL', 'WO', 'PRODUCT', 'SHIP', 'STOCK'] : ['PRODUCT', 'WO', 'MATERIAL', 'RECEIPT'];
+    const order = cur.dir === 'forward' ? ['MATERIAL', 'WO', 'PRODUCT', 'SHIP', 'STOCK'] : ['PRODUCT', 'WO', 'MATERIAL', 'RECEIPT'];
+    if (cur.dir === 'backward' && nodes.value.some(n => n.kind === 'SHIP')) order.unshift('SHIP');   // 역추적 맨 위 출하 ( 11-12 )
     if (nodes.value.some(n => n.kind === 'PROCESS')) order.splice(order.indexOf('WO') + 1, 0, 'PROCESS');
     if (truncated.value) order.push('MORE');
     return order.map(key => ({ key, ...KIND[key] }));
@@ -186,7 +235,10 @@ const legend = computed(() => {
 const PANELS = [{ key: 'history', label: '이력' }, { key: 'run', label: '실적' }, { key: 'ops', label: '공정' }];
 
 // ---- 그래프 ( 서버 ) → dagre 로 위에서 아래 배치 ----
-const NODE_W = 230, NODE_H = 96;
+const NODE_W = 230;
+// 노드 높이 ( dagre 간격용 ) — 내용에 따라 다르다 : 머리 · 번호 + 품목 줄 · 요약 줄 · 수량 줄 · [공정 펼치기]
+//   11-12 : 전에는 모두 96 으로 잡아 긴 노드( 지시 + 펼치기 단추 )가 아래 노드 · 선 글자와 겹쳤다
+const heightOf = (n) => 60 + (n.item ? 17 : 0) + (n.sub ? 17 : 0) + (n.qty || n.defect ? 21 : 0) + (n.kind === 'WO' && n.expandable ? 27 : 0);
 const loading   = ref(true);
 const error     = ref('');
 const truncated = ref(false);
@@ -198,7 +250,7 @@ function layout(graph) {
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setGraph({ rankdir: 'TB', nodesep: 36, ranksep: 70, marginx: 20, marginy: 20 });
     g.setDefaultEdgeLabel(() => ({}));
-    graph.nodes.forEach(n => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+    graph.nodes.forEach(n => g.setNode(n.id, { width: NODE_W, height: heightOf(n) }));
     // 펼친 지시 : 그 지시 · 공정 LOT · 제품 LOT 를 한 묶음으로 ( 상자 )
     const groups = [...new Set(graph.nodes.map(n => n.group).filter(Boolean))];
     groups.forEach(gid => g.setNode(`G${gid}`, { paddingTop: 22, paddingBottom: 12, paddingLeft: 12, paddingRight: 12 }));
@@ -218,11 +270,13 @@ function layout(graph) {
     });
     flowNodes.value = [...boxes, ...graph.nodes.map(n => {
         const p = g.node(n.id);
-        return { id: n.id, type: 'lot', position: { x: p.x - NODE_W / 2, y: p.y - NODE_H / 2 }, data: { ...n, isRoot: n.id === graph.rootId } };
+        return { id: n.id, type: 'lot', position: { x: p.x - NODE_W / 2, y: p.y - heightOf(n) / 2 }, data: { ...n, isRoot: n.id === graph.rootId } };
     })];
+    // 화살표 = 물건이 흐른 방향 ( 자재 → 지시 → 제품 → 출하 ) — 역추적은 배치가 거꾸로( 제품이 위 )라 화살표를 위쪽 끝에 ( 아래 → 위 · 11-12 )
+    const up = cur.dir === 'backward';
     flowEdges.value = graph.edges.map((e, i) => ({
         id: `e${i}`, source: e.source, target: e.target, label: e.label || undefined, type: 'smoothstep',
-        markerEnd: 'arrowclosed', labelBgPadding: [4, 2], labelBgBorderRadius: 3,
+        ...(up ? { markerStart: 'arrowclosed' } : { markerEnd: 'arrowclosed' }), labelBgPadding: [4, 2], labelBgBorderRadius: 3,
         labelStyle: { fontSize: '11px', fill: '#374151' }, style: { stroke: '#9ca3af' },
     }));
 }
@@ -231,12 +285,14 @@ async function loadGraph() {
     loading.value = true;
     error.value = '';
     try {
-        const { data } = await window.axios.get(route('shipment.lotTrace.graph'), { params: { dir: props.dir, lot_idx: props.root.lot_idx, expand: expanded.value } });
+        const { data } = await window.axios.get(route('shipment.lotTrace.graph'), { params: { dir: cur.dir, lot_idx: cur.root.lot_idx, expand: expanded.value } });
         nodes.value = data.nodes ?? [];
         truncated.value = !!data.truncated;
-        layout({ rootId: data.rootId, nodes: nodes.value, edges: data.edges ?? [] });
+        // 조회한 LOT 표시 : 목록에서 출하 LOT 를 골랐으면( root.focus_id — 11-12 ) 그 출하 노드 · 아니면 추적을 시작한 LOT
+        const rootId = cur.root.focus_id && nodes.value.some(n => n.id === cur.root.focus_id) ? cur.root.focus_id : data.rootId;
+        layout({ rootId, nodes: nodes.value, edges: data.edges ?? [] });
         // 펼치기 · 접기 뒤에도 고른 노드를 그대로 ( 없어졌으면 조회한 LOT )
-        select(nodes.value.some(n => n.id === selectedId.value) ? selectedId.value : data.rootId);
+        select(nodes.value.some(n => n.id === selectedId.value) ? selectedId.value : rootId);
     } catch (e) {
         error.value = e?.response?.status === 403 ? '권한이 없습니다.' : '흐름을 불러오지 못했습니다.';
     } finally {

@@ -23,7 +23,7 @@ class Partner extends Model {
     const ROLE_COLUMNS = ['is_supplier', 'is_customer', 'is_subcon'];
 
     // 거래처 고르기( PartnerSelect )의 선택지 칸 — 거래처를 고르는 화면은 모두 forPicker() 로 이 칸을 내려 준다
-    public const PICKER_COLUMNS = ['partner_idx', 'partner_code', 'partner_name', 'is_customer', 'is_supplier', 'is_use'];
+    public const PICKER_COLUMNS = ['partner_idx', 'partner_code', 'partner_name', 'is_customer', 'is_supplier', 'is_subcon', 'biz_no', 'ceo_name', 'tel', 'is_use'];
 
     public function scopeForPicker(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder {
         return $query->select(self::PICKER_COLUMNS);

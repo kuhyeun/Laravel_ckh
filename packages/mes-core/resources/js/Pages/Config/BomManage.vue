@@ -49,6 +49,8 @@
                         <span v-else-if="form.bom_idx" class="text-[11px] text-amber-600">미승인</span>
                     </template>
                     <div class="flex-1"></div>
+                    <!-- 트리 보기 : 활성 BOM 을 하위 BOM 까지 ( 11-12 ) -->
+                    <BaseButton v-if="selectedItem" size="sm" variant="secondary" @click="openTree">트리 보기</BaseButton>
                     <template v-if="selectedItem && canWrite">
                         <BaseButton size="sm" variant="secondary" @click="newVersion">{{ form.bom_idx ? '버전 추가' : '새 BOM' }}</BaseButton>
                         <BaseButton v-if="form.bom_idx && form.is_active !== 'Y'" size="sm" variant="secondary" @click="activate">활성으로</BaseButton>
@@ -82,7 +84,7 @@
                             </div>
                         </div>
 
-                        <p v-if="!hasRouting" class="mb-3 text-xs text-amber-600">
+                        <p v-if="SHOW_OP && !hasRouting" class="mb-3 text-xs text-amber-600">
                             이 품목에 기본 라우팅이 없어 투입 지점을 고를 수 없습니다. 품목관리에서 라우팅을 지정하면 선택할 수 있습니다.
                         </p>
 
@@ -90,7 +92,7 @@
                         <div class="flex items-center justify-between mb-2">
                             <div>
                                 <span class="text-sm font-semibold text-gray-600">자재</span>
-                                <span class="ml-1 text-xs text-gray-400">투입 지점을 비우면 언제나 소요됩니다. 같은 자재를 투입 지점만 다르게 두 줄 넣을 수 있습니다.</span>
+                                <span v-if="SHOW_OP" class="ml-1 text-xs text-gray-400">투입 지점을 비우면 언제나 소요됩니다. 같은 자재를 투입 지점만 다르게 두 줄 넣을 수 있습니다.</span>
                             </div>
                             <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="addLine">+ 자재</BaseButton>
                         </div>
@@ -100,8 +102,8 @@
                             <table class="w-full table-fixed text-sm" :class="SHOW_CALC ? 'min-w-[696px]' : 'min-w-[472px]'">
                                 <colgroup>
                                     <col>
-                                    <col class="w-24">
                                     <col class="w-44">
+                                    <col v-if="SHOW_OP" class="w-44">
                                     <col v-if="SHOW_CALC" class="w-32">
                                     <col v-if="SHOW_CALC" class="w-24">
                                     <col v-if="canWrite" class="w-10">
@@ -109,8 +111,8 @@
                                 <thead class="bg-gray-50 text-gray-500">
                                     <tr>
                                         <th class="px-2 py-1.5 font-medium">자재 <span class="text-red-400">*</span></th>
-                                        <th class="px-2 py-1.5 font-medium">소요 <span class="text-red-400">*</span></th>
-                                        <th class="px-2 py-1.5 font-medium">투입 지점</th>
+                                        <th class="px-2 py-1.5 font-medium" title="[개당] 제품 1개에 드는 양 · [1개로] 자재 1개로 만드는 제품 수 ( 필요량 = 수량 ÷ 이 값을 올림 ) — 줄마다 왼쪽 단추로 바꿉니다">소요 / 생산 가능 <span class="text-red-400">*</span></th>
+                                        <th v-if="SHOW_OP" class="px-2 py-1.5 font-medium">투입 지점</th>
                                         <th v-if="SHOW_CALC" class="px-2 py-1.5 font-medium">계산식</th>
                                         <th v-if="SHOW_CALC" class="px-2 py-1.5 font-medium">절단(CUT)</th>
                                         <th v-if="canWrite" class="px-2 py-1.5"></th>
@@ -118,7 +120,7 @@
                                 </thead>
                                 <tbody>
                                     <tr v-if="!form.lines.length">
-                                        <td :colspan="(canWrite ? 4 : 3) + (SHOW_CALC ? 2 : 0)" class="px-2 py-6 text-center text-gray-400">자재를 추가하세요.</td>
+                                        <td :colspan="(canWrite ? 4 : 3) + (SHOW_CALC ? 2 : 0) - (SHOW_OP ? 0 : 1)" class="px-2 py-6 text-center text-gray-400">자재를 추가하세요.</td>
                                     </tr>
                                     <template v-for="(l, i) in form.lines" :key="l._rowKey">
                                     <tr class="border-t align-top">
@@ -132,10 +134,11 @@
                                             </button>
                                         </td>
                                         <td class="px-1.5 py-1">
-                                            <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" />
-                                            <p v-if="rowError(i, 'qty')" class="text-[11px] text-red-500">{{ rowError(i, 'qty') }}</p>
+                                            <!-- 소요량 / 생산 가능 수량 ( 11-12 ) -->
+                                            <QtyModeInput v-model:qty="l.qty" v-model:yield="l.yield_qty" :disabled="!canWrite" />
+                                            <p v-if="rowError(i, 'qty') || rowError(i, 'yield_qty')" class="text-[11px] text-red-500">{{ rowError(i, 'yield_qty') || rowError(i, 'qty') }}</p>
                                         </td>
-                                        <td class="px-1.5 py-1">
+                                        <td v-if="SHOW_OP" class="px-1.5 py-1">
                                             <BaseSelect v-model="l.routing_line_idx" :options="routingOptions" size="md" class="w-full" :disabled="!canWrite || !hasRouting" />
                                             <p v-if="rowError(i, 'routing_line_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'routing_line_idx') }}</p>
                                         </td>
@@ -151,13 +154,13 @@
                                     </tr>
                                     <!-- 대체 자재 : 소요는 대체 자재 기준 ( 출고 때 주 자재 대신 · 섞어서 낸다 — 자동 채움은 주 자재만 ) -->
                                     <tr v-if="l._open" class="bg-gray-50/70">
-                                        <td :colspan="(canWrite ? 4 : 3) + (SHOW_CALC ? 2 : 0)" class="pl-6 pr-1.5 py-1.5">
+                                        <td :colspan="(canWrite ? 4 : 3) + (SHOW_CALC ? 2 : 0) - (SHOW_OP ? 0 : 1)" class="pl-6 pr-1.5 py-1.5">
                                             <table class="w-full table-fixed text-xs">
                                                 <colgroup>
                                                     <col class="w-6">
                                                     <col>
-                                                    <col class="w-24">
                                                     <col class="w-44">
+                                                    <col v-if="SHOW_OP" class="w-44">
                                                     <col v-if="SHOW_CALC" class="w-32">
                                                     <col v-if="SHOW_CALC" class="w-24">
                                                     <col v-if="canWrite" class="w-10">
@@ -165,7 +168,7 @@
                                                 <tbody>
                                                     <!-- 고정 레이아웃이라 안내 문구는 전체 칸을 덮는다 -->
                                                     <tr v-if="!l.substitutes.length">
-                                                        <td :colspan="(canWrite ? 5 : 4) + (SHOW_CALC ? 2 : 0)" class="py-1 text-gray-400">대체 자재가 없습니다. 이 자재 대신 쓸 수 있는 자재를 넣으면 자재 출고 때 대신 · 섞어서 낼 수 있습니다.</td>
+                                                        <td :colspan="(canWrite ? 5 : 4) + (SHOW_CALC ? 2 : 0) - (SHOW_OP ? 0 : 1)" class="py-1 text-gray-400">대체 자재가 없습니다. 이 자재 대신 쓸 수 있는 자재를 넣으면 자재 출고 때 대신 · 섞어서 낼 수 있습니다.</td>
                                                     </tr>
                                                     <tr v-for="(sub, j) in l.substitutes" :key="sub._rowKey" class="align-top">
                                                         <td class="text-gray-300 py-1 leading-9">└</td>
@@ -176,10 +179,10 @@
                                                             <p v-if="subError(i, j, 'child_item_idx')" class="text-[11px] text-red-500">{{ subError(i, j, 'child_item_idx') }}</p>
                                                         </td>
                                                         <td class="pr-1.5 py-1">
-                                                            <BaseInput v-model="sub.qty" type="number" min="0" size="md" class="w-full text-right" placeholder="소요" :disabled="!canWrite" />
-                                                            <p v-if="subError(i, j, 'qty')" class="text-[11px] text-red-500">{{ subError(i, j, 'qty') }}</p>
+                                                            <QtyModeInput v-model:qty="sub.qty" v-model:yield="sub.yield_qty" :disabled="!canWrite" />
+                                                            <p v-if="subError(i, j, 'qty') || subError(i, j, 'yield_qty')" class="text-[11px] text-red-500">{{ subError(i, j, 'yield_qty') || subError(i, j, 'qty') }}</p>
                                                         </td>
-                                                        <td class="pr-1.5 text-gray-400 py-1 leading-9">투입 지점은 주 자재와 같음</td>
+                                                        <td v-if="SHOW_OP" class="pr-1.5 text-gray-400 py-1 leading-9">투입 지점은 주 자재와 같음</td>
                                                         <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="md" class="w-full" placeholder="계산식" :disabled="!canWrite" /></td>
                                                         <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" /></td>
                                                         <td v-if="canWrite" class="text-center py-1 leading-9">
@@ -256,10 +259,28 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import BomTree from '@core/Components/Config/BomTree.vue';
+import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
 import { withSpec } from '@core/Utils/format';
+import QtyModeInput from '@core/Components/Config/QtyModeInput.vue';
+import { qtyPayload } from '@core/Utils/materialNeed';
+import { SHOW_INPUT_OP as SHOW_OP } from '@core/Utils/features';
+
+// BOM 트리 ( 활성 BOM · 하위까지 — 11-12 )
+const modalStore = useModalStore();
+function openTree() {
+    const it = selectedItem.value;
+    modalStore.open(BomTree, {
+        itemIdx: it.item_idx, modalTitle: `BOM 트리 [ ${it.item_code} ${it.item_name} ]`,
+        // 노드의 [BOM 편집] → 그 품목을 연다 ( 왼쪽 목록에 있으면 그 줄을 · 없으면 노드 정보로 )
+        onEdit: (n) => selectItem(items.value.find(x => x.item_idx === n.item_idx) ?? n),
+        // 트리에서 저장한 뒤 : 왼쪽 목록( 활성 버전 표시 ) · 지금 연 품목을 다시 불러온다
+        onSaved: async () => { await loadItems(); if (selectedItem.value) selectItem(selectedItem.value); },
+    }, { size: 'full' });
+}
 
 defineOptions({ layout: AppLayout });
 
@@ -443,13 +464,13 @@ async function save() {
                 bom_line_idx: l.bom_line_idx,
                 child_item_idx: l.child_item_idx === '' ? null : Number(l.child_item_idx),
                 routing_line_idx: l.routing_line_idx === '' ? null : Number(l.routing_line_idx),
-                qty: l.qty === '' || l.qty === null ? null : String(l.qty),   // 숫자 검증에 float 를 넘기면 brick/math 경고
+                ...qtyPayload(l),   // { qty, yield_qty } — 글자로 ( 숫자 검증에 float 를 넘기면 brick/math 경고 ) · 생산 가능 수량이면 qty 는 서버가 맞춘다
                 calc_code: l.calc_code || null,
                 ext_n01: l.ext_n01 === '' ? null : l.ext_n01,
                 remark: l.remark ?? null,
                 substitutes: l.substitutes.map(sub => ({
                     child_item_idx: sub.child_item_idx === '' ? null : Number(sub.child_item_idx),
-                    qty: sub.qty === '' || sub.qty === null ? null : String(sub.qty),
+                    ...qtyPayload(sub),
                     calc_code: sub.calc_code || null,
                     ext_n01: sub.ext_n01 === '' || sub.ext_n01 === null ? null : String(sub.ext_n01),
                     remark: sub.remark ?? null,

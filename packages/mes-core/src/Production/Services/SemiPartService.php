@@ -29,24 +29,27 @@ class SemiPartService {
             ? Bom::where('owner_type', Bom::OWNER_ORDER_LINE)->where('sales_order_line_idx', $salesOrderLineIdx)->first()
             : null;
         $lines = $start
-            ? $start->lines()->get(['child_item_idx', 'qty'])->map(fn ($l) => [(int) $l->child_item_idx, (float) $l->qty])->all()
+            ? $start->lines()->get(['child_item_idx', 'qty', 'yield_qty'])->map(fn ($l) => [(int) $l->child_item_idx, (float) $l->qty, $l->yield_qty])->all()
             : $this->linesOf($itemIdx);
 
         $acc   = [];   // item_idx => [ qty_per, depth, first ]
         $order = 0;
-        $walk  = function (array $lines, float $factor, int $depth, array $path) use (&$walk, &$acc, &$order) {
-            foreach ($lines as [$childIdx, $qty]) {
+        //   생산 가능 수량( 반제품 1개로 제품 N개 · 11-12 )으로 넣은 줄은 개당 = 1 ÷ N · 그 길에 있는 반제품 수량은 화면이 올림한다 ( ceil )
+        $walk  = function (array $lines, float $factor, int $depth, array $path, bool $ceil) use (&$walk, &$acc, &$order) {
+            foreach ($lines as [$childIdx, $qty, $yield]) {
                 if ($depth >= self::MAX_DEPTH || isset($path[$childIdx])) continue;
                 $children = $this->linesOf($childIdx);
                 if (!$children) continue;   // BOM 이 없거나 자재 = 만들지 않는다
-                $per = $factor * $qty;
-                $acc[$childIdx] ??= ['qty_per' => 0.0, 'depth' => 0, 'first' => $order++];
+                $per  = $factor * \MesCore\Support\MaterialNeed::perUnit((float) $qty, $yield);
+                $up   = $ceil || (float) ($yield ?? 0) > 0;
+                $acc[$childIdx] ??= ['qty_per' => 0.0, 'depth' => 0, 'first' => $order++, 'ceil' => false];
                 $acc[$childIdx]['qty_per'] += $per;
+                $acc[$childIdx]['ceil']     = $acc[$childIdx]['ceil'] || $up;
                 $acc[$childIdx]['depth']    = max($acc[$childIdx]['depth'], $depth + 1);
-                $walk($children, $per, $depth + 1, $path + [$childIdx => true]);
+                $walk($children, $per, $depth + 1, $path + [$childIdx => true], $up);
             }
         };
-        $walk($lines, 1.0, 0, [$itemIdx => true]);
+        $walk($lines, 1.0, 0, [$itemIdx => true], false);
         if (!$acc) {
             return [];
         }
@@ -64,7 +67,8 @@ class SemiPartService {
                 'item_label' => Item::labelOf($item),
                 'item_code'  => $item?->item_code,
                 'spec_unit'  => $item?->spec_unit,
-                'qty_per'    => round($a['qty_per'], 6),
+                'qty_per'    => round($a['qty_per'], 9),
+                'ceil'       => $a['ceil'],   // 생산 가능 수량 줄을 거침 → 수량은 올림
                 'depth'      => $a['depth'],
                 'stock_qty'  => (float) ($stock[$idx] ?? 0),
             ];
@@ -80,8 +84,8 @@ class SemiPartService {
                 ->join('bom as b', 'b.bom_idx', '=', 'bl.bom_idx')
                 ->where('b.owner_type', Bom::OWNER_ITEM)->where('b.item_idx', $itemIdx)->where('b.is_active', 'Y')
                 ->orderBy('bl.seq')->orderBy('bl.bom_line_idx')
-                ->get(['bl.child_item_idx', 'bl.qty'])
-                ->map(fn ($r) => [(int) $r->child_item_idx, (float) $r->qty])->all();
+                ->get(['bl.child_item_idx', 'bl.qty', 'bl.yield_qty'])
+                ->map(fn ($r) => [(int) $r->child_item_idx, (float) $r->qty, $r->yield_qty])->all();
         }
         return $this->itemBomLines[$itemIdx];
     }

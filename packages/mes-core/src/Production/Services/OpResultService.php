@@ -62,7 +62,7 @@ class OpResultService {
     // ---- 실적 ----
 
     /**
-     * @param array{equipment_idx:?int, operator_idx:int, qty:string|float, worked_at:string, remark:?string, warehouse_idx:?int} $data
+     * @param array{equipment_idx:?int, operator_idx:int, qty:string|float, started_at:?string, worked_at:string, remark:?string, warehouse_idx:?int} $data
      * @return array{0: WorkOrderOpRun, 1: string[]}
      */
     public function addRun(WorkOrderOp $op, array $data, bool $viaSubcon = false): array {
@@ -105,8 +105,9 @@ class OpResultService {
             }
 
             // 투입 LOT ( RUN 방식 — 실적LOT-설계 §5 ) : 실적을 만들기 전에 검사 · 외주 입고로 들어오는 실적은 5단계
+            //   LOT 투입 방식( 정책 op_lot_input_mode · 11-12 ) : 자동이면 화면이 보낸 것을 쓰지 않고 선입선출로 고른다
             [$inputs, $inputWarnings] = ($wo->isRunLot() && !$viaSubcon)
-                ? $this->inputs->normalize($wo, $ops, $op, $data['inputs'] ?? [], true)
+                ? $this->inputs->normalize($wo, $ops, $op, $this->lotInputAuto() ? $this->inputs->auto($wo, $ops, $op, $qty, (float) $op->qty) : ($data['inputs'] ?? []), true)
                 : [[], []];
             $warnings = array_merge($warnings, $inputWarnings);
 
@@ -120,6 +121,7 @@ class OpResultService {
                 'equipment_idx'     => ($data['equipment_idx'] ?? null) ?: null,
                 'operator_idx'      => (int) $data['operator_idx'],
                 'qty'               => $this->str($qty),
+                'started_at'        => !empty($data['started_at']) ? Carbon::parse($data['started_at']) : null,   // 시작 ( 없으면 비움 · worked_at = 종료 )
                 'worked_at'         => $workedAt,
                 'remark'            => $data['remark'] ?? null,
             ]);
@@ -188,6 +190,14 @@ class OpResultService {
             $this->wip->reverseRun($run);   // 재공 이력 : 반대 줄
             $op->qty = $this->str($this->runSum($op));
             $op->save();
+            // 실적이 하나도 안 남으면 공정을 대기로 되돌린다 ( 11-12 — 전에는 '진행' 으로 남아 실적을 다 취소해도 지시서를 취소할 수 없었다 )
+            //   뒤 공정이 시작돼 있으면 그대로 · 시작할 때 사용처리한 자재는 보유로 ( 완료 취소와 같은 규칙 ) · 원자재출고 공정도 다시 맞춘다
+            if ($op->status === 'RUN' && (float) $op->qty <= self::EPS
+                && !$ops->contains(fn (WorkOrderOp $o) => $o->seq > $op->seq && ($o->status !== 'WAIT' || (float) $o->qty > self::EPS))) {
+                $op->fill(['status' => 'WAIT', 'started_at' => null])->save();
+                $this->materials->releaseForOp($wo, $op);
+                $this->materials->refreshRmOut($wo, $ops);
+            }
             $this->afterChange($wo, $ops);
         });
     }
@@ -216,6 +226,8 @@ class OpResultService {
                 throw ValidationException::withMessages(['inputs' => ['더할 투입 LOT 를 고르세요.']]);
             }
             [$normalized, $warnings] = $this->inputs->normalize($wo, $ops, $op, $inputs, false);
+            // 이 실적에 이미 연결된 LOT 는 다시 연결할 수 없다 ( 11-12 — 화면도 후보에서 뺀다 · 수량을 고치려면 해제하고 다시 )
+            $this->inputs->assertNotLinked($run, $normalized);
             $this->inputs->save($run, $normalized);
             return $warnings;
         });
@@ -252,7 +264,11 @@ class OpResultService {
                 }
                 $base  = $this->baseQty($wo, $ops, $op);
                 $short = $base - (float) $op->qty;
-                if ($short > self::EPS) {
+                if ($short > self::EPS && !empty($data['_bulk'])) {
+                    // 모든 공정 완료 : 마지막 공정이 지시 수량을 채웠으므로 앞 공정의 차이는 사유 없이 수량만 남긴다
+                    $op->short_qty    = $this->str($short);
+                    $op->short_reason = null;
+                } elseif ($short > self::EPS) {
                     $reason = $data['short_reason'] ?? null;
                     if (!$reason || !SystemCode::where('system_code_group_key', self::SHORT_GROUP)->where('system_code_key', $reason)->exists()) {
                         throw ValidationException::withMessages(['short_reason' => [
@@ -299,6 +315,59 @@ class OpResultService {
         });
     }
 
+    // ---- 모든 공정 완료 ( 11-11 회의 '각 공정별 완료처리를 한번에' · 11-12 ) ----
+    //   실적은 다 쌓았는데 공정마다 [완료] 를 누르지 않은 줄 — 마지막 수량 공정의 실적이 지시 수량을 채웠으면 남은 공정을 순서대로 한 번에 완료
+    //   · 수량 공정의 차이( 앞 공정이 더 만든 것 )는 사유 없이 미달 수량만 · 원자재출고는 덜 나간 자재가 있어도 완료( 경고 )
+    //   · 품질 모듈이 켜진 검사 공정은 검사 창에서만 → 거기서 멈춘다 ( 그 앞까지 완료 )
+    //   · 끝까지 가면 줄 완료 — 아직 입고 안 한 수량이 있으면 창고가 필요
+
+    /** @return array{can: bool, needs_warehouse: bool, why: ?string, open: int} 화면용 — 한꺼번에 완료할 수 있는가 */
+    public function completeAllState(WorkOrder $wo, Collection $ops): array {
+        $open = $ops->filter(fn (WorkOrderOp $o) => $o->status !== 'DONE');
+        $no   = fn (?string $why) => ['can' => false, 'needs_warehouse' => false, 'why' => $why, 'open' => $open->count()];
+        if (!in_array($wo->status, ['WAIT', 'RUN'], true) || $open->isEmpty()) {
+            return $no(null);
+        }
+        $last = $ops->filter(fn (WorkOrderOp $o) => $o->isQtyOp())->last();
+        if (!$last) {
+            return $no(null);
+        }
+        if ((float) $last->qty + self::EPS < (float) $wo->target_qty) {
+            return $no("마지막 공정( {$this->opName($last)} ) 실적 {$this->num((float) $last->qty)} 이 지시 수량 {$this->num((float) $wo->target_qty)} 에 못 미칩니다.");
+        }
+        // 검사 창에서만 끝낼 수 있는 검사 공정이 남아 있으면 거기서 멈춘다 → 줄 완료까지 가지 않으니 창고도 묻지 않는다
+        $stops = $this->qualityOn() && $open->contains(fn (WorkOrderOp $o) => $o->isInspectionOp());
+        return ['can' => true, 'needs_warehouse' => !$stops && $this->receiveLeft($wo, $ops) > self::EPS, 'why' => null, 'open' => $open->count()];
+    }
+
+    /**
+     * @param array{warehouse_idx:?int} $data
+     * @return array{done: string[], stopped: ?string, warnings: string[], line_status: string}
+     */
+    public function completeAll(WorkOrder $wo, array $data): array {
+        return DB::transaction(function () use ($wo, $data) {
+            $wo  = WorkOrder::whereKey($wo->work_order_idx)->lockForUpdate()->first();
+            $ops = WorkOrderOp::with('process')->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->lockForUpdate()->get();
+            $state = $this->completeAllState($wo, $ops);
+            if (!$state['can']) {
+                throw ValidationException::withMessages(['op' => [$state['why'] ?? '한꺼번에 완료할 공정이 없습니다.']]);
+            }
+            $done = $warnings = [];
+            $stopped = null;
+            foreach ($ops as $op) {
+                if ($op->status === 'DONE') continue;
+                if ($op->isInspectionOp() && $this->qualityOn()) {
+                    $stopped = "{$this->opName($op)} 은 검사 공정이라 [검사] 창에서 완료하세요. 그 앞 공정까지 완료했습니다.";
+                    break;
+                }
+                $warnings = array_merge($warnings, $this->completeOp($op, ['_bulk' => true, 'force_issue' => true, 'warehouse_idx' => $data['warehouse_idx'] ?? null]));
+                $done[]   = $this->opName($op);
+            }
+            return ['done' => $done, 'stopped' => $stopped, 'warnings' => array_values(array_unique($warnings)),
+                'line_status' => WorkOrder::whereKey($wo->work_order_idx)->value('status')];
+        });
+    }
+
     // 공정 완료 취소 — 품목 줄이 완료 전이고 뒤 공정이 시작 전일 때
     public function cancelComplete(WorkOrderOp $op): void {
         DB::transaction(function () use ($op) {
@@ -338,6 +407,11 @@ class OpResultService {
     }
 
     // ---- 화면용 계산 ----
+
+    // LOT 투입 방식이 자동인가 ( 공정 LOT 추적을 켰을 때의 하위 설정 — 화면도 이것으로 투입 LOT 고르기를 숨긴다 )
+    public function lotInputAuto(): bool {
+        return $this->policy->get('production.op_lot_input_mode') === 'AUTO';
+    }
 
     // 공정의 기준 수량 ( 수량 · 검사 공정 ) — 첫 공정 = 지시 수량, 이후 = 앞 수량 공정 실적 · 앞 검사 공정의 합격 수량
     public function baseQty(WorkOrder $wo, Collection $ops, WorkOrderOp $op): ?float {

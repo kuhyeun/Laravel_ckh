@@ -23,6 +23,7 @@ class StockTxn extends Model {
         'ADJUST'      => '재고조정',
         'ISSUE_WO'      => '자재출고',
         'IN_RETURN'     => '자재반납',
+        'IN_LEFTOVER'   => '잔재 입고',   // 쓰고 남은 토막을 다른 품목으로 ( 11-12 )
         'IN_PRODUCTION' => '생산 입고',
         'OUT_SHIPMENT'  => '출하',
         'OUT_MISC'      => '기타출고',

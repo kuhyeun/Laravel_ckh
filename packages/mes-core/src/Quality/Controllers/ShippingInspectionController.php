@@ -122,7 +122,7 @@ class ShippingInspectionController extends Controller {
             ->where('item_idx', $line->item_idx)->where('insp_type', 'SHIPPING')->where('is_use', 'Y')
             ->first(['inspection_spec_idx', 'inspection_spec_name']);
         $inspection = $this->inspections->activeInspection($line);
-        $defect     = $inspection?->defects->first();
+        $defect     = $this->defects->summary($inspection?->defects ?? []);   // 불량 여러 줄 요약
 
         return response()->json([
             'line' => [
@@ -154,8 +154,8 @@ class ShippingInspectionController extends Controller {
                 'fail_qty'       => (float) $inspection->fail_qty,
                 'inspected_at'   => $inspection->inspected_at?->format('Y-m-d H:i'),
                 'inspector_name' => $inspection->inspector?->user_name ?: $inspection->inspector?->user_id,
-                'defect_type'    => $this->defects->typeName($defect?->defect_type_code),
-                'reason'         => $defect?->reason,
+                'defect_type'    => $defect['defect_type'],
+                'reason'         => $defect['reason'],
                 'remark'         => $inspection->remark,
             ] : null,
             'can_write'  => $this->can(self::WRITE_SCREENS, 'can_write'),
@@ -173,6 +173,10 @@ class ShippingInspectionController extends Controller {
             'fail_qty'         => 'nullable|numeric|min:0|max:999999999999',
             'defect_type_code' => 'nullable|string|max:30',
             'reason'           => 'nullable|string|max:200',
+            'defects'                    => 'nullable|array|max:20',   // 불량 여러 줄 ( 11-12 )
+            'defects.*.defect_type_code' => 'nullable|string|max:30',
+            'defects.*.qty'              => 'nullable|numeric|min:0|max:999999999999',
+            'defects.*.reason'           => 'nullable|string|max:200',
             'inspector_idx'    => ['required', 'integer', User::pickableRule()],
             'inspected_at'     => 'required|date_format:Y-m-d\TH:i',
             'remark'           => 'nullable|string|max:2000',

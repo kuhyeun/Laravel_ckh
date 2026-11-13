@@ -4,7 +4,6 @@
        무검사 줄은 저장하면 바로 재고, 검사 줄은 검사대기 ( 재고 없음 — 결정 ② )
      - LOT : 자재 기준 규칙이 여럿이면 고른다 · 거래처 요소가 ASK 면 [LOT 번호에 거래처 넣기]
              공급처 LOT 을 그대로 쓰는 설정( EXTERNAL )이면 공급처 LOT 필수
-     - 원소재( item_kind STOCK )는 조각 1개 규격값 필수 — 수량은 개수
      - 수정은 없다 ( 저장 후에는 줄 취소 → 다시 입고 )
      - preset { item_idx, warehouse_idx } : 재고관리의 [입고] — 그 품목 · 창고로 직접 추가 줄 하나를 채워 연다 ( 입고는 늘 새 LOT ) -->
 <template>
@@ -100,13 +99,12 @@
 
                 <div class="border rounded overflow-x-auto">
                     <!-- 최소 폭 = 고정 칸 1088 + 품목 280 — 넓으면 가로 스크롤 ( 11-12 ) -->
-                    <table class="w-full table-fixed min-w-[1368px] text-xs">
+                    <table class="w-full table-fixed min-w-[1256px] text-xs">
                         <colgroup>
                             <col class="w-10">
                             <col>
                             <col class="w-40">
                             <col class="w-24">
-                            <col class="w-28">
                             <col class="w-28">
                             <col class="w-40">
                             <col class="w-36">
@@ -121,7 +119,6 @@
                                 <th class="px-2 py-1.5 text-left">발주</th>
                                 <th class="px-2 py-1.5 text-right">남은 수량</th>
                                 <th class="px-2 py-1.5 text-right">입고 수량 *</th>
-                                <th class="px-2 py-1.5 text-right">규격</th>
                                 <th class="px-2 py-1.5 text-left">창고 *</th>
                                 <th class="px-2 py-1.5 text-left">공급처 LOT{{ lot.source === 'EXTERNAL' ? ' *' : '' }}</th>
                                 <th class="px-2 py-1.5 text-left">Heat No</th>
@@ -148,11 +145,6 @@
                                     <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" />
                                     <p v-if="lineError(i, 'qty')" class="text-[11px] text-red-500">{{ lineError(i, 'qty') }}</p>
                                     <p v-else-if="l.purchase_order_line_idx && num(l.qty) > num(l.remaining)" class="text-[11px] text-amber-600">남은 수량 초과</p>
-                                </td>
-                                <td class="px-1.5 py-1">
-                                    <BaseInput v-if="l.item_kind === 'STOCK'" v-model="l.spec_value" type="number" min="0" size="md" class="w-full text-right" placeholder="조각 1개" />
-                                    <p v-else class="py-1.5 text-center text-gray-300">—</p>
-                                    <p v-if="lineError(i, 'spec_value')" class="text-[11px] text-red-500">{{ lineError(i, 'spec_value') }}</p>
                                 </td>
                                 <td class="px-1.5 py-1">
                                     <WarehouseSelect v-model="l.warehouse_idx" :options="warehouses" size="md" class="w-full" @update:model-value="rememberWarehouse" />
@@ -246,7 +238,7 @@ function rememberWarehouse(v) {
 const blankLine = (extra = {}) => ({
     _key: ++keySeq, item_idx: '', item_code: '', item_name: '', item_kind: '', spec_unit: '',
     purchase_order_line_idx: null, order_label: '', remaining: 0,
-    qty: '', spec_value: '', warehouse_idx: defaultWarehouse(), external_lot_no: '', heat_no: '', remark: '', insp_mode: '',
+    qty: '', warehouse_idx: defaultWarehouse(), external_lot_no: '', heat_no: '', remark: '', insp_mode: '',
     ...extra,
 });
 
@@ -270,7 +262,7 @@ async function refreshModes() {
 // 품목을 고르면( 고른 줄 — 서버 모드 ItemPicker ) 단위 · 소분류를 채운다
 function onItemPicked(line, it) {
     if (!it) return;
-    Object.assign(line, { item_code: it.item_code, item_name: it.item_name, item_kind: it.item_kind, spec_unit: it.spec_unit, spec_value: '' });
+    Object.assign(line, { item_code: it.item_code, item_name: it.item_name, item_kind: it.item_kind, spec_unit: it.spec_unit });
     refreshModes();
 }
 
@@ -352,7 +344,6 @@ async function save() {
                 item_idx:                l.item_idx === '' ? null : Number(l.item_idx),
                 qty:                     l.qty === '' ? null : l.qty,
                 warehouse_idx:           l.warehouse_idx === '' ? null : Number(l.warehouse_idx),
-                spec_value:              l.item_kind === 'STOCK' && l.spec_value !== '' ? l.spec_value : null,
                 external_lot_no:         l.external_lot_no || null,
                 heat_no:                 l.heat_no || null,
                 purchase_order_line_idx: l.purchase_order_line_idx,

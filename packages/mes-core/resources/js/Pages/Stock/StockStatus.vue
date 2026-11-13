@@ -1,7 +1,6 @@
 <!-- LOT 재고현황 ( INV-01 ) / 자재관리 > 재고관리 — docs/screens/40-구매자재.md §13
      - 현재고는 잔고( stock_balance )에서만 — 원장 집계 없음. 조회만 ( 처리 버튼 없음 )
      - 한 행 = 품목 × LOT × 창고. [품목별 합계] 로 품목 × 창고 합으로 묶어 본다
-     - 원소재는 규격 × 개수로 보인다 ( 1000 × 19 개 )
      - 행 클릭 → 그 LOT 의 입출고 이력 ( 품목별 합계에서는 열리지 않음 ) → [입고] · [출고] · [창고이동] · [재고조정] ( 권한이 있을 때 — 화면목록 §5-2 진입점 )
        [입고] = 입고 등록 창( 그 품목 · 창고를 채워서 · 새 LOT ) / [출고] = 작업지시 출고 · 기타출고
      - 위 [+ 입고] = 빈 입고 등록 창 ( 입고관리 쓰기 권한 )
@@ -23,9 +22,11 @@
             @search="loadFirstPage"
         >
             <BaseSelect v-if="showWarehouseFilter" v-model="search.warehouse_idx" :options="warehouseFilter" class="w-44" />
-            <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.with_zero" /> 0 포함</label>
-            <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="item" false-value="lot" v-model="search.group" @change="loadFirstPage" /> 품목별 합계</label>
-            <label v-if="label.enabled && !byItem" class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.no_label" /> 라벨 미발행</label>
+            <template #append>
+                <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.with_zero" /> 0 포함</label>
+                <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="item" false-value="lot" v-model="search.group" @change="loadFirstPage" /> 품목별 합계</label>
+                <label v-if="label.enabled && !byItem" class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.no_label" /> 라벨 미발행</label>
+            </template>
         </SearchBar>
 
         <div class="flex-1 min-w-0 flex flex-col border border-gray-200 overflow-hidden">

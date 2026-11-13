@@ -187,10 +187,32 @@ class MaterialIssueController extends Controller {
                 'remark'             => $l->txn?->remark,
                 'user_name'          => $users[$l->txn?->create_account_idx] ?? '',
             ]);
+        // 잔재 입고 이력 ( 다른 품목으로 · 11-12 )
+        $left = StockTxnLine::with(['txn', 'item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name'])
+            ->where('work_order_idx', $wo->work_order_idx)
+            ->whereHas('txn', fn ($q) => $q->where('txn_type', MaterialIssueService::LEFTOVER_TYPE))
+            ->orderByDesc('stock_txn_line_idx')->get();
+        $leftUsers = User::namesFor($left->pluck('txn.create_account_idx'));
         return response()->json([
             'status'     => $wo->status,
             'lots'       => $this->issues->returnPlan($wo),
             'history'    => $history,
+            'leftovers'  => $left->map(fn (StockTxnLine $l) => [
+                'stock_txn_line_idx' => $l->stock_txn_line_idx,
+                'txn_no'             => $l->txn?->txn_no,
+                'occurred_at'        => substr((string) $l->txn?->occurred_at, 0, 16),
+                'item_code'          => $l->item?->item_code,
+                'item_name'          => $l->item?->item_name,
+                'item_spec'          => $l->item?->spec,
+                'spec_unit'          => $l->item?->spec_unit,
+                'lot_no'             => $l->lot?->lot_no,
+                'source'             => $l->remark,   // "원 자재 품번 · LOT"
+                'warehouse_name'     => $l->warehouse?->warehouse_name,
+                'qty'                => (float) $l->qty,
+                'status'             => $l->line_status,
+                'user_name'          => $leftUsers[$l->txn?->create_account_idx] ?? '',
+            ])->values(),
+            'can_create_item' => app(\MesCore\Menu\Services\MenuPermissionService::class)->canPageForMe('Config/ItemManage', 'can_write'),
             'warehouses' => Warehouse::options(),
             'now'        => now()->format('Y-m-d\TH:i'),
         ]);
@@ -220,6 +242,37 @@ class MaterialIssueController extends Controller {
             'stock_txn_line_idxs.*' => 'integer',
         ]);
         $n = $this->issues->returnCancel($this->find($data['work_order_idx']), $data['stock_txn_line_idxs']);
+        return response()->json(['message' => 'Success', 'canceled' => $n]);
+    }
+
+    // 잔재 입고 ( 11-12 ) — 쓰고 남은 토막을 다른 품목으로 창고에 ( 원 자재 수량은 그대로 )
+    public function leftoverSave(Request $request) {
+        $data = $request->validate([
+            'work_order_idx'          => 'required|integer',
+            'occurred_at'             => 'required|date_format:Y-m-d\TH:i',
+            'remark'                  => 'nullable|string|max:200',
+            'lines'                   => 'required|array|min:1|max:100',
+            'lines.*.source_item_idx' => 'required|integer',
+            'lines.*.source_lot_idx'  => 'required|integer|min:0',
+            'lines.*.item_idx'        => 'required|integer',
+            'lines.*.qty'             => 'required|numeric|gt:0|max:999999999999',
+            'lines.*.warehouse_idx'   => 'required|integer',
+        ], ['lines.*.qty.gt' => '잔재 수량은 0보다 커야 합니다.'], [
+            'occurred_at' => '입고일시', 'remark' => '비고', 'lines' => '잔재', 'lines.*.source_item_idx' => '원 자재',
+            'lines.*.item_idx' => '잔재 품목', 'lines.*.qty' => '잔재 수량', 'lines.*.warehouse_idx' => '창고',
+        ]);
+
+        [$txn, $warnings] = $this->issues->leftoverIn($this->find($data['work_order_idx']), $data);
+        return response()->json(['message' => 'Success', 'warnings' => $warnings, 'txn_no' => $txn->txn_no]);
+    }
+
+    public function leftoverCancel(Request $request) {
+        $data = $request->validate([
+            'work_order_idx'        => 'required|integer',
+            'stock_txn_line_idxs'   => 'required|array|min:1|max:200',
+            'stock_txn_line_idxs.*' => 'integer',
+        ]);
+        $n = $this->issues->leftoverCancel($this->find($data['work_order_idx']), $data['stock_txn_line_idxs']);
         return response()->json(['message' => 'Success', 'canceled' => $n]);
     }
 

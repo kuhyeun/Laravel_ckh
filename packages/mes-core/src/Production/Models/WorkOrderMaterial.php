@@ -21,12 +21,13 @@ class WorkOrderMaterial extends Model {
 
     protected $fillable = [
         'work_order_idx', 'seq', 'child_item_idx', 'bom_line_idx', 'substitute_of_idx', 'bom_line_substitute_idx', 'work_order_op_idx',
-        'qty_per', 'calc_code', 'ext_n01', 'required_qty', 'issued_qty',
+        'qty_per', 'yield_qty', 'calc_code', 'ext_n01', 'required_qty', 'issued_qty',
     ];
 
     protected function casts(): array {
         return [
             'qty_per'      => 'decimal:6',
+            'yield_qty'    => 'decimal:6',
             'ext_n01'      => 'decimal:6',
             'required_qty' => 'decimal:6',
             'issued_qty'   => 'decimal:6',

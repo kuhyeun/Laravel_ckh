@@ -88,9 +88,6 @@ class ReceiptService {
             if (!$wh || $wh->is_use !== 'Y') {
                 $errors["lines.{$i}.warehouse_idx"] = ['사용 중 창고를 고르세요.'];
             }
-            if ($item->item_kind === 'STOCK' && blank($row['spec_value'] ?? null)) {
-                $errors["lines.{$i}.spec_value"] = ['원소재는 조각 1개의 규격값을 넣으세요.'];
-            }
             if ($external && blank($row['external_lot_no'] ?? null)) {
                 $errors["lines.{$i}.external_lot_no"] = ['공급처 LOT 번호를 넣으세요. ( 공급처 LOT 을 그대로 쓰는 설정 )'];
             }

@@ -161,6 +161,11 @@ return [
         'op_lot_tracking'       => [ 'name' => '공정 LOT 추적', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
                                     'remark' => '켜면 새로 만드는 작업지시는 실적마다 LOT 를 발급한다 ( 마지막 수량 공정 = 제품 LOT · 그 밖 = 공정 LOT ). 끄면 지시 1개에 LOT 1개 ( 지금 방식 ) · 이미 만든 지시는 만들 때의 방식 그대로',
                                     'depends_on' => [ 'feature.lot', 'Y' ] ],
+        // 공정 LOT 추적을 켰을 때만 보인다 ( 11-12 ) — 실적을 넣을 때 투입 LOT 를 사람이 고를지 · 선입선출로 자동 연결할지
+        'op_lot_input_mode'     => [ 'name' => 'LOT 투입 방식', 'value' => 'MANUAL', 'category' => 'RULE', 'type' => 'ENUM',
+                                    'options' => [ 'MANUAL' => '수동 ( 실적 입력 때 고름 )', 'AUTO' => '자동 ( 입고일 선입선출 )' ],
+                                    'remark' => '수동 : 공정 실적을 넣을 때 투입 LOT( 자재 LOT · 앞 공정 실적 LOT )를 고른다. 자동 : 고르지 않아도 먼저 들어온 LOT 부터( 자재 = 입고일 · 앞 공정 = 작업 일시 ) 자동으로 연결한다',
+                                    'depends_on' => [ 'production.op_lot_tracking', 'Y' ] ],
         'scan_qty_presets'     => [ 'name' => '수량 바코드 값', 'value' => '5,10,50,100,150,200', 'category' => 'RULE', 'type' => 'STRING', 'visible' => false ],
         'equipment_manual_qty' => [ 'name' => '설비 실적 수동 입력 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false ],
     ],

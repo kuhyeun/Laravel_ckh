@@ -19,12 +19,9 @@ export const receiptStatusLabel = (v) => RECEIPT_STATUSES.find(s => s.value === 
 export const receiptStatusColor = (v) => RECEIPT_STATUSES.find(s => s.value === v)?.color ?? STATUS_COLOR.idle;
 export const inspModeLabel      = (v) => INSP_MODES.find(s => s.value === v)?.label ?? v ?? '';
 
-// 수량 표시 ( 원소재는 규격 × 개수 — 재고-수불-설계 §2-1 )
-export function qtyText(qty, unit, specValue) {
+// 수량 표시 — 수량 + 단위 ( 원소재의 '규격 × 개수' 표시는 없앰 · 11-12 — 부르는 쪽이 넘기는 셋째 값은 쓰지 않는다 )
+export function qtyText(qty, unit) {
     const n = Number(qty ?? 0).toLocaleString(undefined, { maximumFractionDigits: 6 });
-    if (specValue !== null && specValue !== undefined && specValue !== '') {
-        return `${Number(specValue).toLocaleString(undefined, { maximumFractionDigits: 6 })} × ${n} 개`;
-    }
     return `${n} ${unit ?? ''}`.trim();
 }
 

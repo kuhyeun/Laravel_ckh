@@ -175,9 +175,9 @@
                 </section>
             </div>
 
-            <!-- 탭 2 · 첨부 ( 견적서 · 거래명세서 등 — 올리기 · 삭제는 바로 저장된다 ) -->
+            <!-- 탭 2 · 첨부 ( 견적서 · 거래명세서 등 — 수정 : 올리기 · 삭제는 바로 저장 / 신규 : 골라 두면 저장할 때 올린다 ) -->
             <div v-show="tab === 'files'" class="pt-4">
-                <AttachFiles ref-type="purchase_order" :ref-id="form.purchase_order_idx" category="ETC" :readonly="!canWrite" @change="n => fileCount = n" />
+                <AttachFiles ref="attachRef" deferred ref-type="purchase_order" :ref-id="form.purchase_order_idx" category="ETC" :readonly="!canWrite" @change="n => fileCount = n" />
                 <p v-if="isEdit && canWrite" class="mt-2 text-xs text-gray-400">첨부는 올리거나 지우면 바로 반영됩니다. ( [수정]을 누르지 않아도 됩니다 )</p>
             </div>
         </template>
@@ -209,6 +209,13 @@ import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import OrderMaterialPicker from '@core/Components/Purchase/OrderMaterialPicker.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { withSpec, fmtNum } from '@core/Utils/format';
+
+// 신규 등록 때 골라 둔 첨부를 저장 뒤 올린다 ( AttachFiles deferred · 11-12 ) — 실패한 파일만 알린다
+const attachRef = ref(null);
+async function flushAttach(refId) {
+    const failed = (await attachRef.value?.flush(refId)) ?? [];
+    if (failed.length) await showAlert('첨부 일부 실패', `저장은 되었고, 아래 파일은 올리지 못했습니다. 수정 화면에서 다시 올리세요.\n${failed.join('\n')}`, 'warning');
+}
 
 const props = defineProps({
     order:    { type: Object,   default: null },   // 목록 행 ( purchase_order_idx 로 다시 조회 )
@@ -399,6 +406,7 @@ async function save() {
             })),
         };
         const { data } = await window.axios.post(route('purchase.order.save'), payload);
+        await flushAttach(data.order?.purchase_order_idx);
         props.onSaved?.(data.order, data.warnings ?? []);
         emit('close');
     } catch (e) {

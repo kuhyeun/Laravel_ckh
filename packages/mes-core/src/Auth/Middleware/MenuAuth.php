@@ -30,6 +30,7 @@ class MenuAuth {
         }
 
         $menuCodes = $this->resolveMenuCodes($menuRef);
+        $request->attributes->set(\MesCore\Support\ActivityLogger::REQ_MENU, $menuCodes);   // 활동 로그의 메뉴 ( 11-12 )
 
         /** @var User|null $user */
         $user    = Auth::user();
