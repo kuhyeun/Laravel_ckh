@@ -37,7 +37,7 @@
                         <td class="px-2 py-1.5 truncate">{{ u.user_name || u.user_id }} <span class="text-gray-400">{{ u.user_id }}</span></td>
                         <td class="px-2 py-1.5 text-center text-gray-500 truncate">{{ u.dept_name }}</td>
                         <td class="px-2 py-1.5 truncate" :class="u.template_name ? 'text-gray-700' : 'text-gray-400'">{{ u.template_name || '없음' }}</td>
-                        <td class="px-2 py-1.5 text-center"><span v-if="u.override_count > 0" class="px-1 rounded bg-amber-50 text-amber-600">{{ u.override_count }}</span></td>
+                        <td class="px-2 py-1.5 text-center"><span v-if="u.override_count > 0" class="shrink-0 whitespace-nowrap px-1 rounded bg-amber-50 text-amber-600">{{ u.override_count }}</span></td>
                     </tr>
                 </tbody>
             </table>

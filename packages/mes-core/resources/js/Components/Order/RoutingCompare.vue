@@ -13,7 +13,7 @@
                 <span class="inline-flex items-center gap-1"><i class="w-3 h-3 rounded-sm bg-red-50 border border-red-300"></i> 뺌</span>
                 <span class="inline-flex items-center gap-1"><i class="w-3 h-3 rounded-sm bg-amber-50 border border-amber-300"></i> 값 다름 ( 표준시간 · 검사 )</span>
                 <span class="flex-1"></span>
-                <span v-if="data.locked" class="px-1.5 rounded bg-gray-100 text-gray-500">수주 공정 잠김 ( 작업지시 생성 )</span>
+                <span v-if="data.locked" class="shrink-0 whitespace-nowrap px-1.5 rounded bg-gray-100 text-gray-500">수주 공정 잠김 ( 작업지시 생성 )</span>
             </div>
 
             <section v-for="c in comparisons" :key="c.key" class="mb-4">

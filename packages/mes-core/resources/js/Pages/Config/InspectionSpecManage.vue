@@ -2,7 +2,8 @@
      - 좌 : 기준서 목록  /  우 : 선택 기준서의 항목 줄
      - 항목은 [ 마스터에서 선택 ] 또는 [ + 직접 입력 ] — 고르는 순간 복사 ( 마스터를 고쳐도 기준서는 그대로 )
      - 정량 : 규격( 글자 — 예: 100x300 ) · 하한 · 상한 · 단위 ( 상하한은 하나만 있어도 됨 ) / 정성 : 판정 기준
-     - 품목 × 검사 종류당 사용 중은 하나 → 새로 켜서 저장하면 기존 것이 미사용으로 내려감
+     - 11-18 : 품목 · 검사 종류에 묶지 않는다 — 기준서는 이름 + 항목 줄만 가진 독립 문서 · 여러 개를 따로 관리
+               기본 기준서 하나( 처음 값 「공정검사」 ) — 검사 창에서 먼저 골라진다 · 다른 기준서를 기본으로 켜면 넘어간다
      - 줄은 ⋮⋮ 를 잡아 드래그로 순서 변경
      - 삭제 없음 : 사용 여부로 내림 ( ADR 0019 ) -->
 <template>
@@ -16,9 +17,8 @@
             <!-- 좌 : 기준서 목록 -->
             <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="px-3 py-2 border-b bg-gray-50/70 shrink-0">
-                    <BaseInput v-model="search.keyword" size="md" class="w-full" placeholder="기준서명 · 품번 · 품명" @keyup.enter="loadSpecs" />
+                    <BaseInput v-model="search.keyword" size="md" class="w-full" placeholder="기준서명" @keyup.enter="loadSpecs" />
                     <div class="flex items-center gap-2 mt-2">
-                        <BaseSelect v-model="search.insp_type" :options="TYPE_FILTER_OPTIONS" size="md" class="w-28" @update:model-value="onTypeFilter" />
                         <label class="inline-flex items-center gap-1 text-xs text-gray-500 cursor-pointer select-none">
                             <input type="checkbox" class="base-checkbox w-3.5 h-3.5" v-model="showInactive" @change="loadSpecs" />
                             미사용 포함
@@ -36,12 +36,11 @@
                         @click="selectSpec(s)"
                     >
                         <div class="flex items-center gap-1.5">
-                            <span class="text-[10px] px-1 rounded shrink-0" :class="TYPE_BADGE[s.insp_type]">{{ TYPE_LABEL[s.insp_type] }}</span>
+                            <span v-if="s.is_default === 'Y'" class="text-[10px] px-1 rounded shrink-0 whitespace-nowrap bg-green-50 text-green-700">기본</span>
                             <span class="truncate" :class="s.is_use === 'N' ? 'text-gray-400 line-through' : ''">{{ s.inspection_spec_name }}</span>
                             <span class="flex-1"></span>
                             <span class="text-[11px] text-gray-400 shrink-0">{{ s.lines_count }}항목</span>
                         </div>
-                        <div class="text-[11px] text-gray-400 truncate">[{{ s.item_code }}] {{ s.item_name }}</div>
                     </button>
                 </div>
             </div>
@@ -51,7 +50,8 @@
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">{{ form.inspection_spec_idx ? '기준서 수정' : '기준서 등록' }}</span>
                     <div class="flex items-center gap-2">
-                        <BaseButton v-if="canDelete && form.inspection_spec_idx && form.is_use === 'Y'" size="sm" variant="danger" :disabled="saving" @click="removeSpec">삭제</BaseButton>
+                        <BaseButton v-if="canDelete && form.inspection_spec_idx && form.is_use === 'Y' && !wasDefault" size="sm" variant="danger" :disabled="saving" @click="removeSpec">삭제</BaseButton>
+                        <BaseButton v-if="form.inspection_spec_idx" size="sm" variant="secondary" :disabled="saving" title="저장된 내용으로 인쇄합니다 ( 배치는 기준정보관리 > 문서 양식의 검사기준서 )" @click="openPrint">인쇄</BaseButton>
                         <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="saving" @click="save">저장</BaseButton>
                     </div>
                 </div>
@@ -62,36 +62,20 @@
                     <template v-else>
                         <!-- 머리 -->
                         <div class="grid grid-cols-3 gap-x-4 gap-y-3 text-sm mb-2">
-                            <div>
-                                <label class="block text-gray-500 font-medium mb-1">품목 <span class="text-red-400">*</span></label>
-                                <ItemPicker v-model="form.item_idx" :options="items" size="md" :disabled="!canWrite" current-note="미사용" :current="{ item_code: form.item_code, item_name: form.item_name, spec: form.item_spec }" @update:model-value="refreshAutoName" />
-                                <p v-if="errors.item_idx" class="text-xs text-red-500 mt-0.5">{{ errors.item_idx[0] }}</p>
+                            <div class="col-span-2">
+                                <label class="block text-gray-500 font-medium mb-1">기준서명 <span class="text-red-400">*</span></label>
+                                <BaseInput v-model="form.inspection_spec_name" class="w-full" placeholder="예: 공정검사 · 외관 검사 · 치수 검사" :disabled="!canWrite" />
+                                <p v-if="errors.inspection_spec_name" class="text-xs text-red-500 mt-0.5">{{ errors.inspection_spec_name[0] }}</p>
                             </div>
-                            <div>
-                                <label class="block text-gray-500 font-medium mb-1">검사 종류 <span class="text-red-400">*</span></label>
-                                <div class="flex items-center gap-5 h-9">
-                                    <label v-for="t in TYPE_OPTIONS" :key="t.value" class="inline-flex items-center gap-1.5" :class="!canWrite ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
-                                        <input type="radio" class="accent-blue-600" :value="t.value" v-model="form.insp_type" :disabled="!canWrite" @change="refreshAutoName" />
-                                        <span>{{ t.label }}</span>
-                                    </label>
-                                </div>
-                                <p v-if="errors.insp_type" class="text-xs text-red-500 mt-0.5">{{ errors.insp_type[0] }}</p>
-                            </div>
-                            <div class="flex items-end pb-1.5">
-                                <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
+                            <div class="flex items-end gap-5 pb-1.5">
+                                <BaseCheckbox variant="switch" v-model="form.is_default" true-value="Y" false-value="N" :disabled="!canWrite || wasDefault" :title="wasDefault ? '기본 기준서는 끌 수 없습니다 — 다른 기준서를 기본으로 켜면 넘어갑니다' : '검사 창에서 먼저 골라지는 기준서'">기본 기준서</BaseCheckbox>
+                                <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite || form.is_default === 'Y'">
                                     {{ form.is_use === 'Y' ? '사용' : '미사용' }}
                                 </BaseCheckbox>
                             </div>
-                            <div class="col-span-2">
-                                <label class="block text-gray-500 font-medium mb-1">기준서명 <span class="text-red-400">*</span></label>
-                                <BaseInput v-model="form.inspection_spec_name" class="w-full" placeholder="품목 · 검사 종류를 고르면 자동으로 채워집니다" :disabled="!canWrite" />
-                                <p v-if="errors.inspection_spec_name" class="text-xs text-red-500 mt-0.5">{{ errors.inspection_spec_name[0] }}</p>
-                            </div>
                         </div>
-                        <p v-if="replaceTarget" class="mb-2 text-xs text-amber-600">
-                            같은 품목 · 검사 종류의 사용 중 기준서 [ {{ replaceTarget.inspection_spec_name }} ]가 있습니다. 저장하면 그 기준서는 미사용으로 내려갑니다.
-                        </p>
-                        <p class="mb-4 text-xs text-gray-400">Phase 1 은 검사완료 버튼 방식이라 기준서를 참고 자료로 씁니다. 값을 채워 판정하는 검사시트는 Phase 2 입니다.</p>
+                        <p v-if="errors.is_default || errors.is_use" class="mb-2 text-xs text-red-500">{{ (errors.is_default ?? errors.is_use)[0] }}</p>
+                        <p class="mb-4 text-xs text-gray-400">기준서는 품목 · 검사 종류에 묶이지 않습니다. 공정검사 창에서 기준서를 골라 항목을 보면서 검사합니다 ( 기본 기준서가 먼저 골라집니다 ).</p>
 
                         <!-- 항목 줄 -->
                         <div class="flex items-center justify-between mb-2 gap-2">
@@ -223,8 +207,9 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
-import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import UnitSelect from '@core/Components/Common/UnitSelect.vue';
+import DocPreview from '@core/Components/Doc/DocPreview.vue';
+import { useModalStore } from '@core/Stores/modalStore';
 
 defineOptions({ layout: AppLayout });
 
@@ -255,7 +240,8 @@ const NATURE_OPTIONS = [
 const specs        = ref([]);
 const items        = ref([]);   // 사용 중 품목
 const masters      = ref([]);   // 사용 중 검사항목 마스터
-const search       = reactive({ keyword: '', insp_type: '' });
+const search       = reactive({ keyword: '' });
+const wasDefault   = ref(false);   // 열 때 기본 기준서였나 — 기본은 끌 수 없다 ( 다른 기준서를 기본으로 켜면 넘어간다 )
 const showInactive = ref(false);
 const loading      = ref(false);
 const saving       = ref(false);
@@ -265,12 +251,16 @@ const masterPick   = ref('');
 
 let rowSeq = 0;
 const blankForm = () => ({
-    inspection_spec_idx: null, inspection_spec_name: '', item_idx: '', insp_type: 'INCOMING',
+    inspection_spec_idx: null, inspection_spec_name: '', is_default: 'N',
     is_use: 'Y', remark: '', lines: [],
-    // 현재 품목이 미사용이어도 표시하기 위한 값 ( 서버 응답 )
-    item_code: '', item_name: '',
 });
 const form = reactive(blankForm());
+
+// [인쇄] ( 11-18 ) — 문서 양식( 기준정보관리 )의 검사기준서 기본 양식으로 · 저장된 내용 기준
+const modalStore = useModalStore();
+function openPrint() {
+    modalStore.open(DocPreview, { modalTitle: `검사기준서 [ ${form.inspection_spec_name} ]`, docType: 'INSPECTION_SPEC', routeName: 'config.inspection_spec.sheets', ids: [form.inspection_spec_idx] }, { size: 'xl' });
+}
 
 // ---- 플래시 ----
 const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
@@ -281,28 +271,7 @@ const masterOptions = computed(() =>
 );
 
 
-// 저장하면 내려갈 기존 기준서 ( 목록에 보이는 것 기준 — 최종 판단은 서버 )
-const replaceTarget = computed(() => {
-    if (form.is_use !== 'Y' || !form.item_idx) return null;
-    return specs.value.find(s =>
-        s.inspection_spec_idx !== form.inspection_spec_idx
-        && Number(s.item_idx) === Number(form.item_idx)
-        && s.insp_type === form.insp_type
-        && s.is_use === 'Y'
-    ) ?? null;
-});
-
-// 기준서명 자동 채움 : 비었거나 자동으로 채운 값 그대로면 품목 · 검사 종류를 따라간다
-let lastAutoName = '';
-function refreshAutoName() {
-    const it = items.value.find(x => Number(x.item_idx) === Number(form.item_idx));
-    if (!it) return;
-    const auto = `${it.item_name} ${TYPE_LABEL[form.insp_type]}검사`;
-    if (!form.inspection_spec_name || form.inspection_spec_name === lastAutoName) {
-        form.inspection_spec_name = auto;
-    }
-    lastAutoName = auto;
-}
+let lastAutoName = '';   // ( 예전 자동 이름 — 쓰지 않는다 )
 
 // ---- 줄 조작 ----
 const blankLine = () => ({
@@ -367,7 +336,6 @@ async function loadSpecs() {
     try {
         const params = {
             ...(search.keyword ? { keyword: search.keyword } : {}),
-            ...(search.insp_type ? { insp_type: search.insp_type } : {}),
             ...(showInactive.value ? {} : { is_use: 'Y' }),
         };
         const { data } = await window.axios.get(route('config.inspection_spec.list'), { params });
@@ -375,11 +343,6 @@ async function loadSpecs() {
     } catch (e) {
         showFlash('기준서 목록을 불러오지 못했습니다', true);
     }
-}
-
-function onTypeFilter(v) {
-    search.insp_type = v;
-    loadSpecs();
 }
 
 const emptyStr = (v) => (v === null || v === undefined ? '' : v);
@@ -396,12 +359,9 @@ async function selectSpec(s) {
         Object.assign(form, {
             inspection_spec_idx: p.inspection_spec_idx,
             inspection_spec_name: p.inspection_spec_name,
-            item_idx: p.item_idx,
-            insp_type: p.insp_type,
+            is_default: p.is_default ?? 'N',
             is_use: p.is_use,
             remark: p.remark ?? '',
-            item_code: p.item_code,
-            item_name: p.item_name,
             lines: (p.lines ?? []).map(l => ({
                 ...l,
                 _rowKey: `l${++rowSeq}`,
@@ -413,7 +373,7 @@ async function selectSpec(s) {
                 criteria: emptyStr(l.criteria),
             })),
         });
-        lastAutoName = '';
+        wasDefault.value = p.is_default === 'Y';
     } catch (e) {
         if (isLatest()) showFlash('기준서를 불러오지 못했습니다', true);
     } finally {
@@ -425,7 +385,7 @@ function newSpec() {
     selectLatest.cancel();   // 불러오던 기준서가 신규 폼을 덮지 않게
     loading.value = false;
     errors.value = {};
-    lastAutoName = '';
+    wasDefault.value = false;
     Object.assign(form, blankForm());
 }
 
@@ -438,8 +398,7 @@ async function save() {
         const payload = {
             inspection_spec_idx: form.inspection_spec_idx,
             inspection_spec_name: form.inspection_spec_name,
-            item_idx: form.item_idx === '' ? null : Number(form.item_idx),
-            insp_type: form.insp_type,
+            is_default: form.is_default,
             is_use: form.is_use,
             remark: form.remark || null,
             lines: form.lines.map(l => {
@@ -494,6 +453,7 @@ async function removeSpec() {
         const status = e.response?.status;
         if (status === 403)      showFlash('삭제 권한이 없습니다.', true);
         else if (status === 404) { showFlash('기준서를 찾을 수 없습니다.', true); loadSpecs(); }
+        else if (status === 422) showFlash(Object.values(e.response.data.errors ?? {}).flat().join(' / '), true);
         else                     showFlash('삭제에 실패했습니다.', true);
     } finally {
         saving.value = false;

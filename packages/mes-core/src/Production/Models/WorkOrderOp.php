@@ -56,8 +56,10 @@ class WorkOrderOp extends Model {
         return (bool) $this->process?->isSubcon();
     }
 
+    // 초 · 중 · 종 검사를 하는 생산 공정 ( 11-18 ) — 붙일 수 있는 공정( Process::isIfl )이고 단계가 하나라도 켜져 있다
+    //   판정은 공정검사( 6002 )에서 · 생산을 막지 않는다
     public function isIflOp(): bool {
-        return (bool) $this->process?->isIfl();
+        return (bool) $this->process?->isIfl() && (bool) $this->iflStages();
     }
 
     // 켜진 초 · 중 · 종 ( 순서대로 ) — [ FIRST, MIDDLE, LAST ] 중

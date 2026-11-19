@@ -31,6 +31,7 @@ export const WO_STATUS_FILTER = [
 export function processKindLabel(p) {
     if (!p) return '';
     if (p.is_system === 'Y') return '시스템';
-    return { PRODUCTION: '생산', INSPECTION: p.inspection_kind === 'IFL' ? '초중종' : '검사', EQUIPMENT: '설비', SUBCON: '외주' }[p.process_type] ?? '';
+    return { PRODUCTION: '생산', INSPECTION: '검사', EQUIPMENT: '설비', SUBCON: '외주' }[p.process_type] ?? '';
 }
-export const isIfl = (p) => p?.process_type === 'INSPECTION' && p?.inspection_kind === 'IFL';
+// 초 · 중 · 종 검사를 붙일 수 있는 공정 ( 11-18 ) — 생산 · 설비생산 ( 시스템 공정 제외 · 서버 Process::isIfl ). 검사 공정은 일반 검사 하나뿐
+export const isIfl = (p) => ['PRODUCTION', 'EQUIPMENT'].includes(p?.process_type) && p?.is_system !== 'Y';

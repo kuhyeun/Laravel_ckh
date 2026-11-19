@@ -32,7 +32,7 @@ class MaterialIssueController extends Controller {
             'from'         => 'nullable|date_format:Y-m-d',
             'to'           => 'nullable|date_format:Y-m-d|after_or_equal:from',
             'keyword'      => 'nullable|string|max:100',
-            'issue_status' => 'nullable|in:NONE,SOME',
+            'issue_status' => 'nullable|in:NONE,SOME,EXTRA',   // EXTRA = BOM 외 자재를 낸 지시 ( 11-13 )
             'include_done' => 'nullable|boolean',
         ], [], ['from' => '시작일', 'to' => '종료일']);
 
@@ -41,7 +41,8 @@ class MaterialIssueController extends Controller {
 
         $query = WorkOrder::query()
             ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no'])
-            ->withCount(['materials', 'materials as issued_count' => $has])
+            ->withCount(['materials', 'materials as issued_count' => $has,
+                'materials as extra_count' => fn ($q) => $q->where('is_extra', 'Y')->where('issued_qty', '>', 0)])
             ->whereIn('status', filter_var($v['include_done'] ?? false, FILTER_VALIDATE_BOOLEAN) ? ['WAIT', 'RUN', 'DONE'] : ['WAIT', 'RUN'])   // 완료 포함 = 남은 자재 반납
             ->orderBy('start_date')->orderBy('work_order_idx');
 
@@ -50,6 +51,7 @@ class MaterialIssueController extends Controller {
 
         if (($v['issue_status'] ?? '') === 'NONE') $query->whereDoesntHave('materials', $has);
         if (($v['issue_status'] ?? '') === 'SOME') $query->whereHas('materials', $has);
+        if (($v['issue_status'] ?? '') === 'EXTRA') $query->whereHas('materials', fn ($q) => $q->where('is_extra', 'Y')->where('issued_qty', '>', 0));
         $this->applyKeyword($query, $v['keyword'] ?? null, [
             'wo_no'     => fn ($q, $kw) => $q->where('wo_no', 'like', $kw),
             'item_code' => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
@@ -72,6 +74,7 @@ class MaterialIssueController extends Controller {
             'status'          => $w->status,
             'materials_count' => $w->materials_count,
             'issued_count'    => $w->issued_count,
+            'extra_count'     => $w->extra_count,
         ]);
     }
 
@@ -93,6 +96,8 @@ class MaterialIssueController extends Controller {
                 'start_date'     => $wo->start_date?->toDateString(),
             ],
             'materials' => $this->issues->plan($wo),
+            'extra_allowed' => $this->issues->extraAllowed(),   // [+ 자재 추가] ( BOM 외 자재 · 11-13 )
+            'scan_allowed'  => $this->issues->scanAllowed(),    // 입력 방식 [ BOM 입력 | 바코드 스캔 ] ( 11-18 )
             'now'       => now()->format('Y-m-d\TH:i'),
         ]);
     }
@@ -105,8 +110,13 @@ class MaterialIssueController extends Controller {
             ->whereHas('txn', fn ($q) => $q->where('txn_type', MaterialIssueService::TXN_TYPE))
             ->orderByDesc('stock_txn_line_idx')->get();
         $users = User::namesFor($lines->pluck('txn.create_account_idx'));
+        // BOM 외 자재 줄로 나간 출고 ( 11-13 )
+        $extra = \MesCore\Production\Models\WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->where('is_extra', 'Y')
+            ->pluck('extra_reason', 'work_order_material_idx');
         $rows  = $lines
             ->map(fn (StockTxnLine $l) => [
+                'is_extra'           => $extra->has($l->work_order_material_idx),
+                'extra_reason'       => $extra->get($l->work_order_material_idx),
                 'stock_txn_line_idx' => $l->stock_txn_line_idx,
                 'txn_no'             => $l->txn?->txn_no,
                 'occurred_at'        => substr((string) $l->txn?->occurred_at, 0, 16),
@@ -148,6 +158,34 @@ class MaterialIssueController extends Controller {
             return response()->json(['message' => 'Failed'], 500);
         }
         return response()->json(['message' => 'Success', 'warnings' => $warnings, 'txn_no' => $txn->txn_no]);
+    }
+
+    // BOM 외 자재 줄 더하기 ( [+ 자재 추가] · 11-13 ) — 출고는 그 뒤 save 로
+    public function extraAdd(Request $request) {
+        $v = $request->validate([
+            'work_order_idx' => 'required|integer',
+            'item_idx'       => 'required|integer',
+            'reason'         => 'nullable|string|max:200',
+        ], [], ['item_idx' => '자재', 'reason' => '사유']);
+        $m = $this->issues->addExtra($this->find($v['work_order_idx']), (int) $v['item_idx'], $v['reason'] ?? null);
+        return response()->json(['message' => 'Success', 'work_order_material_idx' => $m->work_order_material_idx]);
+    }
+
+    // 바코드 · QR 스캔 ( 11-18 ) — 찍은 번호의 LOT · 품목. 지시에 없는 자재면 BOM 외 줄로 더한다 ( 수량은 화면에서 )
+    public function scan(Request $request) {
+        $v = $request->validate([
+            'work_order_idx' => 'required|integer',
+            'barcode_no'     => 'required|string|max:100',
+            'reason'         => 'nullable|string|max:200',
+        ], [], ['barcode_no' => '바코드', 'reason' => '사유']);
+        return response()->json($this->issues->scan($this->find($v['work_order_idx']), trim($v['barcode_no']), $v['reason'] ?? null));
+    }
+
+    // BOM 외 자재 줄 지우기 ( 출고한 적이 없는 줄만 )
+    public function extraRemove(Request $request) {
+        $v = $request->validate(['work_order_idx' => 'required|integer', 'work_order_material_idx' => 'required|integer']);
+        $this->issues->removeExtra($this->find($v['work_order_idx']), (int) $v['work_order_material_idx']);
+        return response()->json(['message' => 'Success']);
     }
 
     public function cancel(Request $request) {

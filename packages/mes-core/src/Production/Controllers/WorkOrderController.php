@@ -324,6 +324,8 @@ class WorkOrderController extends Controller {
             'process_name'    => $p->process_name,
             'process_type'    => $p->process_type,
             'inspection_kind' => $p->inspection_kind,
+            // 초 · 중 · 종 기본값 ( 공정을 줄에 넣을 때 · 11-18 )
+            'insp_first'      => $p->insp_first, 'insp_middle' => $p->insp_middle, 'insp_last' => $p->insp_last,
             'is_system'       => $p->is_system,
             'class_code'      => $p->class_code,
             'equipments'      => $p->equipments
@@ -454,6 +456,7 @@ class WorkOrderController extends Controller {
                 'remark'            => $o->remark,
             ])->values(),
             'materials'      => $w->materials->map(fn ($m) => [
+                'is_extra'          => $m->isExtra(),   // BOM 외 자재 ( 출고 창에서 추가 · 11-13 )
                 'child_item_idx'    => $m->child_item_idx,
                 'item_code'         => $m->childItem?->item_code,
                 'item_name'         => $m->childItem?->item_name,

@@ -132,10 +132,10 @@
                                         <ItemPicker v-model="l.item_idx" :remote="ITEM_REMOTE" show-type :disabled="readonly || l.locked || !!l.sales_order_line_idx" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @select="row => onItemPicked(l, row)" />
                                         <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                         <!-- 출처 수주 줄 ( 수주 자재에서 담은 줄 ) -->
-                                        <p v-if="l.sales_order_line_idx" class="mt-0.5 flex items-center gap-1 text-[11px] text-blue-700">
-                                            <span class="px-1 rounded bg-blue-50">수주</span>
-                                            <span class="truncate" :title="l.source_label">{{ l.source_label }}</span>
-                                            <button v-if="!readonly" type="button" class="text-gray-400 hover:text-red-500" title="수주 연결 끊기 ( 일반 줄로 )" @click="unlinkSource(l)">✕</button>
+                                        <p v-if="l.sales_order_line_idx" class="mt-0.5 flex items-start gap-1 text-[11px] leading-4 text-blue-700">
+                                            <span class="shrink-0 whitespace-nowrap px-1 rounded bg-blue-50">수주</span>
+                                            <span class="min-w-0 line-clamp-2 break-words" :title="l.source_label">{{ l.source_label }}</span>
+                                            <button v-if="!readonly" type="button" class="shrink-0 text-gray-400 hover:text-red-500" title="수주 연결 끊기 ( 일반 줄로 )" @click="unlinkSource(l)">✕</button>
                                         </p>
                                     </td>
                                     <td class="px-1.5 py-1">

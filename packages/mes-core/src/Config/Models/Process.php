@@ -32,6 +32,7 @@ class Process extends Model {
         'process_type',
         'class_code',
         'inspection_kind',
+        'insp_first', 'insp_middle', 'insp_last',   // 초 · 중 · 종 검사 기본값 ( 생산 공정 · 11-18 )
         'is_system',
         'system_key',
         'is_use',
@@ -77,9 +78,10 @@ class Process extends Model {
         return $this->process_type === self::TYPE_INSPECTION;
     }
 
-    // 초 · 중 · 종 검사 공정 ( 켜진 검사마다 판정 — 70-품질 §3 )
+    // 초 · 중 · 종 검사를 붙일 수 있는 공정 ( 11-18 ) — 생산 · 설비생산 ( 시스템 공정 · 검사 · 외주 제외 )
+    //   전에는 검사 공정의 한 종류( inspection_kind IFL )였다 — 이제 검사 공정은 일반 검사뿐이고, 초중종은 생산 공정의 옵션
     public function isIfl(): bool {
-        return $this->isInspection() && $this->inspection_kind === 'IFL';
+        return in_array($this->process_type, ['PRODUCTION', self::TYPE_EQUIPMENT], true) && !$this->isSystem();
     }
 
     public function isRmOut(): bool {

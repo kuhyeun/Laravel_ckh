@@ -90,7 +90,18 @@ class OpResultController extends Controller {
         $inputsBy = $wo->isRunLot()
             ? app(\MesCore\Production\Services\RunInputService::class)->byRuns($ops->flatMap(fn ($o) => $o->runs->pluck('run_idx'))->all())
             : [];
-        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left, $inputsBy) {
+        // 초 · 중 · 종 판정 ( 11-18 ) : 공정 표에 보기만 — 품질 모듈이 켜져 있을 때 ( 입력은 공정검사 )
+        $iflOps    = in_array('Quality', config('mes.modules', []), true) ? $ops->filter(fn (WorkOrderOp $o) => $o->isIflOp()) : collect();
+        $iflLatest = $iflOps->isNotEmpty() ? app(\MesCore\Quality\Services\ProcessInspectionService::class)->stageLatestMany($iflOps->pluck('work_order_op_idx')->all()) : [];
+        $iflOf = fn (WorkOrderOp $o) => $iflOps->contains('work_order_op_idx', $o->work_order_op_idx)
+            ? collect($o->iflStages())->map(fn ($st) => [
+                'stage' => $st, 'name' => ['FIRST' => '초물', 'MIDDLE' => '중물', 'LAST' => '종물'][$st], 'short' => ['FIRST' => '초', 'MIDDLE' => '중', 'LAST' => '종'][$st],
+                'result' => $iflLatest[$o->work_order_op_idx][$st]?->result,
+                'label'  => ['PASS' => '합격', 'FAIL' => '불합격'][$iflLatest[$o->work_order_op_idx][$st]?->result ?? ''] ?? '미검사',
+            ])->values()->all()
+            : [];
+
+        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left, $inputsBy, $iflOf) {
             $first = $ops->first(fn (WorkOrderOp $x) => $x->isQtyOp());
             return [
                 'work_order_op_idx' => $o->work_order_op_idx,
@@ -100,12 +111,14 @@ class OpResultController extends Controller {
                 'is_qty'            => $o->isQtyOp(),
                 'is_rm_out'         => $o->isRmOut(),
                 'is_subcon'         => $o->isSubconOp(),   // 외주 공정 : 실적은 외주 입고로만
-                'is_inspection'     => $o->isInspectionOp(),   // 품질 모듈이 켜져 있으면 [검사] 창 ( 6002 — 수량 = 합격 )
+                'is_inspection'     => $o->isInspectionOp(),   // 품질 모듈이 켜져 있으면 공정검사( 6002 )에서 검사 — 수량 = 합격
+                'ifl'               => $iflOf($o),             // 초 · 중 · 종 판정 ( 보기만 )
                 'is_first_qty'      => $first && $first->work_order_op_idx === $o->work_order_op_idx,
                 'base_qty'          => $this->results->baseQty($wo, $ops, $o),
                 'qty'               => (float) $o->qty,
                 'status'            => $o->status,
-                'short_qty'         => $o->short_qty !== null ? (float) $o->short_qty : null,
+                'due_date'          => $o->due_date?->toDateString(),   // 공정 기한 ( 작업지시에서 입력 — 표시만 · 11-16 )
+                'short_qty'        => $o->short_qty !== null ? (float) $o->short_qty : null,
                 'short_reason'      => $o->short_reason ? ($reasons[$o->short_reason] ?? $o->short_reason) : null,
                 'started_at'        => $o->started_at?->format('Y-m-d H:i'),
                 'done_at'           => $o->done_at?->format('Y-m-d H:i'),
@@ -154,7 +167,10 @@ class OpResultController extends Controller {
             'received_qty'   => $this->results->receivedQty($wo),
             'complete_all'   => $this->results->completeAllState($wo, $ops),   // [모든 공정 완료] ( 11-12 )
             'ops'            => $rows,
+            // BOM 에 자재가 없는 지시도 [출고] 창을 열 수 있게 ( BOM 외 자재 추가 · 11-13 )
+            'extra_allowed'  => app(\MesCore\Production\Services\MaterialIssueService::class)->extraAllowed(),
             'materials'      => $wo->materials->map(fn ($m) => [
+                'is_extra'   => $m->isExtra(),
                 'item_label' => \MesCore\Config\Models\Item::labelOf($m->childItem),
                 'spec_unit'  => $m->childItem?->spec_unit,
                 'input_op'   => $opLabel($m->work_order_op_idx),

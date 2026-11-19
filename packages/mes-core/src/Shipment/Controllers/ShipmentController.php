@@ -261,6 +261,18 @@ class ShipmentController extends Controller {
 
     // ---- 내부 ----
 
+    // 출하지시서 인쇄 데이터 ( 11-18 ) : 출하마다 한 부 + 로고 · 직인 + 문서 양식의 기본 양식 ( 없으면 null — 화면의 처음 배치 ) — 화면 DocPreview
+    public function orderSheets(Request $request, \MesCore\Shipment\Services\ShipmentOrderSheetService $sheets, \MesCore\Config\Services\SiteConfigService $site) {
+        $v = $request->validate(['ids' => 'required|array|min:1|max:200', 'ids.*' => 'integer']);
+        $docs = Shipment::with($sheets::RELATIONS)->whereIn('shipment_idx', $v['ids'])->orderBy('plan_date')->orderBy('shipment_idx')->get()
+            ->map(fn (Shipment $s) => $sheets->build($s))->values();
+        return response()->json([
+            'docs'     => $docs,
+            'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
+            'template' => \MesCore\Config\Models\DocTemplate::forPrint('SHIPMENT_ORDER'),
+        ]);
+    }
+
     private function find(Request $request): Shipment {
         $s = Shipment::find($request->validate(['shipment_idx' => 'required|integer'])['shipment_idx']);
         if (!$s) {

@@ -58,7 +58,7 @@
                         <td class="px-2 py-1 text-center">{{ r.due_date }}</td>
                         <td class="px-2 py-1">
                             {{ r.item_name }} <span class="text-gray-400">[{{ r.item_code }}]</span>
-                            <span v-if="r.item_spec" class="ml-1 px-1 rounded bg-gray-100 text-gray-600">{{ r.item_spec }}</span>
+                            <span v-if="r.item_spec" class="shrink-0 whitespace-nowrap ml-1 px-1 rounded bg-gray-100 text-gray-600">{{ r.item_spec }}</span>
                             <span v-if="inForm(r)" class="ml-1 text-[11px]">( 담음 )</span>
                             <span v-if="r.via" class="block text-[11px] text-gray-400 truncate" :title="`경유 · ${r.via}`">경유 · {{ r.via }}</span>
                         </td>

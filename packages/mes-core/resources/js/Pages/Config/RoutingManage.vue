@@ -32,7 +32,7 @@
                         @click="selectRouting(r)"
                     >
                         <span class="truncate" :class="r.is_use === 'N' ? 'text-gray-400 line-through' : ''">[{{ r.routing_code }}] {{ r.routing_name }}</span>
-                        <span v-if="r.is_default === 'Y'" class="text-[10px] px-1 rounded bg-blue-50 text-blue-600 shrink-0">기본</span>
+                        <span v-if="r.is_default === 'Y'" class="whitespace-nowrap text-[10px] px-1 rounded bg-blue-50 text-blue-600 shrink-0">기본</span>
                         <span class="flex-1"></span>
                     </button>
                 </div>

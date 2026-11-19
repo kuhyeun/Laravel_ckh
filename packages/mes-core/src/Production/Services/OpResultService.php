@@ -453,7 +453,7 @@ class OpResultService {
     private function unissued(WorkOrder $wo): array {
         // 주 자재 행만 ( 대체 자재로 채운 몫은 주 자재의 issued_qty · need_qty 에 환산돼 있다 )
         return collect($this->materials->plan($wo))
-            ->filter(fn ($m) => empty($m['substitute_of_idx']))
+            ->filter(fn ($m) => empty($m['substitute_of_idx']) && empty($m['is_extra']))   // BOM 외 자재는 소요가 없다 ( 11-13 )
             ->filter(fn ($m) => $m['need_qty'] > self::EPS || $m['issued_qty'] <= self::EPS)
             ->map(fn ($m) => ($m['issued_qty'] <= self::EPS ? "{$m['item_code']} 미출고" : "{$m['item_code']} 남음 {$this->num($m['need_qty'])}" . ($m['result_kind'] === 'SPEC_COUNT' ? '개' : ($m['spec_unit'] ? " {$m['spec_unit']}" : '')))
                 . (!empty($m['substitute_count']) ? ' ( 대체 자재 포함 )' : ''))

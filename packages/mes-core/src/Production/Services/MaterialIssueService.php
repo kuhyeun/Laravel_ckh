@@ -79,6 +79,15 @@ class MaterialIssueService {
 
         $rows = [];
         foreach ($wo->materials as $m) {
+            // BOM 외 자재( 11-13 ) : 소요가 없다 — 남은 소요 0 · 자동 채움 없음 · 후보 LOT 만
+            if ($m->isExtra()) {
+                $rows[] = ['calc_qty' => 0.0, 'required_qty' => 0.0] + $this->planRow($m, $wo, $ctx, $net($m), false, 0.0) + [
+                    'substitute_of_idx' => null, 'own_issued_qty' => $net($m), 'substitute_issued_equiv' => 0.0, 'substitute_count' => 0,
+                    'is_extra' => true, 'extra_reason' => $m->extra_reason,
+                    'removable' => (float) $m->issued_qty <= self::EPS,   // 출고한 적이 없으면 줄을 지울 수 있다
+                ];
+                continue;
+            }
             // 주 자재 : 채운 정도 = 자기 출고 + 대체 출고 환산 ( 주 소요 ÷ 대체 소요 )
             $per     = fn (WorkOrderMaterial $x) => \MesCore\Support\MaterialNeed::perUnit((float) $x->qty_per, $x->yield_qty);   // 생산 가능 수량이면 1 ÷ N ( 11-12 )
             $ratio   = fn (WorkOrderMaterial $s) => $per($s) > 0 ? $per($m) / $per($s) : 0.0;
@@ -220,6 +229,108 @@ class MaterialIssueService {
             'default_key'   => $default['key'] ?? null,
             'groups'        => array_map(fn ($g) => ['warnings' => array_values($g['warnings'])] + $g, $groups),
             'warnings'      => array_values($warnings),
+        ];
+    }
+
+    // ---- BOM 외 자재 ( 11-13 ) ----
+
+    public function extraAllowed(): bool {
+        return (bool) $this->policy->get('material.issue_extra');
+    }
+
+    /**
+     * 작업지시에 BOM 외 자재 줄을 더한다 ( 자재출고 창의 [+ 자재 추가] ) — 소요 없음 · 출고는 다른 줄과 같이
+     *   자재 대분류의 사용 중 품목 · 그 지시에 이미 있는 자재( 주 · 대체 · BOM 외 )는 다시 더하지 않는다 · 대기 · 진행 지시만
+     */
+    public function addExtra(WorkOrder $wo, int $itemIdx, ?string $reason = null): WorkOrderMaterial {
+        if (!$this->extraAllowed()) {
+            throw ValidationException::withMessages(['item_idx' => ['BOM 외 자재 출고를 쓰지 않는 설정입니다. ( 시스템설정 )']]);
+        }
+        return DB::transaction(function () use ($wo, $itemIdx, $reason) {
+            $wo = WorkOrder::whereKey($wo->work_order_idx)->lockForUpdate()->first();
+            $this->assertOpen($wo);
+            $item = \MesCore\Config\Models\Item::find($itemIdx);
+            if (!$item || $item->item_type !== 'MATERIAL' || $item->is_use !== 'Y') {
+                throw ValidationException::withMessages(['item_idx' => ['추가할 수 있는 자재가 아닙니다. ( 자재 대분류의 사용 중 품목 )']]);
+            }
+            if (WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->where('child_item_idx', $itemIdx)->exists()) {
+                throw ValidationException::withMessages(['item_idx' => ["{$item->item_code} 는 이미 이 작업지시의 자재입니다."]]);
+            }
+            return WorkOrderMaterial::create([
+                'work_order_idx' => $wo->work_order_idx,
+                'seq'            => (int) WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->max('seq') + 1,
+                'child_item_idx' => $itemIdx,
+                'qty_per'        => '0',
+                'required_qty'   => '0',
+                'is_extra'       => 'Y',
+                'extra_reason'   => $reason !== null && trim($reason) !== '' ? mb_substr(trim($reason), 0, 200) : null,
+            ]);
+        });
+    }
+
+    // BOM 외 자재 줄 지우기 — 출고한 적이 없는 줄만 ( 출고 이력이 줄에 붙어 있다 · 취소한 출고만 있으면 지울 수 있다 )
+    public function removeExtra(WorkOrder $wo, int $materialIdx): void {
+        DB::transaction(function () use ($wo, $materialIdx) {
+            $m = WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->whereKey($materialIdx)->lockForUpdate()->first();
+            if (!$m || !$m->isExtra()) {
+                throw ValidationException::withMessages(['work_order_material_idx' => ['BOM 외 자재 줄이 아닙니다. 새로고침하세요.']]);
+            }
+            if ((float) $m->issued_qty > self::EPS) {
+                throw ValidationException::withMessages(['work_order_material_idx' => ['출고한 자재입니다. 출고를 먼저 취소하세요.']]);
+            }
+            // 취소된 출고 줄이 이 자재 줄을 가리키고 있으면 연결만 끊는다 ( 전표 · 원장은 그대로 )
+            DB::table('stock_txn_line')->where('work_order_material_idx', $m->work_order_material_idx)->update(['work_order_material_idx' => null]);
+            $m->delete();
+        });
+    }
+
+    // ---- 바코드 · QR 스캔 ( 11-18 ) ----
+
+    // 자재출고 창의 [ 바코드 스캔 ] 입력 방식 ( 정책 material.issue_scan )
+    public function scanAllowed(): bool {
+        return (bool) $this->policy->get('material.issue_scan');
+    }
+
+    /**
+     * 자재출고 창에서 찍은 번호 → 그 LOT · 품목. 지시에 없는 자재면 BOM 외 줄로 더한다 ( 수량은 화면이 찍을 때마다 1 씩 )
+     *   번호 = 라벨의 바코드 번호( = LOT 번호 ) · 폐기된 라벨 / 모르는 번호 / 낼 재고가 없는 LOT 은 422
+     * @return array{lot_idx:int, lot_no:string, item_idx:int, item_code:?string, item_name:?string, added:bool}
+     */
+    public function scan(WorkOrder $wo, string $barcodeNo, ?string $reason = null): array {
+        if (!$this->scanAllowed()) {
+            throw ValidationException::withMessages(['barcode_no' => ['자재 출고에 바코드를 쓰지 않는 설정입니다. ( 시스템설정 )']]);
+        }
+        $this->assertOpen($wo);
+        $fail = fn (string $msg) => throw ValidationException::withMessages(['barcode_no' => [$msg]]);
+
+        $r = app(\MesCore\Label\Services\LabelService::class)->lookup($barcodeNo);
+        if ($r['status'] === 'SCRAPPED') {
+            $why = implode(' · ', array_filter([$r['scrap_reason'] ?? null, $r['scrapped_at'] ?? null]));
+            $fail("{$barcodeNo} : 폐기된 라벨입니다." . ($why ? " ( {$why} )" : ''));
+        }
+        $lot = ($r['status'] === 'OK' && !empty($r['lot_idx'])) ? Lot::with('item:item_idx,item_code,item_name')->find($r['lot_idx']) : null;
+        if (!$lot) {
+            $fail("{$barcodeNo} : 자재 LOT 을 찾을 수 없는 번호입니다.");
+        }
+        // 낼 수 있는 재고 ( 후보 LOT 과 같은 조건 — 잔고 > 0 · 사용 중 창고 · 재고에 잡힌 LOT )
+        $stocked = $lot->in_at !== null && DB::table('stock_balance as b')->join('warehouse as w', 'w.warehouse_idx', '=', 'b.warehouse_idx')
+            ->where('b.lot_idx', $lot->lot_idx)->where('b.qty', '>', 0)->where('w.is_use', 'Y')->exists();
+        if (!$stocked) {
+            $fail("{$lot->lot_no} : 출고할 수 있는 재고가 없습니다.");
+        }
+
+        $added = false;
+        if (!WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->where('child_item_idx', $lot->item_idx)->exists()) {
+            try {
+                $this->addExtra($wo, (int) $lot->item_idx, $reason !== null && trim($reason) !== '' ? $reason : '바코드 스캔');
+            } catch (ValidationException $e) {   // 어느 라벨인지 같이 알린다
+                $fail("{$lot->lot_no} ( {$lot->item?->item_code} ) : 이 지시의 자재가 아닙니다 — " . collect($e->errors())->flatten()->first());
+            }
+            $added = true;
+        }
+        return [
+            'lot_idx' => (int) $lot->lot_idx, 'lot_no' => $lot->lot_no, 'item_idx' => (int) $lot->item_idx,
+            'item_code' => $lot->item?->item_code, 'item_name' => $lot->item?->item_name, 'added' => $added,
         ];
     }
 
@@ -408,7 +519,21 @@ class MaterialIssueService {
             $lastWh["{$l->item_idx}:{$l->lot_idx}"] = $l->warehouse_idx;   // 뒤의 것이 덮는다 = 마지막
         }
 
+        // 반납 수량 계산 ( 11-18 ) : 품목마다 남은 수량 → 늦게 낸 LOT 부터 나눠 담는다 ( 먼저 낸 LOT 을 먼저 썼다고 본다 )
+        $calc    = $this->returnSuggest($wo);
+        $suggest = [];
+        foreach ($rows->groupBy('item_idx') as $itemIdx => $lots) {
+            $left = (float) ($calc[$itemIdx]['suggest'] ?? 0);
+            foreach ($lots->reverse() as $r) {
+                $take = max(0.0, min($left, (float) $r->issued_qty - (float) $r->returned_qty));
+                $suggest["{$r->item_idx}:{$r->lot_idx}"] = round($take, 6);
+                $left -= $take;
+            }
+        }
+
         return $rows->map(fn ($r) => [
+            'suggest'      => $suggest["{$r->item_idx}:{$r->lot_idx}"] ?? 0.0,   // [남은 수량 계산] 이 반납 수량 칸에 넣는 값
+            'calc'         => $calc[$r->item_idx] ?? null,                       // 계산 근거 ( 실적 · 사용 · 남음 ) — BOM 외 자재는 없다
             'key'          => "{$r->item_idx}:{$r->lot_idx}",
             'item_idx'     => (int) $r->item_idx,
             'lot_idx'      => (int) $r->lot_idx,
@@ -426,6 +551,56 @@ class MaterialIssueService {
             'returnable'   => max(0, (float) $r->issued_qty - (float) $r->returned_qty),
             'warehouse_idx'=> $lastWh["{$r->item_idx}:{$r->lot_idx}"] ?? null,
         ])->values()->all();
+    }
+
+    /**
+     * 반납 수량 계산 ( 11-18 ) — 지금까지의 실적으로 쓴 자재를 어림해 남은 수량을 낸다 ( 화면의 [남은 수량 계산] · 사람이 고칠 수 있는 제안값 )
+     *   쓴 수량   = 투입 공정( 없으면 첫 수량 공정 )의 실적 수량 × 개당 소요 ( 생산 가능 수량 줄은 올림( 실적 ÷ N ) )
+     *   남은 수량 = 출고( 반납 뺌 ) − 쓴 수량 · 대체 자재는 주 자재 기준으로 환산해 함께 본다 — 남은 몫은 주 자재부터 돌려놓는다
+     *   BOM 외 자재는 소요가 없어 계산하지 않는다 · 계산식을 쓰는 자재( 규격 · 물림 등 )는 개당 소요로만 어림한다( approx )
+     * @return array<int, array{suggest: float, done: float, used: float, net: float, op: string, approx: bool, substitute: bool}> item_idx => …
+     */
+    public function returnSuggest(WorkOrder $wo): array {
+        $wo->loadMissing(['ops.process', 'materials.childItem', 'materials.substitutes.childItem']);
+        $ops   = $wo->ops->keyBy('work_order_op_idx');
+        $first = $this->firstQtyOp($wo->ops);
+        $held  = $this->heldByItem($wo->work_order_idx);
+        $net   = fn (int $itemIdx) => max(0.0, ($held[$itemIdx]['issued'] ?? 0.0) - ($held[$itemIdx]['returned'] ?? 0.0));
+        $per   = fn (WorkOrderMaterial $x) => \MesCore\Support\MaterialNeed::perUnit((float) $x->qty_per, $x->yield_qty);
+        $basic = $this->policy->get('material.issue_calc') ?: CalcDef::DEFAULT_CODE;
+
+        $out = [];
+        foreach ($wo->materials as $m) {
+            if ($m->isExtra() || $m->isSubstitute()) {
+                continue;
+            }
+            $op    = $m->work_order_op_idx ? $ops->get($m->work_order_op_idx) : $first;
+            $done  = (float) ($op?->qty ?? 0);
+            $used  = \MesCore\Support\MaterialNeed::of($done, (float) $m->qty_per, $m->yield_qty);   // 주 자재 기준
+            $label = $op ? sprintf('%03d %s', $op->seq, $op->process?->process_name) : '';
+            $code  = $m->calc_code ?: ($m->childItem?->calc_code ?: $basic);
+            $approx = !((float) ($m->yield_qty ?? 0) > 0) && $code !== CalcDef::DEFAULT_CODE;
+
+            // 주 자재 + 대체 자재를 주 자재 기준으로 합쳐 남은 몫을 구한다
+            $ratio = fn (WorkOrderMaterial $s) => $per($s) > 0 ? $per($m) / $per($s) : 0.0;   // 대체 1 = 주 자재 몇
+            $total = $net($m->child_item_idx) + $m->substitutes->sum(fn ($s) => $net($s->child_item_idx) * $ratio($s));
+            $left  = max(0.0, $total - $used);
+
+            $take = min($left, $net($m->child_item_idx));
+            $left -= $take;
+            $row = fn (float $suggest, float $usedOwn, int $itemIdx, bool $sub) => [
+                'suggest' => round(($out[$itemIdx]['suggest'] ?? 0) + $suggest, 6), 'done' => $done, 'used' => round($usedOwn, 6), 'net' => $net($itemIdx),
+                'op' => $label, 'approx' => $approx, 'substitute' => $sub,
+            ];
+            $out[$m->child_item_idx] = $row($take, $net($m->child_item_idx) - $take, $m->child_item_idx, false);
+            foreach ($m->substitutes as $s) {
+                $r     = $ratio($s);
+                $takeS = $r > 0 ? min($left / $r, $net($s->child_item_idx)) : 0.0;
+                $left -= $takeS * $r;
+                $out[$s->child_item_idx] = $row($takeS, $net($s->child_item_idx) - $takeS, $s->child_item_idx, true);
+            }
+        }
+        return $out;
     }
 
     /**
@@ -727,7 +902,7 @@ class MaterialIssueService {
         $mainIdxs = $materials->filter(fn (WorkOrderMaterial $m) => $m->substitute_of_idx === null)->pluck('work_order_material_idx')->all();
         if ($mainIdxs) {
             foreach ($this->plan($wo->fresh()) as $r) {
-                if (!empty($r['substitute_of_idx']) || !in_array($r['work_order_material_idx'], $mainIdxs) || $r['need_qty'] <= self::EPS) {
+                if (!empty($r['substitute_of_idx']) || !empty($r['is_extra']) || !in_array($r['work_order_material_idx'], $mainIdxs) || $r['need_qty'] <= self::EPS) {
                     continue;
                 }
                 $name = trim("{$r['item_code']} {$r['item_name']}");

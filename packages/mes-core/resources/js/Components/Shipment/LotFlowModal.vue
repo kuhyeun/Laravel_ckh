@@ -1,6 +1,8 @@
 <!-- LOT 추적 흐름도 창 ( 7006 ) — 모달 본체 ( size: full ) · docs/LOT추적-설계.md §7
      - 왼쪽( 3 ) : Vue Flow 흐름도 ( lotTrace.graph ) — 위에서 아래로 ( 정추적 = 맨 위 자재 LOT → 아래로 지시 · 제품 · 출하 / 역추적 = 맨 위 출하( 나갔으면 ) → 제품 → 아래로 지시 · 투입 자재 · 입고 )
        자동 배치 dagre ( rankdir TB ) · 선 위에 수량 · 노드 누르면 고른 노드 → 오른쪽 패널이 그 LOT / 지시로 · 확대 · 이동 · 전체 보기 · 미니맵 ( 편집 없음 )
+       [공정 펼치기 · 접기] ( 11-18 ) : 있던 노드는 제자리 — 새로 생기는 공정 LOT 만 그 지시 옆( 아래 · 위 )에 끼워 넣고, 그 너머의 노드를 그만큼 밀어 자리를 낸다
+                                        ( 끼울 자리가 다른 노드와 겹치면 다시 배치하되 누른 지시는 제자리 )
      - 오른쪽( 1 ) : [이력]( lotTrace.history — LOT 원장 ) · [공정]( lotTrace.ops — 작업지시 공정 ) — 노드를 누를 때 불러온다 ( 한 번 부른 것은 다시 부르지 않는다 ) -->
 <template>
     <div class="mt-2 flex flex-col flex-1 min-h-0 h-full text-sm">
@@ -79,7 +81,7 @@
                 <!-- 범례 ( 노드 머리 · 미니맵 색 ) -->
                 <div class="flex items-center flex-wrap gap-x-3 gap-y-1 pt-1.5 text-[11px] text-gray-500 shrink-0">
                     <span v-for="k in legend" :key="k.key" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm border border-black/10" :style="{ background: k.mini }"></span>{{ k.label }}</span>
-                    <span class="inline-flex items-center gap-1"><span class="px-1 rounded bg-red-50 text-red-600">⚠</span>공정 · 입고 불량</span>
+                    <span class="inline-flex items-center gap-1"><span class="shrink-0 whitespace-nowrap px-1 rounded bg-red-50 text-red-600">⚠</span>공정 · 입고 불량</span>
                     <span class="ml-2 text-gray-400">굵은 테두리 = 조회한 LOT · 파란 테두리 = 고른 노드 · 선 위 숫자 = 수량</span>
                 </div>
             </div>
@@ -209,6 +211,7 @@ function go(dir, root) {
     cur.root = root;
     expanded.value = [];
     selectedId.value = null;
+    flowNodes.value = [];   // 다른 흐름 — 자리를 처음부터
     loadGraph();
 }
 
@@ -246,7 +249,51 @@ const nodes     = ref([]);   // 서버 노드 그대로
 const flowNodes = ref([]);
 const flowEdges = ref([]);
 
-function layout(graph) {
+// 펼치기 · 접기 : 있던 노드의 자리를 지킨다 ( anchorId = 누른 지시 노드 )
+//   L2 = 새로 계산한 배치 · old = 지금 화면의 자리 → 노드마다 왼쪽 위 좌표 · 높이. 못 지키면( 겹침 ) null
+const RANK_GAP = 70;
+function keepPlaces(ids, L2, old, anchorId) {
+    const P = new Map();
+    ids.forEach(id => { if (old.has(id)) P.set(id, { ...old.get(id), h: L2.get(id).h }); });
+    const a      = P.get(anchorId);
+    const olds   = [...P.values()];
+    const added  = ids.filter(id => !old.has(id));
+    const gone   = [...old.entries()].filter(([id]) => !L2.has(id)).map(([, p]) => p);
+    const top    = (list) => Math.min(...list.map(p => p.y));
+    const bottom = (list) => Math.max(...list.map(p => p.y + p.h));
+
+    if (added.length) {
+        // 새 노드 : 새 배치에서 지시와의 상대 위치 그대로
+        const dx = a.x - L2.get(anchorId).x, dy = a.y - L2.get(anchorId).y;
+        const news = added.map(id => { const p = L2.get(id); const q = { x: p.x + dx, y: p.y + dy, h: p.h }; P.set(id, q); return q; });
+        const nTop = top(news), nBottom = bottom(news);
+        if (nTop >= a.y) {              // 지시 아래에 끼운다 → 그 아래 노드를 내린다
+            const below = olds.filter(p => p.y > a.y + 1);
+            const delta = below.length ? nBottom + RANK_GAP - top(below) : 0;
+            if (delta > 0) below.forEach(p => { p.y += delta; });
+        } else if (nBottom <= a.y + a.h) {   // 지시 위에 끼운다 ( 역추적 ) → 그 위 노드를 올린다
+            const above = olds.filter(p => p.y < a.y - 1);
+            const delta = above.length ? bottom(above) + RANK_GAP - nTop : 0;
+            if (delta > 0) above.forEach(p => { p.y -= delta; });
+        } else {
+            return null;                // 위아래로 걸친다 — 자리를 지킬 수 없다
+        }
+        const hit = (n, o) => n.x < o.x + NODE_W + 12 && n.x + NODE_W + 12 > o.x && n.y < o.y + o.h + 12 && n.y + n.h + 12 > o.y;
+        if (news.some(n => olds.some(o => hit(n, o)))) return null;   // 다른 노드( 이미 펼친 옆 지시 등 )와 겹친다
+    }
+    if (gone.length) {
+        // 사라진 노드가 있던 띠가 비었으면 그만큼 당긴다 ( 누른 지시가 있는 쪽은 그대로 )
+        const gTop = top(gone), gBottom = bottom(gone);
+        if (!olds.some(p => p.y < gBottom && p.y + p.h > gTop)) {
+            const above = olds.filter(p => p.y + p.h <= gTop), below = olds.filter(p => p.y >= gBottom);
+            const delta = above.length && below.length ? top(below) - bottom(above) - RANK_GAP : 0;
+            if (delta > 0) (a.y >= gBottom ? above : below).forEach(p => { p.y += a.y >= gBottom ? delta : -delta; });
+        }
+    }
+    return P;
+}
+
+function layout(graph, anchorId = null) {
     const g = new dagre.graphlib.Graph({ compound: true });
     g.setGraph({ rankdir: 'TB', nodesep: 36, ranksep: 70, marginx: 20, marginy: 20 });
     g.setDefaultEdgeLabel(() => ({}));
@@ -257,20 +304,36 @@ function layout(graph) {
     graph.nodes.forEach(n => { if (n.group) g.setParent(n.id, `G${n.group}`); });
     graph.edges.forEach(e => g.setEdge(e.source, e.target));
     dagre.layout(g);
+
+    // 노드 자리 ( 왼쪽 위 · 높이 ) — 펼치기 · 접기면 있던 자리를 지킨다
+    const ids = graph.nodes.map(n => n.id);
+    const L2  = new Map(graph.nodes.map(n => { const p = g.node(n.id), h = heightOf(n); return [n.id, { x: p.x - NODE_W / 2, y: p.y - h / 2, h }]; }));
+    const old = new Map(flowNodes.value.filter(n => n.type === 'lot').map(n => [n.id, { x: n.position.x, y: n.position.y, h: heightOf(n.data) }]));
+    let pos = L2;
+    if (anchorId && old.has(anchorId) && L2.has(anchorId)) {
+        pos = keepPlaces(ids, L2, old, anchorId);
+        if (!pos) {   // 못 지키면 다시 배치하되 누른 지시만은 제자리
+            const dx = old.get(anchorId).x - L2.get(anchorId).x, dy = old.get(anchorId).y - L2.get(anchorId).y;
+            pos = new Map([...L2].map(([id, p]) => [id, { x: p.x + dx, y: p.y + dy, h: p.h }]));
+        }
+    }
+
+    // 펼친 지시 상자 : 묶인 노드( 지시 · 공정 LOT · 제품 LOT )를 감싼다
     const boxes = groups.map(gid => {
-        const b = g.node(`G${gid}`);
+        const members = graph.nodes.filter(n => n.group === gid).map(n => pos.get(n.id));
+        const x0 = Math.min(...members.map(p => p.x)), y0 = Math.min(...members.map(p => p.y));
+        const x1 = Math.max(...members.map(p => p.x + NODE_W)), y1 = Math.max(...members.map(p => p.y + p.h));
         const w = graph.nodes.find(n => n.id === gid);
-        const pad = 14;
         return {
             id: `G${gid}`, type: 'wobox', selectable: false, draggable: false, focusable: false, zIndex: -1,
-            position: { x: b.x - b.width / 2 - pad, y: b.y - b.height / 2 - pad - 10 },
-            style: { width: `${b.width + pad * 2}px`, height: `${b.height + pad * 2 + 10}px` },
+            position: { x: x0 - 26, y: y0 - 46 },
+            style: { width: `${x1 - x0 + 52}px`, height: `${y1 - y0 + 72}px` },
             data: { title: w?.title ?? '', kind: 'GROUP' },
         };
     });
     flowNodes.value = [...boxes, ...graph.nodes.map(n => {
-        const p = g.node(n.id);
-        return { id: n.id, type: 'lot', position: { x: p.x - NODE_W / 2, y: p.y - heightOf(n) / 2 }, data: { ...n, isRoot: n.id === graph.rootId } };
+        const p = pos.get(n.id);
+        return { id: n.id, type: 'lot', position: { x: p.x, y: p.y }, data: { ...n, isRoot: n.id === graph.rootId } };
     })];
     // 화살표 = 물건이 흐른 방향 ( 자재 → 지시 → 제품 → 출하 ) — 역추적은 배치가 거꾸로( 제품이 위 )라 화살표를 위쪽 끝에 ( 아래 → 위 · 11-12 )
     const up = cur.dir === 'backward';
@@ -281,7 +344,8 @@ function layout(graph) {
     }));
 }
 
-async function loadGraph() {
+// anchorId : 펼치기 · 접기를 누른 지시 노드 — 있던 노드의 자리를 지킨다 ( 없으면 처음부터 배치 )
+async function loadGraph(anchorId = null) {
     loading.value = true;
     error.value = '';
     try {
@@ -290,7 +354,7 @@ async function loadGraph() {
         truncated.value = !!data.truncated;
         // 조회한 LOT 표시 : 목록에서 출하 LOT 를 골랐으면( root.focus_id — 11-12 ) 그 출하 노드 · 아니면 추적을 시작한 LOT
         const rootId = cur.root.focus_id && nodes.value.some(n => n.id === cur.root.focus_id) ? cur.root.focus_id : data.rootId;
-        layout({ rootId, nodes: nodes.value, edges: data.edges ?? [] });
+        layout({ rootId, nodes: nodes.value, edges: data.edges ?? [] }, anchorId);
         // 펼치기 · 접기 뒤에도 고른 노드를 그대로 ( 없어졌으면 조회한 LOT )
         select(nodes.value.some(n => n.id === selectedId.value) ? selectedId.value : rootId);
     } catch (e) {
@@ -303,8 +367,9 @@ async function loadGraph() {
 // 공정 펼치기 · 접기 ( 지시 노드 버튼 ) — 펼친 지시 목록으로 그래프를 다시
 const expanded = ref([]);
 function toggleExpand(woIdx) {
+    const anchorId = nodes.value.find(n => n.kind === 'WO' && n.work_order_idx === woIdx)?.id ?? null;
     expanded.value = expanded.value.includes(woIdx) ? expanded.value.filter(x => x !== woIdx) : [...expanded.value, woIdx];
-    loadGraph();
+    loadGraph(anchorId);
 }
 
 // ---- 고른 노드 → 오른쪽 패널 ( 노드를 누를 때 부른다 · 부른 것은 기억 ) ----
@@ -350,5 +415,5 @@ function onNodeClick({ node }) {
     select(node.id);
 }
 
-onMounted(loadGraph);
+onMounted(() => loadGraph());
 </script>

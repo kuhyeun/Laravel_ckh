@@ -1,6 +1,9 @@
-<!-- 공정검사 창 ( 6002 · QUA-02 ) — 공정검사 · 공정실적( 4002 의 [검사] ) 두 곳에서 연다. docs/screens/70-품질.md §3
-     - 일반 : 앞 공정이 모두 끝난 뒤 합격 + 불합격 = 검사 수량( 앞 공정 수량 ) → [검사 완료] — 공정 수량 = 합격 ( 뒤 공정 · 제품 입고는 합격분만 )
-     - 초 · 중 · 종 : 켜진 단계마다 [판정 기록]( 합격 / 불합격 · 불량 수량 ) — 모두 마지막 판정이 합격이면 [검사 완료] ( 합격 = 검사 수량 − 단계 불량 합 )
+<!-- 공정검사 창 ( 6002 · QUA-02 ) — 품질관리 > 공정검사에서 연다 ( 11-18 : 공정실적에서는 검사하지 않는다 ). docs/screens/70-품질.md §3
+     - 검사 공정 : 앞 공정이 모두 끝난 뒤 합격 + 불합격 = 검사 수량( 앞 공정 수량 ) → [검사 완료] — 공정 수량 = 합격 ( 뒤 공정 · 제품 입고는 합격분만 )
+     - 초 · 중 · 종 : 초중종을 켠 생산 공정 — 켜진 단계마다 [판정 기록]( 합격 / 불합격 · 불량 수량 ) 만. 검사 완료는 없다
+                     생산을 막지 않고 불량 수량도 실적에서 빼지 않는다( 불량 이력으로만 ) · 작업지시가 대기 · 진행인 동안 기록 · 취소
+     - 탭 ( 11-18 ) : [검사] 판정 · 수량 / [검사기준서] 고른 기준서의 항목 · [인쇄] / [성적서] 첨부 ( 기준서와 별개 — 지시 공정에 붙는다 · 검사 전후 언제든 )
+     - 검사기준서 : 기본 기준서가 먼저 골라져 있고 다른 기준서로 바꿔 볼 수 있다 ( 기록에 그 기준서를 남긴다 )
      - 완료 뒤 : 결과 + [검사 취소]( = 공정 완료 취소 — 뒤 공정이 시작 전 ) / 이력( 취소 포함 )
      - 마지막 남은 공정이면 완료 때 줄을 끝내고 남은 합격분을 제품 입고 → 창고를 고른다
      - 권한은 서버가 준다 ( can_write · can_cancel ) -->
@@ -15,20 +18,34 @@
                 <div><span class="text-xs text-gray-500">공정</span><p>{{ op.op_name }} <span class="text-xs text-gray-400">( {{ op.kind }} )</span></p></div>
                 <div><span class="text-xs text-gray-500">LOT</span><p>{{ op.lot_no || '—' }}</p></div>
                 <div class="col-span-2"><span class="text-xs text-gray-500">품목</span><p>{{ op.item_code }} {{ op.item_name }}</p></div>
-                <div><span class="text-xs text-gray-500">검사 수량 ( 앞 공정 )</span><p class="font-semibold">{{ fmtQty(op.base_qty, op.spec_unit) }}</p></div>
+                <div><span class="text-xs text-gray-500">{{ op.is_inspection ? '검사 수량 ( 앞 공정 )' : '이 공정 실적' }}</span><p class="font-semibold">{{ fmtQty(op.base_qty, op.spec_unit) }}</p></div>
             </div>
 
             <p class="mt-2 text-xs text-gray-500">
-                공정 검사기준서 :
-                <template v-if="spec">{{ spec.inspection_spec_name }} · 항목 {{ spec.item_count }}개 <span class="text-gray-400">( {{ spec.items.join(', ') }} )</span></template>
-                <template v-else><span class="text-gray-400">등록된 기준서가 없습니다</span></template>
+                검사기준서 : <b class="font-medium text-gray-700">{{ curSpec ? curSpec.inspection_spec_name : '없음' }}</b>
+                <button v-if="specs.length" type="button" class="ml-1 text-blue-700 hover:underline" @click="tab = 'spec'">항목 보기 · 바꾸기</button>
             </p>
+
+            <InspectionTabs v-model="tab" :tabs="tabs" class="mt-3" />
+
+            <!-- 검사기준서 ( 11-18 ) : 고른 기준서가 검사 기록에 남는다 -->
+            <div v-show="tab === 'spec'" class="mt-3">
+                <InspectionSpecView v-model="specIdx" :specs="specs" />
+            </div>
+
+            <!-- 성적서 ( 11-18 ) : 기준서와 별개 — 지시 공정에 붙는다 · 검사 전후 언제든 -->
+            <div v-show="tab === 'files'" class="mt-3">
+                <p class="mb-1.5 text-xs text-gray-500">성적서 · 측정 기록 등 — 이 공정에 붙습니다 ( 검사 전에도 올릴 수 있습니다 )</p>
+                <AttachFiles ref-type="work_order_op" :ref-id="op.work_order_op_idx" category="CERT" :readonly="!canWrite" @change="n => fileCount = n" />
+            </div>
+
+            <div v-show="tab === 'insp'">
 
             <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
 
             <!-- 초 · 중 · 종 : 단계 판정 -->
-            <div v-if="op.is_ifl && open" class="mt-4 border rounded">
-                <div class="px-3 py-1.5 bg-gray-50 text-xs font-semibold text-gray-500">초 · 중 · 종 판정 ( 켜진 검사 )</div>
+            <div v-if="op.is_ifl" class="mt-4 border rounded">
+                <div class="px-3 py-1.5 bg-gray-50 text-xs font-semibold text-gray-500">초 · 중 · 종 판정 ( 켜진 검사 ) <span class="font-normal text-gray-400">— 생산을 막지 않는 기록입니다 · 불량 수량은 실적에서 빼지 않고 불량 이력으로 남습니다</span></div>
                 <div v-for="st in stages" :key="st.stage" class="px-3 py-2 border-t flex items-center gap-3">
                     <span class="w-12 font-medium">{{ st.name }}</span>
                     <span class="w-16 text-xs font-semibold" :style="{ color: resultColor(st.result) }">{{ st.result ? RESULT_NAMES[st.result] : '미검사' }}</span>
@@ -78,8 +95,8 @@
 
             <p v-if="open && block" class="mt-3 text-xs text-amber-700">⚠ {{ block }}</p>
 
-            <!-- 검사 완료 ( 일반 = 수량 입력 / IFL = 종합 ) -->
-            <div v-if="open && !block && canWrite" class="mt-4 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
+            <!-- 검사 완료 ( 검사 공정만 — 합격 · 불합격 수량 ) -->
+            <div v-if="op.is_inspection && open && !block && canWrite" class="mt-4 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
                 <template v-if="!op.is_ifl">
                     <div>
                         <label class="block text-gray-500 font-medium mb-1">합격 <span class="text-red-500">*</span></label>
@@ -150,12 +167,13 @@
                                 <td class="px-2 py-1 text-center truncate" :title="h.inspector_name">{{ h.inspector_name }}</td>
                                 <td class="px-2 py-1 text-center whitespace-nowrap">{{ h.inspected_at }}</td>
                                 <td class="px-2 py-1 text-right">
-                                    <button v-if="canWrite && open && h.stage && !h.is_canceled" type="button" class="text-red-600 hover:underline" @click="cancelStage(h)">취소</button>
+                                    <button v-if="canWrite && stageOpen && h.stage && !h.is_canceled" type="button" class="text-red-600 hover:underline" @click="cancelStage(h)">취소</button>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
+            </div>
             </div>
         </template>
 
@@ -163,10 +181,10 @@
 
         <!-- 액션 -->
         <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
-            <BaseButton v-if="canCancel && op && op.status === 'DONE' && op.wo_status !== 'DONE'" size="sm" variant="danger" class="mr-auto" :disabled="saving" @click="cancelInspection">검사 취소</BaseButton>
-            <span v-else-if="op && op.status === 'DONE' && op.wo_status === 'DONE'" class="mr-auto text-xs text-gray-400">품목 줄이 완료됐습니다 — 취소하려면 공정실적에서 줄 완료를 먼저 취소하세요</span>
+            <BaseButton v-if="canCancel && op && op.is_inspection && op.status === 'DONE' && op.wo_status !== 'DONE'" size="sm" variant="danger" class="mr-auto" :disabled="saving" @click="cancelInspection">검사 취소</BaseButton>
+            <span v-else-if="op && op.is_inspection && op.status === 'DONE' && op.wo_status === 'DONE'" class="mr-auto text-xs text-gray-400">품목 줄이 완료됐습니다 — 취소하려면 공정실적에서 줄 완료를 먼저 취소하세요</span>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
-            <BaseButton v-if="canWrite && open && !block" size="sm" variant="primary" :disabled="saving || (!op.is_ifl && !sumOk)" @click="complete">
+            <BaseButton v-if="op && op.is_inspection && canWrite && open && !block" size="sm" variant="primary" :disabled="saving || !sumOk" @click="complete">
                 {{ saving ? '처리 중…' : '검사 완료' }}
             </BaseButton>
         </div>
@@ -186,6 +204,9 @@ import { useCommonCode } from '@core/Composables/useCommonCode';
 import { fmtNum, fmtQty } from '@core/Utils/format';
 import { STATUS_COLOR } from '@core/Utils/colors';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
+import InspectionTabs from '@core/Components/Quality/InspectionTabs.vue';
+import InspectionSpecView from '@core/Components/Quality/InspectionSpecView.vue';
+import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 
 const props = defineProps({
     opIdx:  { type: Number,   required: true },
@@ -206,7 +227,19 @@ const saving     = ref(false);
 const errorMsg   = ref('');
 const errors     = ref({});
 const op         = ref(null);
-const spec       = ref(null);
+// 검사기준서 ( 11-18 ) — 서버가 사용 중 기준서를 기본 기준서 먼저 준다 · 고른 것을 기록에 남긴다
+const specs       = ref([]);
+const specIdx     = ref('');
+const curSpec     = computed(() => specs.value.find(s => Number(s.inspection_spec_idx) === Number(specIdx.value)) ?? null);
+
+// 탭 ( 11-18 ) : 검사 · 검사기준서 · 성적서
+const tab       = ref('insp');
+const fileCount = ref(0);
+const tabs = computed(() => [
+    { key: 'insp',  label: '검사', error: Object.keys(errors.value).length > 0 },
+    { key: 'spec',  label: '검사기준서', count: curSpec.value?.lines.length || '' },
+    { key: 'files', label: '성적서', count: fileCount.value || '' },
+]);
 const stages     = ref([]);
 const history    = ref([]);
 const block      = ref(null);
@@ -221,6 +254,7 @@ const { options } = useCommonCode(['DEFECT_TYPE']);
 
 const inspectorOptions = computed(() => inspectors.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 const open    = computed(() => op.value && op.value.status !== 'DONE' && ['WAIT', 'RUN'].includes(op.value.wo_status));
+const stageOpen = computed(() => op.value && ['WAIT', 'RUN'].includes(op.value.wo_status));   // 초 · 중 · 종 : 공정이 끝난 뒤에도 기록 · 취소
 const summary = computed(() => [...history.value].reverse().find(h => !h.stage && !h.is_canceled) ?? null);
 
 const num   = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
@@ -243,7 +277,8 @@ async function load() {
     try {
         const { data } = await window.axios.get(route('quality.process.show', props.opIdx));
         op.value         = data.op;
-        spec.value       = data.spec;
+        specs.value      = data.specs ?? [];
+        if (!curSpec.value) specIdx.value = specs.value[0]?.inspection_spec_idx ?? '';   // 처음 = 기본 기준서
         stages.value     = data.stages ?? [];
         history.value    = data.history ?? [];
         block.value      = data.block;
@@ -298,6 +333,7 @@ async function complete() {
         inspected_at:     form.inspected_at,
         remark:           form.remark || null,
         warehouse_idx:    op.value.needs_warehouse && form.warehouse_idx ? Number(form.warehouse_idx) : null,
+        inspection_spec_idx: specIdx.value ? Number(specIdx.value) : null,
     }), '검사 완료하지 못했습니다.');
     if (!res) return;
     props.onDone?.(res.data.line_status === 'DONE' ? `${op.value.wo_no} 검사 완료 — 줄을 완료했습니다.` : `${op.value.op_name} 검사를 완료했습니다.`, res.data.warnings ?? []);
@@ -314,6 +350,7 @@ async function saveStage() {
         inspector_idx:    Number(stageForm.inspector_idx),
         inspected_at:     stageForm.inspected_at,
         remark:           stageForm.remark || null,
+        inspection_spec_idx: specIdx.value ? Number(specIdx.value) : null,
     }), '판정을 기록하지 못했습니다.');
     if (!res) return;
     props.onDone?.(`${STAGE_NAMES[stageForm.stage]} ${stageForm.result === 'PASS' ? '합격' : '불합격'}을 기록했습니다.`);

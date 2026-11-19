@@ -1,7 +1,8 @@
 <!-- 공정 라우팅 공정 줄 편집기 — 라우팅 관리( ① 틀 ) · 품목( ② ) · 수주( ③ )가 같이 쓴다 ( docs/라우팅-3단계-설계.md )
      - lines 배열을 그 자리에서 고친다 ( 여는 쪽의 reactive 배열 ) · 배열 순서가 곧 순서
      - 줄은 ⋮⋮ 를 잡아 드래그로 순서 변경 ( 순서를 바꿔도 줄 IDX 는 유지 → BOM 투입 지점 참조 안전 )
-     - 검사 공정 : 초 · 중 · 종 개별 on/off, 종물 전 선행 진행( 승인 N명 / 설계 승인 )
+     - 초 · 중 · 종 ( 11-18 ) : 생산 · 설비생산 공정 줄의 옵션 — 공정관리의 기본값을 받아 오고 줄마다 켜고 끈다 ( 검사 공정은 일반 검사 하나뿐 )
+       종물 전 선행 진행( 승인 )은 없앴다 — 초중종이 생산을 막지 않는다
      - 오류 키 : `${errorPrefix}.${i}.process_idx` 등 ( 서버 RoutingService 와 같은 이름 ) -->
 <template>
     <div>
@@ -33,7 +34,7 @@
                         <th class="px-2 py-1.5 font-medium">순서</th>
                         <th class="px-2 py-1.5 font-medium">공정 <span class="text-red-400">*</span></th>
                         <th class="px-2 py-1.5 font-medium">개당(초)</th>
-                        <th class="px-2 py-1.5 font-medium">초 · 중 · 종 / 선행 진행</th>
+                        <th class="px-2 py-1.5 font-medium">초 · 중 · 종 검사</th>
                         <th v-if="!readonly" class="px-2 py-1.5"></th>
                     </tr>
                 </thead>
@@ -67,7 +68,7 @@
                             <p v-if="rowError(i, 'cycle_time_sec')" class="text-[11px] text-red-500">{{ rowError(i, 'cycle_time_sec') }}</p>
                         </td>
                         <td class="px-1.5 py-1">
-                            <template v-if="isInspection(l)">
+                            <template v-if="iflOk(l)">
                                 <div class="flex items-center gap-2 text-xs">
                                     <label v-for="k in INSP_KEYS" :key="k.key" class="inline-flex items-center gap-1 cursor-pointer">
                                         <input type="checkbox" class="base-checkbox w-3.5 h-3.5" :checked="l[k.key] === 'Y'" :disabled="readonly" @change="e => setInsp(l, k.key, e.target.checked)" />
@@ -76,8 +77,8 @@
                                 </div>
                                 <p v-if="rowError(i, 'insp')" class="text-[11px] text-red-500">{{ rowError(i, 'insp') }}</p>
 
-                                <!-- 선행 진행 : 종물이 켜진 줄만 -->
-                                <div v-if="l.insp_last === 'Y'" class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                                <!-- 선행 진행 : 쓰지 않는다 ( 11-18 ) -->
+                                <div v-if="false" class="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-gray-600">
                                     <span class="text-gray-400">선행 진행</span>
                                     <label class="inline-flex items-center gap-1 cursor-pointer">
                                         <input type="radio" class="accent-blue-600" :checked="preMode(l) === 'none'" :disabled="readonly" @change="setPreMode(l, 'none')" /> 불가
@@ -158,6 +159,8 @@ function lineProcessOptions(line) {
 const processOf       = (line) => props.processes.find(p => Number(p.process_idx) === Number(line.process_idx));
 const isInspection    = (line) => (processOf(line)?.process_type ?? line.process_type) === 'INSPECTION';
 const isSystemProcess = (line) => (processOf(line)?.is_system ?? line.process_is_system) === 'Y';
+// 초 · 중 · 종을 붙일 수 있는 줄 : 생산 · 설비생산 공정 ( 시스템 공정 제외 — 서버 Process::isIfl )
+const iflOk = (line) => ['PRODUCTION', 'EQUIPMENT'].includes(processOf(line)?.process_type ?? line.process_type) && !isSystemProcess(line);
 
 // ---- 줄 조작 ----
 function addLine() {
@@ -170,20 +173,19 @@ function addLine() {
         remark: '',
     };
     props.lines.push(line);
-    // 검사 공정을 고르면 기본으로 초·종을 켠다
+    // 그 공정의 초 · 중 · 종 기본값을 받는다
     onProcessChange(props.lines[props.lines.length - 1], line.process_idx);
 }
 
-// 공정이 바뀌면 검사 옵션을 정리 ( 검사 공정이 아니면 전부 끔 )
+// 공정이 바뀌면 초 · 중 · 종을 그 공정의 기본값( 공정관리 )으로 — 붙일 수 없는 공정( 검사 · 외주 · 시스템 )은 전부 끈다
 function onProcessChange(line, value) {
     line.process_idx = value;
-    if (!isInspection(line)) {
-        Object.assign(line, { insp_first: 'N', insp_middle: 'N', insp_last: 'N', pre_approve_min: 0, pre_approved_by_design: 'N' });
-    } else if (line.insp_first === 'N' && line.insp_middle === 'N' && line.insp_last === 'N') {
-        // 초물과 종물만 하는 현장이 가장 흔하다
-        line.insp_first = 'Y';
-        line.insp_last  = 'Y';
-    }
+    const p  = processOf(line);
+    const ok = iflOk(line);
+    Object.assign(line, {
+        insp_first: ok && p?.insp_first === 'Y' ? 'Y' : 'N', insp_middle: ok && p?.insp_middle === 'Y' ? 'Y' : 'N', insp_last: ok && p?.insp_last === 'Y' ? 'Y' : 'N',
+        pre_approve_min: 0, pre_approved_by_design: 'N',
+    });
 }
 
 function setInsp(line, key, checked) {

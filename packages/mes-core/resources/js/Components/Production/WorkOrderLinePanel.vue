@@ -55,7 +55,7 @@
                         @select="row => { if (row) line.savedItem = withSpec(`${row.item_code} ${row.item_name}`, row.spec); }" @update:model-value="onItemChange" />
                     <p v-if="errors.item_idx" class="err">{{ errors.item_idx[0] }}</p>
                     <!-- 출처 생산계획 ( 계획에서 만든 지시 ) -->
-                    <p v-if="line.plan_no" class="mt-0.5 text-[11px] text-blue-700"><span class="px-1 rounded bg-blue-50">계획</span> {{ line.plan_no }}</p>
+                    <p v-if="line.plan_no" class="mt-0.5 text-[11px] text-blue-700"><span class="shrink-0 whitespace-nowrap px-1 rounded bg-blue-50">계획</span> {{ line.plan_no }}</p>
                     <p v-if="errors.production_plan_idx" class="err">{{ errors.production_plan_idx[0] }}</p>
                 </div>
                 <div>
@@ -181,7 +181,7 @@
                             <td class="px-1.5 py-1"><BaseDatePicker v-model="o.due_date" size="md" class="w-full" :disabled="!runEditable" /></td>
                             <td class="px-2 py-1 text-center">
                                 <template v-if="isIfl(procOf(o))">
-                                    <input v-for="k in ['insp_first', 'insp_middle', 'insp_last']" :key="k" type="checkbox" class="accent-blue-600 mx-0.5" true-value="Y" false-value="N" v-model="o[k]" :disabled="!structEditable" />
+                                    <input v-for="k in IFL_KEYS" :key="k.key" type="checkbox" class="accent-blue-600 mx-0.5" true-value="Y" false-value="N" v-model="o[k.key]" :disabled="!structEditable" :title="`${k.label} 검사 — 판정은 품질관리 > 공정검사에서`" />
                                     <p v-if="errors[`ops.${i}.insp_first`]" class="err">{{ errors[`ops.${i}.insp_first`][0] }}</p>
                                 </template>
                             </td>
@@ -206,13 +206,13 @@
                     </thead>
                     <tbody>
                         <tr v-if="!materials.length"><td :colspan="(showIssued ? 8 : 5) - (SHOW_OP ? 0 : 1)" class="px-2 py-4 text-center text-gray-400">자재가 없습니다 ( 사용 중 BOM 없음 )</td></tr>
-                        <template v-for="m in materials" :key="m.child_item_idx + '-' + m.qty_per">
+                        <template v-for="m in materials" :key="m.child_item_idx + '-' + m.qty_per + (m.is_extra ? '-x' : '')">
                         <tr class="border-t">
-                            <td class="px-2 py-1">{{ m.item_code }} {{ m.item_name }}</td>
-                            <td class="px-2 py-1 text-right">{{ perLabel(m) }}</td>
-                            <td class="px-2 py-1 text-right font-semibold">{{ fmt(need(m)) }} {{ m.spec_unit }}</td>
-                            <td v-if="SHOW_OP" class="px-2 py-1">{{ inputOpLabel(m) }}</td>
-                            <td class="px-2 py-1 text-right" :class="m.stock_qty < need(m) ? 'text-red-600' : 'text-gray-600'">{{ fmt(m.stock_qty) }}</td>
+                            <td class="px-2 py-1"><span v-if="m.is_extra" class="shrink-0 whitespace-nowrap mr-1 px-1 rounded bg-purple-50 text-purple-700" title="BOM 에 없는 자재 — 자재출고 창에서 추가했습니다 ( 소요 없음 )">BOM 외</span>{{ m.item_code }} {{ m.item_name }}</td>
+                            <td class="px-2 py-1 text-right">{{ m.is_extra ? '-' : perLabel(m) }}</td>
+                            <td class="px-2 py-1 text-right font-semibold">{{ m.is_extra ? '-' : `${fmt(need(m))} ${m.spec_unit ?? ''}` }}</td>
+                            <td v-if="SHOW_OP" class="px-2 py-1">{{ m.is_extra ? '' : inputOpLabel(m) }}</td>
+                            <td class="px-2 py-1 text-right" :class="!m.is_extra && m.stock_qty < need(m) ? 'text-red-600' : 'text-gray-600'">{{ fmt(m.stock_qty) }}</td>
                             <template v-if="showIssued">
                                 <td class="px-2 py-1 text-right">{{ fmt(m.issued_qty) }}</td>
                                 <td class="px-2 py-1 text-right text-gray-500">{{ fmt(m.consumed_qty) }}</td>
@@ -221,7 +221,7 @@
                         </tr>
                         <!-- 대체 자재 : 주 자재 대신 · 섞어서 출고할 수 있다 ( 자기 소요 · 투입 공정은 주 자재와 같음 · 자동 채움 안 함 ) -->
                         <tr v-for="sub in (m.substitutes ?? [])" :key="'s' + m.child_item_idx + '-' + sub.child_item_idx" class="text-gray-500">
-                            <td class="px-2 py-1 pl-5"><span class="text-gray-300">└</span> <span class="text-[10px] px-1 rounded bg-gray-100">대체</span> {{ sub.item_code }} {{ sub.item_name }}</td>
+                            <td class="px-2 py-1 pl-5"><span class="text-gray-300">└</span> <span class="shrink-0 whitespace-nowrap text-[10px] px-1 rounded bg-gray-100">대체</span> {{ sub.item_code }} {{ sub.item_name }}</td>
                             <td class="px-2 py-1 text-right">{{ perLabel(sub) }}</td>
                             <td class="px-2 py-1 text-right">{{ fmt(need(sub)) }} {{ sub.spec_unit }}</td>
                             <td v-if="SHOW_OP" class="px-2 py-1 text-gray-400">주 자재와 같음</td>
@@ -262,6 +262,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor, processKindLabel, isIfl } from '@core/Components/Production/productionCodes';
+const IFL_KEYS = [{ key: 'insp_first', label: '초물' }, { key: 'insp_middle', label: '중물' }, { key: 'insp_last', label: '종물' }];
 import { blankOp, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import { withSpec, fmtNum } from '@core/Utils/format';
@@ -354,7 +355,8 @@ function addOp() {
     const p = props.ctx.processes.find(x => Number(x.process_idx) === Number(addProcessIdx.value));
     if (!p) return;
     const def = p.equipments?.find(e => e.is_default === 'Y');
-    props.line.ops.push(blankOp({ process_idx: p.process_idx, equipment_idx: def?.equipment_idx ?? '', ...(isIfl(p) ? { insp_first: 'Y', insp_middle: 'Y', insp_last: 'Y' } : {}) }));
+    // 초 · 중 · 종은 그 공정의 기본값( 공정관리 )을 받는다 ( 11-18 )
+    props.line.ops.push(blankOp({ process_idx: p.process_idx, equipment_idx: def?.equipment_idx ?? '', ...(isIfl(p) ? { insp_first: p.insp_first ?? 'N', insp_middle: p.insp_middle ?? 'N', insp_last: p.insp_last ?? 'N' } : {}) }));
     addProcessIdx.value = '';
 }
 

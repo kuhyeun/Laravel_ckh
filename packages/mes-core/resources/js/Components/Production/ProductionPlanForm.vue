@@ -124,10 +124,10 @@
                 <div class="flex-1"></div>
                 <template v-if="setup">
                     <button type="button" class="text-blue-700 hover:underline" @click="openRouting">공정 {{ setup.routing.lines.length }}</button>
-                    <span v-if="setup.routing.modified" class="text-[10px] px-1 rounded bg-amber-50 text-amber-700">수정됨</span>
+                    <span v-if="setup.routing.modified" class="shrink-0 whitespace-nowrap text-[10px] px-1 rounded bg-amber-50 text-amber-700">수정됨</span>
                     <button type="button" class="text-blue-700 hover:underline" @click="openMaterial">자재 {{ setup.material.lines.length }}</button>
-                    <span v-if="setup.material.modified" class="text-[10px] px-1 rounded bg-amber-50 text-amber-700">수정됨</span>
-                    <span v-if="setup.routing.locked" class="text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 공정 · 자재를 바꿀 수 없습니다">잠김</span>
+                    <span v-if="setup.material.modified" class="shrink-0 whitespace-nowrap text-[10px] px-1 rounded bg-amber-50 text-amber-700">수정됨</span>
+                    <span v-if="setup.routing.locked" class="shrink-0 whitespace-nowrap text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 공정 · 자재를 바꿀 수 없습니다">잠김</span>
                 </template>
                 <span v-else class="text-xs text-gray-400">불러오는 중…</span>
             </section>

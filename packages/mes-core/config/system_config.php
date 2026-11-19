@@ -94,6 +94,12 @@ return [
                               'options' => [ 'PROCESS_START' => '생산 공정 시작 시', 'ISSUE' => '출고 시' ] ],
         'consume_mode'   => [ 'name' => '자재 차감 방식', 'value' => 'AUTO', 'category' => 'RULE', 'type' => 'ENUM', 'scopes' => 'TENANT,ITEM',
                               'options' => [ 'AUTO' => '자동', 'MANUAL' => '수동' ] ],
+        // 자재출고 창의 [+ 자재 추가] ( 11-13 ) — 그 작업지시의 BOM 에 없는 자재를 내고 'BOM 외' 로 남긴다 · 끄면 BOM 자재만
+        'issue_extra'    => [ 'name' => 'BOM 외 자재 출고 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL',
+                              'remark' => '켜면 자재출고에서 작업지시 BOM 에 없는 자재를 추가해 출고할 수 있습니다 ( 출고 이력에 BOM 외로 표시 ). 끄면 BOM 에 등록된 자재만 출고합니다' ],
+        // 자재출고 창의 입력 방식 [ BOM 입력 | 바코드 스캔 ] ( 11-18 ) — 켜면 바코드 스캔 방식을 고를 수 있다 · 끄면 BOM 입력만
+        'issue_scan'     => [ 'name' => '자재 출고 시 바코드 사용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL',
+                              'remark' => '켜면 자재출고 창에서 입력 방식을 [ BOM 입력 ] · [ 바코드 스캔 ] 중에 고릅니다. 바코드 스캔은 자재 라벨을 찍을 때마다 그 LOT 의 출고 수량이 1 씩 오릅니다. 끄면 BOM 입력만 씁니다' ],
     ],
 
     'shipment' => [
@@ -174,6 +180,11 @@ return [
 
     // ---- B-5. 바코드 · 라벨 ----
     'barcode' => [
+        // 라벨에 그리는 코드 ( 11-18 ) — 담는 값은 같다( LOT 번호 등 ). 격자로 만든 양식은 칸마다 따로 정하고, 이 값은 그 기본값 · 처음 들어 있는 고정 양식이 그리는 코드
+        'code_type'           => [ 'name' => '라벨 코드 종류', 'value' => 'BARCODE', 'category' => 'RULE', 'type' => 'ENUM',
+                                   'options' => [ 'BARCODE' => '바코드 ( 1D )', 'QR' => 'QR 코드' ],
+                                   'remark' => '라벨에 바코드와 QR 중 무엇을 그릴지 정합니다. 기본 양식이 이 값을 따르고, 라벨 양식 화면에서 새 코드 칸을 만들 때의 기본값입니다 ( 직접 만든 양식은 칸마다 따로 고를 수 있습니다 )',
+                                   'depends_on' => [ 'feature.barcode', 'Y' ] ],
         'allow_duplicate_no'  => [ 'name' => '같은 바코드 번호 발행 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false,
                                    'depends_on' => [ 'feature.barcode', 'Y' ] ],
         'allow_pre_issue'     => [ 'name' => '선발행 허용', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL', 'editable_by' => 'SYSTEM_ADMIN',

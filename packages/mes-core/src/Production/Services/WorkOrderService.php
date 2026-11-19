@@ -101,9 +101,7 @@ class WorkOrderService {
                 && !($candidates->get($proc->process_idx) ?? collect())->contains('equipment_idx', (int) $op['equipment_idx'])) {
                 $errors["ops.{$i}.equipment_idx"] = ['그 공정의 설비 후보가 아닙니다.'];   // E_WO_EQUIP
             }
-            if ($this->isIfl($proc) && !$this->yes($op['insp_first'] ?? 'N') && !$this->yes($op['insp_middle'] ?? 'N') && !$this->yes($op['insp_last'] ?? 'N')) {
-                $errors["ops.{$i}.insp_first"] = ['초 · 중 · 종 중 하나는 켜야 합니다.'];   // E_WO_IFL_NONE
-            }
+            // 초 · 중 · 종 ( 11-18 ) : 생산 공정의 옵션 — 안 켜도 된다
         }
 
         // 수주 연결
@@ -345,9 +343,9 @@ class WorkOrderService {
                 'insp_first'             => $ifl && $this->yes($row['insp_first'] ?? 'N') ? 'Y' : 'N',
                 'insp_middle'            => $ifl && $this->yes($row['insp_middle'] ?? 'N') ? 'Y' : 'N',
                 'insp_last'              => $ifl && $this->yes($row['insp_last'] ?? 'N') ? 'Y' : 'N',
-                // 선행 진행 승인 조건은 라우팅 원본에서 ( 화면 값을 믿지 않는다 )
-                'pre_approve_min'        => (int) ($rl?->pre_approve_min ?? 0),
-                'pre_approved_by_design' => $rl?->pre_approved_by_design === 'Y' ? 'Y' : 'N',
+                // 선행 진행은 쓰지 않는다 ( 11-18 — 초중종이 생산을 막지 않는다 )
+                'pre_approve_min'        => 0,
+                'pre_approved_by_design' => 'N',
                 'remark'                 => $row['remark'] ?? null,
             ])->save();
 
@@ -390,10 +388,13 @@ class WorkOrderService {
     private function copyMaterials(WorkOrder $wo, ?Bom $bom, array $opMap): void {
         // 대체 자재 행 먼저 ( 주 자재 행을 가리키는 FK )
         WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->whereNotNull('substitute_of_idx')->delete();
-        WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->delete();
+        // BOM 외 자재 줄( 출고 창에서 추가 · 11-13 )은 BOM 에서 온 것이 아니므로 남긴다 — 순서만 맨 뒤로
+        WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->where('is_extra', 'N')->delete();
+        $extras = WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->where('is_extra', 'Y')->orderBy('seq')->get();
         if (!$bom) {
             return;
         }
+        $extras->each(fn (WorkOrderMaterial $x, $k) => $x->fill(['seq' => 10000 + $k])->save());
         $seq = 0;
         foreach ($bom->lines as $l) {
             $opIdx = $l->routing_line_idx ? ($opMap[$l->routing_line_idx] ?? null) : null;
@@ -435,6 +436,9 @@ class WorkOrderService {
         $materials = WorkOrderMaterial::where('work_order_idx', $wo->work_order_idx)->get();
         $rlOf      = DB::table('bom_line')->whereIn('bom_line_idx', $materials->pluck('bom_line_idx')->filter())->pluck('routing_line_idx', 'bom_line_idx');
         foreach ($materials as $m) {
+            if ($m->isExtra()) {
+                continue;   // BOM 외 자재 : 투입 지점 · 소요가 없다
+            }
             $rl = $rlOf[$m->bom_line_idx] ?? null;
             $m->fill([
                 'work_order_op_idx' => $rl ? ($opMap[$rl] ?? null) : null,
@@ -470,8 +474,9 @@ class WorkOrderService {
         WorkOrderSource::where('work_order_idx', $wo->work_order_idx)->whereNotIn('sales_order_line_idx', $keep ?: [0])->delete();
     }
 
+    // 초 · 중 · 종 검사를 붙일 수 있는 공정 ( 생산 · 설비생산 — Process::isIfl )
     private function isIfl(?Process $p): bool {
-        return $p && $p->process_type === Process::TYPE_INSPECTION && $p->inspection_kind === 'IFL';
+        return $p && $p->isIfl();
     }
 
     private function yes($v): bool {

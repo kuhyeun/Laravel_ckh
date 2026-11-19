@@ -92,6 +92,9 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::post('/complete', [OpResultController::class, 'complete'])->name('complete');
             Route::post('/completeAll', [OpResultController::class, 'completeAll'])->name('completeAll');   // 모든 공정 완료 ( 11-12 )
             Route::post('/issueSave', [MaterialIssueController::class, 'save'])->name('issueSave');
+            Route::post('/issueExtraAdd', [MaterialIssueController::class, 'extraAdd'])->name('issueExtraAdd');           // BOM 외 자재 줄 ( 11-13 )
+            Route::post('/issueExtraRemove', [MaterialIssueController::class, 'extraRemove'])->name('issueExtraRemove');
+            Route::post('/issueScan', [MaterialIssueController::class, 'scan'])->name('issueScan');                       // 바코드 · QR 스캔 ( 11-18 )
             Route::post('/returnSave', [MaterialIssueController::class, 'returnSave'])->name('returnSave');
             Route::post('/leftoverSave', [MaterialIssueController::class, 'leftoverSave'])->name('leftoverSave');   // 잔재 입고 ( 11-12 )
         });
@@ -170,6 +173,9 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
         });
         Route::middleware(MenuAuth::class . ':Production/MaterialIssue,can_write')->group(function() {
             Route::post('/save', [MaterialIssueController::class, 'save'])->name('save');
+            Route::post('/extraAdd', [MaterialIssueController::class, 'extraAdd'])->name('extraAdd');           // BOM 외 자재 줄 ( 11-13 )
+            Route::post('/extraRemove', [MaterialIssueController::class, 'extraRemove'])->name('extraRemove');
+            Route::post('/scan', [MaterialIssueController::class, 'scan'])->name('scan');                       // 바코드 · QR 스캔 ( 11-18 )
             Route::post('/cancel', [MaterialIssueController::class, 'cancel'])->name('cancel');
             Route::post('/returnSave', [MaterialIssueController::class, 'returnSave'])->name('returnSave');
             Route::post('/returnCancel', [MaterialIssueController::class, 'returnCancel'])->name('returnCancel');

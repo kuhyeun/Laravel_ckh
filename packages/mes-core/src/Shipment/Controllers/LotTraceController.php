@@ -593,6 +593,10 @@ class LotTraceController extends Controller {
         }
         if ($ids['W']) {
             $defects = $this->defectsByWo($ids['W']);
+            // 펼쳐서 보여 줄 공정 LOT( 중간 공정의 실적 LOT )이 있는 지시 — 없으면 [공정 펼치기] 를 내지 않는다 ( 11-18 : 눌러도 달라지는 것이 없었다 )
+            $hasProcessLot = DB::table('work_order_op_run as r')->join('work_order_op as o', 'o.work_order_op_idx', '=', 'r.work_order_op_idx')
+                ->join('lot as pl', 'pl.lot_idx', '=', 'r.lot_idx')->whereIn('o.work_order_idx', $ids['W'])->where('pl.source', 'PROCESS')
+                ->distinct()->pluck('o.work_order_idx')->flip();
             foreach (DB::table('work_order as wo')->join('item as i', 'i.item_idx', '=', 'wo.item_idx')->whereIn('wo.work_order_idx', $ids['W'])
                 ->get(['wo.work_order_idx', 'wo.wo_no', 'wo.status', 'wo.target_qty', 'wo.start_date', 'wo.due_date', 'wo.lot_mode', 'i.item_code', 'i.item_name']) as $w) {
                 $nodes["W{$w->work_order_idx}"] = [
@@ -601,7 +605,7 @@ class LotTraceController extends Controller {
                     'qty' => '지시 ' . $this->num((float) $w->target_qty), 'defect' => $defects[$w->work_order_idx] ?? 0, 'defect_label' => '공정 불량',
                     'work_order_idx' => (int) $w->work_order_idx,
                     // 공정 펼치기 ( 실적마다 LOT 인 지시만 — 실적LOT-설계 §10 )
-                    'expandable' => $w->lot_mode === 'RUN',
+                    'expandable' => $w->lot_mode === 'RUN' && isset($hasProcessLot[$w->work_order_idx]),
                     'expanded'   => isset($this->expand[$w->work_order_idx]),
                     'group'      => isset($this->expand[$w->work_order_idx]) ? "W{$w->work_order_idx}" : null,
                 ];

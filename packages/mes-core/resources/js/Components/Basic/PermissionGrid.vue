@@ -26,7 +26,7 @@
                         <span :class="row._depth === 0 ? 'font-semibold' : ''">{{ row.menu_name }}</span>
                         <span class="text-[11px] text-gray-400">[{{ row.menu_code }}]</span>
                         <span v-if="row.url_path" class="text-[11px] text-gray-300">{{ row.url_path }}</span>
-                        <span v-if="differs(row)" class="text-[11px] px-1 rounded bg-amber-50 text-amber-600" title="템플릿 값과 다르게 개인 지정됨">개인</span>
+                        <span v-if="differs(row)" class="shrink-0 whitespace-nowrap text-[11px] px-1 rounded bg-amber-50 text-amber-600" title="템플릿 값과 다르게 개인 지정됨">개인</span>
                     </span>
                 </td>
                 <!-- 이 메뉴 세 권한 한 번에 ( 일부만 켜짐 = 중간 표시 · 레벨이 막은 칸은 제외 ) -->

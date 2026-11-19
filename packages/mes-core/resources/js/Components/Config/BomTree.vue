@@ -41,7 +41,7 @@
                         <div class="flex items-center gap-1.5 px-2 py-1 text-[11px] font-medium" :class="typeOf(data).head">
                             <span v-if="data.kind === 'sub'" class="px-1 rounded bg-white/80 text-gray-600 text-[10px]">대체</span>
                             <span>{{ typeOf(data).label }}</span>
-                            <span v-if="data.loop" class="px-1 rounded bg-red-100 text-red-600 text-[10px]">순환</span>
+                            <span v-if="data.loop" class="shrink-0 whitespace-nowrap px-1 rounded bg-red-100 text-red-600 text-[10px]">순환</span>
                             <span class="ml-auto flex items-center gap-1">
                                 <button v-if="!editing && canOpen(data)" type="button" class="nodrag nopan px-1.5 rounded border border-black/10 bg-white/80 text-[10px] hover:bg-white hover:shadow-sm"
                                     title="트리를 닫고 BOM관리에서 이 품목의 BOM 을 엽니다" @click.stop="openInManage(data)">BOM 편집 ›</button>

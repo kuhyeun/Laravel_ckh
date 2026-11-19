@@ -142,6 +142,29 @@ return [
                 'read_only' => 'Y',
             ],
             [
+                // 라벨 양식 ( 11-18 ) — 격자로 칸을 나눠 라벨 배치를 만든다 ( 바코드 · QR ) · 데이터는 label.template.*
+                'menu_code' => '1017',
+                'menu_name' => '라벨 양식',
+                'menu_icon' => null,
+                'module_code' => 'Label',
+                'feature_key' => 'feature.barcode',
+                'menu_route_name' => '',
+                'url_path' => '/config/label-template',
+                'page_component' => 'Label/LabelTemplateManage',
+                'menu_level' => 99,
+            ],
+            [
+                // 문서 양식 ( 11-18 ) — A4 문서( 발주서 · 출하지시서 )의 배치 : 머리 격자 + 품목 표 + 아래 격자 · 데이터는 config.docTemplate.*
+                'menu_code' => '1018',
+                'menu_name' => '문서 양식',
+                'menu_icon' => null,
+                'module_code' => 'Config',
+                'menu_route_name' => '',
+                'url_path' => '/config/doc-template',
+                'page_component' => 'Config/DocTemplateManage',
+                'menu_level' => 99,
+            ],
+            [
                 'menu_code' => '1003',
                 'menu_name' => '공정관리',
                 'menu_icon' => null,
@@ -201,9 +224,8 @@ return [
                 'menu_route_name' => '',
                 'url_path' => '/config/inspection-item',
                 'page_component' => 'Config/InspectionItemManage',
-                'is_display' => 'N',
+                // 11-18 : 검사기준서를 독립 문서로 쓰면서 메뉴를 연다 ( 전에는 숨김 )
                 'menu_level' => 99,
-                'level_perms' => [ 1 => [ 'can_read' => 'N', 'can_write' => 'N', 'can_delete' => 'N' ], 10 => [ 'can_read' => 'N', 'can_write' => 'N', 'can_delete' => 'N' ], 99 => [ 'can_read' => 'N', 'can_write' => 'N', 'can_delete' => 'N' ] ],
             ],
             [
                 'menu_code' => '1009',
@@ -213,9 +235,8 @@ return [
                 'menu_route_name' => '',
                 'url_path' => '/config/inspection-spec',
                 'page_component' => 'Config/InspectionSpecManage',
-                'is_display' => 'N',
+                // 11-18 : 검사기준서를 독립 문서로 쓰면서 메뉴를 연다 ( 전에는 숨김 )
                 'menu_level' => 99,
-                'level_perms' => [ 1 => [ 'can_read' => 'N', 'can_write' => 'N', 'can_delete' => 'N' ], 10 => [ 'can_read' => 'N', 'can_write' => 'N', 'can_delete' => 'N' ], 99 => [ 'can_read' => 'N', 'can_write' => 'N', 'can_delete' => 'N' ] ],
             ],
             [
                 'menu_code' => '1010',

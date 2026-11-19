@@ -81,24 +81,27 @@
                             <span class="text-xs font-semibold text-gray-500">공정</span>
                             <span class="text-xs text-gray-400">{{ line.ops.length }}</span>
                             <div class="flex-1"></div>
-                            <template v-if="canWrite && line.materials.length && !hasRmOut">
+                            <template v-if="canWrite && (line.materials.length || line.extra_allowed) && !hasRmOut">
                                 <span class="text-xs text-gray-400">자재</span>
                                 <BaseButton v-if="line.status !== 'DONE'" size="sm" variant="secondary" @click="openIssue('issue')">출고</BaseButton>
                                 <BaseButton v-if="hasIssued" size="sm" variant="secondary" @click="openIssue('return')">반납</BaseButton>
                             </template>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full min-w-[832px] table-fixed text-sm border">
+                            <!-- 비고 열은 뺐다 ( 11-18 — 가로 스크롤이 생겼다 ) : 미달 · 막힌 까닭은 공정을 누르면 아래 칸 머리에 -->
+                            <table class="w-full min-w-[640px] table-fixed text-sm border">
                                 <colgroup>
                                     <col class="w-12"><col>
-                                    <col class="w-20"><col class="w-20">
-                                    <col class="w-16"><col class="w-48"><col class="w-52">
+                                    <col class="w-24">
+                                    <col class="w-16"><col class="w-16">
+                                    <col class="w-14"><col class="w-64">
                                 </colgroup>
                                 <thead class="bg-gray-50 text-gray-500 text-xs">
                                     <tr>
                                         <th class="px-2 py-1.5">OP</th><th class="px-2 py-1.5 text-left">공정</th>
+                                        <th class="px-2 py-1.5" title="작업지시에서 공정마다 넣은 기한">기한</th>
                                         <th class="px-2 py-1.5 text-right">기준</th><th class="px-2 py-1.5 text-right">실적</th>
-                                        <th class="px-2 py-1.5">상태</th><th class="px-2 py-1.5 text-left">비고</th><th class="px-2 py-1.5"></th>
+                                        <th class="px-2 py-1.5">상태</th><th class="px-2 py-1.5"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -106,22 +109,23 @@
                                         :class="selectedOp?.work_order_op_idx === o.work_order_op_idx ? 'bg-blue-50' : 'hover:bg-gray-50'"
                                         @click="pickOp(o)">
                                         <td class="px-2 py-1.5 text-center text-gray-500">{{ String(o.seq).padStart(3, '0') }}</td>
-                                        <td class="px-2 py-1.5 truncate" :title="o.name">{{ o.name }} <span class="text-xs text-gray-400">{{ o.is_qty ? '' : (o.is_inspection && line.quality_on ? '( 검사 )' : '( 완료만 )') }}</span></td>
+                                        <td class="px-2 py-1.5 truncate" :title="o.ifl?.length ? `${o.name} — 초 · 중 · 종 검사 : ${o.ifl.map(s => `${s.name} ${s.label}`).join(' · ')} ( 판정은 품질관리 > 공정검사에서 )` : o.name">{{ o.name }} <span class="text-xs text-gray-400">{{ o.is_qty ? '' : (o.is_inspection && line.quality_on ? '( 검사 )' : '( 완료만 )') }}</span>
+                                            <!-- 초 · 중 · 종 ( 11-18 ) : 이 공정에 켜진 검사와 지금 판정 — 보기만 ( 입력은 공정검사 ) -->
+                                            <span v-for="s in o.ifl ?? []" :key="s.stage" class="shrink-0 whitespace-nowrap ml-1 px-1 rounded text-[11px]" :class="IFL_CLASS[s.result] ?? 'bg-gray-100 text-gray-500'">{{ s.short }}</span>
+                                        </td>
+                                        <td class="px-2 py-1.5 text-center text-gray-500 tabular-nums">{{ o.due_date ?? '' }}</td>
                                         <td class="px-2 py-1.5 text-right text-gray-500">{{ o.base_qty === null ? '—' : fmtNum(o.base_qty) }}</td>
                                         <td class="px-2 py-1.5 text-right font-semibold">{{ o.is_qty || (o.is_inspection && o.status === 'DONE') ? fmtNum(o.qty) : '—' }}</td>
                                         <td class="px-2 py-1.5 text-center font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</td>
-                                        <td class="px-2 py-1.5 text-xs">
-                                            <span v-if="o.short_qty" class="text-amber-700">미달 {{ fmtNum(o.short_qty) }}<template v-if="o.short_reason"> · {{ o.short_reason }}</template></span>
-                                            <span v-else-if="o.block" class="text-gray-400">{{ o.block }}</span>
-                                        </td>
-                                        <td class="px-2 py-1 text-right whitespace-nowrap" @click.stop>
+                                        <td class="px-2 py-1 text-left whitespace-nowrap" @click.stop>
                                             <!-- 검사 공정 : 검사 창 ( 완료 뒤에도 기록을 본다 · 취소도 그 창에서 ) -->
                                             <!-- 원자재출고 공정 : [출고]( 줄이 끝나기 전 ) · [반납]( 출고된 자재가 있으면 — 완료한 뒤에도 ) → 모달 ( 11-12 — 아래 자재 칸의 단추는 없앰 ) -->
-                                            <template v-if="canWrite && o.is_rm_out && line.materials.length">
+                                            <template v-if="canWrite && o.is_rm_out && (line.materials.length || line.extra_allowed)">
                                                 <BaseButton v-if="line.status !== 'DONE'" size="sm" variant="secondary" @click="openIssue('issue')">출고</BaseButton>
                                                 <BaseButton v-if="hasIssued" size="sm" variant="secondary" class="ml-1 mr-1" @click="openIssue('return')">반납</BaseButton>
                                             </template>
-                                            <BaseButton v-if="o.is_inspection && line.quality_on" size="sm" :variant="o.status === 'DONE' ? 'secondary' : 'primary'" @click="openInspection(o)">검사</BaseButton>
+                                            <!-- 검사 공정 ( 11-18 ) : 여기서 검사하지 않는다 — 품질관리 > 공정검사 -->
+                                            <span v-if="o.is_inspection && line.quality_on" class="text-xs text-gray-400" title="검사는 품질관리 > 공정검사에서 합니다">{{ o.status === 'DONE' ? '검사 완료' : '공정검사에서 검사' }}</span>
                                             <template v-else-if="canWrite && o.status !== 'DONE' && line.status !== 'DONE'">
                                                 <!-- 외주 공정 : 실적은 외주 입고로만 → 그 창을 모달로 ( 외주 출고 · 입고 메뉴 권한이 있을 때만 ) -->
                                                 <template v-if="o.is_subcon">
@@ -145,6 +149,9 @@
                                 {{ String(selectedOp.seq).padStart(3, '0') }} {{ selectedOp.name }}
                                 <span v-if="selectedOp.started_at" class="text-xs font-normal text-gray-400">시작 {{ selectedOp.started_at }}</span>
                                 <span v-if="selectedOp.done_at" class="text-xs font-normal text-gray-400">· 완료 {{ selectedOp.done_at }}</span>
+                                <!-- 비고 ( 공정 표에서 옮김 · 11-18 ) : 미달 수량 · 사유 / 아직 못 하는 까닭 -->
+                                <span v-if="selectedOp.short_qty" class="text-xs font-normal px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">미달 {{ fmtNum(selectedOp.short_qty) }}<template v-if="selectedOp.short_reason"> · {{ selectedOp.short_reason }}</template></span>
+                                <span v-else-if="selectedOp.block" class="text-xs font-normal text-gray-500">· {{ selectedOp.block }}</span>
                             </div>
 
                             <!-- 실적 입력 -->
@@ -250,7 +257,7 @@
                                             </td>
                                             <td class="px-2 py-1.5 truncate" :title="r.equipment_name ?? ''">{{ r.equipment_name ?? '—' }}</td>
                                             <td class="px-2 py-1.5">{{ r.operator }} <span v-if="r.is_proxy" class="text-gray-400">( 입력 : {{ r.creator }} )</span></td>
-                                            <td class="px-2 py-1.5 text-right font-semibold">{{ fmtNum(r.qty) }}<span v-if="r.received" class="ml-1 px-1 rounded bg-blue-50 text-blue-700 font-normal">입고</span></td>
+                                            <td class="px-2 py-1.5 text-right font-semibold">{{ fmtNum(r.qty) }}<span v-if="r.received" class="shrink-0 whitespace-nowrap ml-1 px-1 rounded bg-blue-50 text-blue-700 font-normal">입고</span></td>
                                             <td class="px-2 py-1.5 text-gray-500 truncate" :title="r.remark">{{ r.remark }}</td>
                                             <td class="px-2 py-1 text-right"><button v-if="canDelete && selectedOp.status !== 'DONE'" type="button" class="text-gray-400 hover:text-red-500" :disabled="busy" @click="cancelRun(r)">취소</button></td>
                                         </tr>
@@ -282,9 +289,9 @@
                                 <tbody>
                                     <tr v-if="!line.materials.length"><td :colspan="SHOW_OP ? 6 : 5" class="px-2 py-3 text-center text-gray-400">자재가 없습니다.</td></tr>
                                     <tr v-for="(m, i) in line.materials" :key="i" class="border-t">
-                                        <td class="px-2 py-1">{{ m.item_label }}</td>
-                                        <td v-if="SHOW_OP" class="px-2 py-1 text-gray-500">{{ m.input_op }}</td>
-                                        <td class="px-2 py-1 text-right" :class="m.issued ? '' : 'text-gray-400'">{{ m.issued ? fmtNum(m.issued) : '미출고' }}</td>
+                                        <td class="px-2 py-1"><span v-if="m.is_extra" class="shrink-0 whitespace-nowrap mr-1 px-1 rounded bg-purple-50 text-purple-700" title="이 작업지시의 BOM 에 없는 자재 ( 출고 창에서 추가 )">BOM 외</span>{{ m.item_label }}</td>
+                                        <td v-if="SHOW_OP" class="px-2 py-1 text-gray-500">{{ m.is_extra ? '' : m.input_op }}</td>
+                                        <td class="px-2 py-1 text-right" :class="m.issued ? '' : 'text-gray-400'">{{ m.issued ? fmtNum(m.issued) : (m.is_extra ? '-' : '미출고') }}</td>
                                         <td class="px-2 py-1 text-right text-gray-500">{{ fmtNum(m.consumed) }}</td>
                                         <td class="px-2 py-1 text-right text-gray-500">{{ fmtNum(m.returned) }}</td>
                                         <td class="px-2 py-1 text-right font-semibold">{{ fmtNum(m.held) }}</td>
@@ -382,6 +389,8 @@ const errorText     = ref('');
 
 // 출고 패널은 이 화면 권한으로 부르는 주소 ( routes/production.php opResult.issue* )
 const ISSUE_ROUTES = {
+    extraAdd: 'production.opResult.issueExtraAdd', extraRemove: 'production.opResult.issueExtraRemove',   // BOM 외 자재 줄 ( 11-13 )
+    scan: 'production.opResult.issueScan',   // 바코드 · QR 스캔 ( 11-18 )
     plan: 'production.opResult.issuePlan', history: 'production.opResult.issueHistory',
     save: 'production.opResult.issueSave', cancel: 'production.opResult.issueCancel',
     returnPlan: 'production.opResult.returnPlan', returnSave: 'production.opResult.returnSave', returnCancel: 'production.opResult.returnCancel',
@@ -685,6 +694,9 @@ const cancelLineDone = () => confirmAnd('완료 취소', `${line.value.wo_no} �
 // 출고 패널 열기 ( 자재 표 아래 ) — 원자재출고 공정의 [출고] 도 여기로
 // 공정검사 창 ( 6002 와 같은 창 ) — 판정 · 취소 뒤 이 줄과 목록을 다시 읽는다
 const modalStore = useModalStore();
+// 초 · 중 · 종 판정 표시 색 ( 합격 · 불합격 · 미검사 )
+const IFL_CLASS = { PASS: 'bg-green-50 text-green-700', FAIL: 'bg-red-50 text-red-600' };
+// ( 공정실적에서는 검사 창을 열지 않는다 · 11-18 — 아래 함수는 쓰지 않는다 )
 function openInspection(o) {
     modalStore.open(ProcessInspectionForm, {
         opIdx: o.work_order_op_idx,

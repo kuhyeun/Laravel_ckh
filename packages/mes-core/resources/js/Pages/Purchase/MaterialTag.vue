@@ -3,11 +3,16 @@
      - 목록 : 자재 LOT 1개 = 1행 ( 입고 수량 · 지금 재고 · 마지막 인쇄 ) — 입고가 취소된 LOT 은 없다
      - 행 클릭 = 그 LOT / 체크 → [미리보기 · 인쇄] = 고른 LOT 전부 → 라벨 미리보기( LabelPreview ) — 상세 창 없이 바로
        라벨이 없는 LOT 은 기본 양식 · 기본 장수( 입고 수량 ÷ 입수 )로 발행해서 보여 준다 · 있으면 가장 최근 라벨 ( 다시 발행하지 않는다 )
-       장수 · 양식을 바꿔 발행하려면 입고관리 · 재고관리의 [라벨 발행] -->
+       장수를 바꿔 발행하려면 입고관리 · 재고관리의 [라벨 발행]
+     - 양식 선택 ( 11-18 ) : 위의 「양식」에서 고르면 이번 인쇄만 그 양식으로 그린다 — 발행 기록은 그대로 ( 「발행한 양식 그대로」 = 예전 동작 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-2 pb-2 shrink-0">
             <BaseButton size="sm" variant="primary" :disabled="!checked.length || !canWrite || !enabled || busy" @click="openPreview(checked.map(r => r.lot_idx))">미리보기 · 인쇄</BaseButton>
+            <template v-if="enabled && templates.length > 1">
+                <span class="ml-2 text-xs text-gray-500">양식</span>
+                <BaseSelect v-model="templateIdx" :options="templateOptions" size="sm" class="w-64" title="고른 양식으로 그려서 인쇄합니다. 이미 발행한 라벨의 기록은 바뀌지 않습니다." />
+            </template>
             <span v-if="!enabled" class="text-xs text-amber-700">바코드 · 라벨 기능이 꺼져 있습니다 ( 시스템설정 )</span>
             <span v-else class="text-xs text-gray-400">행을 누르면 그 LOT 라벨을 바로 미리봅니다 · 라벨이 없으면 기본 양식으로 발행합니다</span>
         </div>
@@ -67,6 +72,11 @@ const search = reactive({ date_basis: 'in', from: '', to: '', keyword: '', searc
 const grid = ref(null);
 const partners = ref([]);
 const enabled  = ref(true);
+// 인쇄할 양식 ( '' = 발행한 양식 그대로 ) — 기준정보관리 > 라벨 양식의 LOT 양식
+const templates   = ref([]);
+const templateIdx = ref('');
+const templateOptions = computed(() => [{ value: '', label: '발행한 양식 그대로' },
+    ...templates.value.map(t => ({ value: t.label_template_idx, label: `${t.template_name} ( ${t.width_mm} × ${t.height_mm}mm )${t.is_default === 'Y' ? ' · 기본' : ''}` }))]);
 
 const columns = [
     { header: '입고 일시', name: 'in_at', width: 150, align: 'center', className: 'cursor-pointer' },
@@ -111,7 +121,7 @@ async function openPreview(ids) {
     if (!canWrite.value) { showFlash('라벨 인쇄 권한이 없습니다.', true); return; }
     busy.value = true;
     try {
-        const { data } = await window.axios.post(route('purchase.tag.sheets'), { ids });
+        const { data } = await window.axios.post(route('purchase.tag.sheets'), { ids, label_template_idx: templateIdx.value || null });
         modalStore.open(LabelPreview, {
             modalTitle: `물품표 ( ${ids.length} LOT )`,
             labels: data.labels ?? [],
@@ -130,6 +140,7 @@ onMounted(async () => {
         const { data } = await window.axios.get(route('purchase.tag.formData'));
         partners.value = data.partners ?? [];
         enabled.value  = data.enabled !== false;
+        templates.value = data.templates ?? [];
     } catch (e) {
         showFlash('선택지를 불러오지 못했습니다.', true);
     }

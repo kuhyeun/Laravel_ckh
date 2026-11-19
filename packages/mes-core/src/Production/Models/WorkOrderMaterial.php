@@ -9,6 +9,7 @@ use MesCore\Support\RecordsAccount;
 // 작업지시 자재 — BOM 줄의 사본 ( 지시 시점에 고정 ). 투입 지점은 지시 공정을 가리킨다 ( ADR 0007 )
 //   required_qty : 개당 × 지시 수량 ( 단순 소요 ). 계산식( 절단 · 물림 손실 )은 출고 화면이 그때 계산한다
 //   issued_qty   : 출고 합계 ( MaterialIssueService 가 더하고 뺀다 )
+//   is_extra     : Y = BOM 외 자재 ( 출고 창의 [+ 자재 추가] — bom_line_idx NULL · qty_per 0 · 지시를 다시 저장해도 남는다 )
 //   substitute_of_idx : 대체 자재 행이면 주 자재 행 — 자기 소요( qty_per · 계산식 ) · 출고 합계를 따로 가진다 ( docs/대체자재-수주자재-설계.md )
 class WorkOrderMaterial extends Model {
     use RecordsAccount;
@@ -21,7 +22,7 @@ class WorkOrderMaterial extends Model {
 
     protected $fillable = [
         'work_order_idx', 'seq', 'child_item_idx', 'bom_line_idx', 'substitute_of_idx', 'bom_line_substitute_idx', 'work_order_op_idx',
-        'qty_per', 'yield_qty', 'calc_code', 'ext_n01', 'required_qty', 'issued_qty',
+        'qty_per', 'yield_qty', 'calc_code', 'ext_n01', 'required_qty', 'issued_qty', 'is_extra', 'extra_reason',
     ];
 
     protected function casts(): array {
@@ -32,6 +33,11 @@ class WorkOrderMaterial extends Model {
             'required_qty' => 'decimal:6',
             'issued_qty'   => 'decimal:6',
         ];
+    }
+
+    // BOM 외 자재 ( 자재출고 창에서 추가 · 11-13 ) — 소요가 없다 · 소요 계산 · 미출고 경고에서 빠진다
+    public function isExtra(): bool {
+        return $this->is_extra === 'Y';
     }
 
     public function isSubstitute(): bool {

@@ -25,7 +25,7 @@ class Inspection extends Model {
 
     protected $fillable = [
         'insp_type', 'ref_type', 'ref_idx', 'mode', 'result', 'pass_qty', 'fail_qty',
-        'inspected_at', 'inspector_idx', 'is_canceled', 'remark',
+        'inspected_at', 'inspector_idx', 'inspection_spec_idx', 'is_canceled', 'remark',
     ];
 
     protected function casts(): array {

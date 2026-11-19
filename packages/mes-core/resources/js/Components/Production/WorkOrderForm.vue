@@ -95,26 +95,27 @@
 
             <div class="flex gap-4 flex-1 min-h-0">
                 <!-- 줄 목록 -->
-                <div class="w-60 shrink-0 border rounded overflow-y-auto self-start max-h-full">
+                <!-- 너비 320px ( 11-18 — 240 에서는 품목 · LOT 이 잘렸다 ) · 품목 이름은 두 줄까지 -->
+                <div class="w-80 shrink-0 border rounded overflow-y-auto self-start max-h-full">
                     <button v-for="(l, i) in lines" :key="l._key" type="button"
                         class="w-full text-left px-2.5 py-2 border-b last:border-b-0 transition-colors"
                         :class="selected === i ? 'bg-blue-50' : 'hover:bg-gray-50'"
                         @click="selected = i">
-                        <div class="flex items-center gap-1.5">
-                            <span class="text-xs text-gray-400">{{ String(i + 1).padStart(2, '0') }}</span>
-                            <span class="flex-1 truncate font-medium" :class="l.status === 'CANCELED' ? 'line-through text-gray-400' : ''">{{ itemLabel(l) || '( 품목 선택 )' }}</span>
+                        <div class="flex items-start gap-1.5">
+                            <span class="shrink-0 text-xs text-gray-400 leading-5">{{ String(i + 1).padStart(2, '0') }}</span>
+                            <span class="flex-1 min-w-0 font-medium leading-5 line-clamp-2 break-words" :class="l.status === 'CANCELED' ? 'line-through text-gray-400' : ''" :title="itemLabel(l)">{{ itemLabel(l) || '( 품목 선택 )' }}</span>
                             <span v-if="lineHasError(i)" class="text-red-500">•</span>
                             <button v-if="!l.work_order_idx && sheetEditable" type="button" class="text-gray-400 hover:text-red-500" title="저장 안 한 줄 지우기" @click.stop="removeLine(i)">✕</button>
                         </div>
                         <div v-if="l._semiOf || l.parent_work_order_idx || l.item_kind === 'SEMI'" class="flex items-center gap-1.5 mt-0.5 text-[11px] text-gray-500">
-                            <span class="px-1 rounded bg-violet-50 text-violet-600">반제품</span>
+                            <span class="shrink-0 whitespace-nowrap px-1 rounded bg-violet-50 text-violet-600">반제품</span>
                             <span v-if="semiParentNo(l)" class="truncate">{{ semiParentNo(l) }} 용</span>
                             <span v-if="l._semiStock !== null" class="ml-auto shrink-0" :class="l._semiStock >= num(l.target_qty) ? 'text-emerald-600' : ''">재고 {{ fmt(l._semiStock) }}</span>
                         </div>
                         <div class="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
-                            <span>{{ l.target_qty ? fmt(l.target_qty) : '—' }}</span>
-                            <span v-if="l.lot_no" class="truncate">{{ l.lot_no }}</span>
-                            <span class="ml-auto font-semibold" :style="{ color: woStatusColor(l.status) }">{{ woStatusLabel(l.status) }}</span>
+                            <span class="shrink-0">{{ l.target_qty ? fmt(l.target_qty) : '—' }}</span>
+                            <span v-if="l.lot_no" class="min-w-0 truncate" :title="l.lot_no">{{ l.lot_no }}</span>
+                            <span class="ml-auto shrink-0 whitespace-nowrap font-semibold" :style="{ color: woStatusColor(l.status) }">{{ woStatusLabel(l.status) }}</span>
                         </div>
                     </button>
                     <p v-if="!lines.length" class="px-3 py-4 text-center text-xs text-gray-400">[+ 품목] 또는 [+ 수주 줄]로 줄을 넣으세요.</p>

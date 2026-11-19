@@ -114,7 +114,8 @@ const processColumns = [
     { header: '공정명',    name: 'process_name',    minWidth: 180, className: 'cursor-pointer' },
     { header: '공정 구분', name: 'process_type',    width: 90,  align: 'center', className: 'cursor-pointer', formatter: ({ value }) => processTypeLabel(value) },
     { header: '구분 코드', name: 'class_code',      width: 80,  align: 'center', className: 'cursor-pointer' },
-    { header: '검사 종류', name: 'inspection_kind', width: 80,  align: 'center', className: 'cursor-pointer', formatter: ({ value }) => inspectionKindLabel(value) },
+    { header: '초 · 중 · 종', name: 'insp_first', width: 90,  align: 'center', className: 'cursor-pointer',
+      formatter: ({ row }) => [['insp_first', '초'], ['insp_middle', '중'], ['insp_last', '종']].filter(([k]) => row[k] === 'Y').map(([, t]) => t).join(' · ') },
     { header: '기본 설비', name: 'default_equipment_name', minWidth: 140, className: 'cursor-pointer' },
     { header: '설비 수',   name: 'equipments_count', width: 70, align: 'right', className: 'cursor-pointer' },
     {

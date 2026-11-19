@@ -96,7 +96,12 @@ class PurchaseOrderController extends Controller {
         $docs = PurchaseOrder::with(['partner', 'lines.item'])->whereIn('purchase_order_idx', $v['ids'])
             ->orderBy('order_date')->orderBy('purchase_order_idx')->get()
             ->map(fn (PurchaseOrder $o) => $sheets->build($o))->values();
-        return response()->json(['docs' => $docs, 'images' => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')]]);
+        return response()->json([
+            'docs'     => $docs,
+            'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
+            // 기준정보관리 > 문서 양식의 발주서 기본 양식 ( 없으면 null — 화면이 예전 고정 배치로 그린다 · 11-18 )
+            'template' => \MesCore\Config\Models\DocTemplate::forPrint('PURCHASE_ORDER'),
+        ]);
     }
 
     // 등록 · 수정 모달용 : 구매처( 구매처 구분 · 사용 중 ) + 품목( 사용 중 — 자재 먼저 )

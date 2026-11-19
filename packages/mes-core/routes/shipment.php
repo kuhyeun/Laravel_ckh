@@ -27,6 +27,7 @@ Route::prefix('shipment')->name('shipment.')->middleware([UserAuth::class])->gro
             Route::get('/formData', [ShipmentController::class, 'formData'])->name('formData');
             Route::get('/soLines', [ShipmentController::class, 'soLines'])->name('soLines');
             Route::get('/candidates', [ShipmentController::class, 'candidates'])->name('candidates');
+            Route::get('/orderSheets', [ShipmentController::class, 'orderSheets'])->name('orderSheets');   // [출하지시서] 미리보기 · 인쇄 ( 11-18 )
         });
         Route::middleware($write)->group(function() {
             Route::post('/save', [ShipmentController::class, 'save'])->name('save');

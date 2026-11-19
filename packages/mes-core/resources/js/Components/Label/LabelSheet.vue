@@ -1,9 +1,11 @@
 <!-- 라벨 한 장 — 크기는 양식( width_mm × height_mm · 기본 100 × 72 ) / 배치는 layout
      - LOT_STD      : 자재식별표 · 현품표 — 품번 · 품명 · 규격 / 재질 · 수량 · 공급처 · 공급처 LOT · 입고일
      - SHIPMENT_STD : 출하 라벨 — 고객사 · 출하번호 · 수주번호 / 고객 발주번호 · 품번 · 품명 · 규격 · 수량 · 출하일
-     - 아래 = 1D 바코드( Code128 ) + 번호 글자 -->
+     - 아래 = 코드 + 번호 글자 — 정책 barcode.code_type( label.code_type ) : 1D 바코드( Code128 ) 또는 QR ( 11-18 )
+     - 양식에 격자 배치( label.design · 기준정보관리 > 라벨 양식 )가 있으면 그것대로 그린다 ( LabelGridSheet ) -->
 <template>
-    <div class="label-sheet" :style="{ width: `${label.width_mm}mm`, height: `${label.height_mm}mm` }">
+    <LabelGridSheet v-if="label.design" :label="label" :design="label.design" />
+    <div v-else class="label-sheet" :style="{ width: `${label.width_mm}mm`, height: `${label.height_mm}mm` }">
         <div class="label-head">
             <span class="label-title">{{ label.title }}</span>
             <span class="label-date">{{ label.date }}</span>
@@ -18,7 +20,11 @@
             </tbody>
         </table>
 
-        <div class="label-code">
+        <div v-if="label.code_type === 'QR'" class="label-code label-code-qr">
+            <div class="label-qr"><QrCode :value="label.barcode_no" /></div>
+            <p class="label-no">{{ label.barcode_no }}</p>
+        </div>
+        <div v-else class="label-code">
             <Barcode :value="label.barcode_no" height="13mm" />
             <p class="label-no">{{ label.barcode_no }}</p>
         </div>
@@ -28,6 +34,8 @@
 <script setup>
 import { computed } from 'vue';
 import Barcode from '@core/Components/Label/Barcode.vue';
+import QrCode from '@core/Components/Label/QrCode.vue';
+import LabelGridSheet from '@core/Components/Label/LabelGridSheet.vue';
 import { qtyText } from '@core/Components/Stock/stockCodes';
 
 const props = defineProps({
@@ -75,4 +83,7 @@ const rows = computed(() => {
 .label-table td.big { font-size: 10pt; font-weight: 700; }
 .label-code { margin-top: auto; padding: 1mm 2mm 0; }
 .label-no { text-align: center; font-size: 11pt; font-weight: 700; letter-spacing: 0.3mm; margin-top: 0.5mm; }
+.label-code-qr { display: flex; align-items: center; gap: 3mm; }
+.label-code-qr .label-qr { flex: none; width: 19mm; height: 19mm; }
+.label-code-qr .label-no { flex: 1; min-width: 0; margin: 0; text-align: left; font-size: 10pt; word-break: break-all; }
 </style>

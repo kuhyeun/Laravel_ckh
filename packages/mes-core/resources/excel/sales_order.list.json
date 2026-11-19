@@ -9,7 +9,7 @@
         { "field": "order_date",   "header": "수주일",   "width": 11 },
         { "field": "partner_name", "header": "고객사",   "width": 18 },
         { "field": "customer_po_no", "header": "고객 발주번호", "width": 16 },
-        { "field": "order_name",   "header": "수주명",   "width": 20 },
+        { "field": "order_name",   "header": "프로젝트명",   "width": 20 },
         { "field": "item_code",    "header": "품번",     "width": 16 },
         { "field": "item_name",    "header": "품명",     "width": 24 },
         { "field": "qty",          "header": "수량",     "width": 10, "numFmt": "#,##0.######" },

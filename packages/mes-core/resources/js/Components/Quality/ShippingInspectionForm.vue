@@ -27,7 +27,7 @@
             </div>
 
             <!-- 검사기준서 ( 보여 주기만 — 항목별 기록은 다음 단계 ) -->
-            <p class="mt-2 text-xs text-gray-500">
+            <p v-if="spec" class="mt-2 text-xs text-gray-500">
                 출고 검사기준서 :
                 <template v-if="spec">{{ spec.inspection_spec_name }} · 항목 {{ spec.item_count }}개 <span class="text-gray-400">( {{ spec.items.join(', ') }} )</span></template>
                 <template v-else><span class="text-gray-400">등록된 기준서가 없습니다</span></template>

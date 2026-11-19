@@ -33,7 +33,7 @@
                         <span class="text-gray-300">{{ w._hasChildren ? '▾' : '·' }}</span>
                         <span class="truncate" :class="w.is_use === 'N' ? 'text-gray-400 line-through' : ''">{{ w.warehouse_name }}</span>
                         <span class="text-[11px] text-gray-400 shrink-0">[{{ w.warehouse_code }}]</span>
-                        <span v-if="w.is_leaf === 'Y'" class="text-[10px] px-1 rounded bg-emerald-50 text-emerald-600 shrink-0" title="하위가 없어 재고가 붙는 창고입니다">재고</span>
+                        <span v-if="w.is_leaf === 'Y'" class="whitespace-nowrap text-[10px] px-1 rounded bg-emerald-50 text-emerald-600 shrink-0" title="하위가 없어 재고가 붙는 창고입니다">재고</span>
                         <span class="flex-1"></span>
                         <!-- 하위 추가 : 평소에는 흐리게, 행에 올리면 뚜렷하게 ( 클릭 영역 24px ) -->
                         <button

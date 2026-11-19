@@ -10,8 +10,8 @@
             <span class="text-xs text-gray-400 whitespace-nowrap">{{ countText }}</span>
         </div>
         <div ref="listEl" class="border rounded overflow-auto h-[60vh]" @scroll="onScroll">
-            <table class="w-full min-w-[860px] table-fixed text-xs">
-                <colgroup><col v-if="showType" class="w-16"><col class="w-44"><col><col class="w-44"><col class="w-28"><col class="w-14"></colgroup>
+            <table class="w-full min-w-[680px] table-fixed text-xs">
+                <colgroup><col v-if="showType" class="w-16"><col class="w-48"><col><col class="w-28"><col class="w-24"><col class="w-14"></colgroup>
                 <thead class="bg-gray-50 text-gray-500 sticky top-0">
                     <tr>
                         <th v-if="showType" class="px-2 py-1.5">구분</th>

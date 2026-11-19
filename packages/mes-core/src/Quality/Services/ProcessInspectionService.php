@@ -14,12 +14,13 @@ use MesCore\Quality\Models\Inspection;
 /**
  * 공정검사 ( 6002 · QUA-02 ) — docs/screens/70-품질.md §3
  *
- *   검사 공정 = 라우팅의 검사 공정( process_type INSPECTION ). 공정실적 · 공정검사 두 곳에서 같은 검사 창
- *   일반( NORMAL ) : 앞 공정이 모두 끝난 뒤 검사 수량( = 기준 = 앞 공정 수량 ) → 합격 + 불합격 = 검사 수량 → [검사 완료]
- *   초 · 중 · 종( IFL ) : 켜진 단계마다 판정 기록( 합격 / 불합격 · 불량 수량 ) — 초물 · 중물은 앞 공정 진행 중에도, 종물은 앞 공정이 끝난 뒤
- *                        모든 단계의 마지막 판정이 합격이어야 [검사 완료] · 합격 수량 = 검사 수량 − 단계 불량 합
- *   완료 = OpResultService::completeOp( _pass_qty ) — 공정 수량 = 합격 → 뒤 공정 기준 · 제품 입고는 합격분만 ( 결정 3 )
- *   취소 = 공정실적의 [완료 취소] ( 종합 기록 · 불량은 취소 표시 — OpResultService::reopenOp ) / 단계 기록은 공정 완료 전 하나씩 취소
+ *   11-18 : 검사는 공정검사 화면에서만 한다 ( 공정실적에서는 하지 않는다 ) · 두 가지가 한 목록에 나온다
+ *   검사 공정 = 라우팅의 검사 공정( process_type INSPECTION ) — 한 가지뿐 ( 전의 일반 검사 )
+ *              앞 공정이 모두 끝난 뒤 검사 수량( = 기준 = 앞 공정 수량 ) → 합격 + 불합격 = 검사 수량 → [검사 완료]
+ *              완료 = OpResultService::completeOp( _pass_qty ) — 공정 수량 = 합격 → 뒤 공정 기준 · 제품 입고는 합격분만 ( 결정 3 )
+ *              취소 = [검사 취소]( = 공정 완료 취소 · 종합 기록 · 불량은 취소 표시 — OpResultService::reopenOp )
+ *   초 · 중 · 종 = 생산 공정( 생산 · 설비생산 )의 옵션 — 그 공정을 시작할 때 · 도중 · 끝난 뒤의 판정 기록( 합격 / 불합격 · 불량 수량 )
+ *              생산을 막지 않는다( 실적 · 완료와 무관 ) · 불량 수량은 실적에서 빼지 않고 불량 이력으로만 · 작업지시가 대기 · 진행인 동안 기록 · 취소
  *   불량 = 발생 공정( work_order_op ) · 품목 = 만드는 제품 · LOT = 지시 LOT
  */
 class ProcessInspectionService {
@@ -47,22 +48,13 @@ class ProcessInspectionService {
         if ($op->status === 'DONE') return null;
         $open = $ops->filter(fn (WorkOrderOp $o) => $o->seq < $op->seq && $o->status !== 'DONE')->first();
         if ($open) return "앞 공정( {$this->results->opName($open)} )이 끝난 뒤에 검사 완료합니다.";
-        if ($op->isIflOp()) {
-            $latest ??= $this->stageLatest($op);
-            foreach ($op->iflStages() as $st) {
-                if (($latest[$st]?->result ?? null) !== 'PASS') return self::STAGE_NAMES[$st] . ' 검사가 합격이어야 완료합니다.';
-            }
-        }
         return null;
     }
 
-    // 초 · 중 · 종 단계 기록을 할 수 없는 이유
+    // 초 · 중 · 종 단계 기록을 할 수 없는 이유 — 생산 진행과는 묶지 않는다 ( 11-18 · 공정이 끝난 뒤에도 종물을 기록한다 )
     public function stageBlock(WorkOrder $wo, Collection $ops, WorkOrderOp $op, string $stage): ?string {
-        if (!in_array($wo->status, ['WAIT', 'RUN'], true) || $op->status === 'DONE') return '완료된 공정입니다.';
+        if (!in_array($wo->status, ['WAIT', 'RUN'], true)) return '대기 · 진행 중인 작업지시만 기록합니다.';
         if (!in_array($stage, $op->iflStages(), true)) return '이 공정에서 켜지 않은 검사입니다.';
-        $prev = $ops->filter(fn (WorkOrderOp $o) => $o->seq < $op->seq)->last();
-        if ($prev && $stage === 'LAST' && $prev->status !== 'DONE') return "종물은 앞 공정( {$this->results->opName($prev)} )이 끝난 뒤에 검사합니다.";
-        if ($prev && $prev->status === 'WAIT') return "앞 공정( {$this->results->opName($prev)} )이 시작되지 않았습니다.";
         return null;
     }
 
@@ -85,29 +77,21 @@ class ProcessInspectionService {
             }
             $base = (float) $this->results->baseQty($wo, $ops, $op);
 
-            if ($op->isIflOp()) {
-                $stageFail = (float) Inspection::where('ref_type', self::REF_TYPE)->where('ref_idx', $op->work_order_op_idx)
-                    ->whereIn('insp_type', self::STAGE_TYPES)->where('is_canceled', 'N')->sum('fail_qty');
-                $pass = max(0, $base - $stageFail);
-                $fail = $base - $pass;
-            } else {
-                $pass = (float) ($data['pass_qty'] ?? 0);
-                $fail = (float) ($data['fail_qty'] ?? 0);
-                if (abs(($pass + $fail) - $base) > self::EPS) {
-                    throw ValidationException::withMessages(['pass_qty' => ["합격과 불합격을 더하면 검사 수량( {$this->num($base)} )이 되어야 합니다."]]);
-                }
-                $this->defects->validateRows($fail, $data);   // 불량 여러 줄 ( 11-12 )
+            $pass = (float) ($data['pass_qty'] ?? 0);
+            $fail = (float) ($data['fail_qty'] ?? 0);
+            if (abs(($pass + $fail) - $base) > self::EPS) {
+                throw ValidationException::withMessages(['pass_qty' => ["합격과 불합격을 더하면 검사 수량( {$this->num($base)} )이 되어야 합니다."]]);
             }
+            $this->defects->validateRows($fail, $data);   // 불량 여러 줄 ( 11-12 )
 
             $inspection = Inspection::create([
                 'insp_type' => 'PROCESS', 'ref_type' => self::REF_TYPE, 'ref_idx' => $op->work_order_op_idx, 'mode' => 'SIMPLE',
                 'result'    => $fail <= self::EPS ? 'PASS' : ($pass <= self::EPS ? 'FAIL' : 'PARTIAL'),
                 'pass_qty'  => (string) $pass, 'fail_qty' => (string) $fail,
                 'inspected_at' => $at, 'inspector_idx' => $data['inspector_idx'], 'remark' => $data['remark'] ?? null,
+                'inspection_spec_idx' => $data['inspection_spec_idx'] ?? null,   // 보고 검사한 기준서 ( 11-18 )
             ]);
-            if (!$op->isIflOp()) {   // IFL 은 단계 기록 때 불량을 남겼다
-                $this->defects->recordRows($inspection, $this->defectBase($wo, $op, $at), $fail, $data);
-            }
+            $this->defects->recordRows($inspection, $this->defectBase($wo, $op, $at), $fail, $data);
 
             return $this->results->completeOp($op, ['_pass_qty' => $pass, 'warehouse_idx' => $data['warehouse_idx'] ?? null]);
         });
@@ -122,9 +106,8 @@ class ProcessInspectionService {
         return DB::transaction(function () use ($op, $stage, $data, $at) {
             $op = WorkOrderOp::with('process')->whereKey($op->work_order_op_idx)->lockForUpdate()->first();
             [$wo, $ops] = $this->context($op);
-            $this->assertInspection($op);
             if (!$op->isIflOp()) {
-                throw ValidationException::withMessages(['op' => ['초 · 중 · 종 검사 공정이 아닙니다.']]);
+                throw ValidationException::withMessages(['op' => ['초 · 중 · 종 검사를 켠 생산 공정이 아닙니다.']]);
             }
             if ($why = $this->stageBlock($wo, $ops, $op, $stage)) {
                 throw ValidationException::withMessages(['stage' => [$why]]);
@@ -141,6 +124,7 @@ class ProcessInspectionService {
                 'insp_type' => self::STAGE_TYPES[$stage], 'ref_type' => self::REF_TYPE, 'ref_idx' => $op->work_order_op_idx, 'mode' => 'SIMPLE',
                 'result'    => $data['result'], 'pass_qty' => '0', 'fail_qty' => (string) $fail,
                 'inspected_at' => $at, 'inspector_idx' => $data['inspector_idx'],
+                'inspection_spec_idx' => $data['inspection_spec_idx'] ?? null,   // 보고 검사한 기준서 ( 11-18 )
                 'remark'    => trim(($data['result'] === 'FAIL' && filled($data['reason'] ?? null) ? $data['reason'] . ' ' : '') . ($data['remark'] ?? '')) ?: null,
             ]);
             $this->defects->record($inspection, $this->defectRow($wo, $op, $fail, $data, $at));
@@ -148,13 +132,14 @@ class ProcessInspectionService {
         });
     }
 
-    // 단계 기록 취소 — 공정 완료 전만
+    // 단계 기록 취소 — 작업지시가 대기 · 진행인 동안 ( 11-18 : 공정 완료와 묶지 않는다 )
     public function cancelStage(Inspection $inspection): void {
         DB::transaction(function () use ($inspection) {
             $inspection = Inspection::whereKey($inspection->inspection_idx)->lockForUpdate()->first();
             $op = WorkOrderOp::find($inspection->ref_idx);
-            if ($inspection->ref_type !== self::REF_TYPE || !in_array($inspection->insp_type, self::STAGE_TYPES, true) || $inspection->is_canceled === 'Y' || !$op || $op->status === 'DONE') {
-                throw ValidationException::withMessages(['inspection' => ['취소할 수 있는 단계 기록이 아닙니다. ( 공정 완료 전만 )']]);
+            $open = $op && in_array(WorkOrder::whereKey($op->work_order_idx)->value('status'), ['WAIT', 'RUN'], true);
+            if ($inspection->ref_type !== self::REF_TYPE || !in_array($inspection->insp_type, self::STAGE_TYPES, true) || $inspection->is_canceled === 'Y' || !$open) {
+                throw ValidationException::withMessages(['inspection' => ['취소할 수 있는 단계 기록이 아닙니다. ( 대기 · 진행 중인 작업지시만 )']]);
             }
             $this->defects->cancel($inspection);
             $inspection->fill(['is_canceled' => 'Y'])->save();

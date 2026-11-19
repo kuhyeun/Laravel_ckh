@@ -45,6 +45,8 @@ export default defineConfig(({ mode }) => {
                 '@vuepic/vue-datepicker': path.resolve(nodeModulesPath, '@vuepic/vue-datepicker'),
                 // 1D 바코드( Code128 ) 그리기 ( Components/Label/Barcode.vue 만 쓴다 )
                 'jsbarcode': path.resolve(nodeModulesPath, 'jsbarcode'),
+                // QR 코드 그리기 ( Components/Label/QrCode.vue 만 쓴다 · 11-18 )
+                'qrcode': path.resolve(nodeModulesPath, 'qrcode'),
                 // LOT 추적 흐름도 ( Components/Shipment/LotFlowModal.vue 만 쓴다 — 노드 그래프 · 자동 배치 dagre )
                 '@vue-flow/core': path.resolve(nodeModulesPath, '@vue-flow/core'),
                 '@vue-flow/background': path.resolve(nodeModulesPath, '@vue-flow/background'),

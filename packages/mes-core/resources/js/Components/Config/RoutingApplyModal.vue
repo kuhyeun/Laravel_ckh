@@ -37,7 +37,7 @@
                         <td class="px-2 py-1.5 truncate text-gray-500">{{ it.spec }}</td>
                         <td class="px-2 py-1.5 text-center text-gray-500">{{ it.line_count }}</td>
                         <td class="px-2 py-1.5 text-center">
-                            <span v-if="it.customized === true" class="px-1 rounded bg-amber-50 text-amber-700" title="품목 화면에서 공정을 따로 고친 품목입니다. 반영하면 그 변경이 사라집니다.">품목에서 수정함</span>
+                            <span v-if="it.customized === true" class="shrink-0 whitespace-nowrap px-1 rounded bg-amber-50 text-amber-700" title="품목 화면에서 공정을 따로 고친 품목입니다. 반영하면 그 변경이 사라집니다.">품목에서 수정함</span>
                             <span v-else-if="!it.differs" class="text-gray-400">틀과 같음</span>
                             <span v-else-if="it.customized === null" class="px-1 rounded bg-amber-50 text-amber-700" title="틀을 고쳐서 달라졌거나, 품목 화면에서 공정을 따로 고친 품목입니다.">틀과 다름</span>
                             <span v-else class="text-blue-600">반영 대상</span>

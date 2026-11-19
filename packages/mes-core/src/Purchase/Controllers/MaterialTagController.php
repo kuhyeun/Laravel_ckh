@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 // 물품표 ( 3012 · 11-13 ) — 자재 LOT 의 라벨( 자재식별표 )을 바로 미리보기 · 인쇄 ( 현품표 7005 와 같은 방식 )
 //   목록 : 자재 LOT 1개 = 1행 ( 입고 수량 · 지금 재고 · 발행 라벨 수 · 마지막 인쇄 ) — 입고가 살아 있는 LOT 만 ( 입고 취소된 LOT 은 빠진다 )
 //   sheets : LOT 마다 가장 최근 발행 라벨 · 없으면 기본 양식 · 기본 장수로 발행( LabelService::labelsForLots ) → 인쇄용 데이터
+//            양식을 고르면( label_template_idx · 11-18 ) 이번 인쇄만 그 양식으로 그린다 — 발행 기록은 그대로 · 새로 발행하는 LOT 은 그 양식으로
 //   [인쇄] 기록은 라벨 미리보기( LabelPreview → label.printed — 물품표 쓰기 권한 포함 )
 class MaterialTagController extends Controller {
     use SearchesKeyword;
@@ -69,21 +70,23 @@ class MaterialTagController extends Controller {
     public function formData() {
         return response()->json([
             'enabled'  => $this->labels->enabled(),
+            'templates' => $this->labels->templates('LOT')->map(fn ($t) => $t->only(['label_template_idx', 'template_name', 'width_mm', 'height_mm', 'is_default']))->values(),   // 인쇄할 양식 선택
             'partners' => Partner::whereIn('partner_idx', $this->lots()->whereNotNull('l.partner_idx')->select('l.partner_idx')->distinct())->orderBy('partner_name')->forPicker()->get(),
         ]);
     }
 
     // 인쇄용 데이터 ( 없으면 발행 ) — 고른 LOT 순서대로 · 장수 기본값은 입고 수량 ÷ 입수
     public function sheets(Request $request) {
-        $v = $request->validate(['ids' => 'required|array|min:1|max:200', 'ids.*' => 'integer|distinct']);
+        $v = $request->validate(['ids' => 'required|array|min:1|max:200', 'ids.*' => 'integer|distinct', 'label_template_idx' => 'nullable|integer']);
         abort_unless($this->labels->enabled(), 404);
+        $tpl = !empty($v['label_template_idx']) ? (int) $v['label_template_idx'] : null;
         $qty = $this->lots()->whereIn('l.lot_idx', $v['ids'])->pluck('rin.in_qty', 'l.lot_idx');
         $ordered = array_values(array_filter($v['ids'], fn ($id) => $qty->has($id)));
         if (!$ordered) {
             return response()->json(['message' => '입고된 자재 LOT 만 인쇄할 수 있습니다.'], 422);
         }
-        $labelIdxs = $this->labels->labelsForLots(collect($ordered)->mapWithKeys(fn ($id) => [$id => (float) $qty[$id]])->all());
-        $sheets = collect($this->labels->sheets($labelIdxs))->keyBy('label_idx');
+        $labelIdxs = $this->labels->labelsForLots(collect($ordered)->mapWithKeys(fn ($id) => [$id => (float) $qty[$id]])->all(), $tpl);
+        $sheets = collect($this->labels->sheets($labelIdxs, $tpl))->keyBy('label_idx');
         return response()->json(['labels' => collect($labelIdxs)->map(fn ($i) => $sheets[$i] ?? null)->filter()->values()]);
     }
 

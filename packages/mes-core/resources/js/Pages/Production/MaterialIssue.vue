@@ -102,6 +102,7 @@ const ISSUE_FILTER = [
     { value: '',     label: '출고 전체' },
     { value: 'NONE', label: '미출고' },
     { value: 'SOME', label: '출고 있음' },
+    { value: 'EXTRA', label: 'BOM 외 출고' },   // BOM 에 없는 자재를 낸 지시 ( 11-13 )
 ];
 // 검색 조건 ( 서버 MaterialIssueController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
 const SEARCH_FIELDS = [
@@ -122,7 +123,8 @@ const columns = [
     { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmtNum(row.target_qty), hidden: true },
     { header: '착수', name: 'start_date', width: 90, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '출고', name: 'issued_count', width: 60, align: 'center', className: 'cursor-pointer',
-      formatter: ({ row }) => !row.materials_count ? '-' : row.issued_count ? `${row.issued_count}/${row.materials_count}` : `<span style="color:${COLORS.gray400}">미출고</span>` },
+      formatter: ({ row }) => (!row.materials_count ? '-' : row.issued_count ? `${row.issued_count}/${row.materials_count}` : `<span style="color:${COLORS.gray400}">미출고</span>`)
+          + (row.extra_count ? ` <span style="color:#7e22ce" title="BOM 외 자재를 낸 지시">+외</span>` : '') },
     { header: '상태', name: 'status', width: 50, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => `<span style="color:${woStatusColor(value)};font-weight:600">${woStatusLabel(value)}</span>` },
 ];

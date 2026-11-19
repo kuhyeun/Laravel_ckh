@@ -7,7 +7,7 @@
     <div>
         <div class="flex items-center gap-2 mb-1">
             <label class="text-gray-500 font-medium">{{ label ?? field.name }}</label>
-            <span v-if="overridden" class="text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">상위 설정과 다름</span>
+            <span v-if="overridden" class="shrink-0 whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">상위 설정과 다름</span>
         </div>
         <div class="flex flex-wrap items-center gap-x-5 gap-y-1 min-h-9">
             <label class="inline-flex items-center gap-1.5" :class="disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">

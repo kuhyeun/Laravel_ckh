@@ -4,6 +4,8 @@
      - 아래 : 반납 이력 — 체크 → [반납 취소] ( 그 LOT · 창고에 재고가 남아 있을 때 )
      - 잔재 입고 ( 11-12 ) : 쓰고 남은 토막을 다른 품목( 규격이 다른 자재 )으로 창고에 — 원 자재( 출고 LOT ) · 잔재 품목( 검색 · 새 자재 등록 ) · 수량 · 창고 → [잔재 입고]
        원 자재 수량은 그대로( 통째로 소모 ) · 잔재 수량은 사람이 넣는다( 견주지 않음 ) · 새 LOT 이 원 LOT 의 잔재로 이어진다( LOT 추적 ) · 이력 체크 → [잔재 입고 취소]
+     - [남은 수량 계산] ( 11-18 ) : 지금까지의 실적 × 개당 소요로 쓴 수량을 어림해, 남은 수량을 반납 수량 칸에 넣는다 ( 제안값 — 고칠 수 있다 · 누를 때 실적을 다시 읽는다 )
+       늦게 낸 LOT 부터 담는다 · 대체 자재는 주 자재 기준으로 합쳐 본다 · BOM 외 자재는 계산하지 않는다 · 아래에 계산 근거를 보여 준다
      - MaterialIssuePanel 의 [반납] 탭. routes : { returnPlan, returnSave, returnCancel, leftoverSave, leftoverCancel } -->
 <template>
     <div class="flex flex-col min-h-0">
@@ -11,6 +13,7 @@
             <span class="text-xs text-gray-500">쓰고 남은 자재를 그대로 창고로 돌려놓습니다.</span>
             <div class="flex-1"></div>
             <template v-if="canWrite">
+                <BaseButton variant="secondary" :disabled="saving || loading || !lots.length" title="지금까지의 실적 수량 × 개당 소요로 쓴 자재를 계산해, 남은 수량을 반납 수량 칸에 넣습니다. 넣은 뒤 고칠 수 있습니다." @click="fillSuggest">남은 수량 계산</BaseButton>
                 <label class="text-xs text-gray-500">반납일시</label>
                 <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="md" class="w-44" />
                 <BaseInput v-model="form.remark" size="md" class="w-40" placeholder="반납 사유( 메모 )" maxlength="200" />
@@ -59,6 +62,19 @@
                     </tr>
                 </tbody>
             </table>
+
+            <!-- 계산 근거 ( [남은 수량 계산] 을 누른 뒤 ) -->
+            <div v-if="calcShown && calcNotes.length" class="mt-2 px-3 py-2 rounded border border-blue-100 bg-blue-50/50 text-xs text-gray-700 space-y-0.5">
+                <p class="font-semibold text-blue-800">계산 근거 <span class="font-normal text-gray-500">— 실적 수량 × 개당 소요로 본 값입니다. 실제로 쓴 양과 다르면 수량을 고쳐서 반납하세요.</span></p>
+                <p v-for="n in calcNotes" :key="n.item_idx">
+                    <b>{{ n.item_code }}</b>
+                    <template v-if="n.calc"> : {{ n.calc.op || '공정' }} 실적 {{ fmtNum(n.calc.done) }} → 쓴 수량 {{ fmtNum(n.calc.used) }} · 출고 {{ fmtNum(n.calc.net) }} → 남음 <b :class="n.suggest > 0 ? 'text-blue-700' : ''">{{ fmtNum(n.suggest) }}</b>
+                        <span v-if="n.calc.substitute" class="text-gray-500"> ( 대체 자재 — 주 자재와 합쳐 계산 )</span>
+                        <span v-if="n.calc.approx" class="text-amber-700"> ⚠ 계산식을 쓰는 자재라 개당 소요로만 어림했습니다</span>
+                    </template>
+                    <template v-else> : BOM 에 없는 자재라 계산하지 않았습니다 ( 직접 넣으세요 )</template>
+                </p>
+            </div>
 
             <!-- 잔재 입고 ( 다른 품목으로 · 11-12 ) -->
             <div v-if="!loading && lots.length && (canWrite || leftovers.length)" class="mt-4">
@@ -193,7 +209,7 @@ const emit = defineEmits(['changed', 'flash']);
 // 처리 : 그대로 반납 — 잔재( 다른 품목으로 )는 아래 [잔재 입고] · 폐기는 재고-수불 §8 ( 자리만 )
 const MODES = [
     { value: 'RETURN',   label: '반납' },
-    { value: 'SCRAP',    label: '폐기 ( 준비 중 )', disabled: true },
+    // { value: 'SCRAP',    label: '폐기 ( 준비 중 )', disabled: true },
 ];
 
 const lots       = ref([]);
@@ -208,6 +224,25 @@ const form       = reactive({ occurred_at: '', remark: '' });
 const num  = (v) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n : 0; };
 const over = (l) => num(l.fill) > l.returnable + 1e-9;
 const fillTotal = computed(() => lots.value.reduce((s, l) => s + num(l.fill), 0));
+
+// ---- 남은 수량 계산 ( 11-18 ) — 서버가 낸 제안값( suggest )을 반납 수량 칸에 · 근거는 품목마다 한 줄 ----
+const calcShown = ref(false);
+const calcNotes = computed(() => {
+    const by = new Map();
+    lots.value.forEach(l => {
+        const n = by.get(l.item_idx) ?? { item_idx: l.item_idx, item_code: l.item_code, calc: l.calc, suggest: 0 };
+        n.suggest += Number(l.suggest) || 0;
+        by.set(l.item_idx, n);
+    });
+    return [...by.values()];
+});
+async function fillSuggest() {
+    await load();   // 실적이 그 사이 달라졌을 수 있다
+    if (loadedWo.value !== props.woIdx) return;
+    lots.value.forEach(l => { l.fill = Number(l.suggest) > 0 ? String(l.suggest) : ''; });
+    calcShown.value = true;
+    if (!lots.value.some(l => Number(l.suggest) > 0)) emit('flash', '계산해 보니 남은 자재가 없습니다. ( 아래 계산 근거 )', false);
+}
 
 // ---- 잔재 입고 ( 다른 품목으로 · 11-12 ) ----
 const MATERIAL_ONLY = { types: ['MATERIAL'] };
@@ -345,7 +380,7 @@ async function cancelChecked() {
     }
 }
 
-watch(() => props.woIdx, () => { form.remark = ''; leftRows.value = []; leftError.value = ''; load(); }, { immediate: true });
+watch(() => props.woIdx, () => { form.remark = ''; leftRows.value = []; leftError.value = ''; calcShown.value = false; load(); }, { immediate: true });
 
 defineExpose({ reload: load });
 </script>

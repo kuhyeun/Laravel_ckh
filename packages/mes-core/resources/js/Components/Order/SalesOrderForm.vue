@@ -67,7 +67,7 @@
                         <p v-if="errors.partner_idx" class="text-xs text-red-500 mt-0.5">{{ errors.partner_idx[0] }}</p>
                     </div>
                     <div>
-                        <label class="block text-gray-500 font-medium mb-1">수주명</label>
+                        <label class="block text-gray-500 font-medium mb-1">프로젝트명</label>
                         <BaseInput v-model="form.order_name" class="w-full" placeholder="예: 10월 정기분" :disabled="readonly" />
                         <p v-if="errors.order_name" class="text-xs text-red-500 mt-0.5">{{ errors.order_name[0] }}</p>
                     </div>
@@ -168,14 +168,14 @@
                                     <td class="px-1.5 text-center py-1 leading-9">
                                         <button v-if="l.item_idx" type="button" class="text-blue-700 hover:underline" @click="openRouting(l, i)">공정 {{ l.routing_lines.length }}</button>
                                         <span v-else class="text-gray-300">—</span>
-                                        <span v-if="l.routing_locked" class="ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 공정을 바꿀 수 없습니다">잠김</span>
+                                        <span v-if="l.routing_locked" class="shrink-0 whitespace-nowrap ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 공정을 바꿀 수 없습니다">잠김</span>
                                         <span v-else-if="l.routing_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 공정과 다르게 고쳤습니다">수정됨</span>
                                         <p v-if="routingError(i)" class="text-[11px] text-red-500">공정을 확인하세요</p>
                                     </td>
                                     <td class="px-1.5 text-center py-1 leading-9">
                                         <button v-if="l.item_idx" type="button" class="text-blue-700 hover:underline" @click="openMaterial(l, i)">자재 {{ l.material_lines.length }}</button>
                                         <span v-else class="text-gray-300">—</span>
-                                        <span v-if="l.material_locked" class="ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 자재를 바꿀 수 없습니다">잠김</span>
+                                        <span v-if="l.material_locked" class="shrink-0 whitespace-nowrap ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 자재를 바꿀 수 없습니다">잠김</span>
                                         <span v-else-if="l.material_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 BOM 과 다르게 고쳤습니다">수정됨</span>
                                         <p v-if="materialError(i)" class="text-[11px] text-red-500">자재를 확인하세요</p>
                                     </td>

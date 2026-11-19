@@ -26,6 +26,12 @@ class LabelService {
         return $this->policy->isEnabled('feature.barcode');
     }
 
+    // 라벨에 그리는 코드 종류 — BARCODE( 1D Code128 ) · QR. 고정 배치 양식이 그리는 코드 · 양식 편집 화면의 새 코드 칸 기본값 ( 11-18 )
+    //   담는 값은 둘 다 바코드 번호( LOT 번호 등 ) — 스캔 쪽은 어느 것이든 같다
+    public function codeType(): string {
+        return $this->policy->get('barcode.code_type') === 'QR' ? 'QR' : 'BARCODE';
+    }
+
     // 대상별 양식 ( 기본 양식 먼저 )
     public function templates(string $target): Collection {
         return LabelTemplate::where('target', $target)->where('is_use', 'Y')
@@ -143,13 +149,14 @@ class LabelService {
      * @param array<int, float|null> $qtyByLot lot_idx => 수량 ( 장수 = 수량 ÷ 입수 )
      * @return int[] label_idx ( 넘겨받은 LOT 순서 )
      */
-    public function labelsForLots(array $qtyByLot): array {
+    public function labelsForLots(array $qtyByLot, ?int $templateIdx = null): array {
         $lotIdxs = array_map('intval', array_keys($qtyByLot));
         $latest  = BarcodeLabel::whereIn('lot_idx', $lotIdxs)->where('status', 'ISSUED')
             ->selectRaw('lot_idx, MAX(label_idx) as label_idx')->groupBy('lot_idx')->pluck('label_idx', 'lot_idx');
         $missing = array_values(array_diff($lotIdxs, $latest->keys()->map(fn ($v) => (int) $v)->all()));
         if ($missing) {
-            $template = $this->templates('LOT')->first();
+            // 새로 발행하는 LOT : 고른 양식( 물품표의 양식 선택 )이 있으면 그것 · 없으면 기본 양식
+            $template = ($templateIdx ? $this->templates('LOT')->firstWhere('label_template_idx', $templateIdx) : null) ?? $this->templates('LOT')->first();
             if (!$template) {
                 throw ValidationException::withMessages(['rows' => 'LOT 라벨 양식이 없습니다. 라벨 양식을 먼저 등록하세요.']);
             }
@@ -163,7 +170,10 @@ class LabelService {
     }
 
     // 인쇄용 — 발행 건마다 양식 · 라벨 내용 ( 화면이 장수만큼 그린다 )
-    public function sheets(array $labelIdxs): array {
+    //   $templateIdx ( 11-18 ) : 이번 인쇄만 그 양식으로 그린다 — 발행 기록의 양식은 바꾸지 않는다 ( 대상이 같은 사용 중 양식만 · 아니면 무시 )
+    public function sheets(array $labelIdxs, ?int $templateIdx = null): array {
+        $override = $templateIdx ? LabelTemplate::where('label_template_idx', $templateIdx)->where('is_use', 'Y')->first() : null;
+
         $labels = BarcodeLabel::with([
             'template',
             'lot.item:item_idx,item_code,item_name,item_type,spec,material,spec_unit',
@@ -173,13 +183,18 @@ class LabelService {
             'shipmentLine.salesOrderLine.order:sales_order_idx,order_no,customer_po_no',
         ])->whereIn('label_idx', $labelIdxs)->where('status', 'ISSUED')->orderBy('label_idx')->get();
 
-        return $labels->map(function (BarcodeLabel $b) {
+        $codeType = $this->codeType();
+
+        return $labels->map(function (BarcodeLabel $b) use ($codeType, $override) {
+            $tpl  = $override && $override->target === ($b->target === BarcodeLabel::TARGET_LOT ? 'LOT' : 'SHIPMENT') ? $override : $b->template;
             $base = [
                 'label_idx'   => $b->label_idx,
                 'target'      => $b->target,
-                'layout'      => $b->template->layout,
-                'width_mm'    => $b->template->width_mm,
-                'height_mm'   => $b->template->height_mm,
+                'layout'      => $tpl->layout,
+                'design'      => $tpl->design,           // 격자 배치 ( 없으면 고정 배치 · 11-18 )
+                'code_type'   => $codeType,              // 고정 배치가 그리는 코드
+                'width_mm'    => $tpl->width_mm,
+                'height_mm'   => $tpl->height_mm,
                 'barcode_no'  => $b->barcode_no,
                 'label_count' => $b->label_count,
                 'label_qty'   => $b->label_qty,

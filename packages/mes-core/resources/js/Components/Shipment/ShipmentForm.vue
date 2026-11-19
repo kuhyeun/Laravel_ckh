@@ -185,6 +185,7 @@
                 </template>
             </template>
             <BaseButton v-if="label.can_shipment && form.shipment_idx && form.status !== 'CANCELED' && !dirty" variant="secondary" @click="openLabel">출하 라벨</BaseButton>
+            <BaseButton v-if="form.shipment_idx && form.status !== 'CANCELED' && !dirty && canOrderSheet" variant="secondary" title="창고에 내리는 출하지시서 ( 배치는 기준정보관리 > 문서 양식 )" @click="openOrderSheet">출하지시서</BaseButton>
             <BaseButton v-if="form.status === 'DONE'" variant="secondary" @click="openInvoice">거래명세서</BaseButton>
             <BaseButton v-if="editable" variant="primary" :disabled="busy || loading" @click="save">{{ busy ? '저장 중…' : (form.shipment_idx ? '저장' : '등록') }}</BaseButton>
         </div>
@@ -204,6 +205,7 @@ import { useToast } from '@core/Composables/useToast';
 import { fmtNum, withSpec } from '@core/Utils/format';
 import { stageLabel, stageColor, inspectLabel, inspectColor } from '@core/Components/Shipment/shipmentCodes';
 import InvoicePreview from '@core/Components/Shipment/InvoicePreview.vue';
+import DocPreview from '@core/Components/Doc/DocPreview.vue';
 import ShippingInspectionForm from '@core/Components/Quality/ShippingInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import LabelIssueForm from '@core/Components/Label/LabelIssueForm.vue';
@@ -487,6 +489,11 @@ function openLabel() {
     modalStore.open(LabelIssueForm, { target: 'SHIPMENT_LINE', items, modalTitle: `출하 라벨 [ ${form.shipment_no} ]` }, { size: 'xl', closeOnClickOutside: false });
 }
 
+// 출하지시서 ( 11-18 ) — 문서 양식( 기준정보관리 )의 출하지시서 기본 양식으로 · 출하관리 조회 권한
+const canOrderSheet = route().has('shipment.manage.orderSheets');
+function openOrderSheet() {
+    modalStore.open(DocPreview, { modalTitle: `출하지시서 [ ${form.shipment_no} ]`, docType: 'SHIPMENT_ORDER', routeName: 'shipment.manage.orderSheets', ids: [form.shipment_idx] }, { size: 'xl' });
+}
 function openInvoice() {
     modalStore.open(InvoicePreview, { modalTitle: `거래명세서 [ ${form.shipment_no} ]`, ids: [form.shipment_idx] }, { size: 'xl' });
 }

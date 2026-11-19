@@ -83,7 +83,7 @@ const DATE_BASES = [
 // 검색 조건 ( 서버 SalesProgressController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
 const SEARCH_FIELDS = [
     { value: 'order_no',       label: '수주번호' },
-    { value: 'order_name',     label: '수주명' },
+    { value: 'order_name',     label: '프로젝트명' },
     { value: 'customer_po_no', label: '고객 발주번호' },
     { value: 'item_code',      label: '품번' },
     { value: 'item_name',      label: '품명' },
@@ -130,7 +130,7 @@ const columns = [
       formatter: ditto(r => r.order_date ?? '') },
     { header: '고객사', name: 'partner_name', width: 130, sortable: true, className: 'cursor-pointer',
       formatter: ditto(r => escapeHtml(r.partner_name)) },
-    { header: '수주명', name: 'order_name', width: 140, className: 'cursor-pointer',
+    { header: '프로젝트명', name: 'order_name', width: 140, className: 'cursor-pointer',
       formatter: ditto(r => escapeHtml(r.order_name)) },
     { header: '품목', name: 'item_summary', minWidth: 190, className: 'cursor-pointer', escapeHTML: true,
       formatter: ({ row }) => lineLike(row) ? itemLabel(row) : row.item_summary },
@@ -229,7 +229,7 @@ const exportColumns = [
     { header: '수주번호', name: 'order_no' },
     { header: '수주일', name: 'order_date' },
     { header: '고객사', name: 'partner_name' },
-    { header: '수주명', name: 'order_name' },
+    { header: '프로젝트명', name: 'order_name' },
     { header: '품번', name: 'item_code' },
     { header: '품명', name: 'item_name' },
     { header: '규격', name: 'item_spec' },

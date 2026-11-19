@@ -56,7 +56,7 @@ class ProcessController extends Controller {
             ->map(function (Process $p) {
                 $row = $p->only([
                     'process_idx', 'process_code', 'process_name', 'process_type', 'class_code',
-                    'inspection_kind', 'is_system', 'system_key', 'is_use', 'remark',
+                    'inspection_kind', 'insp_first', 'insp_middle', 'insp_last', 'is_system', 'system_key', 'is_use', 'remark',
                 ]);
                 $row['equipments_count']       = $p->equipments_count;
                 $row['default_equipment_name'] = $p->equipments->first()?->equipment?->equipment_name;
@@ -104,6 +104,10 @@ class ProcessController extends Controller {
             // E_PROC_CLASS_CODE : 영문 대문자 1~3자
             'class_code'      => ['nullable', 'string', 'regex:/^[A-Z]{1,3}$/'],
             'inspection_kind' => ['nullable', Rule::in(Process::INSPECTION_KINDS)],
+            // 초 · 중 · 종 검사 기본값 ( 생산 · 설비생산 공정만 — 라우팅 · 작업지시가 받아 간다 · 11-18 )
+            'insp_first'      => 'nullable|in:Y,N',
+            'insp_middle'     => 'nullable|in:Y,N',
+            'insp_last'       => 'nullable|in:Y,N',
             'is_use'          => 'required|in:Y,N',
             'remark'          => 'nullable|string|max:2000',
 
@@ -145,10 +149,13 @@ class ProcessController extends Controller {
             throw ValidationException::withMessages($errors);
         }
 
-        // 검사 종류는 검사 공정만 ( 검사 공정인데 비우면 일반 )
-        $validated['inspection_kind'] = $validated['process_type'] === Process::TYPE_INSPECTION
-            ? ($validated['inspection_kind'] ?? 'NORMAL')
-            : null;
+        // 검사 공정은 일반 검사 하나뿐 ( 11-18 — 초중종은 생산 공정의 옵션으로 옮겼다 )
+        $validated['inspection_kind'] = $validated['process_type'] === Process::TYPE_INSPECTION ? 'NORMAL' : null;
+        // 초 · 중 · 종 기본값은 생산 · 설비생산 공정만 ( 시스템 공정 제외 )
+        $iflOk = in_array($validated['process_type'], ['PRODUCTION', Process::TYPE_EQUIPMENT], true) && !$process->isSystem();
+        foreach (['insp_first', 'insp_middle', 'insp_last'] as $k) {
+            $validated[$k] = $iflOk && ($validated[$k] ?? 'N') === 'Y' ? 'Y' : 'N';
+        }
 
         try {
             DB::transaction(function () use ($process, $validated, $equipments) {
@@ -225,7 +232,7 @@ class ProcessController extends Controller {
     private function toPayload(Process $process): array {
         $data = $process->only([
             'process_idx', 'process_code', 'process_name', 'process_type', 'class_code',
-            'inspection_kind', 'is_system', 'system_key', 'is_use', 'remark',
+            'inspection_kind', 'insp_first', 'insp_middle', 'insp_last', 'is_system', 'system_key', 'is_use', 'remark',
         ]);
 
         $data['equipments'] = $process->equipments->map(fn ($pe) => [

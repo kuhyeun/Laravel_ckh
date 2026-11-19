@@ -33,7 +33,7 @@ class SalesOrderController extends Controller {
     private const ATTRIBUTES = [
         'order_date'           => '수주일',
         'partner_idx'          => '고객사',
-        'order_name'           => '수주명',
+        'order_name'           => '프로젝트명',
         'customer_po_no'       => '고객 발주번호',
         'manager_name'         => '담당자',
         'status'               => '상태',

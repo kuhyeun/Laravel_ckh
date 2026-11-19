@@ -26,7 +26,7 @@
                         <span class="truncate">{{ it.item_name }}</span>
                         <span class="text-[11px] text-gray-400 shrink-0">[{{ it.item_code }}]</span>
                         <span class="flex-1"></span>
-                        <span v-if="it.active_version" class="text-[10px] px-1 rounded bg-blue-50 text-blue-600 shrink-0">{{ it.active_version }}</span>
+                        <span v-if="it.active_version" class="whitespace-nowrap text-[10px] px-1 rounded bg-blue-50 text-blue-600 shrink-0">{{ it.active_version }}</span>
                         <span v-else-if="it.bom_count" class="text-[10px] text-gray-400 shrink-0">{{ it.bom_count }}버전</span>
                     </button>
                 </div>
@@ -44,7 +44,7 @@
                             :options="versionOptions" size="md" class="w-40"
                             @update:model-value="onVersionChange"
                         />
-                        <span v-if="form.is_active === 'Y'" class="text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">활성</span>
+                        <span v-if="form.is_active === 'Y'" class="shrink-0 whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">활성</span>
                         <span v-if="form.approved_at" class="text-[11px] text-gray-500">승인 {{ form.approved_at }}</span>
                         <span v-else-if="form.bom_idx" class="text-[11px] text-amber-600">미승인</span>
                     </template>
@@ -231,7 +231,7 @@
                                         >
                                             <td class="px-2 py-1.5">{{ v.version }}</td>
                                             <td class="px-2 py-1.5 text-center">
-                                                <span v-if="v.is_active === 'Y'" class="text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">활성</span>
+                                                <span v-if="v.is_active === 'Y'" class="shrink-0 whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">활성</span>
                                                 <span v-else class="text-gray-300">—</span>
                                             </td>
                                             <td class="px-2 py-1.5 text-center text-gray-600">{{ v.changed_at ?? '—' }}</td>

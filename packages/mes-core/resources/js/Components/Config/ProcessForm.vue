@@ -46,13 +46,17 @@
                     />
                     <p v-if="errors.class_code" class="text-xs text-red-500 mt-0.5">{{ errors.class_code[0] }}</p>
                 </div>
+                <!-- 초 · 중 · 종 검사 기본값 ( 11-18 ) : 생산 · 설비생산 공정의 옵션 — 라우팅 · 작업지시에 이 공정을 넣을 때 받아 간다 ( 줄마다 고칠 수 있다 )
+                     검사 공정은 일반 검사 하나뿐이라 검사 종류 칸은 없앴다 -->
                 <div>
-                    <label class="block text-gray-500 font-medium mb-1">검사 종류 <span class="text-xs text-gray-400">( 검사 공정만 )</span></label>
-                    <BaseSelect
-                        v-model="form.inspection_kind" :options="INSPECTION_KINDS" class="w-full"
-                        :disabled="readonly || form.process_type !== 'INSPECTION'"
-                    />
-                    <p v-if="errors.inspection_kind" class="text-xs text-red-500 mt-0.5">{{ errors.inspection_kind[0] }}</p>
+                    <label class="block text-gray-500 font-medium mb-1">초 · 중 · 종 검사 <span class="text-xs text-gray-400">( 생산 공정만 · 기본값 )</span></label>
+                    <div class="flex items-center gap-4 h-9" :class="iflOk ? '' : 'opacity-40'">
+                        <label v-for="k in IFL_KEYS" :key="k.key" class="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" class="base-checkbox w-4 h-4" :checked="form[k.key] === 'Y'" :disabled="readonly || !iflOk" @change="e => form[k.key] = e.target.checked ? 'Y' : 'N'" />
+                            {{ k.label }}
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-gray-400 mt-0.5">이 공정의 시작 · 도중 · 끝에 하는 검사입니다. 판정은 품질관리 &gt; 공정검사에서 넣고, 생산 입력은 막지 않습니다.</p>
                 </div>
                 <div class="col-span-2 pt-1">
                     <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="readonly">
@@ -162,6 +166,7 @@ const form = reactive({
     process_type:    'PRODUCTION',
     class_code:      '',
     inspection_kind: 'NORMAL',
+    insp_first: 'N', insp_middle: 'N', insp_last: 'N',   // 초 · 중 · 종 검사 기본값 ( 생산 공정 · 11-18 )
     is_use:          'Y',
     remark:          '',
     equipments:      [],   // [{ _rowKey, equipment_idx, equipment_name, equipment_is_use, is_default, setup_loss }]
@@ -175,6 +180,7 @@ function applyProcess(p) {
         process_type:    p.process_type ?? 'PRODUCTION',
         class_code:      p.class_code ?? '',
         inspection_kind: p.inspection_kind ?? 'NORMAL',
+        insp_first: p.insp_first ?? 'N', insp_middle: p.insp_middle ?? 'N', insp_last: p.insp_last ?? 'N',
         is_use:          p.is_use ?? 'Y',
         remark:          p.remark ?? '',
         equipments:      (p.equipments ?? []).map(e => ({ ...e, _rowKey: `e${++rowSeq}` })),
@@ -260,6 +266,10 @@ const errors   = ref({});
 const errorMsg = ref('');
 const saving   = ref(false);
 
+// 초 · 중 · 종을 붙일 수 있는 공정 : 생산 · 설비생산 ( 시스템 공정 제외 — 서버 Process::isIfl )
+const IFL_KEYS = [{ key: 'insp_first', label: '초물' }, { key: 'insp_middle', label: '중물' }, { key: 'insp_last', label: '종물' }];
+const iflOk    = computed(() => ['PRODUCTION', 'EQUIPMENT'].includes(form.process_type) && props.process?.is_system !== 'Y');
+
 const rowError = (i, field) => errors.value[`equipments.${i}.${field}`]?.[0] ?? '';
 
 async function save() {
@@ -269,7 +279,8 @@ async function save() {
     try {
         const payload = {
             ...form,
-            inspection_kind: form.process_type === 'INSPECTION' ? form.inspection_kind : null,
+            inspection_kind: form.process_type === 'INSPECTION' ? 'NORMAL' : null,
+            ...Object.fromEntries(IFL_KEYS.map(k => [k.key, iflOk.value ? form[k.key] : 'N'])),
             equipments: form.equipments.map(r => ({
                 equipment_idx: r.equipment_idx === '' ? null : Number(r.equipment_idx),
                 is_default:    r.is_default,

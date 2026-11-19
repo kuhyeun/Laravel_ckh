@@ -13,6 +13,7 @@ use MesCore\Config\Controllers\InspectionSpecController;
 use MesCore\Config\Controllers\LeadTimeController;
 use MesCore\Config\Controllers\LotRuleController;
 use MesCore\Config\Controllers\SiteConfigController;
+use MesCore\Config\Controllers\DocTemplateController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -212,6 +213,7 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
             Route::get('/show/{specIdx}', [InspectionSpecController::class, 'show'])->whereNumber('specIdx')->name('show');
             // 기준서 화면용 : 품목 · 검사항목 마스터 선택지
             Route::get('/options', [InspectionSpecController::class, 'options'])->name('options');
+            Route::get('/sheets', [InspectionSpecController::class, 'sheets'])->name('sheets');   // [인쇄] ( 문서 양식의 검사기준서 · 11-18 )
         });
 
         Route::middleware($inspectionSpecWrite)->group(function() {
@@ -278,5 +280,12 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
             Route::post('/image/{kind}', [SiteConfigController::class, 'uploadImage'])->whereIn('kind', ['seal', 'logo'])->name('image.upload');
             Route::post('/image/{kind}/delete', [SiteConfigController::class, 'deleteImage'])->whereIn('kind', ['seal', 'logo'])->name('image.delete');
         });
+    });
+
+    // 문서 양식 ( Config/DocTemplateManage · 11-18 ) — A4 문서( 발주서 · 출하지시서 ) 배치
+    Route::prefix('doc-template')->name('docTemplate.')->group(function() {
+        Route::get('/list', [DocTemplateController::class, 'list'])->middleware(MenuAuth::class . ':Config/DocTemplateManage,can_read')->name('list');
+        Route::post('/save', [DocTemplateController::class, 'save'])->middleware(MenuAuth::class . ':Config/DocTemplateManage,can_write')->name('save');
+        Route::post('/delete', [DocTemplateController::class, 'delete'])->middleware(MenuAuth::class . ':Config/DocTemplateManage,can_delete')->name('del');
     });
 });

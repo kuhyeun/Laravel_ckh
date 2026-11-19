@@ -76,25 +76,8 @@ class RoutingService {
                 $errors["{$prefix}.{$i}.process_idx"] = ['사용 중인 공정을 선택하세요.'];
             }
 
-            $isInspection = $process && $process->process_type === Process::TYPE_INSPECTION;
-            $anyInsp      = collect(['insp_first', 'insp_middle', 'insp_last'])->contains(fn ($k) => $line[$k] === 'Y');
-
-            // E_IFL_NONE : 검사 공정인데 초·중·종을 셋 다 끔
-            if ($isInspection && !$anyInsp) {
-                $errors["{$prefix}.{$i}.insp"] = ['초 · 중 · 종 중 하나 이상을 켜세요.'];
-            }
-
-            $preMin    = (int) ($line['pre_approve_min'] ?? 0);
-            $preDesign = $line['pre_approved_by_design'] === 'Y';
-
-            // E_PRE_APPROVE_BOTH : 승인 N명과 설계 승인을 둘 다 켬
-            if ($preMin > 0 && $preDesign) {
-                $errors["{$prefix}.{$i}.pre_approve"] = ['승인 N명과 설계 승인 중 하나만 고르세요.'];
-            }
-            // E_PRE_APPROVE_NO_LAST : 종물이 꺼져 있는데 선행 진행을 켬 ( 건너뛸 것이 없음 )
-            if (($preMin > 0 || $preDesign) && $line['insp_last'] !== 'Y') {
-                $errors["{$prefix}.{$i}.pre_approve"] = ['종물 검사가 꺼져 있어 선행 진행을 설정할 수 없습니다.'];
-            }
+            // 초 · 중 · 종 ( 11-18 ) : 생산 공정의 옵션 — 켜도 꺼도 된다. 검사 · 외주 · 시스템 공정 줄은 저장할 때 끈다 ( saveLines )
+            //   선행 진행( 종물 전 승인 )은 없앴다 — 초중종이 생산을 막지 않는다
         }
 
         if ($errors) {
@@ -131,6 +114,10 @@ class RoutingService {
             : $existing->sortBy('seq')->map(fn ($l) => $this->snapshot($l, $l->routing_line_idx))->values()->all();
         $after = [];
 
+        // 초 · 중 · 종을 붙일 수 있는 공정 ( 생산 · 설비생산 — Process::isIfl · 11-18 )
+        $iflProcs = Process::whereIn('process_idx', collect($lines)->pluck('process_idx')->filter()->unique())->get()->filter(fn (Process $p) => $p->isIfl())->pluck('process_idx')->flip();
+        $iflOk    = fn ($processIdx) => $iflProcs->has((int) $processIdx);
+
         foreach (array_values($lines) as $order => $row) {
             $line = (!empty($row['routing_line_idx']) && $existing->has($row['routing_line_idx']))
                 ? $existing->get($row['routing_line_idx'])
@@ -140,17 +127,18 @@ class RoutingService {
                 ]);
 
             $wasDesign = $line->exists && $line->pre_approved_by_design === 'Y';
-            $isDesign  = $row['pre_approved_by_design'] === 'Y';
+            $isDesign  = false;   // 선행 진행은 쓰지 않는다 ( 11-18 )
 
             $line->fill([
                 'seq'                    => $order + 1,
                 'process_idx'            => $row['process_idx'],
                 'cycle_time_sec'         => $row['cycle_time_sec'] ?? 0,
-                'insp_first'             => $row['insp_first'],
-                'insp_middle'            => $row['insp_middle'],
-                'insp_last'              => $row['insp_last'],
-                'pre_approve_min'        => $row['pre_approve_min'] ?? 0,
-                'pre_approved_by_design' => $row['pre_approved_by_design'],
+                // 초 · 중 · 종은 생산 · 설비생산 공정 줄만 ( 11-18 ) · 선행 진행은 쓰지 않는다
+                'insp_first'             => $iflOk($row['process_idx']) ? $row['insp_first'] : 'N',
+                'insp_middle'            => $iflOk($row['process_idx']) ? $row['insp_middle'] : 'N',
+                'insp_last'              => $iflOk($row['process_idx']) ? $row['insp_last'] : 'N',
+                'pre_approve_min'        => 0,
+                'pre_approved_by_design' => 'N',
                 'remark'                 => $row['remark'] ?? null,
             ]);
 
@@ -244,7 +232,7 @@ class RoutingService {
 
     // 공정 선택지 ( 사용 중 · 시스템 공정 먼저 ) — 라우팅 관리 · 품목 · 수주 편집기
     public function processOptions(): Collection {
-        return Process::select('process_idx', 'process_code', 'process_name', 'process_type', 'class_code', 'is_system', 'system_key')
+        return Process::select('process_idx', 'process_code', 'process_name', 'process_type', 'class_code', 'is_system', 'system_key', 'insp_first', 'insp_middle', 'insp_last')
             ->where('is_use', 'Y')
             ->orderByRaw("CASE WHEN is_system = 'Y' THEN 0 ELSE 1 END")
             ->orderBy('process_code')
