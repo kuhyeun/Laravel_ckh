@@ -151,7 +151,7 @@
                     <colgroup>
                         <col class="w-6"><col class="w-12"><col><col class="w-14">
                         <col class="w-36"><col class="w-32"><col class="w-36">
-                        <col class="w-24"><col class="w-8">
+                        <col class="w-28"><col class="w-8">
                     </colgroup>
                     <thead class="bg-gray-50 text-gray-500">
                         <tr>
@@ -181,7 +181,7 @@
                             <td class="px-1.5 py-1"><BaseDatePicker v-model="o.due_date" size="md" class="w-full" :disabled="!runEditable" /></td>
                             <td class="px-2 py-1 text-center">
                                 <template v-if="isIfl(procOf(o))">
-                                    <input v-for="k in IFL_KEYS" :key="k.key" type="checkbox" class="accent-blue-600 mx-0.5" true-value="Y" false-value="N" v-model="o[k.key]" :disabled="!structEditable" :title="`${k.label} 검사 — 판정은 품질관리 > 공정검사에서`" />
+                                    <input v-for="k in IFL_KEYS" :key="k.key" type="checkbox" class="accent-blue-600 w-4 h-4 mx-1.5 align-middle cursor-pointer" true-value="Y" false-value="N" v-model="o[k.key]" :disabled="!structEditable" :title="`${k.label} 검사 — 판정은 품질관리 > 공정검사에서`" />
                                     <p v-if="errors[`ops.${i}.insp_first`]" class="err">{{ errors[`ops.${i}.insp_first`][0] }}</p>
                                 </template>
                             </td>

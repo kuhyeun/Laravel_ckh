@@ -1,4 +1,5 @@
 <!-- 라우팅 → 품목 일괄 반영 ( 공정라우팅관리 · 11-13 — 회의 '라우팅 일괄 적용' )
+     - 화면 글자는 「현 라우팅」 ( 11-19 — 「틀」은 사용자가 알아듣기 어렵다 · 상태 = 변경점 있음 / 없음 )
      - items : 이 틀에서 복사한 품목 [{ item_idx, item_code, item_name, spec, line_count, differs, customized }]
          customized : 저장 직전에 품목에서 따로 고친 상태였나 ( true / false ) — [품목에 반영] 을 따로 눌러 열면 null( 알 수 없음 )
          differs    : 지금 틀과 다른가
@@ -38,8 +39,8 @@
                         <td class="px-2 py-1.5 text-center text-gray-500">{{ it.line_count }}</td>
                         <td class="px-2 py-1.5 text-center">
                             <span v-if="it.customized === true" class="shrink-0 whitespace-nowrap px-1 rounded bg-amber-50 text-amber-700" title="품목 화면에서 공정을 따로 고친 품목입니다. 반영하면 그 변경이 사라집니다.">품목에서 수정함</span>
-                            <span v-else-if="!it.differs" class="text-gray-400">틀과 같음</span>
-                            <span v-else-if="it.customized === null" class="px-1 rounded bg-amber-50 text-amber-700" title="틀을 고쳐서 달라졌거나, 품목 화면에서 공정을 따로 고친 품목입니다.">틀과 다름</span>
+                            <span v-else-if="!it.differs" class="text-gray-400" title="현 라우팅과 공정 구성이 같습니다">변경점 없음</span>
+                            <span v-else-if="it.customized === null" class="shrink-0 whitespace-nowrap px-1 rounded bg-amber-50 text-amber-700" title="현 라우팅을 고쳐서 달라졌거나, 품목 화면에서 공정을 따로 고친 품목입니다.">변경점 있음</span>
                             <span v-else class="text-blue-600">반영 대상</span>
                         </td>
                     </tr>
@@ -47,7 +48,7 @@
             </table>
         </div>
         <p v-if="checkedCustom" class="mt-2 text-xs text-amber-700">
-            ⚠ 고른 품목 중 {{ checkedCustom }}개는 {{ fromSave ? '품목에서 공정을 따로 고친 품목입니다' : '틀과 다른 품목입니다 ( 품목에서 따로 고친 것일 수 있습니다 )' }}. 반영하면 틀과 같은 공정으로 덮어씁니다.
+            ⚠ 고른 품목 중 {{ checkedCustom }}개는 {{ fromSave ? '품목에서 공정을 따로 고친 품목입니다' : '현 라우팅과 다른 품목입니다 ( 품목에서 개인적으로 수정됨 )' }}. 반영하면 현 라우팅과 같은 공정으로 덮어씁니다.
         </p>
         <p v-if="errorMsg" class="mt-2 text-xs text-red-500">{{ errorMsg }}</p>
 

@@ -32,7 +32,7 @@ services:
       - mysql
 
   nginx:
-    image: nginx:1.25
+    image: nginx:1.31.9
     container_name: laravel_nginx
     ports:
       - "8080:80"

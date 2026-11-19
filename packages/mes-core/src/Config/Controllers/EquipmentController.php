@@ -3,6 +3,7 @@
 namespace MesCore\Config\Controllers;
 
 use MesCore\Http\Controller;
+use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Equipment;
 use MesCore\Config\Models\ProcessEquipment;
 use Illuminate\Http\Request;
@@ -17,6 +18,12 @@ class EquipmentController extends Controller {
     private const ATTRIBUTES = [
         'equipment_code' => '설비코드',
         'equipment_name' => '설비명',
+        'manager_idx'     => '설비담당자( 정 )',
+        'sub_manager_idx' => '설비담당자( 부 )',
+        'purchase_date'   => '구매일자',
+        'purchase_cost'   => '구매비용',
+        'check_cycle'     => '점검 기준',
+        'check_base'      => '점검 기준날짜',
         'is_use'         => '사용 여부',
         'remark'         => '비고',
     ];
@@ -42,9 +49,20 @@ class EquipmentController extends Controller {
             ->groupBy('equipment_idx')
             ->pluck('c', 'equipment_idx');
 
-        $equipments->each(fn ($e) => $e->process_count = (int) ($processCounts[$e->equipment_idx] ?? 0));
+        $names = User::namesFor($equipments->pluck('manager_idx')->merge($equipments->pluck('sub_manager_idx')));
+        $equipments->each(function (Equipment $e) use ($processCounts, $names) {
+            $e->process_count     = (int) ($processCounts[$e->equipment_idx] ?? 0);
+            $e->manager_name      = $names[$e->manager_idx] ?? null;      // 설비담당자( 정 ) 이름 ( 11-19 )
+            $e->sub_manager_name  = $names[$e->sub_manager_idx] ?? null;
+            $e->check_text        = $e->checkText();                       // 점검 기준 글자
+            $e->next_check_date   = $e->nextCheckDate()?->toDateString();   // 다음 점검일 ( 월간 : 없는 날은 말일 )
+        });
 
-        return response()->json(['equipments' => $equipments]);
+        return response()->json([
+            'equipments' => $equipments,
+            // 설비담당자 선택지 = 사용자관리의 사용 중 사용자 ( 시스템 계정 제외 )
+            'users'      => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
+        ]);
     }
 
     // 등록/수정 ( equipment_idx 있으면 수정 )
@@ -58,9 +76,30 @@ class EquipmentController extends Controller {
         $validated = $request->validate([
             'equipment_code' => ['required', 'string', 'max:30', Rule::unique('equipment', 'equipment_code')->ignore($idx, 'equipment_idx')],
             'equipment_name' => 'required|string|max:60',
+            'manager_idx'     => ['nullable', 'integer', User::pickableRule()],
+            'sub_manager_idx' => ['nullable', 'integer', User::pickableRule(), 'different:manager_idx'],
+            'purchase_date'   => 'nullable|date_format:Y-m-d',
+            'purchase_cost'   => 'nullable|numeric|min:0|max:999999999999999',
+            'check_cycle'     => ['required', Rule::in(array_keys(Equipment::CHECK_CYCLES))],
+            'check_base'      => 'nullable|string|max:10',
             'is_use'         => 'required|in:Y,N',
             'remark'         => 'nullable|string|max:2000',
-        ], [], self::ATTRIBUTES);
+        ], ['sub_manager_idx.different' => '설비담당자( 부 )는 ( 정 )과 다른 사람이어야 합니다.'], self::ATTRIBUTES);
+
+        // 점검 기준날짜 : 점검 기준에 맞는 값만 ( 미지정이면 비운다 )
+        $base = trim((string) ($validated['check_base'] ?? ''));
+        $bad  = match ($validated['check_cycle']) {
+            'WEEKLY'  => !array_key_exists($base, Equipment::WEEKDAYS),
+            'MONTHLY' => !ctype_digit($base) || (int) $base < 1 || (int) $base > 31,
+            'YEARLY'  => !preg_match('/^\d{4}-\d{2}-\d{2}$/', $base) || !checkdate((int) substr($base, 5, 2), (int) substr($base, 8, 2), (int) substr($base, 0, 4)),
+            default   => false,
+        };
+        if ($bad) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['check_base' => [match ($validated['check_cycle']) {
+                'WEEKLY' => '점검 요일을 고르세요.', 'MONTHLY' => '점검 날( 1 ~ 31일 )을 고르세요.', default => '점검 기준날짜를 고르세요.',
+            }]]);
+        }
+        $validated['check_base'] = $validated['check_cycle'] === 'NONE' ? null : (string) ($validated['check_cycle'] === 'MONTHLY' ? (int) $base : $base);
 
         try {
             $equipment->fill($validated)->save();

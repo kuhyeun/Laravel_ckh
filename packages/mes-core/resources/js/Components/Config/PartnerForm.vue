@@ -32,28 +32,27 @@
         <template v-else>
             <!-- 탭 1 · 기본 -->
             <div v-show="tab === 'basic'" class="grid grid-cols-2 gap-x-4 gap-y-3 pt-4">
-                <div>
-                    <!-- 새 거래처는 비우면 자동 ( 고객사 CU · 구매처 SU · 외주처 SC + 일련번호 · 11-12 ) -->
-                    <label class="block text-gray-500 font-medium mb-1">거래처코드 <span v-if="isEdit" class="text-red-400">*</span><span v-else class="ml-1 text-xs font-normal text-gray-400">비우면 자동</span></label>
-                    <BaseInput v-model="form.partner_code" class="w-full" :placeholder="isEdit ? '예: PT-0012' : `비우면 자동 ( 예: ${autoCodeHint} )`" :disabled="!canWrite" />
-                    <p v-if="errors.partner_code" class="text-xs text-red-500 mt-0.5">{{ errors.partner_code[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">거래처명 <span class="text-red-400">*</span></label>
-                    <BaseInput v-model="form.partner_name" class="w-full" :disabled="!canWrite" />
-                    <p v-if="errors.partner_name" class="text-xs text-red-500 mt-0.5">{{ errors.partner_name[0] }}</p>
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-gray-500 font-medium mb-1">구분 <span class="text-red-400">*</span> <span class="text-xs text-gray-400">( 여러 개 선택 가능 )</span></label>
-                    <div class="flex items-center gap-5 h-9">
-                        <BaseCheckbox v-for="r in ROLES" :key="r.key" v-model="form[r.key]" true-value="Y" false-value="N" :disabled="!canWrite">
-                            {{ r.label }}
-                        </BaseCheckbox>
+                <!-- 맨 위 : 구분 · 사용 여부를 왼쪽에 나란히 — 11-19 -->
+                <div class="col-span-2 flex items-start gap-10">
+                    <div class="min-w-0">
+                        <label class="block text-gray-500 font-medium mb-1">구분 <span class="text-red-400">*</span> <span class="text-xs text-gray-400">( 여러 개 선택 가능 )</span></label>
+                        <div class="flex items-center gap-5 h-9">
+                            <BaseCheckbox v-for="r in ROLES" :key="r.key" v-model="form[r.key]" true-value="Y" false-value="N" :disabled="!canWrite">
+                                {{ r.label }}
+                            </BaseCheckbox>
+                        </div>
+                        <p v-if="errors.roles" class="text-xs text-red-500 mt-0.5">{{ errors.roles[0] }}</p>
                     </div>
-                    <p v-if="errors.roles" class="text-xs text-red-500 mt-0.5">{{ errors.roles[0] }}</p>
+                    <div class="shrink-0">
+                        <label class="block text-gray-500 font-medium mb-1">사용 여부</label>
+                        <div class="flex items-center h-9">
+                            <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
+                                {{ form.is_use === 'Y' ? '사용' : '미사용' }}
+                            </BaseCheckbox>
+                        </div>
+                    </div>
                 </div>
-
-                <!-- 입고검사 ( 입고가 있는 거래처 = 구매처 · 외주처 ) -->
+                <!-- 입고검사 ( 입고가 있는 거래처 = 구매처 · 외주처 ) — 구분 바로 아래 ( 구분을 고르면 나타난다 · 11-19 ) -->
                 <div v-if="hasIncoming && incomingField" class="col-span-2 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/60">
                     <PolicyOverrideField
                         v-model="policies['quality.incoming_inspection']"
@@ -76,6 +75,18 @@
                     </PolicyOverrideField>
                 </div>
                 <div>
+                    <!-- 새 거래처는 비우면 자동 ( 고객사 CU · 구매처 SU · 외주처 SC + 일련번호 · 11-12 ) -->
+                    <label class="block text-gray-500 font-medium mb-1">거래처코드 <span v-if="isEdit" class="text-red-400">*</span><span v-else class="ml-1 text-xs font-normal text-gray-400">비우면 자동</span></label>
+                    <BaseInput v-model="form.partner_code" class="w-full" :placeholder="isEdit ? '예: PT-0012' : `비우면 자동 ( 예: ${autoCodeHint} )`" :disabled="!canWrite" />
+                    <p v-if="errors.partner_code" class="text-xs text-red-500 mt-0.5">{{ errors.partner_code[0] }}</p>
+                </div>
+                <div>
+                    <label class="block text-gray-500 font-medium mb-1">거래처명 <span class="text-red-400">*</span></label>
+                    <BaseInput v-model="form.partner_name" class="w-full" :disabled="!canWrite" />
+                    <p v-if="errors.partner_name" class="text-xs text-red-500 mt-0.5">{{ errors.partner_name[0] }}</p>
+                </div>
+
+                <div>
                     <label class="block text-gray-500 font-medium mb-1">사업자번호</label>
                     <BaseInput v-model="form.biz_no" class="w-full" placeholder="000-00-00000" :disabled="!canWrite" />
                     <p v-if="errors.biz_no" class="text-xs text-red-500 mt-0.5">{{ errors.biz_no[0] }}</p>
@@ -94,11 +105,6 @@
                     <label class="block text-gray-500 font-medium mb-1">주소</label>
                     <BaseInput v-model="form.address" class="w-full" maxlength="200" :disabled="!canWrite" />
                     <p v-if="errors.address" class="text-xs text-red-500 mt-0.5">{{ errors.address[0] }}</p>
-                </div>
-                <div class="col-span-2 pt-1">
-                    <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
-                        {{ form.is_use === 'Y' ? '사용' : '미사용' }}
-                    </BaseCheckbox>
                 </div>
                 <div class="col-span-2">
                     <label class="block text-gray-500 font-medium mb-1">비고</label>

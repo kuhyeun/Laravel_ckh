@@ -82,7 +82,7 @@
                         <!-- 공정 줄 -->
                         <RoutingLinesEditor :lines="form.lines" :processes="processes" :readonly="!canWrite" :errors="errors" />
 
-                        <div class="mt-4 max-w-2xl">
+                        <div class="mt-4">
                             <label class="block text-gray-500 font-medium mb-1 text-sm">비고</label>
                             <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
                         </div>

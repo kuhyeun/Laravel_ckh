@@ -77,8 +77,8 @@ const SECTION_META = {
 };
 const WIDE   = ['company.address'];   // 두 칸 너비로 설정할 config 데이터
 const IMAGES = [
-    { kind: 'seal', label: '직인', hint: '문서 양식 ( 인 ) 자리' },
     { kind: 'logo', label: '로고', hint: '문서 양식 왼쪽 상단' },
+    { kind: 'seal', label: '직인', hint: '문서 양식 ( 인 ) 자리' },
 ];
 const ACCEPT = '.png,.jpg,.jpeg,.gif,.webp';
 

@@ -1,0 +1,20 @@
+{
+    "type": "list",
+    "name": "설비 목록",
+    "sheet": "설비",
+    "filename": "설비목록",
+    "freeze": "A2",
+    "columns": [
+        { "field": "equipment_code",   "header": "설비코드",        "width": 14 },
+        { "field": "equipment_name",   "header": "설비명",          "width": 24 },
+        { "field": "manager_name",     "header": "설비담당자(정)",  "width": 14 },
+        { "field": "sub_manager_name", "header": "설비담당자(부)",  "width": 14 },
+        { "field": "purchase_date",    "header": "구매일자",        "width": 12 },
+        { "field": "purchase_cost",    "header": "구매비용",        "width": 14, "numFmt": "#,##0" },
+        { "field": "check_text",       "header": "점검 기준",       "width": 16 },
+        { "field": "next_check_date",  "header": "다음 점검일",     "width": 12 },
+        { "field": "process_count",    "header": "사용 공정",       "width": 10, "numFmt": "#,##0" },
+        { "field": "remark",           "header": "비고",            "width": 30 },
+        { "field": "is_use",           "header": "사용",            "width": 8,  "map": { "Y": "사용", "N": "미사용" } }
+    ]
+}

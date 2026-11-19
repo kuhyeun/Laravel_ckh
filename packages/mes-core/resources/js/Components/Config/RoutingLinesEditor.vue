@@ -69,9 +69,10 @@
                         </td>
                         <td class="px-1.5 py-1">
                             <template v-if="iflOk(l)">
-                                <div class="flex items-center gap-2 text-xs">
-                                    <label v-for="k in INSP_KEYS" :key="k.key" class="inline-flex items-center gap-1 cursor-pointer">
-                                        <input type="checkbox" class="base-checkbox w-3.5 h-3.5" :checked="l[k.key] === 'Y'" :disabled="readonly" @change="e => setInsp(l, k.key, e.target.checked)" />
+                                <!-- 높이 = 옆 입력칸( h-9 ) — 행이 align-top 이라 이 칸만 세로 중앙 ( 11-19 ) -->
+                                <div class="flex items-center gap-5 h-9 text-sm">
+                                    <label v-for="k in INSP_KEYS" :key="k.key" class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                                        <input type="checkbox" class="base-checkbox w-4 h-4" :checked="l[k.key] === 'Y'" :disabled="readonly" @change="e => setInsp(l, k.key, e.target.checked)" />
                                         {{ k.label }}
                                     </label>
                                 </div>
@@ -99,7 +100,7 @@
                                 </div>
                                 <p v-if="rowError(i, 'pre_approve')" class="text-[11px] text-red-500">{{ rowError(i, 'pre_approve') }}</p>
                             </template>
-                            <span v-else class="text-xs text-gray-300">—</span>
+                            <span v-else class="flex items-center h-9 text-xs text-gray-300">—</span>
                         </td>
                         <td v-if="!readonly" class="px-1.5 py-1 text-center">
                             <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="줄 삭제" @click="removeLine(i)">✕</button>
