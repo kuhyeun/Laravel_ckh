@@ -115,8 +115,8 @@ const gridOptions = {
 };
 
 const partnerColumns = [
-    { header: '거래처코드', name: 'partner_code', minWidth: 120, className: 'cursor-pointer' },
-    { header: '거래처명',   name: 'partner_name', minWidth: 200, className: 'cursor-pointer' },
+    { header: '거래처코드', name: 'partner_code', minWidth: 120, className: 'cursor-pointer', sortable: true },
+    { header: '거래처명',   name: 'partner_name', minWidth: 200, className: 'cursor-pointer', sortable: true },
     { header: '구분',       name: 'roles',        minWidth: 150, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => partnerRoleText(row) },
     { header: '사업자번호', name: 'biz_no',       width: 130, align: 'center', className: 'cursor-pointer' },
     { header: '대표자',     name: 'ceo_name',     width: 100, align: 'center', className: 'cursor-pointer' },

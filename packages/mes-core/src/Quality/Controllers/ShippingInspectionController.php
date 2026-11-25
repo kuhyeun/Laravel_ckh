@@ -30,7 +30,11 @@ class ShippingInspectionController extends Controller {
 
     private const READ_SCREENS  = ['Quality/ShippingInspection', 'Shipment/ShipmentManage', 'Shipment/ShipmentHistory'];
     private const WRITE_SCREENS = ['Quality/ShippingInspection'];
-    private const SORTABLE      = ['plan_date', 'shipment_no', 'inspected_at'];
+    private const SORTABLE      = [
+        'plan_date', 'shipment_no', 'inspected_at',
+        // 품목 · 규격 · 재질 ( 11-25 — 품목 열은 품번으로 )
+        'item_code' => 'i.item_code', 'item_name' => 'i.item_name', 'item_spec' => 'i.spec', 'item_material' => 'i.material',
+    ];
 
     public function __construct(
         private ShippingInspectionService $inspections,
@@ -58,6 +62,7 @@ class ShippingInspectionController extends Controller {
         $query = ShipmentLine::query()
             ->select('shipment_line.*', 'shipment.shipment_no', 'shipment.plan_date', 'shipment.status as shipment_status', 'shipment.partner_idx')
             ->join('shipment', 'shipment.shipment_idx', '=', 'shipment_line.shipment_idx')
+            ->leftJoin('item as i', 'i.item_idx', '=', 'shipment_line.item_idx')   // 품목 열 정렬용 ( 줄 1개 = 품목 1개 )
             ->addSelect(['partner_name' => Partner::select('partner_name')->whereColumn('partner.partner_idx', 'shipment.partner_idx')])
             ->where('shipment.status', '!=', 'CANCELED')
             ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'picks.lot:lot_idx,lot_no,lot_title'])

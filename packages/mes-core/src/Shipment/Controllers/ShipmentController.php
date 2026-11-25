@@ -27,6 +27,13 @@ class ShipmentController extends Controller {
 
     private const SORTABLE = ['shipment_no', 'plan_date', 'shipped_at'];
 
+    // 품목 · 규격 · 재질 열 정렬 ( 11-25 ) : 품목 = 첫 줄 품번 / 규격 · 재질 = 줄이 하나일 때만 ( 머리 행 값과 같게 )
+    private static function sortable(): array {
+        $first = fn (string $col) => DB::raw("( SELECT i.{$col} FROM shipment_line l JOIN item i ON i.item_idx = l.item_idx WHERE l.shipment_idx = shipment.shipment_idx ORDER BY l.line_no LIMIT 1 )");
+        $only  = fn (string $col) => DB::raw("( SELECT MAX(i.{$col}) FROM shipment_line l JOIN item i ON i.item_idx = l.item_idx WHERE l.shipment_idx = shipment.shipment_idx HAVING COUNT(*) = 1 )");
+        return [...self::SORTABLE, 'item_label' => $first('item_code'), 'item_spec' => $only('spec'), 'item_material' => $only('material')];
+    }
+
     private const DATE_COLUMNS = ['plan' => 'plan_date', 'shipped' => 'shipped_at'];
 
     public function __construct(private ShipmentService $shipments) {}
@@ -63,7 +70,7 @@ class ShipmentController extends Controller {
             'order_no'     => fn ($q, $kw) => $q->whereHas('lines.salesOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),
         ]);
 
-        return $this->listResponse($request, $query, self::SORTABLE, 'shipments', function (Shipment $s) {
+        return $this->listResponse($request, $query, self::sortable(), 'shipments', function (Shipment $s) {
             $lines = $s->lines->map(fn (ShipmentLine $l) => $this->lineRow($l))->values();
             $stage = $this->shipments->stage($s);
             $head  = [

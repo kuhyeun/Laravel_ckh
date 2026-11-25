@@ -116,13 +116,13 @@ const gridOptions = {
 const fmtNum = ({ value }) => (value === null || value === undefined || value === '') ? '' : Number(value).toLocaleString();
 
 const itemColumns = [
-    { header: '품번',     name: 'item_code',    minWidth: 140, className: 'cursor-pointer' },
-    { header: '품명',     name: 'item_name',    minWidth: 200, className: 'cursor-pointer' },
+    { header: '품번',     name: 'item_code',    minWidth: 140, className: 'cursor-pointer', sortable: true },
+    { header: '품명',     name: 'item_name',    minWidth: 200, className: 'cursor-pointer', sortable: true },
     { header: '대분류',   name: 'item_type',    width: 90,  align: 'center', className: 'cursor-pointer', formatter: ({ value }) => itemTypeLabel(value) },
     { header: '소분류',   name: 'item_kind',    width: 90,  align: 'center', className: 'cursor-pointer', formatter: ({ value }) => itemKindLabel(value) },
     { header: '단위',     name: 'spec_unit',    width: 80,  align: 'center', className: 'cursor-pointer' },
-    { header: '규격',     name: 'spec',         width: 180, className: 'cursor-pointer', dash: true },
-    { header: '재질',     name: 'material',     width: 180, className: 'cursor-pointer', escapeHTML: true, dash: true },
+    { header: '규격',     name: 'spec',         width: 180, className: 'cursor-pointer', sortable: true, dash: true },
+    { header: '재질',     name: 'material',     width: 180, className: 'cursor-pointer', sortable: true, escapeHTML: true, dash: true },
     { header: '안전재고', name: 'safety_stock', width: 100, align: 'right',  className: 'cursor-pointer', formatter: fmtNum },
     { header: '판매단가', name: 'std_sale_price', width: 110, align: 'right', className: 'cursor-pointer', formatter: fmtNum },
     // 조달 구분 · 판매 여부 ( 11-13 ) — 발주서 = 구매만 · 수주 / 출하 = 판매만

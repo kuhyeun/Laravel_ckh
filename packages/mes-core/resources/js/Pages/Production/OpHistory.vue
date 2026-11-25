@@ -195,9 +195,9 @@ const params = (extra = {}) => {
 const columns = [
     { header: '작업 일시', name: 'worked_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '줄 번호', name: 'wo_no', width: 150, sortable: true, className: 'cursor-pointer' },
-    { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
-    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
+    { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 110, sortable: true, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, sortable: true, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', width: 140, className: 'cursor-pointer', escapeHTML: true },
     { header: '공정', name: 'op_label', width: 110, className: 'cursor-pointer', escapeHTML: true },
     { header: '설비', name: 'equipment_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
@@ -208,7 +208,7 @@ const columns = [
     { header: '입력자', name: 'creator_name', width: 80, align: 'center', className: 'cursor-pointer', escapeHTML: true },
     { header: '등록 일시', name: 'created_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '착수 예정', name: 'start_date', width: 90, align: 'center', sortable: true, className: 'cursor-pointer' },
-    { header: '취소', name: 'canceled_text', width: 150, className: 'cursor-pointer', escapeHTML: true },
+    { header: '취소', name: 'canceled_text', width: 150, sortable: true, className: 'cursor-pointer', escapeHTML: true },
 ];
 
 const rows    = ref([]);
@@ -279,8 +279,13 @@ const summaryColumns = computed(() => {
         equipment: [],
         day:       [],
     }[group.value];
+    // 품목 · 일자 열은 정렬 ( 그리드가 직접 — 페이징 없음 ) — 품목은 "품명 [품번]" 의 품번으로 ( 11-25 )
+    const codeOf = (label) => /\[([^\]]*)\]\s*$/.exec(String(label ?? ''))?.[1] ?? String(label ?? '');
+    const labelSort = group.value === 'item'
+        ? { sortable: true, comparator: (a, b) => codeOf(a).localeCompare(codeOf(b)) }
+        : group.value === 'day' ? { sortable: true } : {};
     return [
-        { header: head.header, name: 'label', minWidth: head.minWidth, className: 'cursor-pointer', escapeHTML: true },
+        { header: head.header, name: 'label', minWidth: head.minWidth, className: 'cursor-pointer', escapeHTML: true, ...labelSort },
         { header: '실적 합', name: 'qty_text', width: 160, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => qtyText(row) },
         num('run_count', '실적 건수'),
         ...extra,

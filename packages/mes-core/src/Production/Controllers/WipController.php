@@ -21,7 +21,7 @@ class WipController extends Controller {
     use SearchesKeyword;
     use RespondsWithList;
 
-    private const SORTABLE = ['occurred_at', 'wo_no'];
+    private const SORTABLE = ['occurred_at', 'wo_no', 'item_code' => 'i.item_code', 'item_spec' => 'i.spec'];
 
     protected function listTieBreaker(): ?string {
         return 't.wip_txn_idx';

@@ -59,7 +59,7 @@ const MATERIAL_COLUMNS = [
     { header: 'LOT', name: 'lot_no', width: 250, sortable: true, className: 'cursor-pointer', escapeHTML: true },
     { header: 'Heat No', name: 'heat_no', width: 110, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '품목', name: 'item_code', minWidth: 150, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 150, className: 'cursor-pointer', escapeHTML: true, dash: true },
+    { header: '규격', name: 'item_spec', width: 150, sortable: true, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '공급처', name: 'partner_name', width: 150, sortable: true, className: 'cursor-pointer', escapeHTML: true },
     { header: '입고일', name: 'in_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
     qty('in_qty', '입고량'),
@@ -75,7 +75,7 @@ const PRODUCT_COLUMNS = [
       formatter: ({ value }) => `<span style="color:${KIND[value]?.color ?? COLORS.gray500};font-weight:600">${KIND[value]?.label ?? ''}</span>` },
     { header: 'LOT', name: 'lot_no', width: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true },
     { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true, dash: true },
+    { header: '규격', name: 'item_spec', width: 110, sortable: true, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '작업지시', name: 'wo_no', width: 150, sortable: true, className: 'cursor-pointer', dash: true },
     // 출하 줄 : LOT 열 = 출하 LOT 번호( 출하번호-줄 ) · 여기는 그때 나간 제품 LOT
     { header: '제품 LOT', name: 'product_lot_no', width: 150, sortable: true, className: 'cursor-pointer', escapeHTML: true, dash: true },

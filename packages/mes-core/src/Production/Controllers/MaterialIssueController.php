@@ -12,6 +12,7 @@ use MesCore\Production\Services\MaterialIssueService;
 use MesCore\Stock\Models\StockTxnLine;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -25,6 +26,17 @@ class MaterialIssueController extends Controller {
     private const SORTABLE = ['wo_no', 'start_date', 'due_date'];
 
     public function __construct(private MaterialIssueService $issues) {}
+
+    // 열 정렬 때 같은 값( 같은 품목 · 같은 착수일 )이면 지시 순 — 페이지마다 순서가 흔들리지 않게
+    protected function listTieBreaker(): ?string {
+        return 'work_order_idx';
+    }
+
+    // 정렬 열 : 품목( 품번 ) · 규격 · 재질은 품목 표에서 ( 11-25 — 목록은 조인 없이 item 관계로 읽는다 )
+    private function sortable(): array {
+        $item = fn (string $col) => DB::table('item')->whereColumn('item.item_idx', 'work_order.item_idx')->select("item.{$col}");
+        return [...self::SORTABLE, 'item_code' => $item('item_code'), 'item_spec' => $item('spec'), 'item_material' => $item('material')];
+    }
 
     // 작업지시 목록 : 착수 예정 기간 + 검색어( 지시번호 · 품번 · 품명 · LOT ) + 출고 상태( NONE 미출고 / SOME 출고 있음 )
     public function list(Request $request) {
@@ -59,7 +71,7 @@ class MaterialIssueController extends Controller {
             'lot_no'    => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
         ]);
 
-        return $this->listResponse($request, $query, self::SORTABLE, 'orders', fn (WorkOrder $w) => [
+        return $this->listResponse($request, $query, $this->sortable(), 'orders', fn (WorkOrder $w) => [
             'work_order_idx'  => $w->work_order_idx,
             'wo_no'           => $w->wo_no,
             'item_code'       => $w->item?->item_code,

@@ -18,7 +18,7 @@
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :loading="loading" setting-key="list" class="flex-1" :data="rows" :columns="columns"
-                    :pagination="paging" empty-text="조건에 맞는 외주 입고가 없습니다." @row-click="openInspection" @page="onPage" />
+                    :pagination="paging" empty-text="조건에 맞는 외주 입고가 없습니다." @row-click="openInspection" @page="onPage" @sort="onSort" />
             </div>
         </div>
     </div>
@@ -62,11 +62,11 @@ const ctx = reactive({ now: '', inspection_on: false, inspectors: [], me: '' });
 const qty = (name, header, width = 90) => ({ header, name, width, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => value === null || value === undefined ? '' : fmtQty(value, row.spec_unit) });
 const columns = [
     { header: '입고 번호', name: 'receipt_no', width: 130, className: 'cursor-pointer' },
-    { header: '입고 일시', name: 'received_at', width: 130, align: 'center', className: 'cursor-pointer' },
+    { header: '입고 일시', name: 'received_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '상태', name: 'status_label', width: 80, align: 'center', className: 'cursor-pointer', formatter: ({ row, value }) => `<span style="color:${STATUS_COLOR[row.status]}">${value}</span>` },
     { header: '외주처', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
     { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer' },
-    { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '외주 공정', name: 'process_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
     qty('receipt_qty', '입고'),
     qty('pass_qty', '합격'),
@@ -77,11 +77,13 @@ const columns = [
 const rows    = ref([]);
 const loading = ref(false);
 const paging  = reactive({ page: 1, perPage: 50, total: 0 });   // 서버 페이징
+const sort    = reactive({ key: '', dir: '' });
 
 // 상태를 고르지 않으면 취소분은 뺀다 ( 서버에서 — 페이징이라 화면에서 거르면 건수가 틀린다 )
 function params(extra = {}) {
     const p = { ...search, hide_canceled: search.status ? undefined : 1, ...extra };
     delete p.date_basis;
+    if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
     return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined));
 }
 const latest = useLatest();
@@ -102,6 +104,7 @@ async function load() {
 }
 function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
+function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage(); }
 async function exportRows() {
     const { data } = await window.axios.get(route('production.subcon.inspection.receipts'), { params: params({ export: 1 }) });
     return data.rows ?? [];

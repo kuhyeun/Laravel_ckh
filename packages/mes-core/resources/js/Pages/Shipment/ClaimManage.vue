@@ -21,7 +21,7 @@
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :loading="loading" setting-key="list" class="flex-1" :data="rows" :columns="columns"
-                    :pagination="paging" empty-text="조건에 맞는 클레임이 없습니다." @row-click="row => openForm(row.claim_idx)" @page="onPage" />
+                    :pagination="paging" empty-text="조건에 맞는 클레임이 없습니다." @row-click="row => openForm(row.claim_idx)" @page="onPage" @sort="onSort" />
             </div>
         </div>
     </div>
@@ -42,7 +42,7 @@ import ClaimForm from '@core/Components/Shipment/ClaimForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
-import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
+import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 import { COLORS } from '@core/Utils/colors';
 
 defineOptions({ layout: AppLayout });
@@ -61,12 +61,12 @@ const grid = ref(null);
 const partners = ref([]);
 
 const columns = [
-    { header: '접수일', name: 'claim_date', width: 90, align: 'center', className: 'cursor-pointer' },
+    { header: '접수일', name: 'claim_date', width: 90, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '클레임 번호', name: 'claim_no', width: 130, className: 'cursor-pointer' },
     { header: '출하번호', name: 'shipment_no', width: 130, className: 'cursor-pointer', formatter: ({ value }) => value || `<span style="color:${COLORS.gray400}">출하 없음</span>` },
-    { header: '출하일', name: 'shipped_at', width: 90, align: 'center', className: 'cursor-pointer' },
+    { header: '출하일', name: 'shipped_at', width: 90, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '고객사', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
-    { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '클레임 수량', name: 'qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) },
     { header: '출하 수량', name: 'shipped_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => value === null || value === undefined ? '' : fmtQty(value, row.spec_unit) },
     { header: '유형', name: 'claim_type', width: 100, className: 'cursor-pointer', escapeHTML: true },
@@ -80,9 +80,11 @@ const rows    = ref([]);
 const loading = ref(false);
 const paging  = reactive({ page: 1, perPage: 50, total: 0 });   // 서버 페이징 ( 전에는 기간을 넓히면 전부 내려받았다 )
 const totalQty = ref(0);   // 조건 전체의 클레임 수량 합 ( 서버 )
+const sort     = reactive({ key: '', dir: '' });   // 열 정렬 ( 서버 — 11-25 )
 function params(extra = {}) {
     const p = { ...search, ...extra };
     delete p.date_basis;
+    if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
     return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined));
 }
 const latest = useLatest();
@@ -104,6 +106,7 @@ async function load() {
 }
 function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
+function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage(); }
 async function exportRows() {
     const { data } = await window.axios.get(route('shipment.claim.list'), { params: params({ export: 1 }) });
     return data.rows ?? [];

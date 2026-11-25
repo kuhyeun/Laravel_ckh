@@ -18,6 +18,7 @@ use MesCore\Config\Services\RoutingService;
 use MesCore\Production\Models\WorkOrder;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 // 수주진행관리 ( SAL-03 · 2002 ) — docs/screens/30-수주.md §10 · 조회만
 //   목록 : 서버 페이징 · 한 행 = 수주 + 줄( _children ). 줄마다 지시 · 자재 · 공정 요약 · 출고검사 · 출하 · 단계
@@ -27,6 +28,43 @@ class SalesProgressController extends Controller {
     use RespondsWithList;
 
     private const SORTABLE = ['order_no', 'order_date', 'partner_name', 'next_due_date'];
+
+    // 품목 · 규격 · 재질 = 대표 품목( 취소 아닌 첫 줄 ) / 원자재 입고 · 출고 · 출하일 = 수주 안 줄들 중 가장 늦은 날 ( 11-25 )
+    //   줄 값 열이라 머리 행은 비어 보이지만, 한 줄 주문( 합친 행 )은 그 줄 값과 같다
+    private function sortable(): array {
+        $lines = fn () => DB::table('sales_order_line as ol')
+            ->whereColumn('ol.sales_order_idx', 'sales_order.sales_order_idx')
+            ->where('ol.line_status', '!=', 'CANCELED');
+        $first = fn (string $col) => $lines()
+            ->join('item as fi', 'fi.item_idx', '=', 'ol.item_idx')
+            ->orderBy('ol.line_no')->limit(1)->select("fi.{$col}");
+        // 이 수주 줄을 담은 지시( 취소 제외 )의 자재 출고
+        $issues = fn (string $agg) => DB::table('stock_txn_line as il')
+            ->join('stock_txn as it', 'it.stock_txn_idx', '=', 'il.stock_txn_idx')
+            ->leftJoin('lot as ilot', 'ilot.lot_idx', '=', 'il.lot_idx')
+            ->where('it.txn_type', 'ISSUE_WO')
+            ->where('it.status', '!=', 'CANCELED')
+            ->where('il.line_status', '!=', 'CANCELED')
+            ->whereIn('il.work_order_idx', $lines()
+                ->join('work_order_source as ws', 'ws.sales_order_line_idx', '=', 'ol.sales_order_line_idx')
+                ->join('work_order as w', 'w.work_order_idx', '=', 'ws.work_order_idx')
+                ->where('w.status', '!=', 'CANCELED')
+                ->select('ws.work_order_idx'))
+            ->selectRaw($agg);
+
+        return self::SORTABLE + [
+            'item_summary'  => $first('item_code'),
+            'item_spec'     => $first('spec'),
+            'item_material' => $first('material'),
+            'mat_in_at'     => $issues('MAX(ilot.in_at)'),
+            'mat_out_at'    => $issues('MAX(it.occurred_at)'),
+            'shipped_at'    => $lines()
+                ->join('shipment_line as sl', 'sl.sales_order_line_idx', '=', 'ol.sales_order_line_idx')
+                ->join('shipment as sh', 'sh.shipment_idx', '=', 'sl.shipment_idx')
+                ->where('sh.status', 'DONE')
+                ->selectRaw('MAX(sh.shipped_at)'),
+        ];
+    }
 
     private array $progress = [];   // 지금 페이지 줄의 진행 값 ( listResponse 의 prepare 에서 한꺼번에 )
 
@@ -59,7 +97,7 @@ class SalesProgressController extends Controller {
         $this->applyFilters($query, $v);
 
         return $this->listResponse(
-            $request, $query, self::SORTABLE, 'orders',
+            $request, $query, $this->sortable(), 'orders',
             fn (SalesOrder $o) => $this->toRow($o),
             fn ($orders) => $this->progress = $this->service->forLines($orders->flatMap(fn ($o) => $o->lines)),
         );

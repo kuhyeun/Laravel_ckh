@@ -105,13 +105,13 @@ const gridOptions = {
 
 const processColumns = [
     {
-        header: '공정코드', name: 'process_code', minWidth: 130, className: 'cursor-pointer',
+        header: '공정코드', name: 'process_code', minWidth: 130, className: 'cursor-pointer', sortable: true,
         // 시스템 공정 표시
         formatter: ({ row, value }) => row.is_system === 'Y'
             ? `${value} <span style="margin-left:4px;padding:0 4px;border-radius:3px;font-size:11px;background:${COLORS.gray100};color:${COLORS.gray500}">시스템</span>`
             : value,
     },
-    { header: '공정명',    name: 'process_name',    minWidth: 180, className: 'cursor-pointer' },
+    { header: '공정명',    name: 'process_name',    minWidth: 180, className: 'cursor-pointer', sortable: true },
     { header: '공정 구분', name: 'process_type',    width: 90,  align: 'center', className: 'cursor-pointer', formatter: ({ value }) => processTypeLabel(value) },
     { header: '구분 코드', name: 'class_code',      width: 80,  align: 'center', className: 'cursor-pointer' },
     { header: '초 · 중 · 종', name: 'insp_first', width: 90,  align: 'center', className: 'cursor-pointer',

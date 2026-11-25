@@ -17,7 +17,7 @@
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :loading="loading" setting-key="list" class="flex-1" :data="rows" :columns="columns"
-                    :pagination="paging" empty-text="조건에 맞는 외주 이력이 없습니다." @row-click="goOpResult" @page="onPage" />
+                    :pagination="paging" empty-text="조건에 맞는 외주 이력이 없습니다." @row-click="goOpResult" @page="onPage" @sort="onSort" />
             </div>
         </div>
     </div>
@@ -50,12 +50,12 @@ const partners = ref([]);
 const opResultUrl = ref(null);   // 공정실적관리 주소 ( 권한이 있을 때 )
 
 const columns = [
-    { header: '일시', name: 'at', width: 130, align: 'center', className: 'cursor-pointer' },
+    { header: '일시', name: 'at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '구분', name: 'kind_label', width: 80, align: 'center', className: 'cursor-pointer' },
     { header: '번호', name: 'doc_no', width: 130, className: 'cursor-pointer' },
     { header: '외주처', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
     { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer' },
-    { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '외주 공정', name: 'process_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'move_qty', width: 100, align: 'right', className: 'cursor-pointer',
       formatter: ({ row, value }) => `<span style="color:${value < 0 ? COLORS.red600 : COLORS.blue700}">${value > 0 ? '+' : ''}${fmtQty(value, row.spec_unit)}</span>` },
@@ -66,10 +66,12 @@ const columns = [
 const rows    = ref([]);
 const loading = ref(false);
 const paging  = reactive({ page: 1, perPage: 50, total: 0 });   // 서버 페이징 ( 전에는 기간을 넓히면 전부 내려받았다 )
+const sort    = reactive({ key: '', dir: '' });
 
 function params(extra = {}) {
     const p = { ...search, ...extra };
     delete p.date_basis;
+    if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
     return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined));
 }
 const latest = useLatest();
@@ -90,6 +92,7 @@ async function load() {
 }
 function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
+function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage(); }
 async function exportRows() {
     const { data } = await window.axios.get(route('production.subcon.history.list'), { params: params({ export: 1 }) });
     return data.rows ?? [];

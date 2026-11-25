@@ -145,7 +145,13 @@ class LabelController extends Controller {
             'shipment_no' => fn ($q, $kw) => $q->whereHas('shipmentLine.shipment', fn ($r) => $r->where('shipment_no', 'like', $kw)),
         ]);
 
-        return $this->listResponse($request, $query, self::SORTABLE, 'labels', function (BarcodeLabel $b) {
+        // 품번 · 품명 · 규격 열 정렬 = 보이는 품목( LOT 라벨은 LOT 의 품목, 출하 라벨은 출하 줄의 품목 ) ( 11-25 )
+        $item = fn (string $col) => \Illuminate\Support\Facades\DB::raw("(SELECT si.{$col} FROM item si WHERE si.item_idx = CASE WHEN barcode_label.target = '" . BarcodeLabel::TARGET_LOT . "'"
+            . ' THEN (SELECT sl.item_idx FROM lot sl WHERE sl.lot_idx = barcode_label.lot_idx)'
+            . ' ELSE (SELECT ss.item_idx FROM shipment_line ss WHERE ss.shipment_line_idx = barcode_label.shipment_line_idx) END)');
+        $sortable = self::SORTABLE + ['item_code' => $item('item_code'), 'item_name' => $item('item_name'), 'item_spec' => $item('spec')];
+
+        return $this->listResponse($request, $query, $sortable, 'labels', function (BarcodeLabel $b) {
             $item = $b->target === BarcodeLabel::TARGET_LOT ? $b->lot?->item : $b->shipmentLine?->item;
             return [
                 'label_idx'       => $b->label_idx,

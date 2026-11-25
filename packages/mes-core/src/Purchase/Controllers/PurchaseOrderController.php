@@ -41,6 +41,22 @@ class PurchaseOrderController extends Controller {
 
     private const SORTABLE = ['order_no', 'order_date', 'partner_name', 'next_due_date', 'total_amount'];
 
+    // 품목 · 규격 · 재질 열 정렬 = 목록에 보이는 대표 품목( 첫 줄 )의 값 ( 11-25 )
+    private function sortable(): array {
+        $first = fn (string $col) => DB::table('purchase_order_line as fl')
+            ->join('item as fi', 'fi.item_idx', '=', 'fl.item_idx')
+            ->whereColumn('fl.purchase_order_idx', 'purchase_order.purchase_order_idx')
+            ->orderBy('fl.line_no')
+            ->limit(1)
+            ->select("fi.{$col}");
+
+        return self::SORTABLE + [
+            'item_summary'  => $first('item_code'),
+            'item_spec'     => $first('spec'),
+            'item_material' => $first('material'),
+        ];
+    }
+
     public function __construct(private PurchaseOrderService $orders, private \MesCore\Purchase\Services\OrderMaterialDemand $demand) {}
 
     // [+ 수주 자재에서] : 확정 수주의 진행 중 줄 · 수주 자재( 주 자재 ) 소요 · 발주됨 · 남은 · 현재고
@@ -94,7 +110,7 @@ class PurchaseOrderController extends Controller {
 
         $this->applyFilters($query, $v);
 
-        return $this->listResponse($request, $query, self::SORTABLE, 'orders', fn (PurchaseOrder $o) => $this->toRow($o));
+        return $this->listResponse($request, $query, $this->sortable(), 'orders', fn (PurchaseOrder $o) => $this->toRow($o));
     }
 
     public function show(int $orderIdx) {

@@ -213,7 +213,12 @@ class StockProcessController extends Controller {
             if ($type === ShipmentService::TXN_TYPE) $refs->exchangeArray($this->shipmentRefs($rows));
         };
 
-        return $this->listResponse($request, $query, ['txn_no', 'occurred_at', 'recorded_at'], $legacyKey, fn (StockTxnLine $l) => [
+        // 품목( 품번 ) · 규격 · 재질 열 정렬 ( 11-25 )
+        $item     = fn (string $col) => DB::table('item as si')->whereColumn('si.item_idx', 'stock_txn_line.item_idx')->limit(1)->select("si.{$col}");
+        $sortable = ['txn_no', 'occurred_at', 'recorded_at',
+            'item_code' => $item('item_code'), 'item_spec' => $item('spec'), 'item_material' => $item('material')];
+
+        return $this->listResponse($request, $query, $sortable, $legacyKey, fn (StockTxnLine $l) => [
             'stock_txn_idx'   => $l->stock_txn_idx,
             'txn_no'          => $l->txn_no,
             'occurred_at'     => substr((string) $l->occurred_at, 0, 16),

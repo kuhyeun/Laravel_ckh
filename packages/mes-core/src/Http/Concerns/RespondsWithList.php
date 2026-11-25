@@ -42,8 +42,18 @@ trait RespondsWithList {
         ]);
 
         // 정렬 : 허용 목록에 있을 때만 ( 컬럼명을 그대로 SQL 에 넣지 않는다 )
-        if (!empty($validated['sort']) && in_array($validated['sort'], $sortable, true)) {
-            $query->reorder($validated['sort'], $validated['dir'] ?? 'asc');
+        //   $sortable 은 두 모양을 섞어 쓸 수 있다 ( 11-25 )
+        //     'order_no'                    → 화면 열 이름 = 정렬 컬럼
+        //     'item_label' => 'i.item_code' → 화면 열 이름 → 정렬 컬럼( 또는 DB::raw 식 ) — 품목 · 규격처럼 표시 값과 정렬 컬럼이 다를 때
+        $sortCol = null;
+        $sortKey = (string) ($validated['sort'] ?? '');
+        if ($sortKey !== '') {
+            foreach ($sortable as $k => $v) {
+                if (is_int($k) ? $v === $sortKey : $k === $sortKey) { $sortCol = $v; break; }
+            }
+        }
+        if ($sortCol !== null) {
+            $query->reorder($sortCol, $validated['dir'] ?? 'asc');
             if ($tie = $this->listTieBreaker()) {
                 $query->orderBy($tie, $validated['dir'] ?? 'asc');
             }

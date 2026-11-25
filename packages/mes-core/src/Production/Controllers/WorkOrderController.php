@@ -55,6 +55,11 @@ class WorkOrderController extends Controller {
 
     private const SORTABLE = ['sheet_no', 'start_date', 'due_date'];
 
+    // 열 정렬 때 같은 값( 같은 품목 · 같은 날짜 )이면 지시서 순 — 페이지마다 순서가 흔들리지 않게
+    protected function listTieBreaker(): ?string {
+        return 'sheet_idx';
+    }
+
     public function __construct(private WorkOrderService $orders, private WorkOrderSheetService $sheets, private LotService $lots, private RoutingService $routingSvc, private BomService $bomSvc) {}
 
     // 목록 : 지시서 행 + 품목 줄( 펼침 ). 기간( 착수 예정 / 생산 기한 ) + 검색어( 지시번호 · 품번 · 품명 · LOT · 수주번호 ) + 출처 + 상태
@@ -96,7 +101,14 @@ class WorkOrderController extends Controller {
             'order_no'  => fn ($q, $kw) => $q->whereHas('lines.sources.salesOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),
         ]);
 
-        return $this->listResponse($request, $query, self::SORTABLE, 'sheets', function (WorkOrderSheet $s) {
+        // 품목 · 규격 · 재질 정렬 = 지시서의 첫 품목 줄( 머리 행에 보이는 줄 · 줄 번호 순 ) 기준 ( 11-25 )
+        $firstItem = fn (string $col) => DB::table('work_order as sw')->join('item as si', 'si.item_idx', '=', 'sw.item_idx')
+            ->whereColumn('sw.sheet_idx', 'work_order_sheet.sheet_idx')
+            ->when($hideCanceled, fn ($q) => $q->where('sw.status', '!=', 'CANCELED'))
+            ->orderBy('sw.line_no')->limit(1)->select("si.{$col}");
+        $sortable = [...self::SORTABLE, 'item_label' => $firstItem('item_code'), 'item_spec' => $firstItem('spec'), 'item_material' => $firstItem('material')];
+
+        return $this->listResponse($request, $query, $sortable, 'sheets', function (WorkOrderSheet $s) {
             $lines = $s->lines->map(fn (WorkOrder $w) => $this->lineRow($w))->values();
             $head  = [
                 'sheet_idx'   => $s->sheet_idx,

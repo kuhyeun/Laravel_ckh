@@ -101,13 +101,13 @@ const gridOptions = {
 };
 
 const equipmentColumns = [
-    { header: '설비코드',   name: 'equipment_code', minWidth: 140, className: 'cursor-pointer' },
-    { header: '설비명',     name: 'equipment_name', minWidth: 220, className: 'cursor-pointer' },
+    { header: '설비코드',   name: 'equipment_code', minWidth: 140, className: 'cursor-pointer', sortable: true },
+    { header: '설비명',     name: 'equipment_name', minWidth: 220, className: 'cursor-pointer', sortable: true },
     { header: '설비담당자( 정 )', name: 'manager_name', width: 110, align: 'center', className: 'cursor-pointer', escapeHTML: true },
     { header: '설비담당자( 부 )', name: 'sub_manager_name', width: 110, align: 'center', className: 'cursor-pointer', escapeHTML: true },
-    { header: '구매일자',   name: 'purchase_date',  width: 100, align: 'center', className: 'cursor-pointer' },
+    { header: '구매일자',   name: 'purchase_date',  width: 100, align: 'center', className: 'cursor-pointer', sortable: true },
     { header: '점검 기준',  name: 'check_text',     width: 140, align: 'center', className: 'cursor-pointer' },
-    { header: '다음 점검일', name: 'next_check_date', width: 100, align: 'center', className: 'cursor-pointer' },
+    { header: '다음 점검일', name: 'next_check_date', width: 100, align: 'center', className: 'cursor-pointer', sortable: true },
     { header: '사용 공정',  name: 'process_count',  width: 90, align: 'right', className: 'cursor-pointer' },
     { header: '비고',       name: 'remark',         minWidth: 200, className: 'cursor-pointer' },
     {

@@ -21,7 +21,8 @@ class ClaimController extends Controller {
     use SearchesKeyword, RespondsWithList;
 
     private const EPS = 0.000001;
-    const SORTABLE = ['claim_no', 'claim_date', 'shipment_no', 'shipped_at', 'partner_name', 'item_code', 'shipped_qty', 'qty', 'claim_type', 'file_count', 'creator_name'];
+    const SORTABLE = ['claim_no', 'claim_date', 'shipment_no', 'shipped_at', 'partner_name', 'item_code', 'shipped_qty', 'qty', 'claim_type', 'file_count', 'creator_name',
+        'item_name' => 'i.item_name', 'item_spec' => 'i.spec'];
 
     protected function listTieBreaker(): ?string {
         return 'cl.claim_line_idx';

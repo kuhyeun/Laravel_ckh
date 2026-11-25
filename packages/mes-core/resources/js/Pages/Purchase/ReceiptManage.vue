@@ -109,10 +109,10 @@ const columns = [
     { header: '입고일시', name: 'occurred_at', width: 125, align: 'center', sortable: true, className: 'cursor-pointer', formatter: ditto(r => r.occurred_at) },
     { header: '구매처', name: 'partner_name', width: 160, sortable: true, className: 'cursor-pointer', formatter: ditto(r => escapeHtml(r.partner_name)) },
     { header: '발주', name: 'po_summary', width: 140, className: 'cursor-pointer', escapeHTML: true, formatter: pick(r => r.po_summary, r => r.order_no ?? '( 직접 )') },
-    { header: '품목', name: 'item_summary', minWidth: 180, className: 'cursor-pointer', escapeHTML: true,
+    { header: '품목', name: 'item_summary', minWidth: 180, sortable: true, className: 'cursor-pointer', escapeHTML: true,
       formatter: pick(r => r.item_summary, r => itemLabel(r)) },
-    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
-    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
+    { header: '규격', name: 'item_spec', width: 110, sortable: true, className: 'cursor-pointer', escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, sortable: true, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', minWidth: 150, className: 'cursor-pointer', escapeHTML: true, formatter: pick(blank, r => r.lot_no ?? '') },
     { header: '상태', name: 'status', width: 110, align: 'center', className: 'cursor-pointer',
       formatter: ({ row }) => {

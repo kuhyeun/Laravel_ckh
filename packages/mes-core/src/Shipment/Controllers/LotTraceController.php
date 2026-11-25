@@ -32,8 +32,8 @@ class LotTraceController extends Controller {
     const MAX_DEPTH = 10;
     const MAX_NODES = 300;
 
-    const MATERIAL_SORTABLE = ['lot_no', 'item_code', 'partner_name', 'in_date', 'in_qty', 'stock_qty', 'wo_count', 'defect_qty'];
-    const PRODUCT_SORTABLE  = ['lot_no', 'item_code', 'wo_no', 'made_date', 'made_qty', 'stock_qty', 'shipped_qty', 'defect_qty', 'kind', 'shipment_no', 'customer_name', 'product_lot_no'];
+    const MATERIAL_SORTABLE = ['lot_no', 'item_code', 'partner_name', 'in_date', 'in_qty', 'stock_qty', 'wo_count', 'defect_qty', 'item_name' => 'i.item_name', 'item_spec' => 'i.spec'];
+    const PRODUCT_SORTABLE  = ['lot_no', 'item_code', 'wo_no', 'made_date', 'made_qty', 'stock_qty', 'shipped_qty', 'defect_qty', 'kind', 'shipment_no', 'customer_name', 'product_lot_no', 'item_name', 'item_spec'];
 
     public function __construct(private PolicyService $policy) {}
 

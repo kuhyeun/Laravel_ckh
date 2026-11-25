@@ -117,7 +117,7 @@ const dayCol = (header, name) => ({
 
 const columns = [
     {
-        header: '품목', name: 'item_name', minWidth: 220, className: 'cursor-pointer',
+        header: '품목', name: 'item_name', minWidth: 220, className: 'cursor-pointer', sortable: true,
         formatter: ({ row }) => {
             if (row.is_default !== 'Y') return row.item_name ?? '';
             return row._missing
@@ -125,7 +125,7 @@ const columns = [
                 : '<b>( 기본값 )</b>';
         },
     },
-    { header: '품번', name: 'item_code', minWidth: 140, className: 'cursor-pointer' },
+    { header: '품번', name: 'item_code', minWidth: 140, className: 'cursor-pointer', sortable: true },
     {
         header: '대분류', name: 'item_type', width: 80, align: 'center', className: 'cursor-pointer',
         formatter: ({ value }) => ({ MATERIAL: '자재', PRODUCT: '제품' }[value] ?? ''),

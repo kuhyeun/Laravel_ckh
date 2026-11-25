@@ -81,7 +81,7 @@ const columns = [
     cell({ header: '발주일', name: 'order_date', width: 100, align: 'center', sortable: true }),
     cell({ header: '납기', name: 'due_date', width: 100, align: 'center', sortable: true }),
     cell({ header: '외주처', name: 'partner_name', width: 140, sortable: true, escapeHTML: true }),
-    cell({ header: '내용', name: 'summary', minWidth: 220, escapeHTML: true }),
+    cell({ header: '내용', name: 'summary', minWidth: 220, sortable: true, escapeHTML: true }),
     num('qty', '발주 수량'),
     num('issued_qty', '출고'),
     num('received_qty', '입고'),

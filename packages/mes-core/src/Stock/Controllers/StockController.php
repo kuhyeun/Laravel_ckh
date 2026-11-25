@@ -111,7 +111,8 @@ class StockController extends Controller {
         ]));
 
         // 품목별 합계는 정렬 허용 열이 다르다 ( 그룹 결과의 별칭 )
-        $sortable = $allWh ? ['item_code', 'qty'] : ($byItem ? ['item_code', 'qty', 'warehouse_name'] : self::SORTABLE);
+        $sortable = ($allWh ? ['item_code', 'qty'] : ($byItem ? ['item_code', 'qty', 'warehouse_name'] : self::SORTABLE))
+            + ['item_name' => 'i.item_name', 'item_spec' => 'i.spec', 'item_material' => 'i.material'];   // 품명 · 규격 · 재질 ( 11-25 )
 
         return $this->listResponse($request, $query, $sortable, 'balances', fn ($r) => [
             'key'            => $allWh ? "{$r->item_idx}" : ($byItem ? "{$r->item_idx}-{$r->warehouse_idx}" : $r->stock_balance_idx),

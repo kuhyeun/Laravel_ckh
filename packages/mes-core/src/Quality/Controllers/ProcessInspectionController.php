@@ -30,7 +30,12 @@ class ProcessInspectionController extends Controller {
     use RespondsWithList;
 
     private const SCREENS  = ['Quality/ProcessInspection', 'Production/OpResult'];
-    private const SORTABLE = ['wo_no', 'start_date'];
+    private const SORTABLE = [
+        'wo_no', 'start_date',
+        // 품목 · 규격 · 재질 · 마지막 검사 ( 11-25 — 품목 열은 품번으로 )
+        'item_code' => 'i.item_code', 'item_name' => 'i.item_name', 'item_spec' => 'i.spec', 'item_material' => 'i.material',
+        'inspected_at' => 'last_inspected_at',
+    ];
 
     public function __construct(
         private ProcessInspectionService $inspections,
@@ -64,6 +69,9 @@ class ProcessInspectionController extends Controller {
             ->select('work_order_op.*', 'work_order.wo_no', 'work_order.start_date', 'work_order.status as wo_status')
             ->join('work_order', 'work_order.work_order_idx', '=', 'work_order_op.work_order_idx')
             ->join('process', 'process.process_idx', '=', 'work_order_op.process_idx')
+            ->leftJoin('item as i', 'i.item_idx', '=', 'work_order.item_idx')   // 품목 열 정렬용 ( 지시 1개 = 품목 1개 )
+            // 마지막 검사 일시 ( 정렬용 — 회차 검사 · 초중종 판정 중 가장 늦은 것, 취소 제외 )
+            ->selectRaw("( SELECT MAX(li.inspected_at) FROM inspection li WHERE li.ref_type = 'work_order_op' AND li.ref_idx = work_order_op.work_order_op_idx AND li.is_canceled = 'N' AND li.insp_type IN ('PROCESS', 'IFL_FIRST', 'IFL_MIDDLE', 'IFL_LAST') ) as last_inspected_at")
             ->where(fn ($q) => $q->where('process.process_type', 'INSPECTION')->orWhereRaw($isStageOp))
             ->where('work_order.status', '!=', 'CANCELED')
             ->with(['process', 'workOrder.item:item_idx,item_code,item_name,spec,material,spec_unit', 'workOrder.lot:lot_idx,lot_no,lot_title'])

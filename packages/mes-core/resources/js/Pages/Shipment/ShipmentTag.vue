@@ -61,15 +61,15 @@ const partners = ref([]);
 const enabled  = ref(true);
 
 const columns = [
-    { header: '출하 일시', name: 'shipped_at', width: 150, align: 'center', className: 'cursor-pointer' },
+    { header: '출하 일시', name: 'shipped_at', width: 150, align: 'center', className: 'cursor-pointer', sortable: true },
     { header: '출하번호', name: 'shipment_no', width: 150, className: 'cursor-pointer', formatter: ({ row }) => `${row.shipment_no} - ${row.line_no}` },
     { header: '고객사', name: 'partner_name', width: 150, className: 'cursor-pointer', escapeHTML: true },
     { header: '수주 · 고객 PO', name: 'order_no', width: 150, className: 'cursor-pointer', escapeHTML: true },
-    { header: '품목', name: 'item_code', minWidth: 180, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 200, className: 'cursor-pointer', escapeHTML: true, dash: true },
+    { header: '품목', name: 'item_code', minWidth: 180, className: 'cursor-pointer', sortable: true, escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 200, className: 'cursor-pointer', sortable: true, escapeHTML: true, dash: true },
     { header: '출하 수량', name: 'qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) },
     // { header: '입수', name: 'pack_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ value }) => value ? fmtNum(value) : '' },
-    { header: '마지막 인쇄', name: 'printed_at', width: 130, align: 'center', className: 'cursor-pointer' },
+    { header: '마지막 인쇄', name: 'printed_at', width: 130, align: 'center', className: 'cursor-pointer', sortable: true },
 ];
 
 const rows    = ref([]);

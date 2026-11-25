@@ -57,7 +57,8 @@
                         <td class="px-2 py-2 text-center text-gray-300 align-middle select-none" :class="readonly ? '' : 'cursor-grab'">⋮⋮</td>
                         <td class="px-2 py-2 text-center text-gray-500 align-middle">{{ i + 1 }}</td>
                         <td class="px-1.5 py-1">
-                            <BaseSelect v-model="l.process_idx" :options="lineProcessOptions(l)" size="md" class="w-full" placeholder="공정 선택" :disabled="readonly" @update:model-value="v => onProcessChange(l, v)" />
+                            <!-- 11-25 : 찾기 · 큰 창이 되는 공정 고르기 ( 품목 · 거래처와 같은 모양 ) · 미사용 공정이면 ( 미사용 ) -->
+                            <ProcessPicker :model-value="l.process_idx" :processes="processes" :current="{ process_name: l.process_name ?? `#${l.process_idx}` }" placeholder="공정 선택" :disabled="readonly" @update:model-value="v => onProcessChange(l, v)" />
                             <span v-if="l.bom_ref_count" class="inline-block mt-0.5 text-[11px] px-1 rounded bg-amber-50 text-amber-700" :title="'이 줄을 투입 지점으로 쓰는 BOM 라인이 ' + l.bom_ref_count + '건 있습니다. 줄을 지우면 그 투입 지점이 비워집니다.'">
                                 BOM {{ l.bom_ref_count }}건 참조
                             </span>
@@ -116,7 +117,7 @@
 import { ref, computed } from 'vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import ProcessPicker from '@core/Components/Common/ProcessPicker.vue';
 import { showAlert } from '@core/Utils/message';
 
 const props = defineProps({
@@ -148,14 +149,6 @@ function keyOf(line) {
 const processOptions = computed(() =>
     props.processes.map(p => ({ value: p.process_idx, label: `${p.process_name} [${p.process_code}]` }))
 );
-// 현재 값이 미사용 공정이면 표시용으로 추가 ( 같은 공정 중복은 허용이라 제외하지 않음 )
-function lineProcessOptions(line) {
-    const opts = processOptions.value;
-    if (line.process_idx && !opts.some(o => Number(o.value) === Number(line.process_idx))) {
-        return [...opts, { value: line.process_idx, label: `${line.process_name ?? line.process_idx} ( 미사용 )` }];
-    }
-    return opts;
-}
 
 const processOf       = (line) => props.processes.find(p => Number(p.process_idx) === Number(line.process_idx));
 const isInspection    = (line) => (processOf(line)?.process_type ?? line.process_type) === 'INSPECTION';

@@ -31,7 +31,8 @@ class OpHistoryController extends Controller {
     use SearchesKeyword;
     use RespondsWithList;
 
-    private const SORTABLE = ['worked_at', 'created_at', 'start_date', 'wo_no'];
+    private const SORTABLE = ['worked_at', 'created_at', 'start_date', 'wo_no',
+        'item_code' => 'i.item_code', 'item_spec' => 'i.spec', 'item_material' => 'i.material', 'canceled_text' => 'r.canceled_at'];   // 취소 = "취소자 일시" → 취소 일시
 
     private const DATE_COLUMNS = [
         'worked'  => 'r.worked_at',

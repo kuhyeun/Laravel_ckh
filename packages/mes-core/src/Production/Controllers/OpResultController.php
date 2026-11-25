@@ -33,6 +33,17 @@ class OpResultController extends Controller {
 
     public function __construct(private OpResultService $results) {}
 
+    // 열 정렬 때 같은 값( 같은 품목 등 )이면 지시 순 — 페이지마다 순서가 흔들리지 않게
+    protected function listTieBreaker(): ?string {
+        return 'work_order_idx';
+    }
+
+    // 정렬 열 : 품목( 품번 ) · 규격 · 재질은 품목 표에서 ( 11-25 — 목록은 조인 없이 item 관계로 읽는다 )
+    private function sortable(): array {
+        $item = fn (string $col) => DB::table('item')->whereColumn('item.item_idx', 'work_order.item_idx')->select("item.{$col}");
+        return [...self::SORTABLE, 'item_label' => $item('item_code'), 'item_spec' => $item('spec'), 'item_material' => $item('material')];
+    }
+
     // 품목 줄 목록 : 검색어( 줄 번호 · 품번 · 품명 · LOT ) + 상태( 기본 대기 · 진행 )
     public function list(Request $request) {
         $v = $request->validate([
@@ -60,7 +71,7 @@ class OpResultController extends Controller {
             'lot_no'    => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
         ]);
 
-        return $this->listResponse($request, $query, self::SORTABLE, 'lines', fn (WorkOrder $w) => [
+        return $this->listResponse($request, $query, $this->sortable(), 'lines', fn (WorkOrder $w) => [
             'work_order_idx' => $w->work_order_idx,
             'wo_no'          => $w->wo_no,
             'item_label'     => \MesCore\Config\Models\Item::labelOf($w->item),

@@ -110,7 +110,7 @@ const gridOptions = {
 const dash = `<span style="color:${COLORS.gray300}">—</span>`;
 
 const inspectionItemColumns = [
-    { header: '항목명',    name: 'inspection_item_name', minWidth: 180, className: 'cursor-pointer' },
+    { header: '항목명',    name: 'inspection_item_name', minWidth: 180, className: 'cursor-pointer', sortable: true },
     {
         header: '성격', name: 'is_quantitative', width: 80, align: 'center', className: 'cursor-pointer',
         formatter: ({ value }) => value === 'Y' ? '정량' : '정성',

@@ -11,6 +11,7 @@ use MesCore\Shipment\Services\InvoiceService;
 use MesCore\Config\Services\SiteConfigService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 // 거래명세서 ( 7003 ) — docs/screens/60-출하.md §9
 //   목록 = 출하 완료 건 + 공급가액 · 세액 · 합계 / [미리보기 · 인쇄] → 모달( InvoicePreview — sheets 데이터 )
@@ -19,6 +20,13 @@ class InvoiceController extends Controller {
     use RespondsWithList;
 
     private const SORTABLE = ['shipped_at', 'shipment_no'];
+
+    // 품목 · 규격 · 재질 열 정렬 ( 11-25 ) : 품목 = 첫 줄 품번 / 규격 · 재질 = 줄이 하나일 때만 ( 화면 값과 같게 )
+    private static function sortable(): array {
+        $first = fn (string $col) => DB::raw("( SELECT i.{$col} FROM shipment_line l JOIN item i ON i.item_idx = l.item_idx WHERE l.shipment_idx = shipment.shipment_idx ORDER BY l.line_no LIMIT 1 )");
+        $only  = fn (string $col) => DB::raw("( SELECT MAX(i.{$col}) FROM shipment_line l JOIN item i ON i.item_idx = l.item_idx WHERE l.shipment_idx = shipment.shipment_idx HAVING COUNT(*) = 1 )");
+        return [...self::SORTABLE, 'item_label' => $first('item_code'), 'item_spec' => $only('spec'), 'item_material' => $only('material')];
+    }
 
     public function __construct(private InvoiceService $invoices, private SiteConfigService $site) {}
 
@@ -46,7 +54,7 @@ class InvoiceController extends Controller {
             'customer_po_no' => fn ($q, $kw) => $q->whereHas('lines.salesOrderLine.order', fn ($r) => $r->where('customer_po_no', 'like', $kw)),
         ]);
 
-        return $this->listResponse($request, $query, self::SORTABLE, 'shipments', function (Shipment $s) {
+        return $this->listResponse($request, $query, self::sortable(), 'shipments', function (Shipment $s) {
             $first = $s->lines->first();
             $more  = $s->lines->count() > 1 ? ' 외 ' . ($s->lines->count() - 1) . '건' : '';
             return [

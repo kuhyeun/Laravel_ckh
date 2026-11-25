@@ -77,7 +77,10 @@ class SubconOrderController extends Controller {
                 ->get(['l.*', 'w.wo_no', 'i.item_name'])->groupBy('subcon_order_idx');
             $prog = collect($this->orders->lineProgress($lines->flatten()->pluck('subcon_order_line_idx')->all()));
         };
-        $res = $this->listResponse($request, $q, self::SORTABLE, 'rows', function ($o) use (&$lines, &$prog, &$hist) {
+        // 내용( 첫 줄 "지시번호 품명 외 N" ) 정렬 = 첫 줄 지시번호 ( 11-25 )
+        $sortable = [...self::SORTABLE, 'summary' => DB::table('subcon_order_line as sl')->join('work_order as sw', 'sw.work_order_idx', '=', 'sl.work_order_idx')
+            ->whereColumn('sl.subcon_order_idx', 'o.subcon_order_idx')->orderBy('sl.line_no')->limit(1)->select('sw.wo_no')];
+        $res = $this->listResponse($request, $q, $sortable, 'rows', function ($o) use (&$lines, &$prog, &$hist) {
             $mine = $lines[$o->subcon_order_idx] ?? collect();
             $qty = (float) $mine->sum('qty');
             $iss = (float) $mine->sum(fn ($l) => $prog[$l->subcon_order_line_idx]['issued'] ?? 0);

@@ -167,3 +167,18 @@ input[type="checkbox"][disabled] ~ .custom-input {
   color: theme('colors.gray.400') !important;
   text-decoration: line-through;
 }
+
+/* 정렬 화살표 ( 11-25 ) — 기본 아이콘은 정렬 중에도 회색 두 톤이라 차이가 안 보인다
+   오름차순 = 위 화살표 파랑 · 내림차순 = 아래 화살표 파랑 ( 다른 쪽은 옅은 회색 )
+   정렬 안 함도 같은 틀의 SVG 로 ( 기본 이미지 조각과 화살표 크기 · 자리가 달라 정렬하면 아이콘이 틀어져 보였다 ) */
+.tui-grid-container .tui-grid-btn-sorting {
+    position: relative;
+    top: -1px;   /* vertical-align: middle 은 글자 가운데보다 1px 아래 → 글자 · 머리 칸 가운데에 맞춘다 */
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='16' viewBox='0 0 11 16'%3E%3Cpath d='M5.5 2 9.5 6.5h-8z' fill='%236b7280'/%3E%3Cpath d='M1.5 9.5h8L5.5 14z' fill='%236b7280'/%3E%3C/svg%3E") no-repeat center;
+}
+.tui-grid-container .tui-grid-btn-sorting.tui-grid-btn-sorting-up {
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='16' viewBox='0 0 11 16'%3E%3Cpath d='M5.5 2 9.5 6.5h-8z' fill='%232563eb'/%3E%3Cpath d='M1.5 9.5h8L5.5 14z' fill='%23d1d5db'/%3E%3C/svg%3E") no-repeat center;
+}
+.tui-grid-container .tui-grid-btn-sorting.tui-grid-btn-sorting-down {
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='16' viewBox='0 0 11 16'%3E%3Cpath d='M5.5 2 9.5 6.5h-8z' fill='%23d1d5db'/%3E%3Cpath d='M1.5 9.5h8L5.5 14z' fill='%232563eb'/%3E%3C/svg%3E") no-repeat center;
+}

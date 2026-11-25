@@ -79,17 +79,17 @@ const templateOptions = computed(() => [{ value: '', label: '발행한 양식 �
     ...templates.value.map(t => ({ value: t.label_template_idx, label: `${t.template_name} ${t.is_default === 'Y' ? ' · 기본' : ''}` }))]);
 
 const columns = [
-    { header: '입고 일시', name: 'in_at', width: 150, align: 'center', className: 'cursor-pointer' },
-    { header: 'LOT', name: 'lot_no', width: 170, className: 'cursor-pointer', escapeHTML: true },
+    { header: '입고 일시', name: 'in_at', width: 150, align: 'center', className: 'cursor-pointer', sortable: true },
+    { header: 'LOT', name: 'lot_no', width: 170, className: 'cursor-pointer', sortable: true, escapeHTML: true },
     { header: '구매처', name: 'partner_name', width: 150, className: 'cursor-pointer', escapeHTML: true, dash: true },
-    { header: '품목', name: 'item_code', minWidth: 180, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 180, className: 'cursor-pointer', escapeHTML: true, dash: true },
+    { header: '품목', name: 'item_code', minWidth: 180, className: 'cursor-pointer', sortable: true, escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 180, className: 'cursor-pointer', sortable: true, escapeHTML: true, dash: true },
     { header: '공급처 LOT', name: 'external_lot_no', width: 130, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: 'Heat No', name: 'heat_no', width: 110, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '입고 수량', name: 'in_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) },
     { header: '지금 재고', name: 'stock_qty', width: 100, align: 'right', className: 'cursor-pointer',
       formatter: ({ row, value }) => Number(value) > 0 ? fmtQty(value, row.spec_unit) : `<span style="color:${COLORS.gray400}">없음</span>` },
-    { header: '마지막 인쇄', name: 'printed_at', width: 130, align: 'center', className: 'cursor-pointer',
+    { header: '마지막 인쇄', name: 'printed_at', width: 130, align: 'center', className: 'cursor-pointer', sortable: true,
       formatter: ({ value }) => value ?? `<span style="color:${COLORS.amber700}">미인쇄</span>` },
 ];
 

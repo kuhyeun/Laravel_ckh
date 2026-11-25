@@ -81,18 +81,18 @@ const codeOptions = {
 
 // 그리드 컬럼
 const memberColumns = [
-    { header: '아이디', name: 'user_id', minWidth: 140, className: 'cursor-pointer' },
-    { header: '이름', name: 'user_name',minWidth: 140, className: 'cursor-pointer' },
-    { header: '사번', name: 'emp_no', width: 100, align: 'center', className: 'cursor-pointer', dash: true },
-    { header: '부서', name: 'dept_name', width: 120, align: 'center', className: 'cursor-pointer', dash: true },
-    { header: '직급', name: 'position_name', width: 90, align: 'center', className: 'cursor-pointer', dash: true },
+    { header: '아이디', name: 'user_id', minWidth: 140, className: 'cursor-pointer', sortable: true },
+    { header: '이름', name: 'user_name',minWidth: 140, className: 'cursor-pointer', sortable: true },
+    { header: '사번', name: 'emp_no', width: 100, align: 'center', className: 'cursor-pointer', sortable: true, dash: true },
+    { header: '부서', name: 'dept_name', width: 120, align: 'center', className: 'cursor-pointer', sortable: true, dash: true },
+    { header: '직급', name: 'position_name', width: 90, align: 'center', className: 'cursor-pointer', sortable: true, dash: true },
     { header: '유형', name: 'user_type', minWidth: 100, align: 'center', className: 'cursor-pointer', dash: true, hidden: true },
     { header: '레벨', name: 'user_level', width: 150, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => LEVELS[value] ?? value },
     { header: '권한 템플릿', name: 'template_name', width: 150, align: 'center', className: 'cursor-pointer',
       formatter: ({ row, value }) => row.user_level <= 1 ? '<span style="color:#9ca3af">전체 권한</span>' : (value ? String(value).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])) : '<span style="color:#d97706">없음</span>') },
     { header: '사용여부', name: 'is_use', width: 100, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => (value ? '사용' : '미사용') },
-    { header: '가입일', name: 'create_datetime', width: 180, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => fmtDateTime(value) },
-    { header: '최근 수정일', name: 'update_datetime', width: 180, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => fmtDateTime(value) },
+    { header: '가입일', name: 'create_datetime', width: 180, align: 'center', className: 'cursor-pointer', sortable: true, formatter: ({ value }) => fmtDateTime(value) },
+    { header: '최근 수정일', name: 'update_datetime', width: 180, align: 'center', className: 'cursor-pointer', sortable: true, formatter: ({ value }) => fmtDateTime(value) },
 ];
 
 const members = ref([]);

@@ -49,6 +49,24 @@ class SalesOrderController extends Controller {
     // 목록 정렬 허용 ( 화면 열 이름 → 쿼리 별칭과 같다 )
     private const SORTABLE = ['order_no', 'order_date', 'partner_name', 'next_due_date', 'total_amount'];
 
+    // 품목 · 규격 · 재질 열 정렬 = 목록에 보이는 대표 품목( 첫 줄 )의 값 ( 11-25 )
+    private function sortable(): array {
+        return self::SORTABLE + [
+            'item_summary'  => $this->firstLineItem('item_code'),
+            'item_spec'     => $this->firstLineItem('spec'),
+            'item_material' => $this->firstLineItem('material'),
+        ];
+    }
+
+    private function firstLineItem(string $col) {
+        return DB::table('sales_order_line as fl')
+            ->join('item as fi', 'fi.item_idx', '=', 'fl.item_idx')
+            ->whereColumn('fl.sales_order_idx', 'sales_order.sales_order_idx')
+            ->orderBy('fl.line_no')
+            ->limit(1)
+            ->select("fi.{$col}");
+    }
+
     public function __construct(private SalesOrderService $orders, private RoutingService $routings, private BomService $boms) {}
 
     // 목록 : 기간( 수주일 / 납품일 ) + 검색어( 수주번호 · 수주명 · 고객 발주번호 · 품번 · 품명 ) + 고객사 + 상태
@@ -77,7 +95,7 @@ class SalesOrderController extends Controller {
 
         $this->applyFilters($query, $v);
 
-        return $this->listResponse($request, $query, self::SORTABLE, 'orders', fn (SalesOrder $o) => $this->toRow($o));
+        return $this->listResponse($request, $query, $this->sortable(), 'orders', fn (SalesOrder $o) => $this->toRow($o));
     }
 
     public function show(int $orderIdx) {

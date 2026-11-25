@@ -23,7 +23,7 @@ use Illuminate\Validation\Rule;
 class SubconController extends Controller {
     use SearchesKeyword, RespondsWithList;
 
-    const ISSUE_SORTABLE   = ['issue_no', 'issued_at', 'partner_name', 'wo_no', 'item_code', 'process_name', 'qty', 'amount', 'received', 'issuer_name'];
+    const ISSUE_SORTABLE   = ['issue_no', 'issued_at', 'partner_name', 'wo_no', 'item_code', 'item_spec' => 'i.spec', 'process_name', 'qty', 'amount', 'received', 'issuer_name'];
     const RECEIPT_SORTABLE = ['receipt_no', 'received_at', 'done_at', 'issue_no', 'partner_name', 'wo_no', 'item_code', 'process_name', 'r_qty', 'pass_qty', 'fail_qty', 'r_status', 'inspector_name'];
     const HISTORY_SORTABLE = ['at', 'kind', 'doc_no', 'partner_name', 'wo_no', 'item_code', 'process_name', 'move_qty'];
 

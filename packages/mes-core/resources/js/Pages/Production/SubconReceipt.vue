@@ -32,7 +32,7 @@
                 <DataGrid ref="grid" :key="tab" :loading="loading" :setting-key="tab" class="flex-1" :data="rows" :columns="columns"
                     :options="tab === 'receipts' && canDelete ? { rowHeaders: 'checkbox' } : {}" :pagination="paging"
                     :empty-text="tab === 'open' ? '입고할 외주 출고가 없습니다.' : '조건에 맞는 입고가 없습니다.'"
-                    @row-click="onRow" @select="sel => checked = sel" @page="onPage" />
+                    @row-click="onRow" @select="sel => checked = sel" @page="onPage" @sort="onSort" />
             </div>
         </div>
     </div>
@@ -86,12 +86,12 @@ const qty = (name, header, width = 90) => ({ header, name, width, align: 'right'
 const base = [
     { header: '외주처', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
     { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer' },
-    { header: '품목', name: 'item_code', minWidth: 160, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '외주 공정', name: 'process_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
 ];
 const OPEN_COLUMNS = [
     { header: '출고 번호', name: 'issue_no', width: 130, className: 'cursor-pointer' },
-    { header: '출고 일시', name: 'issued_at', width: 130, align: 'center', className: 'cursor-pointer' },
+    { header: '출고 일시', name: 'issued_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     ...base,
     qty('qty', '출고'),
     qty('received_qty', '이미 입고'),
@@ -100,7 +100,7 @@ const OPEN_COLUMNS = [
 ];
 const RECEIPT_COLUMNS = [
     { header: '입고 번호', name: 'receipt_no', width: 130, className: 'cursor-pointer' },
-    { header: '입고 일시', name: 'received_at', width: 130, align: 'center', className: 'cursor-pointer' },
+    { header: '입고 일시', name: 'received_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '상태', name: 'status_label', width: 80, align: 'center', className: 'cursor-pointer', formatter: ({ row, value }) => `<span style="color:${STATUS_COLOR[row.status]}">${value}</span>` },
     ...base,
     qty('receipt_qty', '입고'),
@@ -117,11 +117,13 @@ const loading = ref(false);
 const busy    = ref(false);
 const checked = ref([]);
 const paging  = reactive({ page: 1, perPage: 50, total: 0 });   // 서버 페이징 ( 두 탭 모두 )
+const sort    = reactive({ key: '', dir: '' });   // 서버 정렬 ( 탭을 바꾸면 풀린다 )
 
 const params = () => {
     const p = { ...search, open: tab.value === 'open' ? 1 : undefined };
     delete p.date_basis;
     if (tab.value === 'open') delete p.status;
+    if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
     return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null && v !== undefined));
 };
 
@@ -141,9 +143,10 @@ async function load() {
         if (isLatest()) loading.value = false;
     }
 }
-function changeTab(key) { tab.value = key; rows.value = []; loadFirstPage(); }
+function changeTab(key) { tab.value = key; rows.value = []; sort.key = ''; sort.dir = ''; loadFirstPage(); }
 function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
+function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage(); }
 async function exportRows() {
     const name = tab.value === 'open' ? 'production.subcon.receipt.issues' : 'production.subcon.receipt.receipts';
     const { data } = await window.axios.get(route(name), { params: { ...params(), export: 1 } });

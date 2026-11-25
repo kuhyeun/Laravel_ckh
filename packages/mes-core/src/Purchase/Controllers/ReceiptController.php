@@ -44,6 +44,22 @@ class ReceiptController extends Controller {
 
     private const SORTABLE = ['txn_no', 'occurred_at', 'recorded_at', 'partner_name'];
 
+    // 품목 · 규격 · 재질 열 정렬 = 목록에 보이는 대표 품목( 첫 줄 )의 값 ( 11-25 )
+    private function sortable(): array {
+        $first = fn (string $col) => DB::table('stock_txn_line as fl')
+            ->join('item as fi', 'fi.item_idx', '=', 'fl.item_idx')
+            ->whereColumn('fl.stock_txn_idx', 'stock_txn.stock_txn_idx')
+            ->orderBy('fl.line_no')
+            ->limit(1)
+            ->select("fi.{$col}");
+
+        return self::SORTABLE + [
+            'item_summary'  => $first('item_code'),
+            'item_spec'     => $first('spec'),
+            'item_material' => $first('material'),
+        ];
+    }
+
     public function __construct(private ReceiptService $receipts, private LotService $lots) {}
 
     // 목록 : 입고일 기간 + 검색어( 입고번호 · 발주번호 · 품번 · 품명 · LOT · 공급처 LOT ) + 구매처 + 상태
@@ -79,7 +95,7 @@ class ReceiptController extends Controller {
             'po_no'           => fn ($q, $kw) => $q->whereHas('lines.purchaseOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),
         ]);
 
-        return $this->listResponse($request, $query, self::SORTABLE, 'receipts', fn (StockTxn $t) => $this->toRow($t));
+        return $this->listResponse($request, $query, $this->sortable(), 'receipts', fn (StockTxn $t) => $this->toRow($t));
     }
 
     public function show(int $txnIdx) {

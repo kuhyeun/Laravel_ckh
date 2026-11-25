@@ -93,9 +93,9 @@ const statusCell = ({ value }) => value === 'CANCELED' ? `<span style="color:${C
 const common = [
     { name: 'occurred_at', width: 115, align: 'center', sortable: true },
     { header: '등록', name: 'recorded_at', width: 120, align: 'center', sortable: true, formatter: ({ value }) => `<span style="color:${COLORS.gray400}">${value}</span>` },
-    { header: '품목', name: 'item_code', minWidth: 140, escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 110, escapeHTML: true },
-    { header: '재질', name: 'item_material', width: 90, escapeHTML: true },
+    { header: '품목', name: 'item_code', minWidth: 140, sortable: true, escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 110, sortable: true, escapeHTML: true },
+    { header: '재질', name: 'item_material', width: 90, sortable: true, escapeHTML: true },
     { header: 'LOT', name: 'lot_no', width: 115, escapeHTML: true },
 ];
 

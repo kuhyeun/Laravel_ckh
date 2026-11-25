@@ -250,6 +250,14 @@ onMounted(async () => {
         serverSort.dir = dir;
         emit('sort', { key: ev.columnName, dir });
     });
+    // 같은 열 세 번째 클릭( 내림 → 해제 ) : 그리드만 풀리고 서버는 그대로였다 → 기본 정렬로 다시 조회 ( 11-25 )
+    grid?.on('beforeUnsort', (ev) => {
+        if (!props.pagination) return;
+        ev.stop();
+        serverSort.key = '';
+        serverSort.dir = '';
+        emit('sort', { key: '', dir: '' });
+    });
 
     paintActive();
     emit('grid-mounted', grid);
@@ -263,7 +271,12 @@ watch(() => props.columns, () => {
 
 // 외부 data 변경 → 그리드 갱신 ( 체크가 풀리므로 선택도 비었다고 알린다 )
 watch(() => props.data, (next) => {
-    gridInstance.value?.resetData(treeRows(next));
+    // 서버 정렬 : beforeSort 를 막아 그리드 정렬 상태가 그대로라 화살표 색이 안 바뀌었다 ( 11-25 )
+    //   → 새 데이터와 함께 "이 열 · 이 방향" 상태만 넘긴다 ( resetData 는 상태만 바꾸고 다시 정렬하지 않는다 — 서버 순서 그대로 )
+    const sortCol = props.pagination && serverSort.key ? gridInstance.value?.getColumn(serverSort.key) : null;
+    gridInstance.value?.resetData(treeRows(next), sortCol?.sortable
+        ? { sortState: { columnName: serverSort.key, ascending: serverSort.dir === 'asc', multiple: false } }
+        : undefined);
     activeRowKey = null;   // resetData 가 행 클래스를 지웠다
     paintActive();
     emit('select', []);

@@ -191,7 +191,8 @@
                 </table>
             </div>
             <div v-if="structEditable" class="flex items-center gap-2 mt-2">
-                <BaseSelect v-model="addProcessIdx" :options="processOptions" size="md" class="w-64" placeholder="더할 공정" />
+                <!-- 11-25 : 찾기 · 큰 창이 되는 공정 고르기 -->
+                <ProcessPicker v-model="addProcessIdx" :processes="ctx.processes" class="w-64" placeholder="더할 공정" />
                 <BaseButton size="sm" variant="secondary" :disabled="!addProcessIdx" @click="addOp">+ 공정</BaseButton>
                 <span class="text-xs text-gray-400">줄을 끌어 순서를 바꿉니다. 라우팅 원본은 바뀌지 않습니다.</span>
             </div>
@@ -266,6 +267,7 @@ import { woStatusLabel, woStatusColor, processKindLabel, isIfl } from '@core/Com
 const IFL_KEYS = [{ key: 'insp_first', label: '초물' }, { key: 'insp_middle', label: '중물' }, { key: 'insp_last', label: '종물' }];
 import { blankOp, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import ProcessPicker from '@core/Components/Common/ProcessPicker.vue';
 import { withSpec, fmtNum } from '@core/Utils/format';
 import { needOf } from '@core/Utils/materialNeed';
 
@@ -312,7 +314,6 @@ const routingOptions = computed(() => {
     return opts;
 });
 const ruleOptions    = computed(() => props.ctx.lot.rules.map(r => ({ value: r.lot_rule_idx, label: `${r.lot_rule_name} ( ${r.rule_type === 'PRODUCE_END' ? '종료일' : '생산일'} )` })));
-const processOptions = computed(() => props.ctx.processes.map(p => ({ value: p.process_idx, label: `${p.process_name} [${p.process_code}]` })));
 
 const procOf = (o) => props.ctx.processes.find(p => Number(p.process_idx) === Number(o.process_idx));
 const equipOptions = (o) => [{ value: '', label: '( 미지정 )' }, ...(procOf(o)?.equipments ?? []).map(e => ({ value: e.equipment_idx, label: e.equipment_name + (e.is_default === 'Y' ? ' · 기본' : '') }))];

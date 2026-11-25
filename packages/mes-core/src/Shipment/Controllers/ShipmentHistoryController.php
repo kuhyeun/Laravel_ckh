@@ -19,7 +19,11 @@ class ShipmentHistoryController extends Controller {
     use SearchesKeyword;
     use RespondsWithList;
 
-    private const SORTABLE = ['shipped_at', 'plan_date', 'shipment_no'];
+    private const SORTABLE = [
+        'shipped_at', 'plan_date', 'shipment_no',
+        // 품목 · 규격 · 재질 ( 11-25 — 품목 열은 품번으로 )
+        'item_code' => 'i.item_code', 'item_name' => 'i.item_name', 'item_spec' => 'i.spec', 'item_material' => 'i.material',
+    ];
 
     private const DATE_COLUMNS = ['shipped' => 's.shipped_at', 'plan' => 's.plan_date'];
 

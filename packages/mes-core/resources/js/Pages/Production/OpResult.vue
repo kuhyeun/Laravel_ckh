@@ -364,10 +364,10 @@ const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const columns = [
     { header: '줄 번호', name: 'wo_no', width: 150, sortable: true, className: 'cursor-pointer' },
     // 품목 = 품명 [품번] [규격] ( 11-20 ) · 규격 · 재질 열은 기본 숨김 ( 열 설정에서 켠다 )
-    { header: '품목', name: 'item_label', minWidth: 200, className: 'cursor-pointer', escapeHTML: true,
+    { header: '품목', name: 'item_label', minWidth: 200, sortable: true, className: 'cursor-pointer', escapeHTML: true,
       formatter: ({ row }) => row.item_spec ? `${row.item_label} [${row.item_spec}]` : row.item_label },
-    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true, hidden: true },
-    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true, hidden: true },
+    { header: '규격', name: 'item_spec', width: 110, sortable: true, className: 'cursor-pointer', escapeHTML: true, hidden: true },
+    { header: '재질', name: 'item_material', width: 90, sortable: true, className: 'cursor-pointer', escapeHTML: true, hidden: true },
     { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmtNum(row.target_qty) },
     { header: '공정', name: 'ops_count', width: 50, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => `${row.done_ops_count}/${row.ops_count}` },
     { header: '상태', name: 'status', width: 50, align: 'center', className: 'cursor-pointer',

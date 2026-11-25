@@ -29,12 +29,20 @@ class IncomingInspectionController extends Controller {
     use RespondsWithList;
 
     private const SCREENS  = ['Quality/IncomingInspection', 'Purchase/ReceiptManage'];
-    private const SORTABLE = ['occurred_at', 'txn_no'];
+    private const SORTABLE = [
+        'occurred_at', 'txn_no',
+        // 품목 · 규격 · 재질 ( 11-25 — 품목 열은 품번으로 )
+        'item_code' => 'i.item_code', 'item_name' => 'i.item_name', 'item_spec' => 'i.spec', 'item_material' => 'i.material',
+    ];
 
     public function __construct(
         private IncomingInspectionService $inspections,
         private MenuPermissionService $permissions,
     ) {}
+
+    protected function listTieBreaker(): ?string {
+        return 'stock_txn_line.stock_txn_line_idx';
+    }
 
     // 목록 : 검사 대상 줄 ( 무검사 제외 ). 기본 검사대기
     public function list(Request $request) {
@@ -50,6 +58,7 @@ class IncomingInspectionController extends Controller {
         $query = StockTxnLine::query()
             ->select('stock_txn_line.*')
             ->join('stock_txn', 'stock_txn.stock_txn_idx', '=', 'stock_txn_line.stock_txn_idx')
+            ->leftJoin('item as i', 'i.item_idx', '=', 'stock_txn_line.item_idx')   // 품목 열 정렬용 ( 줄 1개 = 품목 1개 — 행이 늘지 않는다 )
             ->addSelect(['stock_txn.txn_no', 'stock_txn.occurred_at', 'stock_txn.partner_idx'])
             ->addSelect(['partner_name' => Partner::select('partner_name')->whereColumn('partner.partner_idx', 'stock_txn.partner_idx')])
             ->where('stock_txn.txn_type', ReceiptService::TXN_TYPE)
