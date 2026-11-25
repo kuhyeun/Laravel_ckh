@@ -261,6 +261,28 @@ class ReceiptService {
         return $line->lot_idx ? $this->labels->scrapLot($line->lot_idx, '입고 취소') : 0;
     }
 
+    /**
+     * 입고일시 수정 ( 11-25 · 날짜만 ) — 전표 일시 · 원장 · 줄 완료 시각( 무검사 ) + 이 입고가 만든 LOT 의 입고일( in_at )
+     *   LOT in_at 은 confirm() 이 전표 일시로 한 번 넣는다 → 이 입고의 LOT( PURCHASE ) 중 옛 일시와 같은 것만 옮긴다
+     *   검사 완료 시각( 원장 · done_at · 검사 기록 )은 그대로 — 그보다 늦출 수는 없다 ( StockTxnDateService )
+     * @return array{0: StockTxn, 1: string[]}
+     */
+    public function editDate(int $txnIdx, Carbon $at): array {
+        $lotsOf = fn (StockTxn $t) => DB::table('stock_txn_line as l')->join('lot', 'lot.lot_idx', '=', 'l.lot_idx')
+            ->where('l.stock_txn_idx', $t->stock_txn_idx)->where('lot.source', 'PURCHASE')->pluck('l.lot_idx')->all();
+
+        return DB::transaction(fn () => app(\MesCore\Stock\Services\StockTxnDateService::class)->move(
+            $txnIdx, [self::TXN_TYPE], $at, 'occurred_at', $lotsOf,
+            function (Carbon $old, Carbon $new, StockTxn $t) use ($lotsOf) {
+                $ids = Lot::whereIn('lot_idx', $lotsOf($t) ?: [0])->where('in_at', $old->format('Y-m-d H:i:s'))->lockForUpdate()->pluck('lot_idx');
+                if ($ids->isNotEmpty()) {
+                    Lot::whereIn('lot_idx', $ids)->update(['in_at' => $new, 'update_account_idx' => \Illuminate\Support\Facades\Auth::id()]);
+                }
+                return ['lot_in_at' => $ids->count()];
+            },
+        ));
+    }
+
     // 발주 줄의 남은 수량 = 발주 수량 − 입고된 수량 − 불합격( 다시 안 받음 · 11-11 ) − 다른 입고에서 검사대기 중인 수량
     //   $waiting : 미리 읽어 둔 검사대기 합 ( waitingByLine() — 여러 줄이면 한 번에 읽어 넘긴다 )
     public function remainingQty(PurchaseOrderLine $pol, ?float $waiting = null): float {

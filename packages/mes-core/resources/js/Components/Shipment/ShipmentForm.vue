@@ -2,7 +2,7 @@
      - 단계 : 출하대기 → ( 결재 — 설정 ) → ( 출하검사 — 설정 · 품목 ) → 출하처리. 위 단계 표시 · 아래 단계 버튼
      - 출하대기 : 고객사 · 예정일 · 줄( [+ 수주 줄] / [+ 품목] ) · 줄마다 LOT 지정( 선입선출 채움 — 가용 = 잔고 − 다른 출하대기 )
      - 고친 뒤에는 저장해야 결재 요청 · 출하처리를 누를 수 있다 ( 저장된 그대로 나간다 )
-     - 결재 대기 · 완료 · 취소 건은 읽기 전용
+     - 결재 대기 · 완료 · 취소 건은 읽기 전용. 완료 건은 [수정]으로 출하 일시 · 출하 예정일 칸만 열어 [저장] ( 출고 원장 일시도 함께 · 11-25 )
      - [출하 라벨] : 저장된 출하( 대기 · 완료 )의 품목 줄마다 라벨 — 기본 번호 = 출하번호-줄번호 · 고객 지정 번호 ( feature.barcode · 출하관리 쓰기 )
        취소하면 그 라벨도 폐기( 사유 '출하 취소' ) · 라벨을 발행한 줄은 뺄 수 없다 ( 서버가 막는다 ) -->
 <template>
@@ -40,7 +40,11 @@
                     <PartnerSelect v-model="form.partner_idx" :options="ctx.partners" class="w-full" placeholder="고객사 선택" :current="{ partner_name: form.partner_name }" :disabled="!editable || lines.some(l => l.sales_order_line_idx)" @update:model-value="onPartnerChange" />
                 </FormField>
                 <FormField label="출하 예정일" required :error="errors.plan_date">
-                    <BaseDatePicker v-model="form.plan_date" class="w-full" :disabled="!editable" />
+                    <BaseDatePicker v-model="form.plan_date" class="w-full" :disabled="!editable && !dateEditing" />
+                </FormField>
+                <!-- 완료 건 날짜 수정 중에만 : 출하 일시 ( 평소에는 위 상태 줄에 글로 ) -->
+                <FormField v-if="dateEditing" label="출하 일시" required :error="errors.shipped_at">
+                    <BaseDatePicker v-model="shippedEdit" mode="datetime" class="w-full" />
                 </FormField>
                 <FormField label="비고" class="col-span-2">
                     <BaseInput v-model="form.remark" class="w-full" maxlength="1000" :disabled="!editable" />
@@ -178,6 +182,13 @@
             <BaseButton v-if="label.can_shipment && form.shipment_idx && form.status !== 'CANCELED' && !dirty" variant="secondary" @click="openLabel">출하 라벨</BaseButton>
             <BaseButton v-if="form.shipment_idx && form.status !== 'CANCELED' && !dirty && canOrderSheet" variant="secondary" title="창고에 내리는 출하지시서 ( 배치는 기준정보관리 > 문서 양식 )" @click="openOrderSheet">출하지시서</BaseButton>
             <BaseButton v-if="form.status === 'DONE'" variant="secondary" @click="openInvoice">거래명세서</BaseButton>
+            <!-- 출하 완료 : [수정] → 출하 일시 · 출하 예정일 칸만 열림 → [취소] [저장] ( 수량 · LOT · 상태는 그대로 · 11-25 ) -->
+            <template v-if="dateEditing">
+                <span class="text-xs text-blue-600">출하 일시 · 출하 예정일만 고칠 수 있습니다.</span>
+                <BaseButton variant="secondary" :disabled="busy" @click="cancelDateEdit">취소</BaseButton>
+                <BaseButton variant="primary" :disabled="busy" @click="saveDateEdit">{{ busy ? '저장 중…' : '저장' }}</BaseButton>
+            </template>
+            <BaseButton v-else-if="canWrite && form.status === 'DONE'" variant="secondary" :disabled="busy" @click="startDateEdit">수정</BaseButton>
             <BaseButton v-if="editable" variant="primary" :disabled="busy || loading" @click="save">{{ busy ? '저장 중…' : (form.shipment_idx ? '저장' : '등록') }}</BaseButton>
         </ModalFooter>
     </div>
@@ -449,6 +460,55 @@ async function process() {
     const r = await showAlert('출하처리', `${form.shipment_no} 를 출하합니다.\n지정한 LOT 의 재고가 빠지고 수주 출하 수량에 반영됩니다.`, 'warning', 'confirm');
     if (!r.isConfirmed) return;
     run(() => window.axios.post(route('shipment.manage.process'), { shipment_idx: form.shipment_idx, shipped_at: shippedAt.value }), () => `${form.shipment_no} 출하했습니다.`);
+}
+
+// 출하 완료 건의 [수정] : 그 자리에서 출하 일시 · 출하 예정일 칸만 열고 아래 [저장] ( 11-25 — 창을 따로 띄우면 무엇이 바뀌는지 알기 어렵다 )
+//   출하 일시를 바꾸면 출고 원장 · 거래명세서 거래일자도 함께 → 저장 전에 한 번 확인 · [취소]는 원래 값으로
+const dateEditing = ref(false);
+const shippedEdit = ref('');   // BaseDatePicker datetime 값 'YYYY-MM-DDTHH:mm'
+let dateSnap = null;
+function startDateEdit() {
+    dateSnap = { plan_date: form.plan_date, shipped: String(form.shipped_at ?? '').slice(0, 16).replace(' ', 'T') };
+    shippedEdit.value = dateSnap.shipped;
+    errors.value = {};
+    errorMsg.value = '';
+    dateEditing.value = true;
+}
+function cancelDateEdit() {
+    if (dateSnap) form.plan_date = dateSnap.plan_date;
+    errors.value = {};
+    errorMsg.value = '';
+    dateEditing.value = false;
+}
+async function saveDateEdit() {
+    const body = { shipment_idx: form.shipment_idx };
+    if (form.plan_date !== dateSnap.plan_date) body.plan_date = form.plan_date;
+    if (shippedEdit.value !== dateSnap.shipped) body.shipped_at = shippedEdit.value ? `${shippedEdit.value.replace('T', ' ').slice(0, 16)}:00` : '';
+    if (Object.keys(body).length === 1) { dateEditing.value = false; return; }   // 바뀐 것 없음
+    if ('shipped_at' in body) {
+        const r = await showAlert('출하 일시 수정', '출하 일시를 바꾸면 재고 원장( 출하 출고 )의 일시와 거래명세서 거래일자도 함께 바뀝니다.\n날짜별 재고 · 수불 조회 결과가 달라질 수 있습니다. ( 현재 재고 수량은 그대로 )\n\n계속할까요?', 'warning', 'confirm', { confirmButtonText: '수정' });
+        if (!r.isConfirmed) return;
+    }
+    busy.value = true;
+    errors.value = {};
+    errorMsg.value = '';
+    try {
+        const { data } = await window.axios.post(route('shipment.manage.editDate'), body);
+        showFlash(data?.message ?? '날짜를 고쳤습니다.', false, data?.warnings ?? []);
+        dateEditing.value = false;
+        props.onSaved?.('', []);   // 목록 새로고침만 ( 알림은 위에서 )
+        await load();
+    } catch (e) {
+        if (e.response?.status === 422) {
+            errors.value = e.response.data.errors ?? {};
+            const other = Object.entries(errors.value).filter(([k]) => !['plan_date', 'shipped_at'].includes(k)).flatMap(([, v]) => v);
+            if (other.length) errorMsg.value = other.join('\n');
+        } else {
+            errorMsg.value = failMsg(e);
+        }
+    } finally {
+        busy.value = false;
+    }
 }
 
 async function cancel() {

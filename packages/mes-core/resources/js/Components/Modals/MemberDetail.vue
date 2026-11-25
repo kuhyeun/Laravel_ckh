@@ -46,7 +46,7 @@
             <div class="flex-1"></div>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">취소</BaseButton>
             <BaseButton v-if="canWrite" variant="primary" size="sm" :disabled="saving" @click="save">
-                {{ isEdit ? '수정' : '등록' }}
+                {{ isEdit ? '저장' : '등록' }}
             </BaseButton>
         </div>
     </div>

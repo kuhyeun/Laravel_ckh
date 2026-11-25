@@ -7,6 +7,7 @@
      - 탭 ( 11-23 ) : [검사] 판정 · 수량 / [성적서] 기준서 항목의 측정값( 설정 '공정검사 성적서 관리' 가 켜졌을 때만 ) / [첨부] 파일 ( 지시 공정에 붙는다 · 검사 전후 언제든 )
      - 성적서 : 공정 기본 기준서가 먼저 골라져 있고 바꿀 수 있다 · 다음 저장( 초 · 중 · 종 판정 기록 또는 검사 완료 )에 같이 들어간다( 필수 ) · 이력의 [성적서] = 그때 기록 보기 · 인쇄
 
+     - 회차 · 초중종 기록의 일시 옆 [수정] ( 11-25 ) : 검사일시만 고친다 ( 판정 · 수량은 그대로 · 취소된 기록은 안 됨 ) — 입고한 회차는 재고 원장 일시도 같이 바뀌어 확인 창
      - 권한은 서버가 준다 ( can_write · can_cancel ) -->
 <template>
     <div class="mt-3 text-sm">
@@ -165,15 +166,15 @@
             <div v-if="op.is_inspection && rounds.length" class="mt-4">
                 <div class="mb-1.5 text-xs font-semibold text-gray-500">검사 회차 ( 취소 포함 )</div>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[760px] table-fixed text-xs border rounded">
-                        <colgroup><col class="w-12"><col class="w-32"><col class="w-16"><col class="w-16"><col class="w-16"><col><col class="w-20"><col class="w-24"></colgroup>
+                    <table class="w-full min-w-[824px] table-fixed text-xs border rounded">
+                        <colgroup><col class="w-12"><col class="w-48"><col class="w-16"><col class="w-16"><col class="w-16"><col><col class="w-20"><col class="w-24"></colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr><th class="px-2 py-1">회차</th><th class="px-2 py-1">일시</th><th class="px-2 py-1 text-right">검사</th><th class="px-2 py-1 text-right">합격</th><th class="px-2 py-1 text-right">불합격</th><th class="px-2 py-1 text-left">LOT · 불량</th><th class="px-2 py-1">검사자</th><th></th></tr>
                         </thead>
                         <tbody>
                             <tr v-for="r in rounds" :key="r.inspection_idx" class="border-t align-top" :class="r.is_canceled ? 'text-gray-400 line-through' : ''">
                                 <td class="px-2 py-1 text-center">{{ r.no }}</td>
-                                <td class="px-2 py-1 text-center whitespace-nowrap">{{ r.inspected_at }}</td>
+                                <td class="px-2 py-1 text-center whitespace-nowrap"><InlineDateEdit :value="r.inspected_at" mode="datetime" field="inspected_at" :label="`${r.no}회차 검사일시`" :url="route('quality.process.editDate', r.inspection_idx)" :warning="dateWarning(r)" :can-edit="canWrite && !r.is_canceled" @saved="load()" /></td>
                                 <td class="px-2 py-1 text-right">{{ fmtNum(r.qty) }}</td>
                                 <td class="px-2 py-1 text-right font-semibold" :class="r.is_canceled ? '' : 'text-green-700'">{{ fmtNum(r.pass_qty) }}</td>
                                 <td class="px-2 py-1 text-right" :class="r.fail_qty > 0 && !r.is_canceled ? 'text-red-600 font-semibold' : ''">{{ r.fail_qty ? fmtNum(r.fail_qty) : '' }}</td>
@@ -196,9 +197,9 @@
             <div v-if="op.is_ifl && history.length" class="mt-4">
                 <div class="mb-1.5 text-xs font-semibold text-gray-500">검사 이력 ( 취소 포함 )</div>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[736px] table-fixed text-xs border rounded">
+                    <table class="w-full min-w-[784px] table-fixed text-xs border rounded">
                         <colgroup>
-                            <col class="w-20"><col class="w-16"><col class="w-20"><col class="w-20"><col><col class="w-20"><col class="w-36"><col class="w-24">
+                            <col class="w-20"><col class="w-16"><col class="w-20"><col class="w-20"><col><col class="w-20"><col class="w-48"><col class="w-24">
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr><th class="px-2 py-1 text-left">구분</th><th class="px-2 py-1">판정</th><th class="px-2 py-1 text-right">합격</th><th class="px-2 py-1 text-right">불량</th><th class="px-2 py-1 text-left">유형 · 상세</th><th class="px-2 py-1">검사자</th><th class="px-2 py-1">일시</th><th></th></tr>
@@ -211,7 +212,7 @@
                                 <td class="px-2 py-1 text-right">{{ h.fail_qty ? fmtNum(h.fail_qty) : '' }}</td>
                                 <td class="px-2 py-1">{{ [h.defect_type, h.reason || (h.stage ? h.remark : '')].filter(Boolean).join(' — ') }}</td>
                                 <td class="px-2 py-1 text-center truncate" :title="h.inspector_name">{{ h.inspector_name }}</td>
-                                <td class="px-2 py-1 text-center whitespace-nowrap">{{ h.inspected_at }}</td>
+                                <td class="px-2 py-1 text-center whitespace-nowrap"><InlineDateEdit :value="h.inspected_at" mode="datetime" field="inspected_at" :label="`${h.stage_name} 검사일시`" :url="route('quality.process.editDate', h.inspection_idx)" :warning="dateWarning(h)" :can-edit="canWrite && !h.is_canceled" @saved="load()" /></td>
                                 <td class="px-2 py-1 text-right whitespace-nowrap">
                                     <button v-if="h.has_report" type="button" class="mr-2 text-blue-700 hover:underline" @click="openReport(h)">성적서</button>
                                     <button v-if="canWrite && stageOpen && h.stage && !h.is_canceled" type="button" class="text-red-600 hover:underline" @click="cancelStage(h)">취소</button>
@@ -263,6 +264,7 @@ import InspectionReportSheet from '@core/Components/Quality/InspectionReportShee
 import { measurePayload, blankValues } from '@core/Components/Quality/reportCodes';
 import { useModalStore } from '@core/Stores/modalStore';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
+import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
 
 const props = defineProps({
     opIdx:  { type: Number,   required: true },
@@ -292,6 +294,9 @@ function resetRep() {
     rep.values   = blankValues(specs.value[0]);
 }
 const modalStore = useModalStore();
+// 검사일시 수정 ( 11-25 · 표의 일시 칸에서 그 자리에서 — InlineDateEdit ) — 회차 · 초중종 기록 하나 · 입고한 회차( 마지막 공정 )는 원장 일시도 같이
+//   저장되면 다시 불러온다 ( 알림은 InlineDateEdit 가 띄운다 )
+const dateWarning = (r) => (r.lots ?? []).some(l => l.received) ? '이 회차 합격분을 입고한 일시( 재고 원장 )도 같이 바뀝니다.\n그 날짜 기준 재고 · 수불 결과가 달라질 수 있습니다.' : '';
 const openReport = (h) => modalStore.open(InspectionReportSheet, { modalTitle: `검사성적서 [ ${h.stage_name} · ${h.inspected_at} ]`, loadIdx: h.inspection_idx, modal: true }, { size: 'xl' });
 
 // 탭 ( 11-23 ) : 검사 · 성적서( 설정이 켜졌을 때 ) · 첨부

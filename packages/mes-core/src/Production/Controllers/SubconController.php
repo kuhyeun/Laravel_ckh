@@ -13,6 +13,7 @@ use MesCore\Production\Models\WorkOrderOp;
 use MesCore\Production\Services\OpResultService;
 use MesCore\Production\Services\SubconService;
 use MesCore\Quality\Services\DefectService;
+use MesCore\Support\DateEdit;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -145,6 +146,13 @@ class SubconController extends Controller {
         return response()->json($results->inputCandidates($op));
     }
 
+    // 출고 일시만 수정 ( 11-25 · DateEdit ) — 재공 이력( 앞 공정 − )도 함께
+    public function editIssueDate(Request $request) {
+        $d        = $request->validate(['subcon_issue_idx' => 'required|integer']);
+        $warnings = $this->subcon->editIssueDate((int) $d['subcon_issue_idx'], DateEdit::dateTime($request->input('issued_at'), 'issued_at', '출고 일시'));
+        return response()->json(['message' => '출고 일시를 고쳤습니다.', 'warnings' => $warnings]);
+    }
+
     public function cancelIssue(Request $request) {
         $d = $request->validate(['subcon_issue_idx' => 'required|integer']);
         $this->subcon->cancelIssue((int) $d['subcon_issue_idx']);
@@ -161,7 +169,9 @@ class SubconController extends Controller {
         $q = $this->issueBase()
             ->leftJoinSub(DB::table('subcon_receipt')->where('status', '!=', 'CANCELED')->groupBy('subcon_issue_idx')
                 ->selectRaw('subcon_issue_idx, SUM(qty) as received, SUM(COALESCE(pass_qty,0)) as passed, SUM(COALESCE(fail_qty,0)) as failed, SUM(status = "WAIT") as waiting'), 'rc', 'rc.subcon_issue_idx', '=', 's.subcon_issue_idx')
-            ->addSelect(DB::raw('COALESCE(rc.received,0) as received'), DB::raw('COALESCE(rc.passed,0) as passed'), DB::raw('COALESCE(rc.failed,0) as failed'), DB::raw('COALESCE(rc.waiting,0) as waiting'));
+            ->addSelect(DB::raw('COALESCE(rc.received,0) as received'), DB::raw('COALESCE(rc.passed,0) as passed'), DB::raw('COALESCE(rc.failed,0) as failed'), DB::raw('COALESCE(rc.waiting,0) as waiting'))
+                // 재공 이력( 앞 공정 − )이 있는 출고 — 날짜 수정 때 경고 ( 11-25 )
+                ->addSelect(DB::raw("EXISTS ( SELECT 1 FROM wip_txn w WHERE w.subcon_issue_idx = s.subcon_issue_idx AND w.is_reversal = 'N' ) as has_wip"));
         if (!filter_var($v['include_canceled'] ?? false, FILTER_VALIDATE_BOOLEAN)) $q->where('s.is_canceled', 'N');
         if (filter_var($v['open'] ?? false, FILTER_VALIDATE_BOOLEAN)) $q->where('s.is_canceled', 'N')->whereRaw('s.qty - COALESCE(rc.received,0) > 0.000001');
         $this->period($q, 's.issued_at', $v);
@@ -184,6 +194,7 @@ class SubconController extends Controller {
                 'waiting'      => (int) $r->waiting,
                 'left_qty'     => $r->is_canceled === 'Y' ? 0.0 : max(0, (float) $r->qty - (float) $r->received),
                 'is_last'      => ($lastOps[$r->work_order_idx] ?? null) === (int) $r->work_order_op_idx,
+                'has_wip'      => (bool) $r->has_wip,
             ];
         }, function ($rows) use (&$lastOps, &$sentLots) {
             $lastOps  = $this->lastOps($rows->pluck('work_order_idx')->unique()->all());
@@ -205,6 +216,13 @@ class SubconController extends Controller {
         return response()->json(['message' => 'Success', 'receipt_no' => $rc->receipt_no, 'status' => $rc->status]);
     }
 
+    // 입고 일시만 수정 ( 11-25 · DateEdit ) — 검사 없이 완료된 입고면 외주 공정 실적 · 재공 이력 · 제품 입고 원장도 함께
+    public function editReceiptDate(Request $request) {
+        $d        = $request->validate(['subcon_receipt_idx' => 'required|integer']);
+        $warnings = $this->subcon->editReceiptDate((int) $d['subcon_receipt_idx'], DateEdit::dateTime($request->input('received_at'), 'received_at', '입고 일시'));
+        return response()->json(['message' => '입고 일시를 고쳤습니다.', 'warnings' => $warnings]);
+    }
+
     public function cancelReceipt(Request $request) {
         $d = $request->validate(['subcon_receipt_idx' => 'required|integer']);
         $this->subcon->cancelReceipt((int) $d['subcon_receipt_idx']);
@@ -223,7 +241,8 @@ class SubconController extends Controller {
             ->leftJoin('account_member as iu', 'iu.account_idx', '=', 'r.create_account_idx')
             ->leftJoin('inspection as insp', 'insp.inspection_idx', '=', 'r.inspection_idx')
             ->leftJoin('account_member as qu', 'qu.account_idx', '=', 'insp.inspector_idx')
-            ->addSelect('r.subcon_receipt_idx', 'r.receipt_no', 'r.qty as r_qty', 'r.pass_qty', 'r.fail_qty', 'r.status as r_status', 'r.received_at', 'r.done_at', 'r.remark as r_remark',
+            ->leftJoin('work_order_op_run as rr', 'rr.run_idx', '=', 'r.run_idx')   // 입고로 생긴 실적 ( 제품 입고 여부 — 날짜 수정 경고 · 11-25 )
+            ->addSelect('r.inspection_idx', 'r.run_idx', 'rr.stock_txn_line_idx as run_line_idx', 'r.subcon_receipt_idx', 'r.receipt_no', 'r.qty as r_qty', 'r.pass_qty', 'r.fail_qty', 'r.status as r_status', 'r.received_at', 'r.done_at', 'r.remark as r_remark',
                 DB::raw("COALESCE(NULLIF(qu.user_name, ''), qu.user_id) as inspector_name"));
         if (!empty($v['status'])) $q->where('r.status', $v['status']);
         elseif (filter_var($v['hide_canceled'] ?? false, FILTER_VALIDATE_BOOLEAN)) $q->where('r.status', '!=', 'CANCELED');
@@ -245,6 +264,10 @@ class SubconController extends Controller {
             'done_at'            => substr((string) $r->done_at, 0, 16),
             'receipt_remark'     => $r->r_remark,
             'inspector_name'     => $r->inspector_name,
+            // 날짜 수정 ( 11-25 ) : 검사 없이 완료 = 입고 일시가 실적 시각 → 실적 · 재공 이력( · 제품 입고 원장 )도 함께
+            'inspected'          => (bool) $r->inspection_idx,
+            'has_run'            => (bool) $r->run_idx,
+            'run_received'       => (bool) $r->run_line_idx,
         ]);
     }
 
@@ -268,6 +291,12 @@ class SubconController extends Controller {
         return response()->json(['message' => 'Success']);
     }
 
+    // 검사일시만 수정 ( 11-25 · DateEdit ) — 완료 · 실적 시각( 제품 입고 원장 )도 함께
+    public function editInspectionDate(int $receiptIdx, Request $request, \MesCore\Quality\Services\InspectionDateService $dates) {
+        $warnings = $this->subcon->editInspectionDate($receiptIdx, $dates->read($request->input('inspected_at')), $dates);
+        return response()->json(['message' => '검사일시를 고쳤습니다.', 'warnings' => $warnings]);
+    }
+
     // 검사 결과 한 건 ( 검사 창 )
     public function inspection(int $receiptIdx, DefectService $defects) {
         $rc = DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->first();
@@ -280,6 +309,10 @@ class SubconController extends Controller {
             'inspector_name' => $insp->inspector?->user_name ?: $insp->inspector?->user_id,
             ...$defects->summary($insp->defects),   // defect_type · reason ( 불량 여러 줄 요약 )
             'remark'         => $insp->remark,
+            'is_canceled'    => $insp->is_canceled === 'Y',
+            // 검사일시 수정 ( 11-25 ) : 합격분 실적( 재공 이력 )이 있으면 그 시각도 · 제품 입고까지 했으면 원장 일시도 바뀐다 → 확인 창
+            'has_run'        => $rc->run_idx && DB::table('work_order_op_run')->where('run_idx', $rc->run_idx)->where('is_canceled', 'N')->exists(),
+            'run_received'   => $rc->run_idx && DB::table('work_order_op_run')->where('run_idx', $rc->run_idx)->where('is_canceled', 'N')->whereNotNull('stock_txn_line_idx')->exists(),
         ] : null]);
     }
 

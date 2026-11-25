@@ -1,6 +1,7 @@
 <!-- 외주 품질검사 창 ( 400503 ) — 모달 본체. 외주 입고( 검사대기 ) 행에서 연다
      - 합격 + 불합격 = 입고 수량 → [검사완료] : 합격분만 외주 공정 실적 ( 20 중 2 불량 → 18 ) · 불합격분은 불량 기록 ( 유형 필수 )
-     - 검사완료된 건은 결과만 보여 준다 ( 되돌리려면 외주 입고에서 입고 취소 ) -->
+     - 검사완료된 건은 결과만 보여 준다 ( 되돌리려면 외주 입고에서 입고 취소 )
+     - 결과 옆 [수정] ( 11-25 · 쓰기 권한 ) : 검사일시만 고친다 — 완료 · 외주 공정 실적 시각도 같이 ( 제품 입고까지 했으면 원장 일시도 → 확인 창 ) -->
 <template>
     <div class="mt-3 text-sm">
         <div class="grid grid-cols-3 gap-x-4 gap-y-1.5 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/70">
@@ -47,7 +48,7 @@
 
         <div v-else-if="inspection" class="mt-4 px-3 py-2.5 rounded border" :class="inspection.fail_qty > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'">
             <p class="font-medium">합격 {{ fmtNum(inspection.pass_qty) }} · 불합격 {{ fmtNum(inspection.fail_qty) }}</p>
-            <p class="text-xs text-gray-600 mt-0.5">검사자 {{ inspection.inspector_name }} · {{ inspection.inspected_at }}<template v-if="inspection.defect_type || inspection.reason"> · 불량 : {{ [inspection.defect_type, inspection.reason].filter(Boolean).join(' — ') }}</template></p>
+            <p class="text-xs text-gray-600 mt-0.5">검사자 {{ inspection.inspector_name }} · <InlineDateEdit :value="inspection.inspected_at" mode="datetime" field="inspected_at" label="검사일시" :url="route('production.subcon.inspection.editDate', receipt.subcon_receipt_idx)" :warning="dateWarning" :can-edit="canWrite && receipt.status === 'DONE' && !inspection.is_canceled" class="ml-0.5" @saved="loadInspection()" /><template v-if="inspection.defect_type || inspection.reason"> · 불량 : {{ [inspection.defect_type, inspection.reason].filter(Boolean).join(' — ') }}</template></p>
             <p v-if="inspection.remark" class="text-xs text-gray-500 mt-0.5">{{ inspection.remark }}</p>
         </div>
         <p v-else class="mt-4 text-gray-500">{{ receipt.status === 'CANCELED' ? '취소된 입고입니다.' : '검사 없이 입고 완료된 건입니다.' }}</p>
@@ -71,6 +72,7 @@ import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { useFormErrors } from '@core/Composables/useFormErrors';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
+import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
 
 const props = defineProps({
     receipt:    { type: Object,   required: true },   // 외주 입고 행
@@ -99,15 +101,21 @@ const inspection = ref(null);
 const saving   = ref(false);
 const { errors, errorMsg, clear, handle } = useFormErrors(['pass_qty', 'inspected_at', 'defect_type_code', 'reason', 'defects']);
 
-onMounted(async () => {
-    if (props.receipt.status === 'WAIT') return;
+async function loadInspection() {
     try {
         const { data } = await window.axios.get(route(props.showRoute, props.receipt.subcon_receipt_idx));
         inspection.value = data.inspection;
     } catch (e) {
         errorMsg.value = '검사 결과를 불러오지 못했습니다.';
     }
-});
+}
+onMounted(() => { if (props.receipt.status !== 'WAIT') loadInspection(); });
+
+// 검사일시 수정 ( 11-25 · 결과 칸에서 그 자리에서 — InlineDateEdit ) — 입고 완료 · 외주 공정 실적 시각도 같이 ( 서버 )
+//   저장되면 검사 결과를 다시 불러온다 ( 목록은 다음 조회 때 · 알림은 InlineDateEdit 가 띄운다 )
+const dateWarning = computed(() => inspection.value?.run_received
+    ? '합격분 외주 공정 실적 · 재공 이력 시각과 제품을 입고한 일시( 재고 원장 )도 같이 바뀝니다.\n그 날짜 기준 재고 · 수불 결과가 달라질 수 있습니다.'
+    : (inspection.value?.has_run ? '합격분 외주 공정 실적 · 재공 이력 시각도 같이 바뀝니다.' : ''));
 
 async function save() {
     saving.value = true; clear();

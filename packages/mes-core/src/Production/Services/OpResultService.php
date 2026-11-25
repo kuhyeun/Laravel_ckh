@@ -21,6 +21,7 @@ use MesCore\Stock\Models\StockLedger;
 use MesCore\Stock\Models\StockTxn;
 use MesCore\Stock\Models\StockTxnLine;
 use MesCore\Stock\Services\StockService;
+use MesCore\Support\DateEdit;
 
 /**
  * 공정실적 ( PRD-06 · 생산 3단계 최소판 ) — docs/screens/50-생산.md "3단계"
@@ -201,6 +202,70 @@ class OpResultService {
                 $this->materials->refreshRmOut($wo, $ops);
             }
             $this->afterChange($wo, $ops);
+        });
+    }
+
+    // ---- 날짜 수정 ( 11-25 · DateEdit ) ----
+
+    /**
+     * 실적 작업 시간 수정 — 시작( 선택 ) · 종료만 ( 수량 · LOT · 설비 · 작업자 · 비고는 그대로 · 공정이 완료돼도 된다 )
+     *   함께 : 재공 이력( 이 실적의 줄 ) · 제품 입고( 이 실적으로 입고한 전표 · 줄 · 원장 — StockTxnDateService · 소급 규칙 )
+     *          · 그 입고로 들어온 LOT 의 입고일( in_at = 옛 시각일 때 ) · 공정 시작 시각( 이 실적으로 시작됐으면 남은 실적 중 가장 이른 종료로 )
+     *   그대로 : 전표 번호 · 실적 LOT 번호( 옛 날짜가 남는다 )
+     *   외주 입고로 들어온 실적은 외주 입고에서 ( $viaSubcon = 외주 입고 일시 수정이 부를 때 )
+     * @return string[] 경고
+     */
+    public function editRunDate(WorkOrderOpRun $run, ?Carbon $startedAt, Carbon $workedAt, bool $viaSubcon = false): array {
+        return DB::transaction(function () use ($run, $startedAt, $workedAt, $viaSubcon) {
+            $wo = WorkOrder::whereKey($run->op->work_order_idx)->lockForUpdate()->first();
+            if (!$wo || $wo->status === 'CANCELED') {
+                throw ValidationException::withMessages(['worked_at' => ['취소된 품목 줄의 실적은 고칠 수 없습니다.']]);
+            }
+            $run = WorkOrderOpRun::whereKey($run->run_idx)->lockForUpdate()->first();
+            if ($run->is_canceled === 'Y') {
+                throw ValidationException::withMessages(['worked_at' => ['취소된 실적은 고칠 수 없습니다.']]);
+            }
+            if (!$viaSubcon && DB::table('subcon_receipt')->where('run_idx', $run->run_idx)->where('status', 'DONE')->exists()) {
+                throw ValidationException::withMessages(['worked_at' => ['외주 입고로 들어온 실적입니다. 외주관리 > 외주 입고에서 입고 일시를 고치세요.']]);
+            }
+            DateEdit::order($startedAt, $workedAt, 'started_at', '작업 시작이 작업 종료보다 늦습니다.');
+            if ($workedAt->gt(now()->addMinutes(10))) {
+                throw ValidationException::withMessages(['worked_at' => ['아직 오지 않은 시각입니다. 실제로 일어난 시각을 넣으세요.']]);
+            }
+
+            $old      = $run->worked_at->copy();
+            $before   = ['run_idx' => $run->run_idx, 'started_at' => $run->started_at?->format('Y-m-d H:i'), 'worked_at' => $old->format('Y-m-d H:i')];
+            $warnings = [];
+
+            // 제품 입고 ( 마지막 수량 공정 · 실적마다 입고 ) : 전표 · 줄 · 원장 일시 + 그 입고로 들어온 LOT 의 입고일 ( 수량 · 잔고는 그대로 )
+            $line = $run->stock_txn_line_idx ? StockTxnLine::whereKey($run->stock_txn_line_idx)->first() : null;
+            if ($line && $line->line_status === 'DONE') {
+                $inLots = fn (StockTxn $t) => DB::table('stock_txn_line as l')->join('lot', 'lot.lot_idx', '=', 'l.lot_idx')
+                    ->where('l.stock_txn_idx', $t->stock_txn_idx)->where('lot.in_at', $t->occurred_at->format('Y-m-d H:i:s'))->pluck('l.lot_idx')->all();
+                [, $warnings] = app(\MesCore\Stock\Services\StockTxnDateService::class)->move(
+                    (int) $line->stock_txn_idx, [self::TXN_TYPE], $workedAt, 'worked_at', $inLots,
+                    function (Carbon $from, Carbon $to, StockTxn $t) use ($inLots) {
+                        $ids = $inLots($t);
+                        $n   = $ids ? Lot::whereIn('lot_idx', $ids)->where('in_at', $from->format('Y-m-d H:i:s'))->update(['in_at' => $to]) : 0;
+                        return ['lot_in_at' => $n];
+                    },
+                );
+                // move() 가 남긴 전표 쪽 _before 에 실적 쪽을 더한다
+                $before += (array) request()->attributes->get(DateEdit::BEFORE, []);
+            }
+
+            $run->fill(['started_at' => $startedAt, 'worked_at' => $workedAt])->save();
+            // 재공 이력 : 이 실적의 줄 ( 생산 + · 앞 공정 − ) — 취소 반대 줄은 취소 시각이라 그대로
+            DB::table('wip_txn')->where('run_idx', $run->run_idx)->where('is_reversal', 'N')->update(['occurred_at' => $workedAt]);
+            // 공정 시작 시각 : 이 실적으로 시작됐으면( 같은 시각 ) 남은 실적 중 가장 이른 종료로
+            $op = WorkOrderOp::whereKey($run->work_order_op_idx)->lockForUpdate()->first();
+            if ($op->started_at && $op->started_at->eq($old)) {
+                $before['op_started_at'] = $op->started_at->format('Y-m-d H:i');
+                $op->started_at = WorkOrderOpRun::where('work_order_op_idx', $op->work_order_op_idx)->where('is_canceled', 'N')->min('worked_at');
+                $op->save();
+            }
+            DateEdit::remember($before);
+            return $warnings;
         });
     }
 

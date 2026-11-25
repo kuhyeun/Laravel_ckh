@@ -201,6 +201,29 @@ class ProcessInspectionService {
         });
     }
 
+    /**
+     * 검사일시 수정 ( 11-25 ) — 회차 · 초중종 기록 하나의 검사일시만 ( 판정 · 수량은 그대로 ) · 불량 발생일시를 같이
+     *   마지막 공정 회차면 합격분 입고( 전표 · 원장 · 줄 완료 시각 = 검사일시 )도 같이 옮긴다 → 소급 경고
+     *   공정 시작 시각( 첫 회차 때 넣은 started_at )은 공정실적 몫이라 그대로
+     * @return string[] 경고
+     */
+    public function editDate(Inspection $inspection, mixed $value, InspectionDateService $dates): array {
+        $at = $dates->read($value);
+        return DB::transaction(function () use ($inspection, $at, $dates) {
+            if ($inspection->ref_type !== self::REF_TYPE) {
+                throw ValidationException::withMessages(['inspection' => ['공정검사 기록이 아닙니다.']]);
+            }
+            WorkOrderOp::whereKey($inspection->ref_idx)->lockForUpdate()->first();   // 회차 저장 · 취소와 같은 순서 ( 공정 → 검사 )
+            $inspection = $dates->lock($inspection->inspection_idx, ['PROCESS', ...array_values(self::STAGE_TYPES)]);
+            $lines = $inspection->insp_type === 'PROCESS'
+                ? $inspection->lots()->whereNotNull('stock_txn_line_idx')->pluck('stock_txn_line_idx')->all() : [];
+            $warn  = $lines ? $dates->checkLedger($at) : null;
+            $moved = array_values(array_filter(array_map(fn ($l) => $dates->moveStockLine((int) $l, $at), $lines)));
+            $dates->move($inspection, $at, $moved ? ['stock_lines' => $moved] : []);
+            return array_values(array_filter([$warn]));
+        });
+    }
+
     /** @return array<string, ?Inspection> 단계별 마지막 판정 ( 취소 제외 ) */
     /** 여러 공정의 stageLatest() 를 한 번에 — @return array<int, array> 공정 idx → 단계별 마지막 기록 */
     public function stageLatestMany(array $opIdxs): array {

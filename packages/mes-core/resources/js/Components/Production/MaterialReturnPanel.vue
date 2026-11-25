@@ -6,7 +6,8 @@
        원 자재 수량은 그대로( 통째로 소모 ) · 잔재 수량은 사람이 넣는다( 견주지 않음 ) · 새 LOT 이 원 LOT 의 잔재로 이어진다( LOT 추적 ) · 이력 체크 → [잔재 입고 취소]
      - [남은 수량 계산] ( 11-18 ) : 지금까지의 실적 × 개당 소요로 쓴 수량을 어림해, 남은 수량을 반납 수량 칸에 넣는다 ( 제안값 — 고칠 수 있다 · 누를 때 실적을 다시 읽는다 )
        늦게 낸 LOT 부터 담는다 · 대체 자재는 주 자재 기준으로 합쳐 본다 · BOM 외 자재는 계산하지 않는다 · 아래에 계산 근거를 보여 준다
-     - MaterialIssuePanel 의 [반납] 탭. routes : { returnPlan, returnSave, returnCancel, leftoverSave, leftoverCancel }
+     - MaterialIssuePanel 의 [반납] 탭. routes : { returnPlan, returnSave, returnCancel, leftoverSave, leftoverCancel, editDate }
+     - 반납 · 잔재 입고 이력의 일시 옆 [수정] ( 11-25 · routes.editDate · 칸에서 그 자리에서 — InlineDateEdit ) : 그 전표의 일시만 — 같은 전표의 다른 줄도 같이 · 잔재 LOT 의 입고일도 같이
      - 단추 배치 ( 11-24 ) : 영역마다 보조 단추( 계산 · + 잔재 ) → 목록 → 실행 단추( 반납 · 잔재 입고 · 취소 — 목록 아래 오른쪽 ) · 잔재 줄이 없으면 [잔재 입고] 숨김 -->
 <template>
     <div class="flex flex-col min-h-0">
@@ -116,8 +117,8 @@
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-semibold text-gray-500">잔재 입고 이력 <span class="font-normal text-gray-400">{{ leftovers.length }} 줄</span></span>
                     </div>
-                    <table class="w-full min-w-[1024px] table-fixed text-xs">
-                        <colgroup><col class="w-8"><col class="w-32"><col class="w-36"><col><col class="w-56"><col class="w-56"><col class="w-28"><col class="w-24"><col class="w-14"><col class="w-24"></colgroup>
+                    <table class="w-full min-w-[1072px] table-fixed text-xs">
+                        <colgroup><col class="w-8"><col class="w-32"><col class="w-48"><col><col class="w-56"><col class="w-56"><col class="w-28"><col class="w-24"><col class="w-14"><col class="w-24"></colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr>
                                 <th class="px-2 py-1.5"></th><th class="text-left px-2 py-1.5">전표</th><th class="text-left px-2 py-1.5">입고일시</th>
@@ -129,7 +130,11 @@
                             <tr v-for="h in leftovers" :key="h.stock_txn_line_idx" class="border-t border-gray-100" :class="h.status === 'CANCELED' ? 'text-gray-400 line-through' : ''">
                                 <td class="text-center px-2 py-1.5"><input v-if="canCancel && h.status === 'DONE'" type="checkbox" class="row-check" :value="h.stock_txn_line_idx" v-model="leftChecked" /></td>
                                 <td class="px-2 py-1.5">{{ h.txn_no }}</td>
-                                <td class="px-2 py-1.5">{{ h.occurred_at.replace('T', ' ') }}</td>
+                                <td class="px-2 py-1.5 whitespace-nowrap">
+                                    <InlineDateEdit :value="h.occurred_at.replace('T', ' ')" mode="datetime" field="occurred_at" label="입고일시"
+                                                    :url="dateUrl" :payload="{ stock_txn_idx: h.stock_txn_idx, work_order_idx: woIdx }"
+                                                    :warning="dateWarning(h, 'leftover')" :can-edit="canEditDate && h.status === 'DONE'" @saved="onDateSaved" />
+                                </td>
                                 <td class="truncate px-2 py-1.5" :title="`${h.item_code} ${h.item_name} ${h.item_spec ?? ''}`">{{ h.item_code }} {{ h.item_name }}<span v-if="h.item_spec" class="text-gray-400"> · {{ h.item_spec }}</span></td>
                                 <td class="truncate px-2 py-1.5" :title="h.lot_no">{{ h.lot_no }}</td>
                                 <td class="truncate px-2 py-1.5 text-gray-500" :title="h.source">{{ (h.source ?? '').replace('원 자재 ', '') }}</td>
@@ -153,9 +158,9 @@
                 <span class="text-sm font-semibold text-gray-600">반납 이력 <span class="text-xs text-gray-400">{{ history.length }} 줄</span></span>
             </div>
             <div class="overflow-auto">
-                <table class="w-full min-w-[976px] table-fixed text-xs">
+                <table class="w-full min-w-[1024px] table-fixed text-xs">
                     <colgroup>
-                        <col class="w-8"><col class="w-32"><col class="w-36">
+                        <col class="w-8"><col class="w-32"><col class="w-48">
                         <col><col class="w-32"><col class="w-28">
                         <col class="w-28"><col class="w-14"><col class="w-24">
                     </colgroup>
@@ -171,7 +176,11 @@
                         <tr v-for="h in history" :key="h.stock_txn_line_idx" class="border-t border-gray-100" :class="h.status === 'CANCELED' ? 'text-gray-400 line-through' : ''">
                             <td class="text-center px-2 py-1.5"><input v-if="canCancel && h.status === 'DONE'" type="checkbox" class="row-check" :value="h.stock_txn_line_idx" v-model="checked" /></td>
                             <td class="px-2 py-1.5">{{ h.txn_no }}</td>
-                            <td class="px-2 py-1.5">{{ h.occurred_at.replace('T', ' ') }}</td>
+                            <td class="px-2 py-1.5 whitespace-nowrap">
+                                <InlineDateEdit :value="h.occurred_at.replace('T', ' ')" mode="datetime" field="occurred_at" label="반납일시"
+                                                :url="dateUrl" :payload="{ stock_txn_idx: h.stock_txn_idx, work_order_idx: woIdx }"
+                                                :warning="dateWarning(h, 'return')" :can-edit="canEditDate && h.status === 'DONE'" @saved="onDateSaved" />
+                            </td>
                             <td class="truncate px-2 py-1.5" :title="`${h.item_code} ${h.item_name}`">{{ h.item_code }} {{ h.item_name }}</td>
                             <td class="truncate px-2 py-1.5" :title="h.lot_no">{{ h.lot_no }}</td>
                             <td class="truncate px-2 py-1.5" :title="h.warehouse_name">{{ h.warehouse_name }}</td>
@@ -202,6 +211,8 @@ import { fmtNum, fmtQty } from '@core/Utils/format';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import { useLatest } from '@core/Composables/useLatest';
+import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
+import { stockTxnDateWarning } from '@core/Components/Stock/stockTxnDateEdit';
 
 const props = defineProps({
     woIdx:     { type: Number, required: true },
@@ -309,6 +320,18 @@ async function cancelLeft() {
         saving.value = false;
     }
 }
+
+// 반납 · 잔재 입고 일시 수정 ( 11-25 · 이력 표의 일시 칸에서 그 자리에서 — InlineDateEdit ) — 전표 단위 ( 같은 전표의 다른 줄도 같이 옮겨진다 )
+const canEditDate = computed(() => props.canWrite && !!props.routes.editDate && route().has(props.routes.editDate));
+const dateUrl     = computed(() => canEditDate.value ? route(props.routes.editDate) : '');
+function dateWarning(h, kind) {
+    const left = kind === 'leftover';
+    return stockTxnDateWarning({
+        row: h, rows: left ? leftovers.value : history.value,
+        note: left ? '이 잔재 입고로 만든 LOT 의 입고일( 선입선출 기준 )도 함께 바뀝니다.' : '',
+    });
+}
+async function onDateSaved() { await load(); emit('changed'); }
 
 const latest   = useLatest();   // 지시를 빠르게 바꿀 때 앞 지시의 늦은 응답이 반납 목록을 덮지 않게
 const loadedWo = ref(null);     // 지금 목록이 어느 지시 것인지 — 고른 지시와 같을 때만 반납

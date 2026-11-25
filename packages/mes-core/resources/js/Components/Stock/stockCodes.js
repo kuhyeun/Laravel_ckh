@@ -27,19 +27,19 @@ export function qtyText(qty, unit) {
 
 // 재고 화면 범위별 API ( 자재관리 /stock · 제품관리 /product — 서버 routes/stock.php · product.php )
 //   같은 화면 · 창을 자재 · 제품이 같이 쓴다 — 권한( 메뉴 )과 품목 구분은 서버 라우트가 정한다. 창고이동은 하나
-const MOVE = { moveList: 'stock.move.list', moveCancel: 'stock.move.cancel' };
+const MOVE = { moveList: 'stock.move.list', moveCancel: 'stock.move.cancel', moveEditDate: 'stock.move.editDate' };   // editDate = 일시만 수정 ( 11-25 )
 export const STOCK_ROUTES = {
     material: {
         ...MOVE,
         list: 'stock.list', history: 'stock.history', warehouses: 'stock.warehouses',
-        adjustList: 'stock.adjust.list', adjustReasons: 'stock.adjust.reasons', adjustSave: 'stock.adjust.save', adjustCancel: 'stock.adjust.cancel',
-        miscList: 'stock.misc.list', miscWorkOrders: 'stock.misc.workOrders', miscSave: 'stock.misc.save', miscCancel: 'stock.misc.cancel',
+        adjustList: 'stock.adjust.list', adjustReasons: 'stock.adjust.reasons', adjustSave: 'stock.adjust.save', adjustCancel: 'stock.adjust.cancel', adjustEditDate: 'stock.adjust.editDate',
+        miscList: 'stock.misc.list', miscWorkOrders: 'stock.misc.workOrders', miscSave: 'stock.misc.save', miscCancel: 'stock.misc.cancel', miscEditDate: 'stock.misc.editDate',
     },
     product: {
         ...MOVE,
         list: 'product.stock.list', history: 'product.stock.history', warehouses: 'product.stock.warehouses',
-        adjustList: 'product.adjust.list', adjustReasons: 'product.adjust.reasons', adjustSave: 'product.adjust.save', adjustCancel: 'product.adjust.cancel',
-        miscList: 'product.issue.misc.list', miscWorkOrders: 'product.issue.misc.workOrders', miscSave: 'product.issue.misc.save', miscCancel: 'product.issue.misc.cancel',
+        adjustList: 'product.adjust.list', adjustReasons: 'product.adjust.reasons', adjustSave: 'product.adjust.save', adjustCancel: 'product.adjust.cancel', adjustEditDate: 'product.adjust.editDate',
+        miscList: 'product.issue.misc.list', miscWorkOrders: 'product.issue.misc.workOrders', miscSave: 'product.issue.misc.save', miscCancel: 'product.issue.misc.cancel', miscEditDate: 'product.issue.misc.editDate',
         productionList: 'product.receipt.list', shipmentList: 'product.issue.shipments',
     },
 };

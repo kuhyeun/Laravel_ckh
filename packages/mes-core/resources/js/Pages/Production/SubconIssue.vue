@@ -1,10 +1,12 @@
 <!-- 외주 출고 ( 400501 ) / 생산관리 > 외주관리 > 외주 출고 ( 서버 SubconController · SubconService )
      - 탭 [출고 대상] : 대기 · 진행 중 지시의 외주 공정 — 출고 가능 = 기준( 앞 수량 공정 실적 · 없으면 지시 수량 ) − 이미 출고 · 행 클릭 → 출고 창
-     - 탭 [출고 내역] : 기간( 출고 일시 ) · 외주처 · 검색어 — 체크 → [출고 취소] ( 입고가 없을 때만 · 삭제 권한 ) -->
+     - 탭 [출고 내역] : 기간( 출고 일시 ) · 외주처 · 검색어 — 체크 → [출고 취소] ( 입고가 없을 때만 · 삭제 권한 )
+       · 하나 체크 → [출고 일시 수정] ( 11-25 · 일시만 — DateEditDialog · 재공 이력도 함께 · 쓰기 권한 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div v-if="tab === 'issues' && canDelete" class="flex items-center gap-1 pb-2 shrink-0">
-            <BaseButton size="sm" variant="danger" :disabled="!checked.length || busy" @click="cancelChecked">출고 취소</BaseButton>
+        <div v-if="tab === 'issues' && (canDelete || canWrite)" class="flex items-center gap-1 pb-2 shrink-0">
+            <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="!checked.length || busy" @click="cancelChecked">출고 취소</BaseButton>
+            <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!editTarget || busy" title="하나만 체크" @click="editDate">출고 일시 수정</BaseButton>
         </div>
 
         <SearchBar v-model="search" :date-bases="tab === 'issues' ? DATE_BASES : []" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="loadFirstPage">
@@ -28,7 +30,7 @@
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :key="tab" :loading="loading" :setting-key="tab" class="flex-1" :data="rows" :columns="columns"
-                    :options="tab === 'issues' && canDelete ? { rowHeaders: 'checkbox' } : {}" :pagination="tab === 'issues' ? paging : null"
+                    :options="tab === 'issues' && (canDelete || canWrite) ? { rowHeaders: 'checkbox' } : {}" :pagination="tab === 'issues' ? paging : null"
                     :empty-text="tab === 'targets' ? '외주 출고할 공정이 없습니다. ( 대기 · 진행 중 지시의 외주 공정 )' : '조건에 맞는 출고가 없습니다.'"
                     @row-click="onRow" @select="sel => checked = sel" @page="onPage" @sort="onSort" />
             </div>
@@ -49,6 +51,7 @@ import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import SubconIssueForm from '@core/Components/Production/SubconIssueForm.vue';
+import DateEditDialog from '@core/Components/Common/DateEditDialog.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
@@ -164,6 +167,25 @@ function onRow(row) {
             load();
         },
     }, { size: 'lg', closeOnClickOutside: false });
+}
+
+// 출고 일시 수정 ( 11-25 · 일시만 — 수량 · 외주처 · LOT · 금액은 그대로 ) : 하나만 체크했을 때
+const editTarget = computed(() => {
+    const list = checked.value.filter(r => !r.is_canceled);
+    return list.length === 1 && checked.value.length === 1 ? list[0] : null;
+});
+function editDate() {
+    const r = editTarget.value;
+    if (!r) return;
+    modalStore.open(DateEditDialog, {
+        modalTitle: '출고 일시 수정',
+        target: `${r.issue_no} · ${r.partner_name} · ${r.wo_no} ${r.process_name}`,
+        fields: [{ key: 'issued_at', label: '출고 일시', mode: 'datetime', value: r.issued_at }],
+        warning: r.has_wip ? '출고 일시를 바꾸면 재공 이력( 앞 공정 − )의 일시도 함께 바뀝니다. 날짜별 조회 결과가 달라질 수 있습니다. ( 수량은 그대로 )' : '',
+        url: route('production.subcon.issue.editDate'),
+        payload: { subcon_issue_idx: r.subcon_issue_idx },
+        onDone: () => load(),
+    }, { size: 'sm' });
 }
 
 async function cancelChecked() {

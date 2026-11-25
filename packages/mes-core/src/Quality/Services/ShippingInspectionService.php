@@ -105,6 +105,17 @@ class ShippingInspectionService {
         });
     }
 
+    // 검사일시 수정 ( 11-25 ) — 판정 · 수량은 그대로 · 출하한 뒤에도 ( 기록 일시라 재고와 무관 ) · 줄의 검사일시 · 불량 발생일시를 같이
+    public function editDate(ShipmentLine $line, mixed $value, InspectionDateService $dates): void {
+        $at = $dates->read($value);
+        DB::transaction(function () use ($line, $at, $dates) {
+            $line = ShipmentLine::whereKey($line->shipment_line_idx)->lockForUpdate()->first();
+            $inspection = $dates->lock($this->activeInspection($line)?->inspection_idx, ['SHIPPING']);
+            $dates->move($inspection, $at, ['shipment_line.inspected_at' => $line->inspected_at?->format('Y-m-d H:i:s')]);
+            $line->fill(['inspected_at' => $at])->save();
+        });
+    }
+
     // 지금 판정의 근거 기록 ( 줄이 PASS / FAIL 일 때만 — 고쳐서 다시 대기가 되면 지난 기록은 보지 않는다 )
     public function activeInspection(ShipmentLine $line): ?Inspection {
         if (!in_array($line->inspect_status, ['PASS', 'FAIL'], true)) return null;

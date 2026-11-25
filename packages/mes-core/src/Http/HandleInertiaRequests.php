@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Support\Facades\Auth;
 use MesCore\Auth\Models\User;
+use MesCore\Basic\Models\SystemConfig;
 use MesCore\Menu\Services\MenuPermissionService;
 
 class HandleInertiaRequests extends Middleware {
@@ -30,6 +31,9 @@ class HandleInertiaRequests extends Middleware {
             'userMenu'    => $payload['menus'],
             'adminMenu'   => $payload['adminMenus'] ?? [],
             'permissions' => $payload['permissions'],
+            // 화면 파일 이름표 ( DevSourceTag ) — 시스템 계정( 레벨 0 )에게만 · 시스템 설정 Common.dev_source_tag ( 11-25 )
+            'devSourceTag' => Auth::check() && (int) Auth::user()->user_level === 0
+                && SystemConfig::get('Common', 'dev_source_tag', 'Y') !== 'N',
         ]);
     }
 

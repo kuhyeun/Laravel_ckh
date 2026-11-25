@@ -43,6 +43,7 @@ class ActivityLogger {
         'upload' => ['SAVE', '첨부 올리기'], 'commit' => ['SAVE', '엑셀 일괄 등록'], 'validate' => ['ACTION', '엑셀 검사'],
         'apply' => ['SAVE', '적용'], 'reset' => ['ACTION', '초기화'], 'draft' => ['SAVE', '임시 저장'],
         'quickMaterial' => ['SAVE', '자재 빠른 등록'], 'quickSpec' => ['SAVE', '규격 빠른 등록'],
+        'editDate' => ['SAVE', '날짜 수정'],
     ];
 
     public function handle(Request $request, Closure $next): Response {
@@ -196,6 +197,10 @@ class ActivityLogger {
             return $v;
         };
         $data = $clean(array_merge($request->query(), $request->all() + $request->allFiles()));
+        // 바꾸기 전 값 ( 날짜 수정 등 — DateEdit::remember · 11-25 ) : 보낸 값만으로는 무엇이 바뀌었는지 모른다
+        if ($before = $request->attributes->get(DateEdit::BEFORE)) {
+            $data = ['_before' => $before] + (array) $data;
+        }
         if (!$data) return null;
         $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         return mb_strlen($json) > self::PAYLOAD_MAX ? mb_substr($json, 0, self::PAYLOAD_MAX) . '…( 잘림 )' : $json;

@@ -247,7 +247,8 @@ function openModal(row) {
         {
             order,
             canWrite: canWrite.value,
-            onSaved: (saved, warnings = []) => {
+            onSaved: (saved, warnings = [], opts = {}) => {
+                if (opts.silent) { load(); return; }   // 날짜 수정 : 알림은 수정 창이 띄웠다 ( 11-25 )
                 const base = row ? `${saved.order_no} 수정되었습니다.` : `${saved.order_no} 등록되었습니다.`;
                 showFlash(warnings.length ? `${base} ⚠ ${warnings.join(' / ')}` : base);
                 load();

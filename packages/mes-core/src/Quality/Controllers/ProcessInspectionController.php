@@ -350,6 +350,14 @@ class ProcessInspectionController extends Controller {
         return response()->json(['message' => 'Success']);
     }
 
+    // 검사일시 수정 ( 11-25 · 회차 · 초중종 기록의 검사일시만 ) — 판정과 같은 권한
+    public function editDate(Request $request, int $inspectionIdx, \MesCore\Quality\Services\InspectionDateService $dates) {
+        $this->require(self::SCREENS, 'can_write');
+        $inspection = Inspection::find($inspectionIdx) ?? abort(404);
+        $warnings = $this->inspections->editDate($inspection, $request->input('inspected_at'), $dates);
+        return response()->json(['message' => '검사일시를 고쳤습니다.', 'warnings' => $warnings]);
+    }
+
     // 완료 취소 = 검사 공정을 다시 「진행」 ( 회차는 그대로 · 11-23 ) — 줄이 완료됐으면 공정실적에서 줄 완료 취소 먼저
     public function cancel(int $opIdx) {
         if (!$this->canCancel()) abort(403, 'Permission Denied.');

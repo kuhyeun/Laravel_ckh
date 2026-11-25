@@ -9,7 +9,8 @@
      - 생산계획에서 열면( prefill.lines ) 계획마다 줄 하나 ( 출처 계획 · 그 계획의 수주 줄 · 남은 계획 수량 ) · 착수 = 가장 이른 시작일 · 기한 = 가장 늦은 완료 예정일
      - 반제품 함께 지시 ( 기본 켬 · 11-10 ) : 완제품 줄을 담으면 BOM 의 하위 반제품( 만드는 것만 · 깊은 것부터 ) 재고 지시 줄을 그 위에 → 줄 번호 1 반제품 · 2 완제품
        반제품 재고가 충분하면 체크를 끄거나 그 줄만 ✕ · 수량은 완제품 1개당 × 완제품 수량 ( 손대지 않으면 따라간다 ) · 재고 부족 경고는 없다 ( 자재출고에서 막힌다 )
-       저장하면 반제품 지시에 부모( 그 완제품 지시 — parent_work_order_idx )가 남는다 ( 이력 · 수주 수량과 무관 ) → 다시 열어도 '0N 완제품 용' -->
+       저장하면 반제품 지시에 부모( 그 완제품 지시 — parent_work_order_idx )가 남는다 ( 이력 · 수주 수량과 무관 ) → 다시 열어도 '0N 완제품 용'
+     - 완료 지시서 : 아래 [수정]으로 착수 예정일 · 생산 기한 칸만 열어 [저장] ( 품목 줄에도 복사 · 11-25 ) -->
 <template>
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <div v-if="errorMsg" class="mb-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</div>
@@ -29,16 +30,18 @@
                 </div>
                 <div>
                     <label class="lbl">상태</label>
-                    <p class="h-9 flex items-center font-semibold" :style="{ color: woStatusColor(sheet.status) }">{{ woStatusLabel(sheet.status) }}</p>
+                    <div class="h-9 flex items-center gap-2">
+                        <span class="font-semibold" :style="{ color: woStatusColor(sheet.status) }">{{ woStatusLabel(sheet.status) }}</span>
+                    </div>
                 </div>
                 <div>
                     <label class="lbl">착수 예정일 <span class="text-red-500">*</span></label>
-                    <BaseDatePicker v-model="sheet.start_date" class="w-full" :disabled="!sheetEditable" />
+                    <BaseDatePicker v-model="sheet.start_date" class="w-full" :disabled="!sheetEditable && !dateEditing" />
                     <p v-if="errors.start_date" class="err">{{ errors.start_date[0] }}</p>
                 </div>
                 <div>
                     <label class="lbl">생산 기한 <span class="text-red-500">*</span></label>
-                    <BaseDatePicker v-model="sheet.due_date" class="w-full" :disabled="!sheetEditable" />
+                    <BaseDatePicker v-model="sheet.due_date" class="w-full" :disabled="!sheetEditable && !dateEditing" />
                     <p v-if="errors.due_date" class="err">{{ errors.due_date[0] }}</p>
                     <p v-else-if="sheet.due_date && sheet.start_date && sheet.due_date < sheet.start_date" class="text-[11px] text-amber-600">착수 예정일보다 앞입니다</p>
                 </div>
@@ -132,8 +135,15 @@
             <div class="flex-1"></div>
             <BaseButton v-if="canDelete && current?.work_order_idx && current.status === 'WAIT'" variant="danger" size="sm" :disabled="busy" @click="cancelLine">줄 취소</BaseButton>
             <BaseButton v-if="canDelete && sheet.sheet_idx && ['WAIT'].includes(sheet.status)" variant="danger" size="sm" :disabled="busy" @click="cancelSheet">지시서 취소</BaseButton>
+            <!-- 완료 지시서 : [수정] → 날짜 칸만 열림 → [취소] [저장] ( 11-25 ) -->
+            <template v-if="dateEditing">
+                <span class="text-xs text-blue-600">착수 예정일 · 생산 기한만 고칠 수 있습니다.</span>
+                <BaseButton variant="secondary" size="sm" :disabled="saving" @click="cancelDateEdit">취소</BaseButton>
+                <BaseButton variant="primary" size="sm" :disabled="saving" @click="saveDateEdit">{{ saving ? '저장 중…' : '저장' }}</BaseButton>
+            </template>
+            <BaseButton v-else-if="canWrite && sheet.sheet_idx && sheet.status === 'DONE'" variant="secondary" size="sm" :disabled="busy" @click="startDateEdit">수정</BaseButton>
             <BaseButton v-if="sheetEditable" variant="primary" size="sm" :disabled="saving || loading || lotRuleMissing" @click="save">
-                {{ saving ? '저장 중…' : (isEdit ? '수정' : '등록') }}
+                {{ saving ? '저장 중…' : (isEdit ? '저장' : '등록') }}
             </BaseButton>
         </ModalFooter>
     </div>
@@ -149,6 +159,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import WorkOrderLinePanel from '@core/Components/Production/WorkOrderLinePanel.vue';
 import WorkOrderCalendar from '@core/Components/Production/WorkOrderCalendar.vue';
+import { useToast } from '@core/Composables/useToast';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
@@ -328,6 +339,7 @@ const saving   = ref(false);
 const busy     = ref(false);
 const errors   = ref({});
 const errorMsg = ref('');
+const { showFlash } = useToast();
 const lineErrors = (i) => Object.fromEntries(Object.entries(errors.value)
     .filter(([k]) => k.startsWith(`lines.${i}.`)).map(([k, v]) => [k.slice(`lines.${i}.`.length), v]));
 const currentErrors = computed(() => lineErrors(selected.value));
@@ -337,6 +349,49 @@ const lineHasError  = (i) => Object.keys(errors.value).some(k => k.startsWith(`l
 function goIssue(line) {
     emit('close');
     router.visit(`${ctx.issueUrl}?wo=${line.work_order_idx}`);
+}
+
+// 완료 지시서의 [수정] : 그 자리에서 착수 예정일 · 생산 기한 칸만 열고 아래 [저장] ( 11-25 — 창을 따로 띄우면 무엇이 바뀌는지 알기 어렵다 )
+//   품목 줄에도 복사 ( 서버 ) · 상태 · 수량 · 공정은 그대로 · [취소]는 원래 값으로
+const dateEditing = ref(false);
+let dateSnap = null;
+function startDateEdit() {
+    dateSnap = { start_date: sheet.start_date, due_date: sheet.due_date };
+    errors.value = {};
+    errorMsg.value = '';
+    dateEditing.value = true;
+}
+function cancelDateEdit() {
+    if (dateSnap) Object.assign(sheet, dateSnap);
+    errors.value = {};
+    errorMsg.value = '';
+    dateEditing.value = false;
+}
+async function saveDateEdit() {
+    const body = { sheet_idx: sheet.sheet_idx };
+    if (sheet.start_date !== dateSnap.start_date) body.start_date = sheet.start_date;
+    if (sheet.due_date !== dateSnap.due_date) body.due_date = sheet.due_date;
+    if (Object.keys(body).length === 1) { dateEditing.value = false; return; }   // 바뀐 것 없음
+    saving.value = true;
+    errors.value = {};
+    errorMsg.value = '';
+    try {
+        const { data } = await window.axios.post(route('production.workOrder.editDate'), body);
+        showFlash(data?.message ?? '날짜를 고쳤습니다.', false, data?.warnings ?? []);
+        if (data?.sheet) fillSheet(data.sheet);
+        dateEditing.value = false;
+        props.onSaved?.(data?.sheet, [], { silent: true });   // 목록은 새로고침만 ( 알림은 위에서 )
+    } catch (e) {
+        if (e.response?.status === 422) {
+            errors.value = e.response.data.errors ?? {};
+            const other = Object.entries(errors.value).filter(([k]) => !['start_date', 'due_date'].includes(k)).flatMap(([, v]) => v);
+            if (other.length) errorMsg.value = other.join('\n');
+        } else {
+            errorMsg.value = e.response?.status === 403 ? '권한이 없습니다.' : '날짜를 고치지 못했습니다.';
+        }
+    } finally {
+        saving.value = false;
+    }
 }
 
 // ---- 불러오기 ----

@@ -96,6 +96,34 @@ class IncomingInspectionService {
         });
     }
 
+    /**
+     * 검사일시 수정 ( 11-25 ) — 판정 · 수량은 그대로. 합격분 원장( 재고에 잡힌 시각 = 검사일시 ) · 줄 완료 시각 · 불량 발생일시를 같이 옮긴다
+     * @return string[] 경고 ( 소급 )
+     */
+    public function editDate(StockTxnLine $line, mixed $value, InspectionDateService $dates): array {
+        $at = $dates->read($value);
+        return DB::transaction(function () use ($line, $at, $dates) {
+            $line = StockTxnLine::whereKey($line->stock_txn_line_idx)->lockForUpdate()->first();
+            $inspection = $line->line_status === 'DONE' ? $this->activeInspection($line) : null;
+            $inspection = $dates->lock($inspection?->inspection_idx, ['INCOMING']);
+            // 입고한 시각보다 앞설 수 없다 ( 입고 전표 일시 수정은 거꾸로 검사 완료보다 늦출 수 없다 — StockTxnDateService )
+            $receivedAt = \MesCore\Stock\Models\StockTxn::whereKey($line->stock_txn_idx)->value('occurred_at');
+            if ($receivedAt && $at->lt(Carbon::parse($receivedAt))) {
+                throw ValidationException::withMessages(['inspected_at' => ['검사일시가 입고 일시( ' . substr((string) $receivedAt, 0, 16) . ' )보다 이릅니다.']]);
+            }
+            $warn = null;
+            if ((float) $line->pass_qty > 0) {   // 합격분이 있으면 원장 일시가 바뀐다 — 소급 규칙 · 그 LOT 이 이미 나간 시각보다 늦출 수 없다
+                $warn = $dates->checkLedger($at);
+                $used = $line->lot_idx ? DB::table('stock_ledger')->where('lot_idx', $line->lot_idx)->where('stock_txn_idx', '!=', $line->stock_txn_idx)->min('occurred_at') : null;
+                if ($used && $at->gt(Carbon::parse($used))) {
+                    throw ValidationException::withMessages(['inspected_at' => ['이 LOT 이 ' . substr((string) $used, 0, 16) . ' 에 이미 출고 · 이동됐습니다. 그보다 늦출 수 없습니다.']]);
+                }
+            }
+            $dates->move($inspection, $at, $dates->moveStockLine($line->stock_txn_line_idx, $at));
+            return array_values(array_filter([$warn]));
+        });
+    }
+
     public function activeInspection(StockTxnLine $line): ?Inspection {
         return Inspection::with(['defects', 'inspector:account_idx,user_id,user_name'])
             ->where('ref_type', self::REF_TYPE)->where('ref_idx', $line->stock_txn_line_idx)

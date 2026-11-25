@@ -33,6 +33,7 @@ Route::prefix('shipment')->name('shipment.')->middleware([UserAuth::class])->gro
             Route::post('/save', [ShipmentController::class, 'save'])->name('save');
             Route::post('/requestApproval', [ShipmentController::class, 'requestApproval'])->name('requestApproval');
             Route::post('/process', [ShipmentController::class, 'process'])->name('process');
+            Route::post('/editDate', [ShipmentController::class, 'editDate'])->name('editDate');   // 출하 완료 건의 날짜만 ( 11-25 )
         });
         Route::middleware($delete)->group(function() {
             Route::post('/approve', [ShipmentController::class, 'approve'])->name('approve');

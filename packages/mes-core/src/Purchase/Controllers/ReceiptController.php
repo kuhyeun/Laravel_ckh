@@ -238,6 +238,20 @@ class ReceiptController extends Controller {
         return response()->json(['message' => 'Success', 'canceled' => $lines->count(), 'labels_scrapped' => $scrapped]);
     }
 
+    // 입고일시 수정 ( 11-25 · 날짜만 — 수량 · LOT · 창고 · 비고는 그대로 ) — 이 입고가 만든 LOT 의 입고일도 같이
+    public function editDate(Request $request) {
+        $v  = $request->validate(['stock_txn_idx' => 'required|integer']);
+        $at = \MesCore\Support\DateEdit::dateTime($request->input('occurred_at'), 'occurred_at', '입고일시');
+
+        [$txn, $warnings] = $this->receipts->editDate((int) $v['stock_txn_idx'], $at);
+
+        return response()->json([
+            'message'  => '입고일시를 고쳤습니다.',
+            'warnings' => $warnings,
+            'receipt'  => ['stock_txn_idx' => $txn->stock_txn_idx, 'occurred_at' => $txn->occurred_at?->format('Y-m-d H:i')],
+        ]);
+    }
+
     // ---- 내부 ----
 
     private function toRow(StockTxn $t): array {

@@ -235,6 +235,23 @@ class SalesOrderController extends Controller {
         return response()->json(['message' => 'Success', 'changed' => $orders->count()]);
     }
 
+    // 날짜만 고치기 ( 완료 수주의 [수정] · 11-25 ) — 수주일 order_date · 줄 납품일 due_{줄 IDX}. 상태 · 번호 · 수량은 그대로
+    public function editDate(Request $request) {
+        $v     = $request->validate(['sales_order_idx' => 'required|integer']);
+        $order = SalesOrder::find($v['sales_order_idx']);
+        if (!$order) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+
+        $warnings = $this->orders->editDates($order, $request->except('sales_order_idx'));
+
+        return response()->json([
+            'message'  => '날짜를 고쳤습니다.',
+            'warnings' => $warnings,
+            'order'    => $this->toForm($order->fresh(['partner', 'lines.item'])),
+        ]);
+    }
+
     // ---- 목록 ----
 
     private function applyFilters(Builder $query, array $v): void {

@@ -4,6 +4,7 @@
      - 검사자 기본값 = 로그인 사용자, 바꿀 수 있다 ( 입력한 사람과 다르면 대신 입력 )
      - 첨부( 성적서 · 밀시트 )는 입고 줄에 붙는다 — 검사 전에도 올릴 수 있다
      - [성적서] 탭 ( 11-23 · 설정 '입고검사 성적서 관리' 가 켜졌을 때 ) : 기준서 항목마다 측정값( 필수 ) → 검사완료와 같이 저장 · 완료 뒤 보기 · [인쇄]
+     - 검사완료 뒤 [수정] ( 11-25 ) : 검사일시만 고친다 ( 판정 · 수량 · 검사자는 그대로 ) — 합격분이 있으면 재고 원장 일시도 같이 바뀌어 확인 창
      - 권한은 서버가 본다 ( 두 메뉴 중 어느 쪽 쓰기 권한이든 ). canWrite 는 버튼만 숨긴다 -->
 <template>
     <div class="mt-3 text-sm">
@@ -57,7 +58,7 @@
             <!-- 검사완료 · 취소 → 결과 -->
             <div v-else-if="inspection" class="mt-3 px-3 py-2.5 rounded border" :class="inspection.fail_qty > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'">
                 <p class="font-medium">{{ INSP_RESULTS[inspection.result] }} — 합격 {{ fmt(inspection.pass_qty) }} · 불합격 {{ fmt(inspection.fail_qty) }}</p>
-                <p class="text-xs text-gray-600 mt-0.5">검사자 {{ inspection.inspector_name }} · {{ inspection.inspected_at }}<template v-if="inspection.defect_type || inspection.reason"> · 불량 : {{ [inspection.defect_type, inspection.reason].filter(Boolean).join(' — ') }}</template></p>
+                <p class="text-xs text-gray-600 mt-0.5">검사자 {{ inspection.inspector_name }} · <InlineDateEdit :value="inspection.inspected_at" mode="datetime" field="inspected_at" label="검사일시" :url="route('quality.incoming.editDate', lineIdx)" :warning="dateWarning" :can-edit="canWrite && line.line_status === 'DONE'" class="ml-0.5" @saved="load()" /><template v-if="inspection.defect_type || inspection.reason"> · 불량 : {{ [inspection.defect_type, inspection.reason].filter(Boolean).join(' — ') }}</template></p>
                 <p v-if="inspection.remark" class="text-xs text-gray-500 mt-0.5">{{ inspection.remark }}</p>
             </div>
             <p v-else class="mt-3 text-gray-500">{{ line.line_status === 'CANCELED' ? '취소된 입고 줄입니다.' : '검사 기록이 없습니다.' }}</p>
@@ -110,6 +111,7 @@ import { showAlert } from '@core/Utils/message';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { INSP_RESULTS, inspModeLabel, qtyText } from '@core/Components/Stock/stockCodes';
 import { fmtNum } from '@core/Utils/format';
+import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
 
 const props = defineProps({
     lineIdx:  { type: Number,   required: true },
@@ -217,6 +219,10 @@ async function cancelInspection() {
         saving.value = false;
     }
 }
+
+// 검사일시 수정 ( 11-25 · 그 자리에서 — InlineDateEdit ) — 합격분은 이 시각으로 재고에 잡혔다 → 원장 일시도 같이
+//   저장되면 다시 불러온다 ( 목록 일시는 다음 조회 때 · 알림은 InlineDateEdit 가 띄운다 )
+const dateWarning = computed(() => inspection.value?.pass_qty > 0 ? '합격분이 재고에 잡힌 일시( 재고 원장 )도 같이 바뀝니다.\n그 날짜 기준 재고 · 수불 결과가 달라질 수 있습니다.' : '');
 
 function handleError(e, fallback) {
     if (handle(e, fallback) === 422) {

@@ -338,6 +338,20 @@ class WorkOrderController extends Controller {
         return response()->json(['message' => 'Success', 'warnings' => $warnings, 'sheet' => $this->toSheetForm($saved)]);
     }
 
+    // 날짜만 고치기 ( 완료된 지시서의 [수정] · 11-25 ) — 착수 예정 · 생산 기한 ( 품목 줄에도 복사 ). 수량 · 공정 · 상태는 그대로
+    public function editDate(Request $request) {
+        $v     = $request->validate(['sheet_idx' => 'required|integer']);
+        $sheet = WorkOrderSheet::find($v['sheet_idx']);
+        if (!$sheet) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+
+        $warnings = $this->sheets->editDates($sheet, $request->only(['start_date', 'due_date']));
+
+        $saved = $sheet->fresh()->load(['lines' => fn ($q) => $q->with(WorkOrderService::FORM_RELATIONS)]);
+        return response()->json(['message' => '날짜를 고쳤습니다.', 'warnings' => $warnings, 'sheet' => $this->toSheetForm($saved)]);
+    }
+
     // 지시서 취소 ( 목록에서 여럿 ) — 각 지시서의 취소 안 된 줄이 모두 대기일 때만. 하나라도 막히면 전부 되돌린다
     public function cancel(Request $request) {
         $v = $request->validate(['sheet_idxs' => 'required|array|min:1|max:500', 'sheet_idxs.*' => 'integer']);

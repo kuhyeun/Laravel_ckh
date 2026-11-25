@@ -58,6 +58,10 @@ class StockProcessController extends Controller {
         return response()->json(['message' => 'Success']);
     }
 
+    public function moveEditDate(Request $request) {
+        return $this->editTxnDate($request, StockMoveService::TXN_TYPE, '이동일시');
+    }
+
     // ---- 재고조정 ----
 
     public function adjustList(Request $request) {
@@ -91,6 +95,10 @@ class StockProcessController extends Controller {
         return response()->json(['message' => 'Success']);
     }
 
+    public function adjustEditDate(Request $request) {
+        return $this->editTxnDate($request, StockAdjustService::TXN_TYPE, '조정일시');
+    }
+
     // ---- 기타출고 ( 권한 = 출고관리 ) ----
 
     public function miscList(Request $request) {
@@ -115,6 +123,10 @@ class StockProcessController extends Controller {
     public function miscCancel(Request $request, int $txnIdx) {
         $this->miscs->cancel($this->findTxn($request, $txnIdx, StockMiscOutService::TXN_TYPE));
         return response()->json(['message' => 'Success']);
+    }
+
+    public function miscEditDate(Request $request) {
+        return $this->editTxnDate($request, StockMiscOutService::TXN_TYPE, '출고일시');
     }
 
     // ---- 제품관리 조회 ( 처리 · 취소는 공정실적 · 출하관리 ) ----
@@ -161,6 +173,17 @@ class StockProcessController extends Controller {
             return response()->json(['message' => 'Failed'], 500);
         }
         return response()->json(['message' => 'Success', 'warnings' => $warnings, 'txn_no' => $txn->txn_no]);
+    }
+
+    // 일시 수정 ( 11-25 · 날짜만 — 수량 · LOT · 창고 · 비고는 그대로 ) — 전표 · 원장 일시를 옮긴다 ( StockTxnDateService )
+    //   재고조정의 조정 전 장부 수량 · 증감은 등록 때 값 그대로 ( 옮긴 시각으로 다시 계산하지 않는다 )
+    private function editTxnDate(Request $request, string $type, string $label) {
+        $v   = $request->validate(['stock_txn_idx' => 'required|integer']);
+        $txn = $this->findTxn($request, (int) $v['stock_txn_idx'], $type);   // 품목 범위 ( 자재 · 제품 )
+        $at  = \MesCore\Support\DateEdit::dateTime($request->input('occurred_at'), 'occurred_at', $label);
+
+        [$txn, $warnings] = DB::transaction(fn () => app(\MesCore\Stock\Services\StockTxnDateService::class)->move($txn->stock_txn_idx, [$type], $at));
+        return response()->json(['message' => "{$txn->txn_no} 의 {$label}를 고쳤습니다.", 'warnings' => $warnings]);
     }
 
     private function findTxn(Request $request, int $idx, string $type): StockTxn {

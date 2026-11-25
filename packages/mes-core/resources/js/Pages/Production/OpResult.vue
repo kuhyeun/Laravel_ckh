@@ -163,19 +163,28 @@
                             <!-- 실적 줄 — 11-23 : 열을 줄여 가로 스크롤 없이 ( 실적 LOT 이 남는 폭 · 비고는 [비고] 단추 → 작은 창 )
                                  11-23 : 실적 입력 위로 · 높이는 최대 약 10 줄( 넘으면 안에서 스크롤 · 머리 고정 ) — 실적이 많아도 입력 칸이 밀려 내려가지 않게 -->
                             <div v-if="selectedOp.is_qty" class="overflow-auto max-h-[22rem] border-b">
-                                <table class="w-full table-fixed text-xs" :class="runLot ? 'min-w-[680px]' : 'min-w-[540px]'">
+                                <table class="w-full table-fixed text-xs" :class="runLot ? (timeEditing ? 'min-w-[760px]' : 'min-w-[712px]') : (timeEditing ? 'min-w-[620px]' : 'min-w-[572px]')">
                                     <colgroup>
-                                        <col class="w-40"><col v-if="runLot"><col :class="runLot ? 'w-[6.5rem]' : ''"><col class="w-[8rem]"><col class="w-[4rem]"><col class="w-[5.5rem]">
+                                        <col :class="timeEditing ? 'w-[15rem]' : 'w-48'"><col v-if="runLot"><col :class="runLot ? 'w-[6.5rem]' : ''"><col class="w-[8rem]"><col class="w-[4rem]"><col class="w-[5.5rem]">
                                     </colgroup>
-                                    <thead class="text-gray-500 bg-white sticky top-0 z-[1] shadow-[0_1px_0_0_theme('colors.gray.200')]"><tr><th class="px-3 py-1.5 text-left">작업 시간</th><th v-if="runLot" class="px-2 py-1.5 text-left">실적 LOT</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">수량</th><th></th></tr></thead>
+                                    <thead class="text-gray-500 bg-white sticky top-0 z-[1] shadow-[0_1px_0_0_theme('colors.gray.200')]"><tr><th class="px-2 py-1.5 text-left">작업 시간</th><th v-if="runLot" class="px-2 py-1.5 text-left">실적 LOT</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">수량</th><th></th></tr></thead>
                                     <tbody>
                                         <tr v-if="!selectedOp.runs.length"><td :colspan="runLot ? 6 : 5" class="px-3 py-3 text-center text-gray-400">실적이 없습니다.</td></tr>
                                         <template v-for="r in selectedOp.runs" :key="r.run_idx">
                                         <tr class="border-t">
-                                            <!-- 11-24 : 시작 / ~ 종료 두 줄 ( 한 줄이면 칸을 넘어 실적 LOT 과 겹친다 ) -->
-                                            <td class="px-3 py-1.5 align-top whitespace-nowrap overflow-hidden" :title="runTimeText(r.started_at, r.worked_at)">
-                                                <p>{{ r.started_at || r.worked_at }}</p>
-                                                <p v-if="r.started_at && r.worked_at" class="text-gray-500">~ {{ r.started_at.slice(0, 10) === r.worked_at.slice(0, 10) ? r.worked_at.slice(11) : r.worked_at }}</p>
+                                            <!-- 11-24 : 시작 / ~ 종료 두 줄 ( 한 줄이면 칸을 넘어 실적 LOT 과 겹친다 )
+                                                 11-25 : 작업 시간만 그 자리에서 수정 ( InlineDateEdit · 완료된 공정도 · 외주 입고 실적은 외주 입고에서 )
+                                                         시작 · 종료를 따로 고친다 — 다른 쪽은 지금 값 그대로 보낸다. 칸 폭 w-48 = 고치는 중 일시 칸( w-44 )이 들어가는 폭 -->
+                                            <td class="px-2 py-1.5 align-top whitespace-nowrap" :title="runTimeText(r.started_at, r.worked_at)">
+                                                <template v-if="r.started_at">
+                                                    <p><InlineDateEdit picker-class="w-40" @editing="onTimeEditing" :value="r.started_at" mode="datetime" field="started_at" label="작업 시작" :url="route('production.opResult.run.editDate')" :payload="{ run_idx: r.run_idx, worked_at: r.worked_at }" :warning="runDateWarning(r)" :can-edit="canEditRunDate(r)" @saved="refresh()" /></p>
+                                                    <p v-if="r.worked_at" class="text-gray-500">~ <InlineDateEdit picker-class="w-40" @editing="onTimeEditing" :value="r.worked_at" :display="r.started_at.slice(0, 10) === r.worked_at.slice(0, 10) ? r.worked_at.slice(11, 16) : r.worked_at.slice(0, 16)" mode="datetime" field="worked_at" label="작업 종료" :url="route('production.opResult.run.editDate')" :payload="{ run_idx: r.run_idx, started_at: r.started_at }" :warning="runDateWarning(r)" :can-edit="canEditRunDate(r)" @saved="refresh()" /></p>
+                                                </template>
+                                                <template v-else>
+                                                    <p><InlineDateEdit picker-class="w-40" @editing="onTimeEditing" :value="r.worked_at" mode="datetime" field="worked_at" label="작업 종료" :url="route('production.opResult.run.editDate')" :payload="{ run_idx: r.run_idx, started_at: '' }" :warning="runDateWarning(r)" :can-edit="canEditRunDate(r)" @saved="refresh()" /></p>
+                                                    <!-- 시작이 없는 실적 : 시작을 넣을 수 있게 ( 종료는 그대로 ) -->
+                                                    <p v-if="canEditRunDate(r)" class="text-gray-400">시작 <InlineDateEdit picker-class="w-40" @editing="onTimeEditing" value="" mode="datetime" field="started_at" label="작업 시작" :url="route('production.opResult.run.editDate')" :payload="{ run_idx: r.run_idx, worked_at: r.worked_at }" :warning="runDateWarning(r)" @saved="refresh()" /></p>
+                                                </template>
                                             </td>
                                             <td v-if="runLot" class="px-2 py-1.5 align-top">
                                                 <div class="flex items-center gap-1">
@@ -331,6 +340,7 @@ import { useLatest } from '@core/Composables/useLatest';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
 import RunInputPicker from '@core/Components/Production/RunInputPicker.vue';
 import RunInputPickModal from '@core/Components/Production/RunInputPickModal.vue';
+import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
 import { fmtNum, runTimeText } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
@@ -397,6 +407,7 @@ const ISSUE_ROUTES = {
     save: 'production.opResult.issueSave', cancel: 'production.opResult.issueCancel',
     returnPlan: 'production.opResult.returnPlan', returnSave: 'production.opResult.returnSave', returnCancel: 'production.opResult.returnCancel',
     leftoverSave: 'production.opResult.leftoverSave', leftoverCancel: 'production.opResult.leftoverCancel',   // 잔재 입고 ( 11-12 )
+    editDate: 'production.opResult.issue.editDate',   // 출고 · 반납 · 잔재 입고 일시만 수정 ( 11-25 )
 };
 
 // ---- 선택지 ----
@@ -536,6 +547,14 @@ function pickOp(o) {
 function showRemark(r) {
     showAlert('비고', `${runTimeText(r.started_at, r.worked_at)} · ${fmtNum(r.qty)}\n\n${r.remark}`, 'info');
 }
+
+// 실적 작업 시간 수정 ( 11-25 · 날짜만 — 수량 · LOT · 작업자는 그대로 ) : 재공 이력 · 제품 입고 원장도 함께 바뀐다
+//   실적 줄의 작업 시간 칸에서 그 자리에서 ( InlineDateEdit ) — 서버 : worked_at 필수 · started_at 빈 값 = 시작 없음
+const canEditRunDate = (r) => canWrite.value && !r.via_subcon;
+// 작업 시간을 고치는 동안만 시간 칸을 넓힌다 ( 일시 입력 칸 최소 13rem — 평소 폭이면 옆 실적 LOT 칸을 덮는다 )
+const timeEditing = ref(0);
+const onTimeEditing = (on) => { timeEditing.value = Math.max(0, timeEditing.value + (on ? 1 : -1)); };
+const runDateWarning = (r) => `작업 시간을 바꾸면 재공 이력${r.received ? '과 제품 입고 원장' : ''}의 일시도 함께 바뀝니다. 날짜별 조회 결과가 달라질 수 있습니다. ( 수량은 그대로 )`;
 
 // ---- 투입 LOT : 나중에 더하기 · 해제 ( 실적LOT-설계 §5 ) ----
 // [+ 연결] : 창에서 고르고 [연결 추가] → 바로 저장 ( 이미 연결된 LOT 는 후보에서 뺀다 · 11-12 )

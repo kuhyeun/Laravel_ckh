@@ -29,6 +29,7 @@ Route::prefix('order')->name('order.')->middleware([UserAuth::class])->group(fun
         Route::middleware($write)->group(function() {
             Route::post('/save', [SalesOrderController::class, 'save'])->name('save');
             Route::post('/status', [SalesOrderController::class, 'status'])->name('status');
+            Route::post('/editDate', [SalesOrderController::class, 'editDate'])->name('editDate');   // 완료 수주의 날짜만 ( 11-25 )
         });
 
         Route::middleware($delete)->group(function() {

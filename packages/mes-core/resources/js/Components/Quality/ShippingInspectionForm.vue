@@ -3,7 +3,8 @@
      - 판정 뒤 : 결과 + [검사 취소] ( 출하 전만 ). 불합격 줄은 출하 창에서 수량 · LOT 을 고쳐 저장하면 다시 검사대기
      - 검사자 기본값 = 로그인 사용자 · 첨부( 성적서 )는 출하 줄에 붙는다
      - 판정 · 취소 권한은 서버가 출고검사 쓰기로 본다 ( can_write 를 서버가 같이 준다 )
-     - [성적서] 탭 ( 11-23 · 설정 '출하검사 성적서 관리' 가 켜졌을 때 ) : 기준서 항목마다 측정값( 필수 ) → 판정과 같이 저장 · 판정 뒤 보기 · [인쇄] -->
+     - [성적서] 탭 ( 11-23 · 설정 '출하검사 성적서 관리' 가 켜졌을 때 ) : 기준서 항목마다 측정값( 필수 ) → 판정과 같이 저장 · 판정 뒤 보기 · [인쇄]
+     - 판정 뒤 [수정] ( 11-25 ) : 검사일시만 고친다 ( 판정 · 수량 · 검사자는 그대로 · 출하한 뒤에도 — 기록 일시라 재고와 무관 ) -->
 <template>
     <div class="mt-3 text-sm">
         <p v-if="loading" class="py-8 text-center text-gray-400">불러오는 중…</p>
@@ -69,7 +70,7 @@
             <!-- 판정 뒤 → 결과 -->
             <div v-else-if="inspection" class="mt-3 px-3 py-2.5 rounded border" :class="inspection.result === 'FAIL' ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'">
                 <p class="font-medium">{{ inspection.result === 'FAIL' ? '불합격' : '합격' }}<template v-if="inspection.fail_qty > 0"> — 불량 {{ fmtNum(inspection.fail_qty) }}</template></p>
-                <p class="text-xs text-gray-600 mt-0.5">검사자 {{ inspection.inspector_name }} · {{ inspection.inspected_at }}<template v-if="inspection.defect_type || inspection.reason"> · 불량 : {{ [inspection.defect_type, inspection.reason].filter(Boolean).join(' — ') }}</template></p>
+                <p class="text-xs text-gray-600 mt-0.5">검사자 {{ inspection.inspector_name }} · <InlineDateEdit :value="inspection.inspected_at" mode="datetime" field="inspected_at" label="검사일시" :url="route('quality.shipping.editDate', lineIdx)" :can-edit="canWrite" class="ml-0.5" @saved="load()" /><template v-if="inspection.defect_type || inspection.reason"> · 불량 : {{ [inspection.defect_type, inspection.reason].filter(Boolean).join(' — ') }}</template></p>
                 <p v-if="inspection.remark" class="text-xs text-gray-500 mt-0.5">{{ inspection.remark }}</p>
             </div>
 
@@ -121,6 +122,7 @@ import { measurePayload, blankValues } from '@core/Components/Quality/reportCode
 import { showAlert } from '@core/Utils/message';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { fmtNum, fmtQty } from '@core/Utils/format';
+import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
 
 const props = defineProps({
     lineIdx: { type: Number,   required: true },
@@ -225,6 +227,9 @@ async function cancelInspection() {
         saving.value = false;
     }
 }
+
+// 검사일시 수정 ( 11-25 ) — 결과 칸에서 그 자리에서 ( InlineDateEdit ) · 출하 줄의 검사일시 · 불량 발생일시도 같이 ( 서버 )
+//   저장되면 다시 불러온다 ( 알림은 InlineDateEdit 가 띄운다 )
 
 function handleError(e, fallback) {
     if (handle(e, fallback) === 422) {

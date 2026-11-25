@@ -188,6 +188,13 @@ class IncomingInspectionController extends Controller {
         return response()->json(['message' => 'Success']);
     }
 
+    // 검사일시 수정 ( 11-25 · 검사일시만 — 합격분 원장 일시도 같이 ) — 검사완료와 같은 권한
+    public function editDate(Request $request, int $lineIdx, \MesCore\Quality\Services\InspectionDateService $dates) {
+        $this->requireScreen('can_write');
+        $warnings = $this->inspections->editDate($this->findLine($lineIdx), $request->input('inspected_at'), $dates);
+        return response()->json(['message' => '검사일시를 고쳤습니다.', 'warnings' => $warnings]);
+    }
+
     // ---- 내부 ----
 
     // 저장된 성적서 ( 측정값을 넣은 검사만 )

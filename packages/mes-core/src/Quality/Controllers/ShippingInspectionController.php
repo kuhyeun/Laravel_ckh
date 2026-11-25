@@ -208,6 +208,13 @@ class ShippingInspectionController extends Controller {
         return response()->json(['message' => 'Success']);
     }
 
+    // 검사일시 수정 ( 11-25 · 검사일시만 — 출하 완료 뒤에도 ) — 판정과 같은 권한
+    public function editDate(Request $request, int $lineIdx, \MesCore\Quality\Services\InspectionDateService $dates) {
+        $this->requireScreen(self::WRITE_SCREENS, 'can_write');
+        $this->inspections->editDate($this->findLine($lineIdx), $request->input('inspected_at'), $dates);
+        return response()->json(['message' => '검사일시를 고쳤습니다.']);
+    }
+
     // ---- 내부 ----
 
     // 검사 정책이 켜졌는데 저장 때 꺼져 있어 NONE 으로 남은 줄의 품목 ( 출하대기만 — 적은 수 )

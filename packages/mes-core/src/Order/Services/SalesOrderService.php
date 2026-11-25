@@ -315,4 +315,9 @@ class SalesOrderService {
     public function changeStatus(SalesOrder $order, string $to): void {
         $this->changeHeaderStatus($order, $to);   // Support/OrderHeaderActions
     }
+
+    // 날짜만 고치기 ( 완료 수주의 [수정] · 11-25 ) — 수주일 + 줄 납품일. 상태 · 수주번호는 그대로
+    public function editDates(SalesOrder $order, array $input): array {
+        return $this->editHeaderDates($order, $input, ['order' => '수주일', 'due' => '납품일', 'noun' => '수주']);   // Support/OrderHeaderActions
+    }
 }

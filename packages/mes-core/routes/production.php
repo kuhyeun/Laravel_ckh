@@ -65,6 +65,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
 
         Route::middleware($write)->group(function() {
             Route::post('/save', [WorkOrderController::class, 'save'])->name('save');
+            Route::post('/editDate', [WorkOrderController::class, 'editDate'])->name('editDate');   // 완료 지시서의 날짜만 ( 11-25 )
         });
 
         Route::middleware($delete)->group(function() {
@@ -91,6 +92,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
         });
         Route::middleware($write)->group(function() {
             Route::post('/addRun', [OpResultController::class, 'addRun'])->name('addRun');
+            Route::post('/run/editDate', [OpResultController::class, 'editRunDate'])->name('run.editDate');   // 실적 작업 시간만 수정 ( 11-25 )
             // 투입 LOT ( 공정 LOT 추적 — 실적LOT-설계 §5 ) : 나중에 더하기 · 해제
             Route::post('/addInputs', [OpResultController::class, 'addInputs'])->name('addInputs');
             Route::post('/cancelInput', [OpResultController::class, 'cancelInput'])->name('cancelInput');
@@ -102,6 +104,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::post('/issueScan', [MaterialIssueController::class, 'scan'])->name('issueScan');                       // 바코드 · QR 스캔 ( 11-18 )
             Route::post('/returnSave', [MaterialIssueController::class, 'returnSave'])->name('returnSave');
             Route::post('/leftoverSave', [MaterialIssueController::class, 'leftoverSave'])->name('leftoverSave');   // 잔재 입고 ( 11-12 )
+            Route::post('/issueEditDate', [MaterialIssueController::class, 'editDate'])->name('issue.editDate');   // 출고 · 반납 · 잔재 입고 일시만 수정 ( 11-25 )
         });
         Route::middleware($delete)->group(function() {
             Route::post('/issueCancel', [MaterialIssueController::class, 'cancel'])->name('issueCancel');
@@ -125,6 +128,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
                 Route::get('/issues', [SubconController::class, 'issues'])->name('issues');
             });
             Route::post('/save', [SubconController::class, 'issue'])->middleware($auth('SubconIssue', 'can_write'))->name('save');
+            Route::post('/editDate', [SubconController::class, 'editIssueDate'])->middleware($auth('SubconIssue', 'can_write'))->name('editDate');   // 출고 일시만 수정 ( 11-25 )
             Route::post('/cancel', [SubconController::class, 'cancelIssue'])->middleware($auth('SubconIssue', 'can_delete'))->name('cancel');
         });
 
@@ -136,6 +140,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
                 Route::get('/inspection/{receiptIdx}', [SubconController::class, 'inspection'])->whereNumber('receiptIdx')->name('inspection');
             });
             Route::post('/save', [SubconController::class, 'receive'])->middleware($auth('SubconReceipt', 'can_write'))->name('save');
+            Route::post('/editDate', [SubconController::class, 'editReceiptDate'])->middleware($auth('SubconReceipt', 'can_write'))->name('editDate');   // 입고 일시만 수정 ( 11-25 )
             Route::post('/cancel', [SubconController::class, 'cancelReceipt'])->middleware($auth('SubconReceipt', 'can_delete'))->name('cancel');
         });
 
@@ -146,6 +151,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
                 Route::get('/show/{receiptIdx}', [SubconController::class, 'inspection'])->whereNumber('receiptIdx')->name('show');
             });
             Route::post('/save/{receiptIdx}', [SubconController::class, 'inspect'])->whereNumber('receiptIdx')->middleware($auth('SubconInspection', 'can_write'))->name('save');
+            Route::post('/editDate/{receiptIdx}', [SubconController::class, 'editInspectionDate'])->whereNumber('receiptIdx')->middleware($auth('SubconInspection', 'can_write'))->name('editDate');   // 검사일시만 수정 ( 11-25 )
         });
 
         // 외주 발주 ( 400505 · 11-23 · docs/외주발주-설계.md ) — 발주서에서 [출고] 는 외주 출고 권한으로 ( 저장 주소 subcon.issue.save )
@@ -208,6 +214,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::post('/returnCancel', [MaterialIssueController::class, 'returnCancel'])->name('returnCancel');
             Route::post('/leftoverSave', [MaterialIssueController::class, 'leftoverSave'])->name('leftoverSave');       // 잔재 입고 ( 11-12 )
             Route::post('/leftoverCancel', [MaterialIssueController::class, 'leftoverCancel'])->name('leftoverCancel');
+            Route::post('/editDate', [MaterialIssueController::class, 'editDate'])->name('editDate');   // 출고 · 반납 · 잔재 입고 일시만 수정 ( 11-25 )
         });
     });
 });

@@ -1,6 +1,7 @@
 <!-- 창고이동 · 재고조정 이력 ( INV-04 · INV-05 메뉴 본체 ) — docs/screens/40-구매자재.md §18 · §19
      - 처리는 재고관리( 재고현황 )에서 LOT 행을 골라 한다 ( 화면목록 §5-2 — 처리 코드는 한 곳 )
      - 여기서는 이력 + 취소 ( 행 클릭 → 확인 → 역분개 ). 막히는 경우는 서버가 사유를 돌려준다
+     - 일시 수정 ( 11-25 · cfg.editDate ) : 행 클릭 → [일시 수정] / [취소 처리] / [닫기] 고르기 → 일시만 고친다 ( DateEditDialog · 전표 · 원장 일시 )
      - type : move | adjust | misc ( 기타출고 — 출고관리의 탭 ) | production ( 생산 입고 — 제품입고 ) | shipment ( 출하 — 제품출고의 탭 )
        production · shipment 는 조회만 ( 입고 · 취소는 공정실적, 출하 · 취소는 출하관리 ) — 생산 입고 행 클릭 = 그 작업지시의 공정실적
      - scope : material | product — API 범위 ( stockCodes STOCK_ROUTES · 품목 구분은 서버 라우트 )
@@ -29,7 +30,7 @@
                 <!-- 오른쪽 : 행 안내 → 열 설정 · 엑셀 ( 안내가 가운데로 밀리지 않게 한 묶음 ) -->
                 <div class="flex items-center gap-1.5">
                     <span v-if="cfg.rowHint" class="mr-1.5 text-xs text-gray-400">{{ cfg.rowHint }}</span>
-                    <span v-else-if="canWrite && cfg.cancel" class="mr-1.5 text-xs text-gray-400">행을 누르면 취소할 수 있습니다</span>
+                    <span v-else-if="canWrite && cfg.cancel" class="mr-1.5 text-xs text-gray-400">행을 누르면 {{ canEditDate ? '일시 수정 · ' : '' }}취소할 수 있습니다</span>
                     <GridSettingButton :grid="mainGrid" />
                     <ExcelExportButton :rows="exportRows" :columns="columns" :grid="mainGrid" :filename="`${cfg.title}이력`" />
                 </div>
@@ -67,6 +68,7 @@ import { showAlert } from '@core/Utils/message';
 import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 import { COLORS } from '@core/Utils/colors';
 import { useToast } from '@core/Composables/useToast';
+import { openStockTxnDateEdit } from '@core/Components/Stock/stockTxnDateEdit';
 
 const props = defineProps({
     type:  { type: String, required: true },          // move | adjust | misc | production | shipment
@@ -102,7 +104,7 @@ const common = [
 const CONFIG = {
     move: {
         title: '창고이동', noLabel: '이동번호', dateLabel: '이동일',
-        list: R.moveList, cancel: R.moveCancel,
+        list: R.moveList, cancel: R.moveCancel, editDate: R.moveEditDate,
         columns: [
             { header: '이동번호', name: 'txn_no', width: 115, sortable: true },
             { ...common[0], header: '이동일시' }, common[1], common[2], common[3],
@@ -116,7 +118,8 @@ const CONFIG = {
     },
     adjust: {
         title: '재고조정', noLabel: '조정번호', dateLabel: '조정일',
-        list: R.adjustList, cancel: R.adjustCancel,
+        list: R.adjustList, cancel: R.adjustCancel, editDate: R.adjustEditDate,
+        editNote: '조정 전 장부 수량 · 증감은 등록 때 값 그대로입니다.',
         columns: [
             { header: '조정번호', name: 'txn_no', width: 115, sortable: true },
             { ...common[0], header: '조정일시' }, common[1], common[2], common[3],
@@ -133,7 +136,7 @@ const CONFIG = {
 };
 CONFIG.misc = {
     title: '기타출고', noLabel: '출고번호', dateLabel: '출고일',
-    list: R.miscList, cancel: R.miscCancel,
+    list: R.miscList, cancel: R.miscCancel, editDate: R.miscEditDate,
     columns: [
         { header: '출고번호', name: 'txn_no', width: 115, sortable: true },
         { ...common[0], header: '출고일시' }, common[1], common[2], common[3],
@@ -224,8 +227,24 @@ function loadFirstPage() { paging.page = 1; load(); }
 function onPage({ page: p, perPage }) { paging.page = p; paging.perPage = perPage; load(); }
 function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage(); }
 
-function onRowClick(row) {
-    askCancel(row);
+// 행 클릭 : 일시 수정이 있으면 고르기 ( [일시 수정] / [취소 처리] / [닫기] ) — 없으면 바로 취소 확인
+const canEditDate = computed(() => canWrite.value && !!cfg.editDate && route().has(cfg.editDate));
+async function onRowClick(row) {
+    if (!canEditDate.value || row.status !== 'DONE') return askCancel(row);
+    const r = await showAlert(`${row.txn_no}`, `${row.item_code} · ${row.lot_no ?? ''}\n무엇을 할까요?`, 'question', 'confirm', {
+        showDenyButton: !!cfg.cancel, confirmButtonText: '일시 수정', denyButtonText: `${cfg.title} 취소`, cancelButtonText: '닫기',
+    });
+    if (r.isConfirmed) openDateEdit(row);
+    else if (r.isDenied) askCancel(row);
+}
+
+// 일시 수정 ( 11-25 ) — 전표 · 원장 일시만 ( 한 행 = 전표 하나 )
+function openDateEdit(row) {
+    const label = cfg.columns.find(c => c.name === 'occurred_at')?.header ?? '일시';
+    openStockTxnDateEdit({
+        title: `${label} 수정`, label, row, rows: rows.value, note: cfg.editNote ?? '',
+        url: route(cfg.editDate), onDone: () => load(),
+    });
 }
 
 async function askCancel(row) {

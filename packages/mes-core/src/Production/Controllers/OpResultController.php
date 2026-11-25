@@ -16,6 +16,7 @@ use MesCore\Production\Services\MaterialIssueService;
 use MesCore\Production\Services\OpResultService;
 use MesCore\Menu\Models\Menu;
 use MesCore\Menu\Services\MenuPermissionService;
+use MesCore\Support\DateEdit;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -124,7 +125,10 @@ class OpResultController extends Controller {
                 ->where('is_canceled', 'N')->groupBy('ref_idx')->selectRaw('ref_idx, SUM(fail_qty) as n')->pluck('n', 'ref_idx')
             : collect();
 
-        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left, $inputsBy, $iflOf, $iflFail) {
+        $subconRuns = DB::table('subcon_receipt')->where('status', 'DONE')->whereIn('run_idx', $ops->flatMap(fn ($o) => $o->runs->pluck('run_idx'))->all() ?: [0])
+            ->pluck('run_idx')->flip()->all();
+
+        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left, $inputsBy, $iflOf, $iflFail, $subconRuns) {
             $first = $ops->first(fn (WorkOrderOp $x) => $x->isQtyOp());
             return [
                 'work_order_op_idx' => $o->work_order_op_idx,
@@ -166,6 +170,7 @@ class OpResultController extends Controller {
                     'qty'            => (float) $r->qty,
                     'remark'         => $r->remark,
                     'received'       => (bool) $r->stock_txn_line_idx,
+                    'via_subcon'     => isset($subconRuns[$r->run_idx]),   // 외주 입고로 들어온 실적 — 날짜 수정은 외주 입고에서 ( 11-25 )
                     'lot_no'         => $r->lot?->lot_no,   // 실적 LOT ( RUN 방식 )
                     'inputs'         => $inputsBy[$r->run_idx] ?? [],   // 투입 LOT
                 ])->values(),
@@ -292,6 +297,19 @@ class OpResultController extends Controller {
         }
         $this->results->cancelInput($input);
         return response()->json(['message' => 'Success']);
+    }
+
+    // 실적 작업 시간 수정 ( 11-25 · 날짜만 — DateEdit ) : 시작( 선택 ) · 종료 → 재공 이력 · 제품 입고 원장 · 실적 LOT 입고일도 함께
+    public function editRunDate(Request $request) {
+        $v   = $request->validate(['run_idx' => 'required|integer']);
+        $run = WorkOrderOpRun::with('op')->find($v['run_idx']);
+        if (!$run) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+        $start = trim((string) $request->input('started_at')) !== '' ? DateEdit::dateTime($request->input('started_at'), 'started_at', '작업 시작') : null;
+        $end   = DateEdit::dateTime($request->input('worked_at'), 'worked_at', '작업 종료');
+        $warnings = $this->results->editRunDate($run, $start, $end);
+        return response()->json(['message' => '작업 시간을 고쳤습니다.', 'warnings' => $warnings]);
     }
 
     public function cancelRun(Request $request) {

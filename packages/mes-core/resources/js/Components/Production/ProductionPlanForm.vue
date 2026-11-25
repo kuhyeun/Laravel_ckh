@@ -131,7 +131,7 @@
                 <BaseButton size="sm" variant="danger" :disabled="saving" @click="remove">삭제</BaseButton>
             </template>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ readonly ? '닫기' : '취소' }}</BaseButton>
-            <BaseButton v-if="!readonly" variant="primary" size="sm" :disabled="saving || loading" @click="save">{{ isEdit ? '수정' : '등록' }}</BaseButton>
+            <BaseButton v-if="!readonly" variant="primary" size="sm" :disabled="saving || loading" @click="save">{{ isEdit ? '저장' : '등록' }}</BaseButton>
         </ModalFooter>
     </div>
 </template>

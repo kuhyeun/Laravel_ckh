@@ -251,6 +251,12 @@ class ShipmentController extends Controller {
         return response()->json(['message' => 'Success', 'warnings' => $warnings]);
     }
 
+    // 날짜만 고치기 ( 출하 완료 건의 [수정] · 11-25 ) — 출하 일시 shipped_at( 'Y-m-d H:i' · 출고 원장도 함께 ) · 출하 예정일 plan_date
+    public function editDate(Request $request) {
+        $warnings = $this->shipments->editDates($this->find($request), $request->only(['shipped_at', 'plan_date']));
+        return response()->json(['message' => '날짜를 고쳤습니다.', 'warnings' => $warnings]);
+    }
+
     // 취소 : 체크한 건 ( 대기 = 상태만 · 완료 = 역분개 )
     public function cancel(Request $request) {
         $v = $request->validate(['shipment_idxs' => 'required|array|min:1|max:100', 'shipment_idxs.*' => 'integer']);

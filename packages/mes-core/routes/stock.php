@@ -33,6 +33,7 @@ Route::prefix('stock')->name('stock.')->middleware([UserAuth::class])->group(fun
         Route::middleware(MenuAuth::class . ':Stock/StockMove,can_write')->group(function() {
             Route::post('/save', [StockProcessController::class, 'move'])->name('save');
             Route::post('/cancel/{txnIdx}', [StockProcessController::class, 'moveCancel'])->whereNumber('txnIdx')->name('cancel');
+            Route::post('/editDate', [StockProcessController::class, 'moveEditDate'])->name('editDate');   // 이동일시만 수정 ( 11-25 )
         });
     });
 
@@ -45,6 +46,7 @@ Route::prefix('stock')->name('stock.')->middleware([UserAuth::class])->group(fun
         Route::middleware(MenuAuth::class . ':Stock/StockAdjust,can_write')->group(function() {
             Route::post('/save', [StockProcessController::class, 'adjust'])->name('save');
             Route::post('/cancel/{txnIdx}', [StockProcessController::class, 'adjustCancel'])->whereNumber('txnIdx')->name('cancel');
+            Route::post('/editDate', [StockProcessController::class, 'adjustEditDate'])->name('editDate');   // 조정일시만 수정 ( 11-25 )
         });
     });
 
@@ -57,6 +59,7 @@ Route::prefix('stock')->name('stock.')->middleware([UserAuth::class])->group(fun
         Route::middleware(MenuAuth::class . ':Production/MaterialIssue,can_write')->group(function() {
             Route::post('/save', [StockProcessController::class, 'miscOut'])->name('save');
             Route::post('/cancel/{txnIdx}', [StockProcessController::class, 'miscCancel'])->whereNumber('txnIdx')->name('cancel');
+            Route::post('/editDate', [StockProcessController::class, 'miscEditDate'])->name('editDate');   // 출고일시만 수정 ( 11-25 )
         });
     });
 });

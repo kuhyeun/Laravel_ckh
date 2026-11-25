@@ -21,6 +21,7 @@ Route::prefix('quality')->name('quality.')->middleware([UserAuth::class])->group
         Route::get('/show/{lineIdx}', [IncomingInspectionController::class, 'show'])->whereNumber('lineIdx')->name('show');
         Route::post('/complete/{lineIdx}', [IncomingInspectionController::class, 'complete'])->whereNumber('lineIdx')->name('complete');
         Route::post('/cancel/{lineIdx}', [IncomingInspectionController::class, 'cancel'])->whereNumber('lineIdx')->name('cancel');
+        Route::post('/editDate/{lineIdx}', [IncomingInspectionController::class, 'editDate'])->whereNumber('lineIdx')->name('editDate');   // 검사일시 수정 ( 11-25 )
     });
 
     Route::prefix('shipping')->name('shipping.')->group(function() {
@@ -29,6 +30,7 @@ Route::prefix('quality')->name('quality.')->middleware([UserAuth::class])->group
         Route::get('/show/{lineIdx}', [ShippingInspectionController::class, 'show'])->whereNumber('lineIdx')->name('show');
         Route::post('/complete/{lineIdx}', [ShippingInspectionController::class, 'complete'])->whereNumber('lineIdx')->name('complete');
         Route::post('/cancel/{lineIdx}', [ShippingInspectionController::class, 'cancel'])->whereNumber('lineIdx')->name('cancel');
+        Route::post('/editDate/{lineIdx}', [ShippingInspectionController::class, 'editDate'])->whereNumber('lineIdx')->name('editDate');   // 검사일시 수정 ( 11-25 · 출하 뒤에도 )
     });
 
     Route::prefix('process')->name('process.')->group(function() {
@@ -40,6 +42,7 @@ Route::prefix('quality')->name('quality.')->middleware([UserAuth::class])->group
         Route::post('/cancel/{opIdx}', [ProcessInspectionController::class, 'cancel'])->whereNumber('opIdx')->name('cancel');   // 완료 취소 ( 회차는 그대로 )
         Route::post('/finish/{opIdx}', [ProcessInspectionController::class, 'finish'])->whereNumber('opIdx')->name('finish');   // [검사 완료] ( 11-23 )
         Route::post('/cancelRound/{inspectionIdx}', [ProcessInspectionController::class, 'cancelRound'])->whereNumber('inspectionIdx')->name('cancelRound');   // 회차 취소 ( 11-23 )
+        Route::post('/editDate/{inspectionIdx}', [ProcessInspectionController::class, 'editDate'])->whereNumber('inspectionIdx')->name('editDate');   // 회차 · 초중종 기록의 검사일시 수정 ( 11-25 )
         // 검사기준서 보기 · 인쇄 ( 11-18 — 기준서관리 권한 없이 공정검사 권한으로 )
         Route::get('/specs', [ProcessInspectionController::class, 'specs'])->name('specs');
         Route::get('/specSheets', [ProcessInspectionController::class, 'specSheets'])->name('specSheets');   // 공정검사 · 공정실적 어느 쪽 권한으로도 ( 11-19 )

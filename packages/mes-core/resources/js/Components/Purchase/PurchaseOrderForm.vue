@@ -7,7 +7,7 @@
        [합쳐서 담기] ( 11-24 ) : 자재마다 한 줄 · 수량 = 필요 발주( 남은 소요 합 − 현재고 ) · 출처 = 묶은 수주 줄 여럿( 몫 = 그 수주의 남은 소요 ) — 줄 아래 「수주 n건 ▸」
        출처가 있는 줄은 품목을 바꿀 수 없다 ( 연결 ✕ 로 끊으면 일반 줄 ) · 남은 소요보다 많으면 저장 때 경고
      - 입고된 줄( locked )은 품목 변경 · 삭제 불가, 수량은 입고량 아래로 못 줄인다 — 서버가 최종 판단
-     - 완료 · 취소 상태는 읽기 전용 + [다시 열기]
+     - 완료 · 취소 상태는 읽기 전용. 완료는 [수정]으로 날짜만 ( 발주일 · 줄 입고 예정일 — 그 자리에서 날짜 칸만 열고 아래 [저장] · 11-25 )
      - [발주서] : 저장된 발주를 미리보기 · 인쇄 모달( PurchaseOrderPreview — A4 )로 — 저장한 내용 기준 ( 11-05 엑셀 → 인쇄 )
      - 첨부 탭 : 저장한 뒤 첨부 ( AttachFiles )
      - 계산 탭 ( 11-20 · 고칠 수 있을 때만 ) : 기간 · 기준( 수주 / 생산계획 ) · 리드타임으로 자재 발주 수량 계산 → 줄을 누르면 기본 탭 품목에 추가 ( PurchaseCalcPanel ) -->
@@ -42,7 +42,7 @@
                         <p class="h-9 flex items-center text-gray-700">{{ form.order_no || '저장할 때 자동으로 매깁니다' }}</p>
                     </FormField>
                     <FormField label="발주일" required :error="errors.order_date">
-                        <BaseDatePicker v-model="form.order_date" class="w-full" :disabled="readonly" />
+                        <BaseDatePicker v-model="form.order_date" class="w-full" :disabled="readonly && !dateEditing" />
                     </FormField>
                     <FormField label="상태">
                         <div v-if="editableStatus" class="h-9 flex items-center gap-4">
@@ -53,7 +53,6 @@
                         </div>
                         <div v-else class="h-9 flex items-center gap-2">
                             <span class="px-2 py-0.5 rounded text-xs text-white" :style="{ background: orderStatusColor(form.status) }">{{ orderStatusLabel(form.status) }}</span>
-                            <!-- <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="saving" @click="reopen">다시 열기</BaseButton> -->
                         </div>
                     </FormField>
 
@@ -159,7 +158,7 @@
                                     </td>
                                     <td class="px-2 text-right text-gray-700 py-1 leading-9">{{ fmt(lineAmount(l)) }}</td>
                                     <td class="px-1.5 py-1">
-                                        <BaseDatePicker v-model="l.due_date" size="md" class="w-full" :disabled="readonly" />
+                                        <BaseDatePicker v-model="l.due_date" size="md" class="w-full" :disabled="readonly && !dateEditing" />
                                         <p v-if="lineError(i, 'due_date')" class="text-[11px] text-red-500">{{ lineError(i, 'due_date') }}</p>
                                     </td>
                                     <td v-if="isEdit" class="px-2 text-right text-gray-500 py-1 leading-9">{{ fmt(l.received_qty) }}<span v-if="l.failed_qty" class="block text-[11px] text-red-500" title="수입검사 불합격 — 다시 받지 않습니다 ( 받음 + 불합격 = 완료 )">불합격 {{ fmt(l.failed_qty) }}</span></td>
@@ -200,10 +199,20 @@
             <template v-if="isEdit && saved" #left>
                 <BaseButton variant="secondary" size="sm" @click="openSheet">발주서</BaseButton>
             </template>
-            <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ readonly ? '닫기' : '취소' }}</BaseButton>
-            <BaseButton v-if="!readonly" variant="primary" size="sm" :disabled="saving || loading" @click="save">
-                {{ isEdit ? '수정' : '등록' }}
-            </BaseButton>
+            <!-- 완료 건 : 날짜만 고친다 ( 상태 · 번호는 그대로 · 11-25 — 예전 [다시 열기] 대신 ) · 아래 오른쪽 단추 중 맨 왼쪽 -->
+            <!-- 날짜 고치는 중 : 날짜 칸만 열려 있다 → [취소] [저장] -->
+            <template v-if="dateEditing">
+                <span class="text-xs text-blue-600">날짜만 고칠 수 있습니다.</span>
+                <BaseButton variant="secondary" size="sm" :disabled="saving" @click="cancelDateEdit">취소</BaseButton>
+                <BaseButton variant="primary" size="sm" :disabled="saving" @click="saveDateEdit">{{ saving ? '저장 중…' : '저장' }}</BaseButton>
+            </template>
+            <template v-else>
+                <BaseButton v-if="canWrite && form.status === 'CLOSED'" variant="secondary" size="sm" :disabled="saving" @click="startDateEdit">수정</BaseButton>
+                <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ readonly ? '닫기' : '취소' }}</BaseButton>
+                <BaseButton v-if="!readonly" variant="primary" size="sm" :disabled="saving || loading" @click="save">
+                    {{ isEdit ? '저장' : '등록' }}
+                </BaseButton>
+            </template>
         </ModalFooter>
     </div>
 </template>
@@ -480,26 +489,56 @@ async function save() {
     }
 }
 
-// 완료 · 취소 → 확정으로 되돌림
-async function reopen() {
-    const from   = orderStatusLabel(form.status);
-    const result = await showAlert('발주 다시 열기',
-        `${from} 상태의 발주를 확정 상태로 되돌립니다.\n\n`
-        + '· 발주 내용을 다시 수정할 수 있습니다.\n'
-        + '· 입고 등록의 발주 선택 목록에 다시 나타나 남은 수량을 입고할 수 있습니다.\n'
-        + '· 이미 등록된 입고는 그대로 유지됩니다.\n\n'
-        + '다시 여시겠습니까?', 'question', 'confirm');
-    if (!result.isConfirmed) return;
-
-    saving.value   = true;
+// 완료 건 [수정] : 그 자리에서 날짜 칸( 주문일 · 줄 날짜 )만 열고 아래 [저장] ( 11-25 — 창을 따로 띄우면 무엇이 바뀌는지 알기 어렵다 )
+//   상태 · 번호는 그대로 · 바뀐 날짜만 보낸다 · [취소]는 원래 값으로
+const dateEditing = ref(false);
+let dateSnap = null;
+function startDateEdit() {
+    dateSnap = { order_date: form.order_date, lines: form.lines.map(l => l.due_date) };
+    errors.value = {};
+    errorMsg.value = '';
+    dateEditing.value = true;
+}
+function cancelDateEdit() {
+    if (dateSnap) {
+        form.order_date = dateSnap.order_date;
+        form.lines.forEach((l, i) => { l.due_date = dateSnap.lines[i]; });
+    }
+    errors.value = {};
+    errorMsg.value = '';
+    dateEditing.value = false;
+}
+async function saveDateEdit() {
+    const body = { purchase_order_idx: form.purchase_order_idx };
+    if (form.order_date !== dateSnap.order_date) body.order_date = form.order_date;
+    form.lines.forEach((l, i) => { if (l.due_date !== dateSnap.lines[i]) body[`due_${l.purchase_order_line_idx}`] = l.due_date || ''; });
+    if (Object.keys(body).length === 1) { dateEditing.value = false; return; }   // 바뀐 것 없음
+    saving.value = true;
+    errors.value = {};
     errorMsg.value = '';
     try {
-        await window.axios.post(route('purchase.order.status'), { purchase_order_idxs: [form.purchase_order_idx], status: 'CONFIRMED' });
-        const { data } = await window.axios.get(route('purchase.order.show', form.purchase_order_idx));
-        fillForm(data.order);
-        props.onSaved?.(data.order, []);   // 목록 새로고침 ( 창은 그대로 )
+        const { data } = await window.axios.post(route('purchase.order.editDate'), body);
+        showFlash(data?.message ?? '날짜를 고쳤습니다.', false, data?.warnings ?? []);
+        if (data?.order) fillForm(data.order);
+        dateEditing.value = false;
+        props.onSaved?.(data?.order, [], { silent: true });   // 목록은 새로고침만 ( 알림은 위에서 )
     } catch (e) {
-        handleError(e, '다시 열지 못했습니다.');
+        if (e.response?.status === 422) {
+            // 서버 키 due_{줄 IDX} → 화면 줄 칸 lines.{i}.due_date
+            const mapped = {};
+            const other  = [];
+            Object.entries(e.response.data.errors ?? {}).forEach(([k, v]) => {
+                const m = /^due_(\d+)$/.exec(k);
+                const i = m ? form.lines.findIndex(l => Number(l.purchase_order_line_idx) === Number(m[1])) : -1;
+                if (i >= 0) mapped[`lines.${i}.due_date`] = v;
+                else if (k === 'order_date') mapped.order_date = v;
+                else other.push(...v);
+            });
+            errors.value = mapped;
+            if (other.length) errorMsg.value = other.join('\n');
+        } else {
+            handleError(e, '날짜를 고치지 못했습니다.');
+        }
     } finally {
         saving.value = false;
     }

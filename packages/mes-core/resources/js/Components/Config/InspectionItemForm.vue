@@ -59,7 +59,7 @@
         <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ canWrite ? '취소' : '닫기' }}</BaseButton>
             <BaseButton v-if="canWrite" variant="primary" size="sm" :disabled="saving" @click="save">
-                {{ isEdit ? '수정' : '등록' }}
+                {{ isEdit ? '저장' : '등록' }}
             </BaseButton>
         </ModalFooter>
     </div>

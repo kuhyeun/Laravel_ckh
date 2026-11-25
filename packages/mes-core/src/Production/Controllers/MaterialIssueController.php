@@ -130,6 +130,8 @@ class MaterialIssueController extends Controller {
                 'is_extra'           => $extra->has($l->work_order_material_idx),
                 'extra_reason'       => $extra->get($l->work_order_material_idx),
                 'stock_txn_line_idx' => $l->stock_txn_line_idx,
+                'stock_txn_idx'      => $l->stock_txn_idx,   // 일시 수정 = 전표 단위 ( 11-25 )
+                'is_subcon'          => (bool) ($l->txn?->subcon_issue_idx || $l->txn?->subcon_order_line_idx),
                 'txn_no'             => $l->txn?->txn_no,
                 'occurred_at'        => substr((string) $l->txn?->occurred_at, 0, 16),
                 'item_code'          => $l->item?->item_code,
@@ -223,6 +225,8 @@ class MaterialIssueController extends Controller {
         $history = $lines
             ->map(fn (StockTxnLine $l) => [
                 'stock_txn_line_idx' => $l->stock_txn_line_idx,
+                'stock_txn_idx'      => $l->stock_txn_idx,   // 일시 수정 = 전표 단위 ( 11-25 )
+                'is_subcon'          => (bool) ($l->txn?->subcon_issue_idx || $l->txn?->subcon_order_line_idx),
                 'txn_no'             => $l->txn?->txn_no,
                 'occurred_at'        => substr((string) $l->txn?->occurred_at, 0, 16),
                 'item_code'          => $l->item?->item_code,
@@ -249,6 +253,8 @@ class MaterialIssueController extends Controller {
             'history'    => $history,
             'leftovers'  => $left->map(fn (StockTxnLine $l) => [
                 'stock_txn_line_idx' => $l->stock_txn_line_idx,
+                'stock_txn_idx'      => $l->stock_txn_idx,   // 일시 수정 = 전표 단위 ( 11-25 )
+                'is_subcon'          => (bool) ($l->txn?->subcon_issue_idx || $l->txn?->subcon_order_line_idx),
                 'txn_no'             => $l->txn?->txn_no,
                 'occurred_at'        => substr((string) $l->txn?->occurred_at, 0, 16),
                 'item_code'          => $l->item?->item_code,
@@ -324,6 +330,18 @@ class MaterialIssueController extends Controller {
         ]);
         $n = $this->issues->leftoverCancel($this->find($data['work_order_idx']), $data['stock_txn_line_idxs']);
         return response()->json(['message' => 'Success', 'canceled' => $n]);
+    }
+
+    // 출고 · 반납 · 잔재 입고 일시 수정 ( 11-25 · 날짜만 ) — 전표 하나를 옮긴다 ( 같은 전표의 다른 줄도 )
+    public function editDate(Request $request) {
+        $data = $request->validate([
+            'work_order_idx' => 'required|integer',
+            'stock_txn_idx'  => 'required|integer',
+        ]);
+        $at = \MesCore\Support\DateEdit::dateTime($request->input('occurred_at'), 'occurred_at', '일시');
+
+        [$txn, $warnings] = $this->issues->editDate($this->find($data['work_order_idx']), (int) $data['stock_txn_idx'], $at);
+        return response()->json(['message' => "{$txn->txn_no} 의 일시를 고쳤습니다.", 'warnings' => $warnings]);
     }
 
     private function find(int $woIdx): WorkOrder {

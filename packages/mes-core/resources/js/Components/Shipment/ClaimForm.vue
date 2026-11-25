@@ -144,7 +144,7 @@
                     <BaseButton size="sm" variant="danger" :disabled="saving" @click="remove">삭제</BaseButton>
                 </template>
                 <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
-                <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="saving" @click="save">{{ saving ? '처리 중…' : (claim ? '수정' : '등록') }}</BaseButton>
+                <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="saving" @click="save">{{ saving ? '처리 중…' : (claim ? '저장' : '등록') }}</BaseButton>
             </ModalFooter>
         </template>
     </div>

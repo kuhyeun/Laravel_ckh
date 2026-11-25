@@ -1,11 +1,13 @@
 <!-- 외주 입고 ( 400502 ) / 생산관리 > 외주관리 > 외주 입고 ( 서버 SubconController · SubconService )
      - 탭 [입고 대기] : 입고할 수량이 남은 외주 출고 — 행 클릭 → 입고 창 ( 남은 수량까지 · 여러 번 )
        외주 검사 사용 = Y → 검사대기( 외주관리 > 품질검사 ) / N → 바로 입고 완료 = 외주 공정 실적
-     - 탭 [입고 내역] : 기간( 입고 일시 ) · 상태 · 외주처 — 행 클릭 → 검사 결과 / 체크 → [입고 취소] ( 실적을 뒤 공정이 쓰지 않았을 때 · 삭제 권한 ) -->
+     - 탭 [입고 내역] : 기간( 입고 일시 ) · 상태 · 외주처 — 행 클릭 → 검사 결과 / 체크 → [입고 취소] ( 실적을 뒤 공정이 쓰지 않았을 때 · 삭제 권한 )
+       · 하나 체크 → [입고 일시 수정] ( 11-25 · 일시만 — DateEditDialog · 검사 없이 완료된 입고면 외주 공정 실적 · 재공 이력 · 제품 입고 원장도 함께 · 쓰기 권한 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
-        <div v-if="tab === 'receipts' && canDelete" class="flex items-center gap-1 pb-2 shrink-0">
-            <BaseButton size="sm" variant="danger" :disabled="!checked.length || busy" @click="cancelChecked">입고 취소</BaseButton>
+        <div v-if="tab === 'receipts' && (canDelete || canWrite)" class="flex items-center gap-1 pb-2 shrink-0">
+            <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="!checked.length || busy" @click="cancelChecked">입고 취소</BaseButton>
+            <BaseButton v-if="canWrite" size="sm" variant="secondary" :disabled="!editTarget || busy" title="하나만 체크" @click="editDate">입고 일시 수정</BaseButton>
         </div>
 
         <SearchBar v-model="search" :date-bases="DATE_BASES" :fields="SEARCH_FIELDS" :loading="loading" :blank="blankFilters" @search="loadFirstPage">
@@ -30,7 +32,7 @@
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :key="tab" :loading="loading" :setting-key="tab" class="flex-1" :data="rows" :columns="columns"
-                    :options="tab === 'receipts' && canDelete ? { rowHeaders: 'checkbox' } : {}" :pagination="paging"
+                    :options="tab === 'receipts' && (canDelete || canWrite) ? { rowHeaders: 'checkbox' } : {}" :pagination="paging"
                     :empty-text="tab === 'open' ? '입고할 외주 출고가 없습니다.' : '조건에 맞는 입고가 없습니다.'"
                     @row-click="onRow" @select="sel => checked = sel" @page="onPage" @sort="onSort" />
             </div>
@@ -52,6 +54,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import SubconReceiptForm from '@core/Components/Production/SubconReceiptForm.vue';
 import SubconInspectionForm from '@core/Components/Production/SubconInspectionForm.vue';
+import DateEditDialog from '@core/Components/Common/DateEditDialog.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
@@ -168,6 +171,26 @@ function onRow(row) {
             receipt: row, canWrite: false, showRoute: 'production.subcon.receipt.inspection',
         }, { size: 'lg' });
     }
+}
+
+// 입고 일시 수정 ( 11-25 · 일시만 — 수량 · 합격 · 창고는 그대로 ) : 하나만 체크했을 때
+//   검사 없이 완료된 입고 = 입고 일시가 곧 외주 공정 실적 시각 → 실적 · 재공 이력( · 제품 입고 원장 )도 함께 / 검사한 입고 = 입고 일시만 ( 검사 일시까지 )
+const editTarget = computed(() => checked.value.length === 1 && checked.value[0].status !== 'CANCELED' ? checked.value[0] : null);
+function editDate() {
+    const r = editTarget.value;
+    if (!r) return;
+    const cascades = r.status === 'DONE' && !r.inspected && r.has_run;
+    modalStore.open(DateEditDialog, {
+        modalTitle: '입고 일시 수정',
+        target: `${r.receipt_no} · ${r.partner_name} · ${r.wo_no} ${r.process_name}`,
+        fields: [{ key: 'received_at', label: '입고 일시', mode: 'datetime', value: r.received_at }],
+        warning: cascades
+            ? `입고 일시를 바꾸면 외주 공정 실적 · 재공 이력${r.run_received ? '과 제품 입고 원장' : ''}의 일시도 함께 바뀝니다. 날짜별 조회 결과가 달라질 수 있습니다. ( 수량은 그대로 )`
+            : '',
+        url: route('production.subcon.receipt.editDate'),
+        payload: { subcon_receipt_idx: r.subcon_receipt_idx },
+        onDone: () => load(),
+    }, { size: 'sm' });
 }
 
 async function cancelChecked() {

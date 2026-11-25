@@ -1,6 +1,7 @@
 <!-- 작업지시 하나의 자재출고 패널 — docs/screens/50-생산.md §12
      - 자재 줄마다 계산 소요( ⓘ 계산 과정 ) · 규격 묶음 · 후보 LOT( 선입선출 ) 채움 → 자재 목록 아래 오른쪽 [출고]( 출고일시 · 비고 같이 )
      - 아래 : 이 지시의 출고 이력 — 체크 → [출고 취소] ( 보유분 안에서만 )
+               출고일시 옆 [수정] ( 11-25 · routes.editDate · 칸에서 그 자리에서 — InlineDateEdit ) : 그 전표의 일시만 고친다 — 같은 전표의 다른 줄도 같이 ( 외주 건 출고 · 취소 줄은 없음 )
      - 쓰는 곳 : 자재출고 화면( Production/MaterialIssue ) · 공정실적 화면의 [출고] ( Production/OpResult — 그 화면 권한으로 부르는 주소 )
                · 재고관리 LOT 창의 [출고] ( preferBalanceIdx — 그 LOT 을 먼저 채운다 )
      - routes : { plan, history, save, cancel, returnPlan, returnSave, returnCancel } route name. 처리 후 changed, 알림은 flash( text, error )
@@ -225,9 +226,9 @@
                     <span class="text-sm font-semibold text-gray-600">출고 이력 <span class="text-xs text-gray-400">{{ history.length }} 줄</span></span>
                 </div>
                 <div class="overflow-auto">
-                    <table class="w-full min-w-[1008px] table-fixed text-xs">
+                    <table class="w-full min-w-[1056px] table-fixed text-xs">
                         <colgroup>
-                            <col class="w-8"><col class="w-32"><col class="w-36">
+                            <col class="w-8"><col class="w-32"><col class="w-48">
                             <col><col class="w-32"><col class="w-28">
                             <col class="w-36"><col class="w-14"><col class="w-24">
                         </colgroup>
@@ -243,7 +244,11 @@
                             <tr v-for="h in history" :key="h.stock_txn_line_idx" class="border-t border-gray-100" :class="h.status === 'CANCELED' ? 'text-gray-400 line-through' : ''">
                                 <td class="text-center px-2 py-1.5"><input v-if="canCancel && isOpen && h.status === 'DONE'" type="checkbox" class="row-check" :value="h.stock_txn_line_idx" v-model="checked" /></td>
                                 <td class="px-2 py-1.5">{{ h.txn_no }}</td>
-                                <td class="px-2 py-1.5">{{ h.occurred_at.replace('T', ' ') }}</td>
+                                <td class="px-2 py-1.5 whitespace-nowrap">
+                                    <InlineDateEdit :value="h.occurred_at.replace('T', ' ')" mode="datetime" field="occurred_at" label="출고일시"
+                                                    :url="dateUrl" :payload="{ stock_txn_idx: h.stock_txn_idx, work_order_idx: woIdx }"
+                                                    :warning="dateWarning(h)" :can-edit="canEditDate && h.status === 'DONE' && !h.is_subcon" @saved="onDateSaved" />
+                                </td>
                                 <td class="truncate px-2 py-1.5" :title="`${h.item_code} ${h.item_name}${h.is_extra ? ' — BOM 외 자재' + (h.extra_reason ? ' ( ' + h.extra_reason + ' )' : '') : ''}`"><span v-if="h.is_extra" class="shrink-0 whitespace-nowrap mr-1 px-1 rounded bg-purple-50 text-purple-700 no-underline">BOM 외</span>{{ h.item_code }} {{ h.item_name }}</td>
                                 <td class="truncate px-2 py-1.5" :title="h.lot_no">{{ h.lot_no }}</td>
                                 <td class="truncate px-2 py-1.5" :title="h.warehouse_name">{{ h.warehouse_name }}</td>
@@ -273,6 +278,8 @@ import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import { showAlert } from '@core/Utils/message';
 import { qtyText } from '@core/Components/Stock/stockCodes';
+import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
+import { stockTxnDateWarning } from '@core/Components/Stock/stockTxnDateEdit';
 import MaterialReturnPanel from '@core/Components/Production/MaterialReturnPanel.vue';
 import { useLatest } from '@core/Composables/useLatest';
 import { fmtNum } from '@core/Utils/format';
@@ -290,6 +297,7 @@ const props = defineProps({
         leftoverSave: 'production.materialIssue.leftoverSave', leftoverCancel: 'production.materialIssue.leftoverCancel',   // 잔재 입고 ( 11-12 )
         extraAdd: 'production.materialIssue.extraAdd', extraRemove: 'production.materialIssue.extraRemove',                 // BOM 외 자재 줄 ( 11-13 )
         scan: 'production.materialIssue.scan',                                                                              // 바코드 · QR 스캔 ( 11-18 )
+        editDate: 'production.materialIssue.editDate',                                                                      // 출고 · 반납 · 잔재 입고 일시만 수정 ( 11-25 )
     }) },
 });
 const emit = defineEmits(['changed', 'flash']);
@@ -630,6 +638,12 @@ async function cancelChecked() {
         saving.value = false;
     }
 }
+
+// 출고일시 수정 ( 11-25 · 이력 표의 일시 칸에서 그 자리에서 — InlineDateEdit ) — 전표 단위 ( 같은 전표의 다른 줄도 같이 옮겨진다 )
+const canEditDate = computed(() => props.canWrite && !!props.routes.editDate && route().has(props.routes.editDate));
+const dateUrl     = computed(() => canEditDate.value ? route(props.routes.editDate) : '');
+const dateWarning = (h) => stockTxnDateWarning({ row: h, rows: history.value });
+async function onDateSaved() { await loadPlan(); emit('changed'); }
 
 watch(() => props.woIdx, async () => { order.value = null; form.remark = ''; resetScan(); await loadPlan(); focusScan(); }, { immediate: true });
 

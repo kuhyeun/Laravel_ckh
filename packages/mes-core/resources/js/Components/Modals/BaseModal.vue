@@ -7,24 +7,29 @@
                 :style="{ zIndex: 1000 + index }"
                 @click.self="handleOverlayClick(modal)"
             >
-                <div class="modal-inner w-full flex flex-col bg-white p-6 rounded-[8px] shadow-[0_5px_15px_rgba(0,0,0,0.5)] overflow-y-auto" :class="`size-${modal.size}`">
-                    <div class="flex">
-                        <div class="flex-1 font-bold text-[19px]">{{ modal.props?.modalTitle }}</div>
+                <!-- 11-25 : 머리 · 본문 두 칸 — 머리는 끝까지 색칠( 연한 파랑 ) · 본문만 여백 p-3 · 본문만 스크롤( 제목 고정 ) -->
+                <div class="modal-inner w-full flex flex-col bg-white rounded-[8px] shadow-[0_5px_15px_rgba(0,0,0,0.5)] overflow-hidden" :class="`size-${modal.size}`">
+                    <div class="modal-head shrink-0 flex items-center gap-2 px-4 py-2.5 bg-blue-50 border-b border-blue-100">
+                        <div class="flex-1 min-w-0 truncate font-bold text-[17px] text-gray-800" :title="modal.props?.modalTitle">{{ modal.props?.modalTitle }}</div>
                         <!-- <button class="list_config mr-1">
                             <Cog6ToothIcon class="w-[24px] h-[24px]" />
                         </button> -->
-                        <button class="close_btn" @click="modalStore.close(modal.id)">
-                            <XMarkIcon class="w-[24px] h-[24px]" />
+                        <button class="close_btn shrink-0 rounded p-0.5 text-gray-500 hover:text-gray-800 hover:bg-blue-100" @click="modalStore.close(modal.id)">
+                            <XMarkIcon class="w-[22px] h-[22px]" />
                         </button>
                     </div>
 
-                    <component
-                        class="flex-1"
-                        :is="modal.component"
-                        v-bind="modal.props"
-                        @close="modalStore.close(modal.id)"
-                    />
-                    <div class="flex justify-end mt-2 -mb-3 -mr-3"><DevSourceTag :name="sourceName(modal.component)" /></div>
+                    <div class="modal-body flex-1 min-h-0 flex flex-col p-3 overflow-y-auto">
+                        <!-- !mt-0 : 화면들 첫 줄의 mt-3 은 제목과 띄우던 간격 — 머리가 따로라 필요 없다 -->
+                        <component
+                            class="flex-1 !mt-0"
+                            :is="modal.component"
+                            v-bind="modal.props"
+                            @close="modalStore.close(modal.id)"
+                        />
+                        <!-- 이름표 줄 : 보일 때만 ( 빈 줄도 여백이 남아 창에 스크롤이 생겼다 · 11-25 ) -->
+                        <div v-if="showSourceTag" class="flex justify-end mt-2 -mb-1.5 -mr-1.5"><DevSourceTag :name="sourceName(modal.component)" /></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -32,12 +37,16 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { XMarkIcon, Cog6ToothIcon } from '@heroicons/vue/24/outline';
 import DevSourceTag from '@core/Components/Common/DevSourceTag.vue';
+import { usePage } from '@inertiajs/vue3';
 
 const modalStore = useModalStore();
+// 화면 파일 이름표 : 시스템 계정 + 시스템 설정 켬 ( DevSourceTag 와 같은 조건 )
+const inertiaPage = usePage();
+const showSourceTag = computed(() => inertiaPage.props.auth?.user?.user_level === 0 && inertiaPage.props.devSourceTag !== false);
 
 // 모달 본체의 파일 이름 ( Vue SFC 가 붙이는 __name · 개발 서버는 __file 로 경로까지 )
 const sourceName = (c) => {

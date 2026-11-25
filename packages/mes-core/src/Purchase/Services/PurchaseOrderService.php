@@ -238,4 +238,9 @@ class PurchaseOrderService {
     public function changeStatus(PurchaseOrder $order, string $to): void {
         $this->changeHeaderStatus($order, $to);   // Support/OrderHeaderActions
     }
+
+    // 날짜만 고치기 ( 완료 발주의 [수정] · 11-25 ) — 발주일 + 줄 입고 예정일. 상태 · 발주번호는 그대로
+    public function editDates(PurchaseOrder $order, array $input): array {
+        return $this->editHeaderDates($order, $input, ['order' => '발주일', 'due' => '입고 예정일', 'noun' => '발주']);   // Support/OrderHeaderActions
+    }
 }

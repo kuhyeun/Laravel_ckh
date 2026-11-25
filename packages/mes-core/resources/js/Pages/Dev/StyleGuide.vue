@@ -594,7 +594,7 @@ modalStore.open(ItemForm, { modalTitle: isEdit ? '품목 수정' : '품목 등�
         <BaseButton v-if="canDelete && isEdit" variant="danger" @click="remove">삭제</BaseButton>
         <div class="flex-1"></div>
         <BaseButton variant="secondary" @click="$emit('close')">{{ canWrite ? '취소' : '닫기' }}</BaseButton>
-        <BaseButton v-if="canWrite" variant="primary" :disabled="saving" @click="save">{{ saving ? '저장 중…' : (isEdit ? '수정' : '등록') }}</BaseButton>
+        <BaseButton v-if="canWrite" variant="primary" :disabled="saving" @click="save">{{ saving ? '저장 중…' : (isEdit ? '저장' : '등록') }}</BaseButton>
     </div>
 </div>`,
 

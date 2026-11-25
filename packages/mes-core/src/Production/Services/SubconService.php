@@ -15,6 +15,7 @@ use MesCore\Production\Models\WorkOrderOpRun;
 use MesCore\Production\Models\WorkOrderRunInput;
 use MesCore\Quality\Models\Inspection;
 use MesCore\Quality\Services\DefectService;
+use MesCore\Support\DateEdit;
 
 /**
  * 외주관리 ( 4005 · 11-05 사용자 정의 )
@@ -232,6 +233,33 @@ class SubconService {
         });
     }
 
+    /**
+     * 검사일시 수정 ( 11-25 · DateEdit ) — 판정 · 수량 · 검사자는 그대로 · 불량 발생일시를 같이
+     *   검사한 입고는 완료 · 실적 시각 = 검사일시 → 입고 완료 시각 · 외주 공정 실적( 재공 이력 · 제품 입고 원장 · 실적 LOT 입고일 — OpResultService::editRunDate )도 함께
+     *   입고 일시보다 이를 수 없다 ( 입고 일시 수정은 거꾸로 검사일시보다 늦출 수 없다 )
+     * @return string[] 경고
+     */
+    public function editInspectionDate(int $receiptIdx, Carbon $at, \MesCore\Quality\Services\InspectionDateService $dates): array {
+        return DB::transaction(function () use ($receiptIdx, $at, $dates) {
+            $rc = DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->lockForUpdate()->first();
+            if (!$rc || $rc->status !== 'DONE' || !$rc->inspection_idx) {
+                throw ValidationException::withMessages(['inspected_at' => ['검사완료된 외주 입고가 아닙니다. 새로고침하세요.']]);
+            }
+            $inspection = $dates->lock((int) $rc->inspection_idx, ['SUBCON']);
+            DateEdit::order(Carbon::parse($rc->received_at), $at, 'inspected_at', '검사일시가 입고 일시( ' . substr((string) $rc->received_at, 0, 16) . ' )보다 이릅니다.');
+
+            $warnings = [];
+            $before   = ['subcon_receipt.done_at' => $rc->done_at];
+            if ($rc->run_idx && ($run = WorkOrderOpRun::with('op')->find($rc->run_idx)) && $run->is_canceled === 'N') {
+                $before['run.worked_at'] = $run->worked_at?->format('Y-m-d H:i:s');
+                $warnings = $this->results->editRunDate($run, $run->started_at, $at, true);
+            }
+            $dates->move($inspection, $at, $before);   // 활동 로그 _before 는 이것으로 ( 실적 쪽 remember 를 덮는다 — 실적 시각도 $before 에 )
+            DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->update(['done_at' => $at, 'update_account_idx' => Auth::id()]);
+            return $warnings;
+        });
+    }
+
     // 입고 취소 : 완료면 실적 취소( 뒤 공정이 쓰지 않았을 때 ) · 검사 · 불량 취소 표시
     public function cancelReceipt(int $receiptIdx): void {
         DB::transaction(function () use ($receiptIdx) {
@@ -249,6 +277,70 @@ class SubconService {
             DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)
                 ->update(['status' => 'CANCELED', 'canceled_by' => Auth::id(), 'canceled_at' => now(), 'update_account_idx' => Auth::id()]);
         });
+    }
+
+    // ---- 날짜 수정 ( 11-25 · DateEdit — 수량 · 외주처 · LOT · 금액은 그대로 ) ----
+
+    // 출고 일시 : 재공 이력( 앞 공정 − )도 함께 · 입고가 있으면 가장 이른 입고 일시까지 ( 출고 번호는 그대로 )
+    public function editIssueDate(int $issueIdx, Carbon $at): array {
+        return DB::transaction(function () use ($issueIdx, $at) {
+            $issue = DB::table('subcon_issue')->where('subcon_issue_idx', $issueIdx)->lockForUpdate()->first();
+            if (!$issue || $issue->is_canceled === 'Y') {
+                throw ValidationException::withMessages(['issued_at' => ['취소되었거나 없는 출고입니다.']]);
+            }
+            $this->notFuture($at, 'issued_at');
+            $first = DB::table('subcon_receipt')->where('subcon_issue_idx', $issueIdx)->where('status', '!=', 'CANCELED')->min('received_at');
+            if ($first) {
+                DateEdit::order($at, Carbon::parse($first), 'issued_at', '출고 일시가 입고 일시( ' . substr((string) $first, 0, 16) . ' )보다 늦습니다.');
+            }
+            DateEdit::remember(['issue_no' => $issue->issue_no, 'issued_at' => substr((string) $issue->issued_at, 0, 16)]);
+
+            DB::table('subcon_issue')->where('subcon_issue_idx', $issueIdx)->update(['issued_at' => $at, 'update_account_idx' => Auth::id()]);
+            // 재공 이력 : 이 출고의 줄 ( 취소 반대 줄은 취소 시각이라 그대로 )
+            DB::table('wip_txn')->where('subcon_issue_idx', $issueIdx)->where('is_reversal', 'N')->update(['occurred_at' => $at]);
+            return [];
+        });
+    }
+
+    /**
+     * 입고 일시 — 출고 일시 이후 · 검사했으면 검사 일시까지
+     *   검사 없이 완료된 입고 = 입고 일시가 곧 완료 · 실적 시각 → 완료 시각 · 외주 공정 실적( 재공 이력 · 제품 입고 원장 · 실적 LOT 입고일 )도 함께
+     *   검사한 입고 = 완료 · 실적 시각은 검사 일시 ( 검사 쪽에서 ) → 입고 일시만
+     * @return string[] 경고
+     */
+    public function editReceiptDate(int $receiptIdx, Carbon $at): array {
+        return DB::transaction(function () use ($receiptIdx, $at) {
+            $rc = DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->lockForUpdate()->first();
+            if (!$rc || $rc->status === 'CANCELED') {
+                throw ValidationException::withMessages(['received_at' => ['취소되었거나 없는 입고입니다.']]);
+            }
+            $issue = DB::table('subcon_issue')->where('subcon_issue_idx', $rc->subcon_issue_idx)->first();
+            $this->notFuture($at, 'received_at');
+            DateEdit::order(Carbon::parse($issue->issued_at), $at, 'received_at', '입고 일시가 출고 일시( ' . substr((string) $issue->issued_at, 0, 16) . ' )보다 이릅니다.');
+            $insp = $rc->inspection_idx ? Inspection::find($rc->inspection_idx) : null;
+            if ($insp && $insp->is_canceled !== 'Y' && $insp->inspected_at) {
+                DateEdit::order($at, $insp->inspected_at, 'received_at', '입고 일시가 검사 일시( ' . $insp->inspected_at->format('Y-m-d H:i') . ' )보다 늦습니다.');
+            }
+            $before   = ['receipt_no' => $rc->receipt_no, 'received_at' => substr((string) $rc->received_at, 0, 16), 'done_at' => $rc->done_at ? substr((string) $rc->done_at, 0, 16) : null];
+            $set      = ['received_at' => $at, 'update_account_idx' => Auth::id()];
+            $warnings = [];
+            if ($rc->status === 'DONE' && !$rc->inspection_idx) {
+                $set['done_at'] = $at;
+                if ($rc->run_idx && ($run = WorkOrderOpRun::with('op')->find($rc->run_idx)) && $run->is_canceled === 'N') {
+                    $warnings = $this->results->editRunDate($run, $run->started_at, $at, true);
+                    $before  += (array) request()->attributes->get(DateEdit::BEFORE, []);   // 실적 · 전표 쪽 _before ( editRunDate 가 남긴 것 )
+                }
+            }
+            DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->update($set);
+            DateEdit::remember($before);
+            return $warnings;
+        });
+    }
+
+    private function notFuture(Carbon $at, string $field): void {
+        if ($at->gt(now()->addMinutes(10))) {
+            throw ValidationException::withMessages([$field => ['아직 오지 않은 시각입니다. 실제로 일어난 시각을 넣으세요.']]);
+        }
     }
 
     // ---- 내부 ----

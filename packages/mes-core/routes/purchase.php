@@ -30,6 +30,7 @@ Route::prefix('purchase')->name('purchase.')->middleware([UserAuth::class])->gro
         Route::middleware($write)->group(function() {
             Route::post('/save', [PurchaseOrderController::class, 'save'])->name('save');
             Route::post('/status', [PurchaseOrderController::class, 'status'])->name('status');
+            Route::post('/editDate', [PurchaseOrderController::class, 'editDate'])->name('editDate');   // 완료 발주의 날짜만 ( 11-25 )
         });
 
         Route::middleware($delete)->group(function() {
@@ -54,6 +55,7 @@ Route::prefix('purchase')->name('purchase.')->middleware([UserAuth::class])->gro
             Route::get('/inspModes', [ReceiptController::class, 'inspModes'])->name('inspModes');
             Route::post('/save', [ReceiptController::class, 'save'])->name('save');
             Route::post('/cancel', [ReceiptController::class, 'cancel'])->name('cancel');
+            Route::post('/editDate', [ReceiptController::class, 'editDate'])->name('editDate');   // 입고일시만 수정 ( 11-25 )
         });
     });
 

@@ -877,6 +877,44 @@ class MaterialIssueService {
         });
     }
 
+    // ---- 일시 수정 ( 11-25 · 날짜만 ) ----
+
+    /**
+     * 출고 · 반납 · 잔재 입고 전표의 일시 수정 — 전표 하나( 그 전표의 줄 모두 )를 옮긴다 ( StockTxnDateService )
+     *   이 지시의 전표만 · 외주 건 출고는 외주 화면 몫이라 막는다 · 잔재 입고는 그 전표가 만든 잔재 LOT 의 입고일( in_at )도 같이
+     *   원자재출고 공정 시작 시각 · 보유( wo_stock )는 그대로 ( 시각이 없는 합계 )
+     * @return array{0: StockTxn, 1: string[]}
+     */
+    public function editDate(WorkOrder $wo, int $txnIdx, Carbon $at): array {
+        return DB::transaction(function () use ($wo, $txnIdx, $at) {
+            WorkOrder::whereKey($wo->work_order_idx)->lockForUpdate()->first();
+            $own = StockTxnLine::where('stock_txn_idx', $txnIdx)->where('work_order_idx', $wo->work_order_idx)->exists();
+            $txn = StockTxn::whereKey($txnIdx)->first(['stock_txn_idx', 'subcon_issue_idx', 'subcon_order_line_idx']);
+            if (!$own || !$txn) {
+                throw ValidationException::withMessages(['occurred_at' => ['이 작업지시의 전표가 아닙니다. 새로고침하세요.']]);
+            }
+            if ($txn->subcon_issue_idx || $txn->subcon_order_line_idx) {
+                throw ValidationException::withMessages(['occurred_at' => ['외주 건으로 보낸 출고는 외주 화면에서 고치세요.']]);
+            }
+
+            // 잔재 입고가 만든 LOT ( LEFTOVER ) — leftoverIn() 이 in_at 을 전표 일시로 넣는다
+            $lotsOf = fn (StockTxn $t) => $t->txn_type !== self::LEFTOVER_TYPE ? [] : DB::table('stock_txn_line as l')
+                ->join('lot', 'lot.lot_idx', '=', 'l.lot_idx')
+                ->where('l.stock_txn_idx', $t->stock_txn_idx)->where('lot.source', 'LEFTOVER')->pluck('l.lot_idx')->all();
+
+            return app(\MesCore\Stock\Services\StockTxnDateService::class)->move(
+                $txnIdx, [self::TXN_TYPE, self::RETURN_TYPE, self::LEFTOVER_TYPE], $at, 'occurred_at', $lotsOf,
+                function (Carbon $old, Carbon $new, StockTxn $t) use ($lotsOf) {
+                    $ids = $lotsOf($t);
+                    if (!$ids) return [];
+                    $n = Lot::whereIn('lot_idx', $ids)->where('in_at', $old->format('Y-m-d H:i:s'))
+                        ->update(['in_at' => $new, 'update_account_idx' => \Illuminate\Support\Facades\Auth::id()]);
+                    return ['lot_in_at' => $n];
+                },
+            );
+        });
+    }
+
     /**
      * 사용처리 — 투입 공정이 시작될 때( 3단계 공정실적 ) 그 공정에 붙은 자재의 보유분을 전부 사용으로 돌린다
      *   투입 지점이 비어 있는 자재는 첫 수량 공정에 붙은 것으로 본다. 정책 consume_timing = ISSUE 인 자재는 이미 출고 때 사용했다

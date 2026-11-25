@@ -179,7 +179,8 @@ function openModal(row) {
             order: row ? { sheet_idx: row.sheet_idx, work_order_idx: row.is_line ? row.work_order_idx : null } : null,
             canWrite: canWrite.value,
             canDelete: canDelete.value,
-            onSaved: (saved, warnings = []) => {
+            onSaved: (saved, warnings = [], opts = {}) => {
+                if (opts.silent) { load(); return; }   // 날짜 수정 : 알림은 수정 창이 띄웠다 ( 11-25 )
                 const base = saved.canceled ? `${saved.sheet_no} 를 취소했습니다.`
                     : saved.canceled_line ? `${saved.canceled_line} 줄을 취소했습니다.`
                     : `${saved.sheet_no} ${row ? '수정' : '등록'}되었습니다.${saved.lines ? ` 품목 줄 ${saved.lines.length}개` : ''}`;

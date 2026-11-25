@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderSheet;
+use MesCore\Support\DateEdit;
 
 /**
  * 작업지시서 저장 · 채번 · 취소 · 상태 ( 트랜잭션 경계 ) — docs/screens/50-생산.md "1단계 보완"
@@ -183,6 +184,42 @@ class WorkOrderSheetService {
         DB::transaction(function () use ($sheet, $open) {
             $open->each(fn (WorkOrder $w) => $this->lines->cancel($w));
             $this->refreshStatus($sheet);
+        });
+    }
+
+    /**
+     * 날짜만 고치기 ( 완료된 지시서의 [수정] · 11-25 ) — 착수 예정 start_date · 생산 기한 due_date
+     *   저장과 같이 지시서 값을 품목 줄( 취소 줄 제외 )에 복사한다. 수량 · 공정 · LOT · 상태는 그대로 ( LOT 번호도 다시 매기지 않는다 )
+     *   취소된 지시서는 막는다 · 대기 · 진행은 [저장]으로 고친다
+     * @return string[] 경고
+     */
+    public function editDates(WorkOrderSheet $sheet, array $input): array {
+        return DB::transaction(function () use ($sheet, $input) {
+            $sheet = WorkOrderSheet::whereKey($sheet->sheet_idx)->lockForUpdate()->firstOrFail();
+            if ($sheet->status === 'CANCELED') {
+                throw ValidationException::withMessages(['status' => ['취소된 작업지시서는 고칠 수 없습니다.']]);
+            }
+            $lines = WorkOrder::where('sheet_idx', $sheet->sheet_idx)->where('status', '!=', 'CANCELED')->lockForUpdate()->get();
+
+            DateEdit::remember([
+                'start_date' => $sheet->start_date?->toDateString(),
+                'due_date'   => $sheet->due_date?->toDateString(),
+            ]);
+            $start = array_key_exists('start_date', $input) ? DateEdit::date($input['start_date'], 'start_date', '착수 예정일')->toDateString() : $sheet->start_date?->toDateString();
+            $due   = array_key_exists('due_date', $input) ? DateEdit::date($input['due_date'], 'due_date', '생산 기한')->toDateString() : $sheet->due_date?->toDateString();
+
+            $sheet->fill(['start_date' => $start, 'due_date' => $due]);
+            if ($sheet->isDirty()) {
+                $sheet->save();
+            }
+            foreach ($lines as $wo) {
+                $wo->fill(['start_date' => $start, 'due_date' => $due]);
+                if ($wo->isDirty()) {
+                    $wo->save();
+                }
+            }
+
+            return $due && $start && $due < $start ? ['생산 기한이 착수 예정일보다 앞입니다.'] : [];   // W_WO_DUE
         });
     }
 

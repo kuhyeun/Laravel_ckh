@@ -249,6 +249,23 @@ class PurchaseOrderController extends Controller {
         return response()->json(['message' => 'Success', 'changed' => $orders->count()]);
     }
 
+    // 날짜만 고치기 ( 완료 발주의 [수정] · 11-25 ) — 발주일 order_date · 줄 입고 예정일 due_{줄 IDX}. 상태 · 번호 · 수량은 그대로
+    public function editDate(Request $request) {
+        $v     = $request->validate(['purchase_order_idx' => 'required|integer']);
+        $order = PurchaseOrder::find($v['purchase_order_idx']);
+        if (!$order) {
+            return response()->json(['message' => 'NotFound'], 404);
+        }
+
+        $warnings = $this->orders->editDates($order, $request->except('purchase_order_idx'));
+
+        return response()->json([
+            'message'  => '날짜를 고쳤습니다.',
+            'warnings' => $warnings,
+            'order'    => $this->toForm($order->fresh(['partner', 'lines.item', 'lines.sources.salesOrderLine.order', 'lines.sources.salesOrderLine.item'])),
+        ]);
+    }
+
     // ---- 목록 ----
 
     private function applyFilters(Builder $query, array $v): void {

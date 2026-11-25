@@ -1,6 +1,7 @@
 <!-- 디버깅용 파일 이름표 — 시스템 계정( 레벨 0 )에게만 보인다
      - 화면( AppLayout ) : 페이지 파일 "Pages/Config/ItemManage.vue" · 모달( BaseModal ) : 모달 본체 "ItemForm.vue"
-     - 누르면 이름을 복사한다 · 일반 사용자에게는 그리지 않는다 ( 레벨 판단은 화면 — 보안 정보가 아니라 파일 이름뿐 ) -->
+     - 누르면 이름을 복사한다 · 일반 사용자에게는 그리지 않는다 ( 레벨 판단은 화면 — 보안 정보가 아니라 파일 이름뿐 )
+     - 시스템 설정 「화면 파일 이름표 표시」( Common.dev_source_tag )로 켜고 끈다 — 서버가 devSourceTag 로 넘긴다 ( 11-25 ) -->
 <template>
     <button v-if="visible && name" type="button"
         class="px-1.5 py-0.5 rounded bg-gray-800/70 text-white text-[10px] font-mono leading-none hover:bg-gray-800 select-none"
@@ -18,7 +19,7 @@ const props = defineProps({
 });
 
 const page    = usePage();
-const visible = computed(() => page.props.auth?.user?.user_level === 0);
+const visible = computed(() => page.props.auth?.user?.user_level === 0 && page.props.devSourceTag !== false);
 const copied  = ref(false);
 
 async function copy() {

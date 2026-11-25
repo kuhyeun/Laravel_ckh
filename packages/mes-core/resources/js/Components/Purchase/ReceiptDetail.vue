@@ -3,7 +3,8 @@
        그 LOT 이 이미 출고 · 이동됐으면 서버가 막는다 ( 하나라도 막히면 전부 되돌림 )
      - LOT 번호는 취소해도 남는다 ( 번호 재사용 없음 )
      - 선택 줄 [라벨 발행] : 자재식별표 ( 바코드 = LOT 번호 · feature.barcode · 발행 권한 )
-     - 줄 취소 → 그 LOT 의 라벨도 폐기( 사유 '입고 취소' ) — 폐기한 장수를 알리고 붙어 있는 라벨을 떼게 한다 -->
+     - 줄 취소 → 그 LOT 의 라벨도 폐기( 사유 '입고 취소' ) — 폐기한 장수를 알리고 붙어 있는 라벨을 떼게 한다
+     - 입고일시 [수정] ( 11-25 ) : 그 자리에서 일시만 고친다 ( InlineDateEdit ) — 이 입고가 만든 LOT 의 입고일( 선입선출 기준 )도 같이. 취소된 입고는 못 고침 -->
 <template>
     <div class="mt-3 text-sm">
         <p v-if="loading" class="py-8 text-center text-gray-400">불러오는 중...</p>
@@ -12,7 +13,14 @@
             <div class="grid grid-cols-4 gap-x-4 gap-y-1.5 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/70">
                 <div><span class="text-xs text-gray-500">입고번호</span><p class="font-semibold">{{ rc.txn_no }}</p></div>
                 <div><span class="text-xs text-gray-500">구매처</span><p>{{ rc.partner_name }}</p></div>
-                <div><span class="text-xs text-gray-500">입고일시</span><p>{{ rc.occurred_at }}</p></div>
+                <div>
+                    <span class="text-xs text-gray-500">입고일시</span>
+                    <p>
+                        <InlineDateEdit :value="rc.occurred_at" mode="datetime" field="occurred_at" label="입고일시"
+                                        :url="route('purchase.receipt.editDate')" :payload="{ stock_txn_idx: rc.stock_txn_idx }"
+                                        :warning="DATE_WARNING" :can-edit="canWrite && rc.status !== 'CANCELED'" @saved="onDateSaved" />
+                    </p>
+                </div>
                 <div><span class="text-xs text-gray-500">등록</span><p class="text-gray-500">{{ rc.recorded_at }}</p></div>
                 <div class="col-span-4" v-if="rc.remark"><span class="text-xs text-gray-500">비고</span><p>{{ rc.remark }}</p></div>
             </div>
@@ -81,7 +89,7 @@
                     </tbody>
                 </table>
             </div>
-            <p class="text-xs text-gray-400 mt-1">입고는 고치지 않습니다. 잘못 넣었으면 줄을 취소하고 다시 입고하세요. 이미 출고 · 이동된 LOT 은 취소할 수 없습니다.</p>
+            <p class="text-xs text-gray-400 mt-1">입고는 고치지 않습니다( 입고일시만 [수정] ). 잘못 넣었으면 줄을 취소하고 다시 입고하세요. 이미 출고 · 이동된 LOT 은 취소할 수 없습니다.</p>
         </template>
 
         <ModalFooter>
@@ -103,6 +111,7 @@ import { ref, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import ModalFooter from '@core/Components/Common/ModalFooter.vue';
+import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
 import IncomingInspectionForm from '@core/Components/Quality/IncomingInspectionForm.vue';
 import LabelIssueForm from '@core/Components/Label/LabelIssueForm.vue';
 import { useLabelAccess } from '@core/Composables/useLabelAccess';
@@ -165,6 +174,10 @@ function openLabel() {
         { size: 'xl', closeOnClickOutside: false }
     );
 }
+
+// 입고일시 수정 ( 11-25 ) — 전표 · 원장 일시 + 이 입고의 LOT 입고일 ( 그 자리에서 · InlineDateEdit )
+const DATE_WARNING = '재고 원장의 일시가 바뀝니다. 날짜별 재고 · 수불 조회 결과가 달라질 수 있습니다. ( 현재 재고 수량은 그대로 )\n이 입고로 만든 LOT 의 입고일( 선입선출 기준 )도 함께 바뀝니다. ( 입고번호 · LOT 번호는 그대로 )';
+function onDateSaved() { load(); props.onChange?.(); }
 
 async function cancelChecked() {
     const labelNote = label.enabled ? '\n발행된 라벨은 함께 폐기됩니다.' : '';

@@ -21,6 +21,8 @@ use MesCore\Stock\Models\StockLedger;
 use MesCore\Stock\Models\StockTxn;
 use MesCore\Stock\Models\StockTxnLine;
 use MesCore\Stock\Services\StockService;
+use MesCore\Stock\Services\StockTxnDateService;
+use MesCore\Support\DateEdit;
 
 /**
  * 출하 ( SHP-02 ) — docs/screens/60-출하.md
@@ -439,6 +441,57 @@ class ShipmentService {
         });
 
         return array_values($warnings);
+    }
+
+    // ---- 날짜 수정 ( 11-25 · DateEdit ) ----
+
+    /**
+     * 출하 일시 · 출하 예정일만 고치기 ( 출하 완료 건의 [수정] ) — 수량 · LOT · 거래처 · 상태는 그대로
+     *   출하 일시 : 출하처리한 건만. 이 출하의 출고 전표( OUT_SHIPMENT )의 일시 · 원장 · 줄 완료 시각도 함께 ( StockTxnDateService — 소급 · LOT 입고 시각 규칙 )
+     *               거래명세서는 shipped_at 을 읽으니 따라온다
+     *   취소된 건은 막는다
+     * @return string[] 경고
+     */
+    public function editDates(Shipment $s, array $input): array {
+        return DB::transaction(function () use ($s, $input) {
+            $s = Shipment::with('lines')->whereKey($s->shipment_idx)->lockForUpdate()->first();
+            if ($s->status === 'CANCELED') {
+                throw ValidationException::withMessages(['status' => ['취소된 출하는 고칠 수 없습니다.']]);
+            }
+            $before   = ['shipped_at' => $s->shipped_at?->format('Y-m-d H:i'), 'plan_date' => $s->plan_date?->toDateString()];
+            $warnings = [];
+
+            if (array_key_exists('plan_date', $input)) {
+                $s->plan_date = DateEdit::date($input['plan_date'], 'plan_date', '출하 예정일')->toDateString();
+            }
+
+            if (array_key_exists('shipped_at', $input)) {
+                if ($s->status !== 'DONE') {
+                    throw ValidationException::withMessages(['shipped_at' => ['출하처리한 건만 출하 일시를 고칠 수 있습니다.']]);
+                }
+                $at = DateEdit::dateTime($input['shipped_at'], 'shipped_at', '출하 일시');
+                if (!$s->shipped_at || !$s->shipped_at->equalTo($at)) {
+                    // 출고 전표 : 출하처리가 만든 것 ( 줄 = 출하 줄 · 완료 )
+                    $txnIdxs = StockTxnLine::whereIn('shipment_line_idx', $s->lines->pluck('shipment_line_idx')->all() ?: [0])
+                        ->where('line_status', 'DONE')->distinct()->pluck('stock_txn_idx');
+                    foreach ($txnIdxs as $txnIdx) {
+                        [, $w] = app(StockTxnDateService::class)->move((int) $txnIdx, [self::TXN_TYPE], $at, 'shipped_at');
+                        $warnings = array_merge($warnings, $w);
+                        $before['stock_txn'][] = request()->attributes->get(DateEdit::BEFORE);   // move() 가 남긴 전표 · 원장 전 값
+                    }
+                    if ($txnIdxs->isEmpty()) {
+                        $warnings = array_merge($warnings, array_filter([$this->stock->checkBackdate($at, 'shipped_at')]));
+                    }
+                    $s->shipped_at = $at;
+                }
+            }
+
+            DateEdit::remember($before);
+            if ($s->isDirty()) {
+                $s->save();
+            }
+            return array_values(array_unique($warnings));
+        });
     }
 
     // ---- 취소 ----
