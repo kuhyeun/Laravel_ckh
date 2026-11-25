@@ -87,6 +87,32 @@ class DefectService {
         if ($errors) throw ValidationException::withMessages($errors);
     }
 
+    /**
+     * 실적 불량 ( 11-25 · MES_1125 #11 ) — 검사 없이 공정 실적에 붙는 불량 ( 줄 합 = 불량 수량 · 검사 창과 같은 줄 검사 )
+     * @param array{item_idx:int, lot_idx:int, work_order_op_idx:int, run_idx:int, occurred_at:Carbon} $base
+     */
+    public function recordRunRows(array $base, array $rows): float {
+        $rows = array_values(array_filter($rows, fn ($r) => (float) ($r['qty'] ?? 0) > 0 || filled($r['defect_type_code'] ?? null)));
+        if (!$rows) return 0.0;
+        $sum = array_sum(array_map(fn ($r) => (float) ($r['qty'] ?? 0), $rows));
+        $this->validateRows($sum, ['defects' => $rows]);
+        foreach ($this->rowsOf($sum, ['defects' => $rows]) as $r) {
+            Defect::create([
+                'inspection_idx'    => null,
+                'insp_type'         => 'PROCESS',
+                'item_idx'          => $base['item_idx'],
+                'lot_idx'           => $base['lot_idx'] ?? 0,
+                'work_order_op_idx' => $base['work_order_op_idx'],
+                'run_idx'           => $base['run_idx'],
+                'qty'               => (string) $r['qty'],
+                'defect_type_code'  => $r['defect_type_code'],
+                'reason'            => filled($r['reason'] ?? null) ? mb_substr((string) $r['reason'], 0, 200) : null,
+                'occurred_at'       => $base['occurred_at'],
+            ]);
+        }
+        return $sum;
+    }
+
     /** 줄마다 불량 1건 — $base : 품목 · LOT · 거래처 · 공정 · 출하 줄 · 발생 일시 ( record() 의 줄 값 빼고 ) */
     public function recordRows(Inspection $inspection, array $base, float $failQty, array $data): void {
         if ($failQty <= 0) return;

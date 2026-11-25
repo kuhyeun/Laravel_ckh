@@ -3,10 +3,15 @@
      - 출하대기 : 고객사 · 예정일 · 줄( [+ 수주 줄] / [+ 품목] ) · 줄마다 LOT 지정( 선입선출 채움 — 가용 = 잔고 − 다른 출하대기 )
      - 고친 뒤에는 저장해야 결재 요청 · 출하처리를 누를 수 있다 ( 저장된 그대로 나간다 )
      - 결재 대기 · 완료 · 취소 건은 읽기 전용. 완료 건은 [수정]으로 출하 일시 · 출하 예정일 칸만 열어 [저장] ( 출고 원장 일시도 함께 · 11-25 )
-     - [출하 라벨] : 저장된 출하( 대기 · 완료 )의 품목 줄마다 라벨 — 기본 번호 = 출하번호-줄번호 · 고객 지정 번호 ( feature.barcode · 출하관리 쓰기 )
-       취소하면 그 라벨도 폐기( 사유 '출하 취소' ) · 라벨을 발행한 줄은 뺄 수 없다 ( 서버가 막는다 ) -->
+     - 현품표 스캔 ( 11-25 · MES_1125 #13 ) : 제품 LOT 현품표( 현품표 7005 · 생산 입고 뒤 발행 )를 찍으면 그 LOT 지정 + 1 · 다시 찍을 때마다 + 1
+       그 줄을 처음 찍으면 선입선출로 채운 지정을 비우고 찍은 만큼만 · 출하 수량 = 지정 합 · 지정 · 출하 수량은 손으로 고칠 수 있다
+       예전 [출하 라벨]( 출하 줄 라벨 )은 없앴다 ( 라벨 양식의 출하 라벨 → 현품표 양식 )
+     - 스캔 ( 11-25 ) : 줄이 없어도 스캔 칸이 늘 보인다 · 찍으면 LOT → 작업지시 → 수주 줄을 찾아( lotOrders ) 그 수주 줄을 자동으로 담는다
+       이미 그 수주 줄 · 같은 품목 줄이 있으면 거기에 · 수주가 여럿이면 스캔 칸 아래에서 고르기 · 다른 고객사 수주면 막음 ( 고객사가 비어 있으면 그 수주 고객사로 )
+       수주 없이 만든 LOT · 수주를 다 출하한 LOT 은 「수주 없이」 품목 줄로
+       다른 입력 칸 · 선택 칸에 있지 않으면 커서는 늘 스캔 칸 ( 위에 다른 창이 떠 있으면 건드리지 않는다 ) -->
 <template>
-    <div class="mt-3 text-sm flex flex-col min-h-0">
+    <div ref="root" class="mt-3 text-sm flex flex-col min-h-0">
         <div v-if="errorMsg" class="mb-3 text-xs text-red-500 whitespace-pre-line shrink-0">{{ errorMsg }}</div>
         <p v-if="loading" class="py-8 text-center text-gray-400">불러오는 중…</p>
 
@@ -74,6 +79,35 @@
                 </template>
             </div>
 
+            <!-- 현품표 스캔 ( 11-25 ) — 늘 보인다 · 찍을 때마다 그 LOT 지정 + 1 ( 줄이 없으면 수주 줄 · 품목 줄을 자동으로 담는다 ) -->
+            <div v-if="editable && canScan" class="mb-2 flex items-center gap-2 px-2 py-1.5 rounded border border-dashed border-blue-200 bg-blue-50/40 shrink-0">
+                <span class="text-xs font-semibold text-blue-700 whitespace-nowrap">현품표 스캔</span>
+                <BaseInput ref="scanEl" v-model="scan.text" size="md" class="w-64" placeholder="바코드를 찍거나 LOT 번호 + Enter" :select-on-focus="true" @keydown.enter.prevent="onScanEnter" />
+                <span class="flex-1 min-w-0 truncate text-xs" :class="scan.error ? 'text-red-600 font-semibold' : 'text-green-700'">{{ scan.msg || '찍으면 그 LOT 의 수주 줄을 자동으로 담고 1 씩 올립니다 · 출하 수량 = 지정 합 · 수량은 손으로 고칠 수 있습니다' }}</span>
+            </div>
+            <!-- 스캔한 LOT 의 수주가 여럿 — 고르기 -->
+            <div v-if="scanChoice" class="mb-2 border rounded border-amber-300 bg-amber-50/60 shrink-0">
+                <div class="flex items-center gap-2 px-2.5 py-1.5 text-xs">
+                    <span class="font-semibold text-amber-800">{{ scanChoice.lot_no }} — 어느 수주로 출하할까요?</span>
+                    <span class="text-amber-700">이 LOT 을 만든 작업지시가 수주 {{ scanChoice.lines.length }}건을 묶었습니다</span>
+                    <div class="flex-1"></div>
+                    <button type="button" class="text-gray-500 hover:text-gray-800" @click="chooseScan(null)">취소</button>
+                </div>
+                <table class="w-full text-xs">
+                    <thead class="text-gray-400"><tr><th class="text-left font-normal px-2">수주</th><th class="text-left font-normal px-2">고객사</th><th class="text-center font-normal px-2">납품일</th><th class="text-right font-normal px-2">수량</th><th class="text-right font-normal px-2">남은</th><th></th></tr></thead>
+                    <tbody>
+                        <tr v-for="(o, i) in scanChoice.lines" :key="o.sales_order_line_idx" class="border-t border-amber-200">
+                            <td class="px-2 py-1">{{ o.order_no }} #{{ o.line_no }}</td>
+                            <td class="px-2 py-1">{{ o.partner_name }}</td>
+                            <td class="px-2 py-1 text-center">{{ o.due_date }}</td>
+                            <td class="px-2 py-1 text-right">{{ fmtNum(o.qty) }}</td>
+                            <td class="px-2 py-1 text-right font-semibold">{{ fmtNum(o.remaining) }}</td>
+                            <td class="px-2 py-1 text-right"><button type="button" class="px-2 py-0.5 rounded bg-blue-600 text-white hover:bg-blue-700" @click="chooseScan(o)">{{ i === 0 ? '이 수주 ( 납기 빠름 )' : '이 수주' }}</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
             <!-- 수주 줄 고르기 -->
             <div v-if="picker.open" class="mb-2 border rounded border-blue-200 bg-blue-50/40 max-h-48 overflow-y-auto shrink-0">
                 <p v-if="picker.loading" class="px-3 py-3 text-xs text-gray-400">불러오는 중…</p>
@@ -135,7 +169,7 @@
                                 </thead>
                                 <tbody>
                                     <tr v-if="!l.cands.length"><td colspan="7" class="px-1 py-1 text-gray-400">{{ l.candLoading ? '불러오는 중…' : '출하할 수 있는 재고가 없습니다.' }}</td></tr>
-                                    <tr v-for="c in l.cands" :key="c.key" class="border-t border-gray-100">
+                                    <tr v-for="c in l.cands" :key="c.key" class="border-t border-gray-100 transition-colors" :class="c._hit ? 'bg-yellow-100' : ''" :data-scan-key="`${l._key}:${c.key}`">
                                         <td class="px-1 py-0.5 truncate" :title="c.lot_no">{{ c.lot_no || '( LOT 미사용 )' }}</td>
                                         <td class="px-1 truncate" :title="c.warehouse_name">{{ c.warehouse_name }}</td>
                                         <td class="px-1 text-center text-gray-500">{{ c.in_at }}</td>
@@ -179,7 +213,6 @@
                     <BaseButton variant="primary" :disabled="busy" @click="process">출하처리</BaseButton>
                 </template>
             </template>
-            <BaseButton v-if="label.can_shipment && form.shipment_idx && form.status !== 'CANCELED' && !dirty" variant="secondary" @click="openLabel">출하 라벨</BaseButton>
             <BaseButton v-if="form.shipment_idx && form.status !== 'CANCELED' && !dirty && canOrderSheet" variant="secondary" title="창고에 내리는 출하지시서 ( 배치는 기준정보관리 > 문서 양식 )" @click="openOrderSheet">출하지시서</BaseButton>
             <BaseButton v-if="form.status === 'DONE'" variant="secondary" @click="openInvoice">거래명세서</BaseButton>
             <!-- 출하 완료 : [수정] → 출하 일시 · 출하 예정일 칸만 열림 → [취소] [저장] ( 수량 · LOT · 상태는 그대로 · 11-25 ) -->
@@ -195,7 +228,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
@@ -210,7 +243,6 @@ import InvoicePreview from '@core/Components/Shipment/InvoicePreview.vue';
 import DocPreview from '@core/Components/Doc/DocPreview.vue';
 import ShippingInspectionForm from '@core/Components/Quality/ShippingInspectionForm.vue';
 import { useModalStore } from '@core/Stores/modalStore';
-import LabelIssueForm from '@core/Components/Label/LabelIssueForm.vue';
 import { useLabelAccess } from '@core/Composables/useLabelAccess';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
@@ -515,11 +547,9 @@ async function cancel() {
     const text = form.status === 'DONE'
         ? `${form.shipment_no} 의 출하를 취소합니다.\n재고가 돌아오고 수주 출하 수량도 되돌립니다. ( 취소한 건은 다시 쓸 수 없습니다 )`
         : `${form.shipment_no} 출하대기를 취소합니다. ( 지정한 LOT 선점이 풀립니다 )`;
-    const r = await showAlert(form.status === 'DONE' ? '출하 취소' : '대기 취소', text + (label.enabled ? '\n발행된 출하 라벨은 함께 폐기됩니다.' : ''), 'warning', 'confirm');
+    const r = await showAlert(form.status === 'DONE' ? '출하 취소' : '대기 취소', text, 'warning', 'confirm');
     if (!r.isConfirmed) return;
-    run(() => window.axios.post(route('shipment.manage.cancel'), { shipment_idxs: [form.shipment_idx] }), (res) => {
-        const n = res?.data?.labels_scrapped ?? 0;
-        if (n > 0) showAlert('라벨 폐기', `출하 라벨 ${n}장을 폐기했습니다.\n제품에 붙어 있는 라벨을 떼어 주세요. ( 찍으면 폐기 알림이 뜹니다 )`, 'warning');
+    run(() => window.axios.post(route('shipment.manage.cancel'), { shipment_idxs: [form.shipment_idx] }), () => {
         return `${form.shipment_no} 취소했습니다.`;
     });
 }
@@ -538,10 +568,138 @@ function openInspection(l) {
 
 // 거래명세서 ( 미리보기 · 인쇄 모달 — 7003 권한 )
 const modalStore = useModalStore();
-function openLabel() {
-    const items = lines.value.filter(l => l.shipment_line_idx).map(l => ({ id: l.shipment_line_idx }));
-    modalStore.open(LabelIssueForm, { target: 'SHIPMENT_LINE', items, modalTitle: `출하 라벨 [ ${form.shipment_no} ]` }, { size: 'xl', closeOnClickOutside: false });
+
+// ---- 현품표 스캔 ( 11-25 · MES_1125 #13 ) ----
+//   번호 → label.lookup → 제품 LOT → 그 LOT 이 후보에 있는 줄의 지정 + 1 ( 같은 LOT 이 여러 창고면 가용이 남은 첫 칸 )
+//   그 줄을 처음 찍으면 선입선출 지정을 비운다 · 출하 수량 = 지정 합 ( 손으로 고칠 수 있다 )
+const canScan = computed(() => route().has('label.lookup') && label.enabled);   // 바코드 기능이 켜졌을 때 ( useLabelAccess — 불러온 뒤 켜진다 )
+const scanEl  = ref(null);
+const scan    = reactive({ text: '', msg: '', error: false });
+let scanQueue = Promise.resolve();
+function onScanEnter() {
+    const no = scan.text.trim();
+    scan.text = '';
+    if (!no) return;
+    scanQueue = scanQueue.then(() => scanOne(no));   // 빠르게 찍어도 순서대로
 }
+const say = (msg, error = false) => { scan.msg = msg; scan.error = error; };
+async function scanOne(no) {
+    let r;
+    try {
+        r = (await window.axios.get(route('label.lookup'), { params: { barcode_no: no } })).data;
+    } catch (e) {
+        say(`${no} : 확인하지 못했습니다.`, true); return;
+    }
+    if (r.status === 'SCRAPPED') { say(`${no} : 폐기된 라벨입니다.${r.scrap_reason ? ` ( ${r.scrap_reason} )` : ''}`, true); return; }
+    if (r.status !== 'OK' || !r.lot_idx) { say(`${no} : 현품표( 제품 LOT ) 번호가 아닙니다.`, true); return; }
+    const lotIdx = Number(r.lot_idx);
+    const hitsIn = (l) => l.cands.filter(c => Number(c.lot_idx) === lotIdx);
+
+    // 그 LOT 의 수주 줄 ( LOT → 작업지시 → 수주 )
+    let info = { lines: [], had_orders: false, item: null };
+    if (route().has('shipment.manage.lotOrders')) {
+        try {
+            info = (await window.axios.get(route('shipment.manage.lotOrders'), { params: { lot_idx: lotIdx, shipment_idx: form.shipment_idx ?? undefined } })).data;
+        } catch (e) { /* 못 찾으면 예전처럼 줄에서만 */ }
+    }
+    const soIdxs = new Set((info.lines ?? []).map(o => o.sales_order_line_idx));
+
+    // 줄을 담기 전에 그 LOT 의 출하 가능 재고부터 ( 없으면 줄을 만들지 않는다 — 11-25 · 같은 LOT 을 다시 찍어도 줄이 늘지 않게 )
+    const itemIdx = info.item?.item_idx ?? null;
+    if (itemIdx && !lines.value.some(l => hitsIn(l).some(c => c.available > 0))) {
+        let avail = 0;
+        try {
+            const { data } = await window.axios.get(route(props.readRoutes.candidates), { params: { item_idx: itemIdx, shipment_idx: form.shipment_idx ?? undefined } });
+            avail = (data.lots ?? []).filter(c => Number(c.lot_idx) === lotIdx).reduce((t, c) => t + Number(c.available || 0), 0);
+        } catch (e) { /* 확인 못 하면 아래에서 */ }
+        if (!(avail > 0)) { say(`${no} : 출하할 재고가 없는 LOT 입니다. ( 재고 0 이거나 다른 출하대기에 잡혀 있음 )`, true); return; }
+    }
+
+    // 1 ) 이미 담은 그 수주 줄( 남은 수량이 찬 줄은 건너뛴다 ) → 2 ) 수주가 없거나 다 나간 LOT 이면 같은 품목 줄 — 있는 줄은 다시 만들지 않는다
+    const full = (l) => l.so_remaining !== null && l.so_remaining !== undefined && num(l.qty) + 1 > Number(l.so_remaining) + 1e-9;
+    let line = lines.value.find(l => l.sales_order_line_idx && soIdxs.has(l.sales_order_line_idx) && !full(l));
+    if (!line && !soIdxs.size) line = lines.value.find(l => hitsIn(l).length) ?? (itemIdx ? lines.value.find(l => !l.sales_order_line_idx && Number(l.item_idx) === Number(itemIdx)) : null);
+    if (!line) {
+        const lotNo = no;
+        // 이미 담아 남은 수량을 다 채운 수주 줄은 뺀다
+        let orders = (info.lines ?? []).filter(o => !lines.value.some(l => l.sales_order_line_idx === o.sales_order_line_idx && full(l)));
+        if (!orders.length && (info.lines ?? []).length) { say(`${no} : 이 LOT 의 수주 줄을 모두 채웠습니다. ( 남은 수량 )`, true); return; }
+        if (orders.length) {
+            // 다른 고객사의 수주는 막는다 ( 고객사가 비어 있으면 그 수주의 고객사로 )
+            if (form.partner_idx) {
+                const mine = orders.filter(o => Number(o.partner_idx) === Number(form.partner_idx));
+                if (!mine.length) { say(`${lotNo} : ${orders[0].partner_name ?? '다른 고객사'} 수주( ${orders[0].order_no} )의 LOT 입니다. 이 출하의 고객사와 다릅니다.`, true); return; }
+                orders = mine;
+            }
+            const pick = orders.length === 1 ? orders[0] : await askScanOrder(lotNo, orders);
+            if (!pick) { say(`${lotNo} : 수주를 고르지 않아 넣지 않았습니다.`, true); return; }
+            if (!form.partner_idx) { form.partner_idx = pick.partner_idx; onPartnerChange(pick.partner_idx); }
+            line = lines.value.find(l => l.sales_order_line_idx === pick.sales_order_line_idx);
+            if (!line) {
+                await addSoLine(pick);
+                line = lines.value[lines.value.length - 1];
+            }
+        } else {
+            // 수주 없이 만든 LOT · 수주를 다 출하한 LOT → 「수주 없이」 품목 줄 ( 같은 품목 줄이 있으면 거기 )
+            if (!info.item) { say(`${lotNo} : 출하할 수 없는 LOT 입니다. ( 품목을 찾지 못함 )`, true); return; }
+            if (info.item.is_sale === 'N') { say(`${lotNo} : ${info.item.item_code} 은( 는 ) 판매 품목이 아닙니다. ( 품목관리 판매 여부 )`, true); return; }
+            await addItemLine(info.item);
+            line = lines.value[lines.value.length - 1];
+            if (info.had_orders) say(`${lotNo} : 수주를 모두 출하해 「수주 없이」 줄로 담았습니다.`);
+        }
+    }
+    if (!hitsIn(line).length) { say(`${no} : 출하할 재고가 없는 LOT 입니다. ( 다른 출하대기에 잡혀 있거나 재고 0 )`, true); return; }
+
+    // 그 LOT 이 처음 찍히는 줄이면 선입선출 지정을 비운다
+    if (!line._scanned) {
+        line.cands.forEach(c => { c.fill = ''; });
+        line._scanned = true;
+    }
+    const hit = hitsIn(line).find(c => num(c.fill) + 1 <= c.available + 1e-9);
+    if (!hit) { say(`${hitsIn(line)[0].lot_no} : 가용( ${fmtNum(hitsIn(line).reduce((t, c) => t + c.available, 0))} )을 다 채웠습니다.`, true); return; }
+    hit.fill = String(+(num(hit.fill) + 1).toFixed(6));
+    line.qty = String(+picked(line).toFixed(6));
+    line._open = true;
+    hit._hit = true;
+    setTimeout(() => { hit._hit = false; }, 700);
+    say(`${line.order_label ? `${line.order_label} · ` : ''}${line.item_label} · ${hit.lot_no} → ${fmtNum(hit.fill)} ( 출하 ${fmtNum(line.qty)} )`);
+    await nextTick();
+    document.querySelector(`[data-scan-key="${line._key}:${hit.key}"]`)?.scrollIntoView({ block: 'nearest' });
+    focusScan();
+}
+
+// 수주가 여럿이면 스캔 칸 아래에서 고르기 ( 고를 때까지 다음 스캔은 기다린다 )
+const scanChoice = ref(null);
+let scanChoiceResolve = null;
+function askScanOrder(lotNo, orders) {
+    say(`${lotNo} : 수주를 고르세요.`);
+    return new Promise(res => { scanChoice.value = { lot_no: lotNo, lines: orders }; scanChoiceResolve = res; });
+}
+function chooseScan(o) {
+    scanChoice.value = null;
+    scanChoiceResolve?.(o);
+    scanChoiceResolve = null;
+    focusScan();
+}
+
+// ---- 스캔 칸 커서 ( 11-25 ) — 다른 입력 · 선택 칸에 있지 않으면 늘 스캔 칸 ----
+const myDepth = modalStore.modals.length;   // 이 창의 순번 — 위에 다른 창이 뜨면 건드리지 않는다
+const root    = ref(null);
+const isField = (el) => !!el && (el.matches?.('input, select, textarea, [contenteditable="true"]') || !!el.closest?.('[role="listbox"], .dp__menu'));
+function focusScan() {
+    if (!editable.value || !canScan.value || !scanEl.value) return;
+    if (modalStore.modals.length > myDepth) return;            // 위에 다른 창
+    if (document.querySelector('.swal2-container')) return;     // 확인 창
+    const a = document.activeElement;
+    if (a && a !== document.body && isField(a)) return;          // 다른 칸에 입력 중
+    if (a && a !== document.body && !root.value?.contains(a)) return;   // 이 창 밖( 떠 있는 목록 등 )
+    scanEl.value.focus?.();
+}
+let focusTimer = null;
+const queueFocus = () => { clearTimeout(focusTimer); focusTimer = setTimeout(focusScan, 120); };
+onMounted(() => { document.addEventListener('focusout', queueFocus, true); document.addEventListener('click', queueFocus, true); });
+onBeforeUnmount(() => { document.removeEventListener('focusout', queueFocus, true); document.removeEventListener('click', queueFocus, true); clearTimeout(focusTimer); scanChoiceResolve?.(null); });
+watch(() => [loading.value, modalStore.modals.length, canScan.value, editable.value], () => nextTick(queueFocus));   // 바코드 기능은 불러온 뒤 켜진다
 
 // 출하지시서 ( 11-18 ) — 문서 양식( 기준정보관리 )의 출하지시서 기본 양식으로 · 출하관리 조회 권한
 const canOrderSheet = route().has('shipment.manage.orderSheets');

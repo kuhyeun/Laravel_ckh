@@ -229,7 +229,7 @@
                     <table class="w-full min-w-[1056px] table-fixed text-xs">
                         <colgroup>
                             <col class="w-8"><col class="w-32"><col class="w-48">
-                            <col><col class="w-32"><col class="w-28">
+                            <col><col class="w-48"><col class="w-28">
                             <col class="w-36"><col class="w-14"><col class="w-24">
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-500 sticky top-0">

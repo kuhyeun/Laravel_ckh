@@ -119,6 +119,11 @@ class OpResultService {
             $wh      = $receive ? $this->warehouse($data['warehouse_idx'] ?? null) : null;
 
             $workedAt = Carbon::parse($data['worked_at']);
+            // 불량 줄 검사 ( 11-25 · MES_1125 #11 ) — 실적을 만들기 전에 ( 틀리면 아무것도 남기지 않는다 )
+            $defectRows = array_values(array_filter($data['defects'] ?? [], fn ($r) => (float) ($r['qty'] ?? 0) > 0 || filled($r['defect_type_code'] ?? null)));
+            if ($defectRows) {
+                app(\MesCore\Quality\Services\DefectService::class)->validateRows(array_sum(array_map(fn ($r) => (float) ($r['qty'] ?? 0), $defectRows)), ['defects' => $defectRows]);
+            }
             $run = WorkOrderOpRun::create([
                 'work_order_op_idx' => $op->work_order_op_idx,
                 'equipment_idx'     => ($data['equipment_idx'] ?? null) ?: null,
@@ -142,6 +147,14 @@ class OpResultService {
                 $line = $this->receive($wo, $qty, $wh, $workedAt, "생산 입고 {$wo->wo_no} · {$this->opName($op)} 실적", $run->lot_idx);
                 $run->stock_txn_line_idx = $line->stock_txn_line_idx;
                 $run->save();
+            }
+
+            // 불량 기록 ( 공정 불량 · 실적에 묶음 — 양품 수량 · 진행 수량에는 들어가지 않는다 )
+            if ($defectRows) {
+                app(\MesCore\Quality\Services\DefectService::class)->recordRunRows([
+                    'item_idx' => $wo->item_idx, 'lot_idx' => (int) ($run->lot_idx ?? $wo->lot_idx ?? 0),
+                    'work_order_op_idx' => $op->work_order_op_idx, 'run_idx' => $run->run_idx, 'occurred_at' => $workedAt,
+                ], $defectRows);
             }
 
             $warnings = array_merge($warnings, $this->startOp($wo, $op, $workedAt));
@@ -190,6 +203,8 @@ class OpResultService {
             }
 
             $run->fill(['is_canceled' => 'Y', 'canceled_by' => Auth::id(), 'canceled_at' => now()])->save();
+            // 이 실적에 넣은 불량도 취소 ( 11-25 · 지우지 않고 표시 — 불량이력에 취소분으로 남는다 )
+            \MesCore\Quality\Models\Defect::where('run_idx', $run->run_idx)->where('is_canceled', 'N')->update(['is_canceled' => 'Y']);
             $this->wip->reverseRun($run);   // 재공 이력 : 반대 줄
             $op->qty = $this->str($this->runSum($op));
             $op->save();

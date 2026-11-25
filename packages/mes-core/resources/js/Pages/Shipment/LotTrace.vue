@@ -33,6 +33,7 @@ import DataGrid from '@core/Components/Common/DataGrid.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import LotFlowModal from '@core/Components/Shipment/LotFlowModal.vue';
+import LotLogModal from '@core/Components/Stock/LotLogModal.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
@@ -54,6 +55,9 @@ const fields = computed(() => dir.value === 'forward'
 const blankFilters = () => ({});
 const search = reactive({ date_basis: 'in', from: '', to: '', keyword: '', search_field: '' });
 
+// 「이력」 칸 ( 11-25 · #14 ) — 누르면 LOT 이력 창 ( 라벨 인쇄 이력 · LOT 번호 변경 이력 ) · 다른 칸은 추적 흐름도
+const LOG_COLUMN = { header: '이력', name: 'log_link', width: 70, align: 'center', className: 'cursor-pointer',
+    formatter: () => `<span style="color:${COLORS.blue600};text-decoration:underline">이력</span>` };
 const qty = (name, header, width = 90) => ({ header, name, width, align: 'right', sortable: true, className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) });
 const MATERIAL_COLUMNS = [
     { header: 'LOT', name: 'lot_no', width: 250, sortable: true, className: 'cursor-pointer', escapeHTML: true },
@@ -67,6 +71,7 @@ const MATERIAL_COLUMNS = [
     { header: '투입 지시', name: 'wo_count', width: 80, align: 'right', sortable: true, className: 'cursor-pointer', formatter: ({ value }) => value ? `${value}건` : '' },
     // 수입검사 불합격 ( 재고에 안 잡힌 수량 — 11-10 )
     { header: '입고 불량', name: 'defect_qty', width: 80, align: 'right', sortable: true, className: 'cursor-pointer', formatter: ({ value }) => value ? `<span style="color:${COLORS.red600}">${fmtNum(value)}</span>` : '' },
+    LOG_COLUMN,
 ];
 // 역추적 목록 = 생산 LOT( 제품 ) + 출하 LOT( 완료 출하에 나간 LOT — 출하 줄마다 ) · 구분 열로 가른다 ( 11-12 )
 const KIND = { PROD: { label: '생산', color: COLORS.blue600 }, SHIP: { label: '출하', color: COLORS.green600 } };
@@ -85,6 +90,7 @@ const PRODUCT_COLUMNS = [
     qty('stock_qty', '현재고'),
     { header: '출하 합계', name: 'shipped_qty', width: 100, align: 'right', sortable: true, className: 'cursor-pointer', formatter: ({ row, value }) => row.kind === 'SHIP' ? '' : fmtQty(value, row.spec_unit) },
     { header: '공정 불량', name: 'defect_qty', width: 80, align: 'right', sortable: true, className: 'cursor-pointer', formatter: ({ value }) => value ? `<span style="color:${COLORS.red600}">${fmtNum(value)}</span>` : '' },
+    LOG_COLUMN,
 ];
 const columns = computed(() => dir.value === 'forward' ? MATERIAL_COLUMNS : PRODUCT_COLUMNS);
 
@@ -133,8 +139,13 @@ function changeDir(d) {
     loadFirstPage();
 }
 
-function openFlow(row) {
+function openFlow(row, col) {
     if (!row?.lot_idx) return;
+    if (col === 'log_link') {
+        // 출하 줄이면 그때 나간 제품 LOT 의 이력
+        modalStore.open(LotLogModal, { modalTitle: `LOT 이력 — ${row.kind === 'SHIP' ? row.product_lot_no : row.lot_no}`, lotIdx: row.lot_idx }, { size: 'lg' });
+        return;
+    }
     modalStore.open(LotFlowModal, {
         modalTitle: `LOT 추적 — ${row.lot_no}${row.kind === 'SHIP' ? ` ( 출하 · 제품 LOT ${row.product_lot_no} )` : ''}`,
         // 출하 줄 : 그 제품 LOT 부터 추적하되 흐름도에서는 출하 노드를 조회한 LOT 로 ( 고른 노드 · 굵은 테두리 )

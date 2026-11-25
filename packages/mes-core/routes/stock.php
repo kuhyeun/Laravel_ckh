@@ -23,6 +23,7 @@ Route::prefix('stock')->name('stock.')->middleware([UserAuth::class])->group(fun
     // LOT 표시 번호 ( 11-24 · docs/LOT표시번호-설계.md ) — 재고관리 · 제품재고 · 물품표 · 현품표 권한으로 ( 컨트롤러가 검사 )
     Route::get('/lot/{lotIdx}', [\MesCore\Stock\Controllers\LotTitleController::class, 'show'])->whereNumber('lotIdx')->name('lot.show');
     Route::post('/lot/title', [\MesCore\Stock\Controllers\LotTitleController::class, 'save'])->name('lot.title');
+    Route::get('/lot/{lotIdx}/history', [\MesCore\Stock\Controllers\LotTitleController::class, 'history'])->whereNumber('lotIdx')->name('lot.history');   // LOT 이력 창 ( 인쇄 · 번호 변경 — 11-25 )
 
     // 잔고 한 행 ( 이동 · 조정 창 ) — 재고현황 · 창고이동 · 재고조정 어느 쪽 권한으로도 ( 컨트롤러가 검사 )
     Route::get('/balance/{balanceIdx}', [StockController::class, 'balance'])->whereNumber('balanceIdx')->name('balance');
@@ -45,6 +46,8 @@ Route::prefix('stock')->name('stock.')->middleware([UserAuth::class])->group(fun
         });
         Route::middleware(MenuAuth::class . ':Stock/StockAdjust,can_write')->group(function() {
             Route::post('/save', [StockProcessController::class, 'adjust'])->name('save');
+            Route::get('/itemLots', [StockProcessController::class, 'adjustItemLots'])->name('itemLots');   // 재고조정 창 — 품목의 LOT 재고 ( 11-25 )
+            Route::post('/lotChange', [StockProcessController::class, 'lotChange'])->name('lotChange');     // LOT 전환 · 분리 · 합치기 ( 11-25 )
             Route::post('/cancel/{txnIdx}', [StockProcessController::class, 'adjustCancel'])->whereNumber('txnIdx')->name('cancel');
             Route::post('/editDate', [StockProcessController::class, 'adjustEditDate'])->name('editDate');   // 조정일시만 수정 ( 11-25 )
         });

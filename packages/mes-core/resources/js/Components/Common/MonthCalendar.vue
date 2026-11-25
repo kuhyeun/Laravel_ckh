@@ -32,7 +32,7 @@
                     :style="{ gridColumn: `${s.col + 1} / span ${s.span}`, gridRow: s.lane + 1, ...barStyle(s.item) }"
                     :title="barTitle(s.item)"
                     @pointerdown="e => onBarDown(e, s.item)">
-                    <input v-if="s.isStart && selectable(s.item)" type="checkbox" class="accent-white shrink-0 w-3 h-3" :checked="isChecked(s.item)"
+                    <input v-if="s.isStart && selectable(s.item)" type="checkbox" class="accent-blue-600 shrink-0 w-3 h-3" :checked="isChecked(s.item)"
                         @pointerdown.stop @click.stop="emit('toggle', s.item)" />
                     <span class="truncate font-semibold">{{ s.isStart || s.col === 0 ? barText(s.item) : '' }}</span>
                     <!-- 양쪽 끝 손잡이 ( 시작 조각의 왼쪽 · 끝 조각의 오른쪽 ) — 끌어서 날짜 늘리기 · 줄이기 -->

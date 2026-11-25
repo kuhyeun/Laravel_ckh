@@ -60,7 +60,8 @@ class Warehouse extends Model {
         $out  = [];
         $walk = function (int $parent, int $depth) use (&$walk, &$out, $byParent) {
             foreach ($byParent->get($parent, []) as $w) {
-                $out[] = ['warehouse_idx' => $w->warehouse_idx, 'label' => str_repeat('　', $depth) . $w->warehouse_name, 'name' => $w->warehouse_name];
+                $out[] = ['warehouse_idx' => $w->warehouse_idx, 'label' => str_repeat('　', $depth) . $w->warehouse_name, 'name' => $w->warehouse_name,
+                          'parent_idx' => $w->parent_idx ? (int) $w->parent_idx : null, 'depth' => $depth];   // 트리 ( 창고별 재고관리 왼쪽 목록 · 11-25 )
                 $walk((int) $w->warehouse_idx, $depth + 1);
             }
         };
@@ -69,7 +70,7 @@ class Warehouse extends Model {
         $seen = array_column($out, 'warehouse_idx');
         foreach ($all as $w) {
             if (!in_array($w->warehouse_idx, $seen, true)) {
-                $out[] = ['warehouse_idx' => $w->warehouse_idx, 'label' => $w->warehouse_name, 'name' => $w->warehouse_name];
+                $out[] = ['warehouse_idx' => $w->warehouse_idx, 'label' => $w->warehouse_name, 'name' => $w->warehouse_name, 'parent_idx' => null, 'depth' => 0];
             }
         }
         return $out;

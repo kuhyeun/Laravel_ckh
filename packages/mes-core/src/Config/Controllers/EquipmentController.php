@@ -6,7 +6,9 @@ use MesCore\Http\Controller;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\Equipment;
 use MesCore\Config\Models\ProcessEquipment;
+use MesCore\Basic\Models\SystemCode;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
@@ -18,6 +20,8 @@ class EquipmentController extends Controller {
     private const ATTRIBUTES = [
         'equipment_code' => '설비코드',
         'equipment_name' => '설비명',
+        'line_code'       => '라인',
+        'plc_code'        => 'PLC 코드',
         'manager_idx'     => '설비담당자( 정 )',
         'sub_manager_idx' => '설비담당자( 부 )',
         'purchase_date'   => '구매일자',
@@ -27,6 +31,11 @@ class EquipmentController extends Controller {
         'is_use'         => '사용 여부',
         'remark'         => '비고',
     ];
+
+    // PLC 코드는 관리자( 레벨 0 · 1 — AdminAuth 와 같은 기준 )만 보고 고친다 ( 11-25 · MES_1125 #3 )
+    private function isAdmin(): bool {
+        return (int) (Auth::user()?->user_level ?? 99) <= 1;
+    }
 
     // 목록 : 검색어( 코드·명 ) + 사용 여부. 이 설비를 쓰는 공정 수 포함
     public function list(Request $request) {
@@ -50,13 +59,18 @@ class EquipmentController extends Controller {
             ->pluck('c', 'equipment_idx');
 
         $names = User::namesFor($equipments->pluck('manager_idx')->merge($equipments->pluck('sub_manager_idx')));
-        $equipments->each(function (Equipment $e) use ($processCounts, $names) {
+        $lines = SystemCode::where('system_code_group_key', 'EQUIPMENT_LINE')->pluck('system_code_name', 'system_code_key');   // 라인 이름 ( 11-25 )
+        $equipments->each(function (Equipment $e) use ($processCounts, $names, $lines) {
+            $e->line_name         = $e->line_code ? ($lines[$e->line_code] ?? $e->line_code) : null;
             $e->process_count     = (int) ($processCounts[$e->equipment_idx] ?? 0);
             $e->manager_name      = $names[$e->manager_idx] ?? null;      // 설비담당자( 정 ) 이름 ( 11-19 )
             $e->sub_manager_name  = $names[$e->sub_manager_idx] ?? null;
             $e->check_text        = $e->checkText();                       // 점검 기준 글자
             $e->next_check_date   = $e->nextCheckDate()?->toDateString();   // 다음 점검일 ( 월간 : 없는 날은 말일 )
         });
+        if (!$this->isAdmin()) {
+            $equipments->each->makeHidden('plc_code');
+        }
 
         return response()->json([
             'equipments' => $equipments,
@@ -76,6 +90,8 @@ class EquipmentController extends Controller {
         $validated = $request->validate([
             'equipment_code' => ['required', 'string', 'max:30', Rule::unique('equipment', 'equipment_code')->ignore($idx, 'equipment_idx')],
             'equipment_name' => 'required|string|max:60',
+            'line_code'       => 'nullable|string|max:100',
+            'plc_code'        => 'nullable|string|max:50',
             'manager_idx'     => ['nullable', 'integer', User::pickableRule()],
             'sub_manager_idx' => ['nullable', 'integer', User::pickableRule(), 'different:manager_idx'],
             'purchase_date'   => 'nullable|date_format:Y-m-d',
@@ -101,10 +117,19 @@ class EquipmentController extends Controller {
         }
         $validated['check_base'] = $validated['check_cycle'] === 'NONE' ? null : (string) ($validated['check_cycle'] === 'MONTHLY' ? (int) $base : $base);
 
+        // PLC 코드 : 관리자가 아니면 받지 않는다 ( 기존 값 그대로 )
+        if (!$this->isAdmin()) {
+            unset($validated['plc_code']);
+        }
+
         try {
             $equipment->fill($validated)->save();
+            $fresh = $equipment->fresh();
+            if (!$this->isAdmin()) {
+                $fresh->makeHidden('plc_code');
+            }
 
-            return response()->json(['message' => 'Success', 'equipment' => $equipment->fresh()], 200);
+            return response()->json(['message' => 'Success', 'equipment' => $fresh], 200);
         } catch (\Throwable $e) {
             Log::error('설비 저장 실패 : ' . $e->getMessage());
 

@@ -6,7 +6,7 @@
     <div>
         <div class="flex items-center gap-2 mb-1">
             <span class="text-gray-500 font-medium">불량 내역</span>
-            <span class="text-xs text-gray-400">합계 <b class="font-semibold" :class="total > 0 ? 'text-red-600' : 'text-gray-500'">{{ fmtNum(total) }}</b> — 불합격 수량이 됩니다</span>
+            <span class="text-xs text-gray-400">합계 <b class="font-semibold" :class="total > 0 ? 'text-red-600' : 'text-gray-500'">{{ fmtNum(total) }}</b> — {{ totalHint }}</span>
             <div class="flex-1"></div>
             <BaseButton v-if="!disabled" size="sm" variant="secondary" @click="add">+ 줄</BaseButton>
         </div>
@@ -60,6 +60,7 @@ const props = defineProps({
     errors:      { type: Object,  default: () => ({}) },
     disabled:    { type: Boolean, default: false },
     placeholder: { type: String,  default: '' },
+    totalHint:   { type: String,  default: '불합격 수량이 됩니다' },   // 합계 옆 안내 ( 실적 불량 창은 다른 글 · 11-25 )
 });
 
 // 배열을 그대로 고친다 ( 부모 form.defects — reactive 안의 배열 )

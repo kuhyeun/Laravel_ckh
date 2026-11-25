@@ -4,6 +4,7 @@ namespace MesCore\Config\Controllers;
 
 use MesCore\Http\Controller;
 use MesCore\Config\Models\Equipment;
+use MesCore\Config\Models\Partner;
 use MesCore\Config\Models\Process;
 use MesCore\Config\Models\ProcessEquipment;
 use Illuminate\Http\Request;
@@ -25,6 +26,7 @@ class ProcessController extends Controller {
         'process_type'               => '공정 구분',
         'class_code'                 => '구분 코드',
         'inspection_kind'            => '검사 종류',
+        'default_partner_idx'        => '기본 외주처',
         'is_use'                     => '사용 여부',
         'remark'                     => '비고',
         'equipments.*.equipment_idx' => '설비',
@@ -42,7 +44,7 @@ class ProcessController extends Controller {
 
         $processes = Process::query()
             ->withCount('equipments')
-            ->with(['equipments' => fn ($q) => $q->where('is_default', 'Y')->with('equipment:equipment_idx,equipment_name')])
+            ->with(['equipments' => fn ($q) => $q->where('is_default', 'Y')->with('equipment:equipment_idx,equipment_name'), 'defaultPartner:partner_idx,partner_name'])
             ->when($validated['keyword'] ?? null, function ($q, $keyword) {
                 $q->where(fn ($w) => $w->where('process_code', 'like', "%{$keyword}%")
                                        ->orWhere('process_name', 'like', "%{$keyword}%"));
@@ -56,8 +58,9 @@ class ProcessController extends Controller {
             ->map(function (Process $p) {
                 $row = $p->only([
                     'process_idx', 'process_code', 'process_name', 'process_type', 'class_code',
-                    'inspection_kind', 'insp_first', 'insp_middle', 'insp_last', 'is_system', 'system_key', 'is_use', 'remark',
+                    'inspection_kind', 'insp_first', 'insp_middle', 'insp_last', 'is_system', 'system_key', 'is_use', 'remark', 'default_partner_idx',
                 ]);
+                $row['default_partner_name']   = $p->defaultPartner?->partner_name;
                 $row['equipments_count']       = $p->equipments_count;
                 $row['default_equipment_name'] = $p->equipments->first()?->equipment?->equipment_name;
                 return $row;
@@ -87,6 +90,13 @@ class ProcessController extends Controller {
         return response()->json(['equipments' => $equipments]);
     }
 
+    // 외주 공정의 기본 외주처 선택지 ( 11-25 ) — 사용 중 외주처 · 거래처 권한 없이 공정 권한으로
+    public function partnerOptions() {
+        $partners = Partner::where('is_subcon', 'Y')->where('is_use', 'Y')->orderBy('partner_name')->forPicker()->get();
+
+        return response()->json(['partners' => $partners]);
+    }
+
     // 등록/수정 ( process_idx 있으면 수정 )
     //   equipments : [{ process_equipment_idx?, equipment_idx, is_default, setup_loss }]
     //   요청에 없는 기존 설비 연결은 삭제된다 ( 화면 목록 = 저장 결과 )
@@ -108,6 +118,7 @@ class ProcessController extends Controller {
             'insp_first'      => 'nullable|in:Y,N',
             'insp_middle'     => 'nullable|in:Y,N',
             'insp_last'       => 'nullable|in:Y,N',
+            'default_partner_idx' => 'nullable|integer|exists:partner,partner_idx',
             'is_use'          => 'required|in:Y,N',
             'remark'          => 'nullable|string|max:2000',
 
@@ -155,6 +166,14 @@ class ProcessController extends Controller {
         $iflOk = in_array($validated['process_type'], ['PRODUCTION', Process::TYPE_EQUIPMENT], true) && !$process->isSystem();
         foreach (['insp_first', 'insp_middle', 'insp_last'] as $k) {
             $validated[$k] = $iflOk && ($validated[$k] ?? 'N') === 'Y' ? 'Y' : 'N';
+        }
+        // 기본 외주처는 외주 공정만 ( 11-25 ) · 외주처만 — 저장된 값은 그 뒤 거래처 구분이 바뀌어도 그대로 둔다
+        if ($validated['process_type'] !== Process::TYPE_SUBCON) {
+            $validated['default_partner_idx'] = null;
+        } elseif (!empty($validated['default_partner_idx'])
+            && (int) $validated['default_partner_idx'] !== (int) $process->default_partner_idx
+            && Partner::where('partner_idx', $validated['default_partner_idx'])->value('is_subcon') !== 'Y') {
+            throw ValidationException::withMessages(['default_partner_idx' => ['외주처만 고를 수 있습니다.']]);
         }
 
         try {
@@ -232,8 +251,9 @@ class ProcessController extends Controller {
     private function toPayload(Process $process): array {
         $data = $process->only([
             'process_idx', 'process_code', 'process_name', 'process_type', 'class_code',
-            'inspection_kind', 'insp_first', 'insp_middle', 'insp_last', 'is_system', 'system_key', 'is_use', 'remark',
+            'inspection_kind', 'insp_first', 'insp_middle', 'insp_last', 'is_system', 'system_key', 'is_use', 'remark', 'default_partner_idx',
         ]);
+        $data['default_partner_name'] = $process->defaultPartner?->partner_name;
 
         $data['equipments'] = $process->equipments->map(fn ($pe) => [
             'process_equipment_idx' => $pe->process_equipment_idx,

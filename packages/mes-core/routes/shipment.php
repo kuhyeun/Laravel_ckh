@@ -26,6 +26,7 @@ Route::prefix('shipment')->name('shipment.')->middleware([UserAuth::class])->gro
             Route::get('/show/{shipmentIdx}', [ShipmentController::class, 'show'])->whereNumber('shipmentIdx')->name('show');
             Route::get('/formData', [ShipmentController::class, 'formData'])->name('formData');
             Route::get('/soLines', [ShipmentController::class, 'soLines'])->name('soLines');
+            Route::get('/lotOrders', [ShipmentController::class, 'lotOrders'])->name('lotOrders');   // 현품표 스캔 — LOT 의 수주 줄 ( 11-25 )
             Route::get('/candidates', [ShipmentController::class, 'candidates'])->name('candidates');
             Route::get('/orderSheets', [ShipmentController::class, 'orderSheets'])->name('orderSheets');   // [출하지시서] 미리보기 · 인쇄 ( 11-18 )
         });
@@ -53,13 +54,14 @@ Route::prefix('shipment')->name('shipment.')->middleware([UserAuth::class])->gro
         Route::get('/run', [LotTraceController::class, 'run'])->name('run');   // 실적 LOT 의 실적 · 투입 LOT ( 공정 LOT 추적 )
     });
 
-    // 현품표 ( Shipment/ShipmentTag — 메뉴 출하관리 > 현품표 7005 ) — 출하 완료 품목 라벨 미리보기 · 인쇄 ( 없으면 발행 → 쓰기 권한 )
+    // 현품표 ( Shipment/ShipmentTag — 메뉴 출하관리 > 현품표 7005 ) — 생산 입고된 제품 LOT 라벨 미리보기 · 인쇄 ( 없으면 발행 → 쓰기 권한 · 11-25 )
     Route::prefix('tag')->name('tag.')->group(function() {
         Route::middleware(MenuAuth::class . ':Shipment/ShipmentTag,can_read')->group(function() {
             Route::get('/list', [ShipmentTagController::class, 'list'])->name('list');
             Route::get('/formData', [ShipmentTagController::class, 'formData'])->name('formData');
         });
         Route::post('/sheets', [ShipmentTagController::class, 'sheets'])->middleware(MenuAuth::class . ':Shipment/ShipmentTag,can_write')->name('sheets');
+        Route::post('/reissue', [ShipmentTagController::class, 'reissue'])->middleware(MenuAuth::class . ':Shipment/ShipmentTag,can_write')->name('reissue');   // [새로 발행] ( 11-25 )
     });
 
     // 클레임관리 ( Shipment/ClaimManage — 메뉴 출하관리 > 클레임관리 7004 ) — 출하 완료 건 품목 줄의 클레임 이력 ( 기록만 )

@@ -4,6 +4,7 @@ namespace MesCore\Config\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Auth;
 
 // 공정 ( BAS-04 )
@@ -33,6 +34,7 @@ class Process extends Model {
         'class_code',
         'inspection_kind',
         'insp_first', 'insp_middle', 'insp_last',   // 초 · 중 · 종 검사 기본값 ( 생산 공정 · 11-18 )
+        'default_partner_idx',   // 기본 외주처 ( 외주 공정만 · 11-25 )
         'is_system',
         'system_key',
         'is_use',
@@ -86,6 +88,11 @@ class Process extends Model {
 
     public function isRmOut(): bool {
         return $this->isSystem() && $this->system_key === self::SYS_RM_OUT;
+    }
+
+    // 기본 외주처 ( 외주 공정만 · 11-25 )
+    public function defaultPartner(): BelongsTo {
+        return $this->belongsTo(Partner::class, 'default_partner_idx', 'partner_idx');
     }
 
     public function equipments(): HasMany {

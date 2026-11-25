@@ -78,8 +78,10 @@ const props = defineProps({
     showType:    { type: Boolean, default: false },      // 대분류 배지 ( 자재 · 제품이 섞인 선택지 )
     size:        { type: String,  default: 'md' },
     remote:      { type: Object,  default: null },       // 서버 모드 { types: ['PRODUCT'], use: 'PURCHASE' | 'RECEIPT' | 'SALE'( 조달 구분 · 판매 여부 ), extra: ['std_sale_price'], includeInactive }
+    // 큰 창의 먼저 보이는 탭 ( 11-25 · MES_1125 #12 ) { title, rows: [{ depth, item_idx, item_code, item_name, spec, item_type, item_kind, qty_per, yield_qty, is_substitute, is_extra, on_op }] } — 예 : 이 작업지시 BOM
+    pinned:      { type: Object,  default: null },
 });
-const emit = defineEmits(['update:modelValue', 'select', 'created']);
+const emit = defineEmits(['update:modelValue', 'select', 'created', 'select-many']);
 
 const LIMIT = 50;
 const root = ref(null);
@@ -254,8 +256,10 @@ function openBig() {
     modalStore.open(ItemSearchModal, {
         modalTitle: '품목 찾기', value: props.modelValue, initialQ: text,
         options: props.options, remote: props.remote, exclude: props.exclude, showType: props.showType || !!props.remote,
+        pinned: props.pinned,
         onPick: (m) => pick(m),
-    }, { size: 'lg' });
+        onPickMany: props.pinned?.multi ? (list) => emit('select-many', list) : null,   // 체크해서 여러 개 ( 11-25 )
+    }, { size: props.pinned?.rows?.length ? 'xl' : 'lg' });
 }
 
 // 새 자재 : 첫 낱말이 있는 품번이면 품번 · 품명을 채우고 나머지를 규격으로 ( 같은 품번 · 다른 규격이 가장 흔하다 )

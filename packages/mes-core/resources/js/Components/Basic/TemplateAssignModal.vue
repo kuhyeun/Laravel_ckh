@@ -16,7 +16,7 @@
             <template v-if="!lockUsers">
                 <BaseInput v-model="q" class="flex-1" size="md" placeholder="이름 · 아이디 · 부서 · 지금 템플릿" />
             </template>
-            <span class="text-xs text-gray-400 whitespace-nowrap">{{ checkedIds.size }}명 고름</span>
+            <span class="text-xs text-gray-400 whitespace-nowrap">{{ checkedIds.size }}명 선택</span>
         </div>
         <div class="border rounded overflow-auto max-h-[46vh]">
             <table class="w-full table-fixed text-xs">

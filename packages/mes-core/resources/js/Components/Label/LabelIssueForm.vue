@@ -1,5 +1,5 @@
 <!-- 라벨 발행 ( LBL-02 ) — 입고 상세 · LOT 입출고 이력 · 출하 상세에서 연다
-     - target LOT : 바코드 번호 = LOT 번호( 고칠 수 없음 ) / SHIPMENT_LINE : 기본 = 출하번호-줄번호 · 고객 지정 번호로 바꿀 수 있음
+     - target LOT : 바코드 번호 = LOT 번호( 고칠 수 없음 ) · 양식은 LOT 종류( 자재식별표 · 현품표 )에 맞는 것 ( 11-25 출하 줄 라벨 없앰 )
      - 장수 기본값 = 수량 ÷ 입수( 올림 ) · 입수가 없으면 정책 기본 인쇄 매수 / 라벨당 수량은 라벨에 찍히는 값
      - [발행 · 미리보기] = 발행 기록을 만들고 미리보기를 연다 ( [인쇄] 를 눌러야 인쇄 기록 ) -->
 <template>
@@ -78,8 +78,8 @@ import { qtyText } from '@core/Components/Stock/stockCodes';
 import { failMsg } from '@core/Composables/useFlash';
 
 const props = defineProps({
-    target:   { type: String, required: true },   // LOT | SHIPMENT_LINE
-    items:    { type: Array, required: true },    // [ { id, qty? } ] — LOT = lot_idx · 출하 = shipment_line_idx
+    target:   { type: String, required: true },   // LOT
+    items:    { type: Array, required: true },    // [ { id, qty? } ] — lot_idx
     onIssued: { type: Function, default: null },  // 발행 · 인쇄 후 ( 화면 새로고침 )
 });
 const emit = defineEmits(['close']);

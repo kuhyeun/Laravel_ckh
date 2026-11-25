@@ -12,9 +12,40 @@
        품목 행 클릭 → 그 품목의 LOT 탭 추가( 이미 열려 있으면 그 탭으로 · 같은 품목 중복 없음 ) · ✕ 로 닫기 · 닫기 전까지 남는다( 화면을 새로 열면 초기화 )
        LOT 탭 = StockItemLotTab — LOT 행 클릭 → 입출고 이력 창 ( 처리 뒤 합계 · 그 탭 같이 새로 ) / [품목별 합계] 체크박스는 없다
        합계 탭에서 LOT · 공급처 LOT · Heat No 로 찾으면 그 LOT 이 있는 품목
-       창고 거르기가 있는 메뉴( 창고별 재고관리 )는 합계 = 품목 × 창고 · 탭 = 그 품목의 그 창고 LOT ( 같은 품목도 창고가 다르면 다른 탭 ) -->
+       창고 거르기가 있는 메뉴( 창고별 재고관리 )는 합계 = 품목 × 창고 · 탭 = 그 품목의 그 창고 LOT ( 같은 품목도 창고가 다르면 다른 탭 )
+     - 창고별 재고관리 ( 11-25 ) : 왼쪽 창고 목록( 트리 · 품목 수 / LOT 수 · 재고 없는 창고는 흐리게 · 찾기 ) → 고르면 오른쪽이 그 창고
+       상위 창고 = 하위 포함( [하위 창고 포함] 끄면 그 창고만 ) · 그 창고만 보면 창고 열을 뺀다 · 마지막 고른 창고를 기억 ( 브라우저 ) -->
 <template>
-    <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
+    <div class="flex flex-1 min-h-0 gap-3 text-gray-800 antialiased">
+        <!-- 창고 목록 ( 창고별 재고관리 ) -->
+        <aside v-if="showWarehouseFilter" class="w-60 shrink-0 flex flex-col border border-gray-200 bg-white overflow-hidden">
+            <div class="px-3 py-2 bg-gray-50/70 border-b border-gray-200 shrink-0">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-sm font-semibold text-gray-600">창고 <span class="text-xs font-normal text-gray-400">{{ warehouses.length }}</span></span>
+                    <span class="text-[11px] text-gray-400">품목 / LOT</span>
+                </div>
+                <BaseInput v-model="whKeyword" size="sm" class="w-full" placeholder="창고 찾기" />
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto py-1">
+                <button type="button" class="wh-row" :class="selectedWh === '' ? 'wh-on' : ''" @click="pickWarehouse('')">
+                    <span class="flex-1 truncate">전체</span>
+                    <span class="wh-num">{{ whStats.all?.items ?? 0 }} / {{ whStats.all?.lots ?? 0 }}</span>
+                </button>
+                <button v-for="w in shownWarehouses" :key="w.warehouse_idx" type="button" class="wh-row" :title="w.name"
+                    :class="[String(selectedWh) === String(w.warehouse_idx) ? 'wh-on' : '', whCount(w).lots ? '' : 'wh-empty']"
+                    :style="{ paddingLeft: `${12 + (whKeyword ? 0 : w.depth) * 14}px` }" @click="pickWarehouse(w.warehouse_idx)">
+                    <span v-if="w.depth && !whKeyword" class="text-gray-300 mr-1">└</span>
+                    <span class="flex-1 truncate">{{ w.name }}</span>
+                    <span class="wh-num">{{ whCount(w).items }} / {{ whCount(w).lots }}</span>
+                </button>
+                <p v-if="!shownWarehouses.length && whKeyword" class="px-3 py-4 text-xs text-center text-gray-400">맞는 창고가 없습니다.</p>
+            </div>
+            <label v-if="selectedHasChildren" class="px-3 py-2 border-t border-gray-200 shrink-0 inline-flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                <input v-model="includeSub" type="checkbox" class="accent-blue-600" @change="loadFirstPage" /> 하위 창고 포함
+            </label>
+        </aside>
+
+        <div class="flex-1 min-w-0 flex flex-col min-h-0">
         <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="perms.can_receipt" variant="primary" @click="openReceipt(null)">+ 입고</BaseButton>
         </div>
@@ -45,9 +76,8 @@
             :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-if="showWarehouseFilter" v-model="search.warehouse_idx" :options="warehouseFilter" class="w-44" />
             <template #append>
-                <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.with_zero" /> 무재고 포함</label>
+                <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.with_zero" /> 재고없음 포함</label>
                 <label v-if="!itemTabs" class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="item" false-value="lot" v-model="search.group" @change="loadFirstPage" /> 품목별 합계</label>
                 <label v-if="label.enabled && !byItem" class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="search.no_label" /> 라벨 미발행</label>
             </template>
@@ -83,7 +113,8 @@
         <!-- 품목 LOT 탭 ( 고른 탭 하나만 그린다 — 거르기 · 페이지는 탭 상태에 남는다 ) -->
         <div v-if="itemTabs && curTab" class="flex-1 min-w-0 flex flex-col border border-t-0 border-gray-200 overflow-hidden">
             <StockItemLotTab ref="lotTab" :key="activeTab" :tab="curTab" :list-route="R.list" :columns="lotTabColumns"
-                :label-enabled="label.enabled" :is-product="isProduct" @open="openHistory" />
+                :label-enabled="label.enabled" :is-product="isProduct" @open="openHistory" @open-all="openItemHistory" />
+        </div>
         </div>
     </div>
 </template>
@@ -97,10 +128,10 @@ import DataGrid from '@core/Components/Common/DataGrid.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import BaseInput from '@core/Components/Base/BaseInput.vue';
 import LotHistory from '@core/Components/Stock/LotHistory.vue';
 import StockMoveForm from '@core/Components/Stock/StockMoveForm.vue';
-import StockAdjustForm from '@core/Components/Stock/StockAdjustForm.vue';
+import StockLotAdjustModal from '@core/Components/Stock/StockLotAdjustModal.vue';
 import StockIssueForm from '@core/Components/Stock/StockIssueForm.vue';
 import ReceiptForm from '@core/Components/Purchase/ReceiptForm.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
@@ -127,7 +158,7 @@ const modalStore = useModalStore();
 const itemTabs = usePage().props.pageOptions?.item_tabs === true;
 // 창고 거르기가 있는 메뉴( 창고별 ) = 품목 × 창고 합계 · 없으면 품목 하나 한 줄
 const sumGroup = usePage().props.pageOptions?.warehouse_filter !== false ? 'item' : 'item_all';
-const blankFilters = () => ({ warehouse_idx: '', with_zero: '0', group: itemTabs ? sumGroup : 'lot', no_label: '0' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const blankFilters = () => ({ with_zero: '0', group: itemTabs ? sumGroup : 'lot', no_label: '0' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ keyword: '', ...blankFilters() });
 const byItem = computed(() => search.group !== 'lot');
 // 검색 조건 ( 서버 StockController applyKeyword 의 키 ) — 품목 × 창고 합계면 LOT 조건이 없다 ( 품목 탭 합계는 그 LOT 이 있는 품목 )
@@ -149,7 +180,33 @@ const label      = useLabelAccess();   // 라벨 칸 · 거르기 · 발행 버�
 const perms      = reactive({ can_move: false, can_adjust: false, can_issue: false, can_receipt: false });   // 재고현황에서 열 수 있는 처리
 // 창고 거르기 : 메뉴 화면 옵션 warehouse_filter = false 면 숨김 ( 재고관리 — 창고별은 창고별 재고관리 메뉴에서 )
 const showWarehouseFilter = usePage().props.pageOptions?.warehouse_filter !== false;
-const warehouseFilter = computed(() => [{ value: '', label: '창고 전체' }, ...warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label }))]);
+// ---- 창고 목록 ( 창고별 재고관리 · 11-25 ) ----
+const WH_KEY      = `mes.stockByWarehouse.${props.scope}`;   // 마지막 고른 창고 ( 브라우저 )
+const readWh      = () => { try { return localStorage.getItem(WH_KEY) ?? ''; } catch (e) { return ''; } };
+const selectedWh  = ref(showWarehouseFilter ? readWh() : '');
+const includeSub  = ref(true);
+const whKeyword   = ref('');
+const whStats     = ref({});
+const shownWarehouses = computed(() => {
+    const k = whKeyword.value.trim().toLowerCase();
+    return k ? warehouses.value.filter(w => String(w.name).toLowerCase().includes(k)) : warehouses.value;
+});
+const hasChildren = (idx) => warehouses.value.some(w => String(w.parent_idx) === String(idx));
+const selectedHasChildren = computed(() => selectedWh.value !== '' && hasChildren(selectedWh.value));
+// 숫자 : 하위 포함( 기본 ) · [하위 창고 포함] 을 끄면 고른 창고는 그 창고만
+const whCount = (w) => {
+    const st = whStats.value[w.warehouse_idx] ?? {};
+    const own = !includeSub.value && String(selectedWh.value) === String(w.warehouse_idx);
+    return own ? { items: st.own_items ?? 0, lots: st.own_lots ?? 0 } : { items: st.items ?? 0, lots: st.lots ?? 0 };
+};
+function pickWarehouse(idx) {
+    selectedWh.value = idx === '' ? '' : String(idx);
+    includeSub.value = true;
+    try { localStorage.setItem(WH_KEY, selectedWh.value); } catch (e) { /* 무시 */ }
+    loadFirstPage();
+}
+// 그 창고 하나만 보는 중이면 창고 열이 필요 없다
+const oneWarehouse = computed(() => showWarehouseFilter && selectedWh.value !== '' && (!selectedHasChildren.value || !includeSub.value));
 
 // 제품은 공급처 LOT · Heat No · 구매처가 없다 ( 생산 입고 )
 const PURCHASE_ONLY = ['external_lot_no', 'heat_no', 'partner_name'];
@@ -189,7 +246,8 @@ const itemAllColumns = [
     { header: '수량', name: 'qty', width: 130, align: 'right', sortable: true, className: 'cursor-pointer', formatter: ({ row }) => qtyText(row.qty, row.spec_unit) },
     { header: 'LOT 수', name: 'lot_count', width: 80, align: 'right', className: 'cursor-pointer' },
 ];
-const columns = computed(() => search.group === 'item_all' ? itemAllColumns : byItem.value ? itemColumns : lotColumns.filter(c => c.name !== 'label_count' || label.enabled));
+const columns = computed(() => (search.group === 'item_all' ? itemAllColumns : byItem.value ? itemColumns : lotColumns.filter(c => c.name !== 'label_count' || label.enabled))
+    .filter(c => !(oneWarehouse.value && c.name === 'warehouse_name')));
 // LOT 탭 열 : 품목 칸은 탭 머리에 있으니 뺀다 · LOT 은 숨길 수 없다
 const ITEM_COLS = ['item_code', 'item_name', 'item_spec', 'item_material'];
 const lotTabColumns = computed(() => lotColumns.filter(c => !ITEM_COLS.includes(c.name) && (c.name !== 'label_count' || label.enabled))
@@ -241,6 +299,7 @@ function onRowClick(row) {
 function reloadAll() {
     load();
     lotTab.value?.load();
+    if (showWarehouseFilter) loadWarehouses();   // 창고 숫자도
 }
 const grid    = ref(null);   // DataGrid — 열 설정( 사용자별 · lot / item 따로 ) · 엑셀이 그 설정을 따른다
 
@@ -252,6 +311,11 @@ const sort    = reactive({ key: '', dir: '' });
 
 function params(extra = {}) {
     const p = { ...search, ...extra };
+    // 창고 ( 왼쪽 목록 ) : 하위 포함이면 warehouse_idx · 그 창고만이면 exact_warehouse_idx
+    if (showWarehouseFilter && selectedWh.value !== '') {
+        if (selectedHasChildren.value && includeSub.value) p.warehouse_idx = selectedWh.value;
+        else p.exact_warehouse_idx = selectedWh.value;
+    }
     if (sort.key) Object.assign(p, { sort: sort.key, dir: sort.dir });
     return Object.fromEntries(Object.entries(p).filter(([, v]) => v !== '' && v !== null));
 }
@@ -296,6 +360,20 @@ function openHistory(row) {
             modalTitle: '입출고 이력',
         },
         { size: 'lg' }
+    );
+}
+
+// 품목 전체 이력 ( 11-25 ) — 그 품목의 모든 LOT 입출고를 시간순 · 페이지 ( 창고별 재고관리면 그 창고만 ) · 처리 버튼 없음
+function openItemHistory(item) {
+    modalStore.open(
+        LotHistory,
+        {
+            itemIdx: item.item_idx, lotIdx: null, warehouseIdx: item.warehouse_idx ?? null,
+            title: `${item.item_code} ${item.item_name} · 모든 LOT${item.warehouse_name ? ` · ${item.warehouse_name}` : ''}`,
+            scope: props.scope,
+            modalTitle: '전체 입출고 이력',
+        },
+        { size: 'xl' }
     );
 }
 
@@ -347,25 +425,34 @@ function openProcess(type, row, reloadHistory = null) {
     }
     const isMove = type === 'move';
     modalStore.open(
-        isMove ? StockMoveForm : StockAdjustForm,
+        isMove ? StockMoveForm : StockLotAdjustModal,
         {
             balanceIdx: row.key,
-            ...(isMove ? {} : { scope: props.scope }),   // 창고이동은 범위와 상관없이 같은 API
+            // 재고조정 = 재고조정 메뉴와 같은 창 ( 11-25 — 수량 조정 · 다른 품목 새 LOT · LOT 분리 · 합치기 · 이 품목 · LOT 을 고른 채로 )
+            ...(isMove ? {} : { scope: props.scope, item: { item_idx: row.item_idx, item_code: row.item_code, item_name: row.item_name, spec: row.item_spec, spec_unit: row.spec_unit } }),
             onDone: (no, warnings = []) => {
                 showFlash(`${no} ${isMove ? '이동' : '조정'}했습니다.`, false, warnings);
                 reloadAll();
+                reloadHistory?.();
             },
-            modalTitle: `${isMove ? '창고이동' : '재고조정'} [ ${row.lot_no || row.item_code} ]`,
+            modalTitle: isMove ? `창고이동 [ ${row.lot_no || row.item_code} ]` : (props.scope === 'product' ? '제품 재고조정' : '재고조정'),
         },
-        { size: 'lg', closeOnClickOutside: false }
+        { size: isMove ? 'lg' : 'xl', closeOnClickOutside: false }
     );
 }
 
-// 창고 거르기 목록 ( 입고 등록과 같은 트리 이름 ) + 이동 · 조정 권한
+// 창고 거르기 목록 ( 입고 등록과 같은 트리 이름 ) + 이동 · 조정 권한 · 창고별 재고관리면 창고마다 숫자( stats )
+async function loadWarehouses() {
+    const { data } = await window.axios.get(route(R.warehouses), { params: showWarehouseFilter ? { stats: 1, _t: Date.now() } : {} });
+    warehouses.value = data.warehouses ?? [];
+    whStats.value    = data.stats ?? {};
+    // 기억한 창고가 없어졌으면 전체로
+    if (selectedWh.value !== '' && !warehouses.value.some(w => String(w.warehouse_idx) === String(selectedWh.value))) pickWarehouse('');
+    return data;
+}
 (async () => {
     try {
-        const { data } = await window.axios.get(route(R.warehouses));
-        warehouses.value = data.warehouses ?? [];
+        const data = await loadWarehouses();
         // 조회 전용 메뉴( 창고별 재고 등 )에서는 다른 메뉴 권한이 있어도 처리 버튼을 열지 않는다
         const ro = usePage().props.readOnly === true;
         perms.can_move    = !ro && data.can_move === true;
@@ -383,4 +470,11 @@ function openProcess(type, row, reloadHistory = null) {
 .tab-scroll { scrollbar-width: thin; scrollbar-color: theme('colors.gray.300') transparent; }
 .tab-scroll::-webkit-scrollbar { height: 4px; }
 .tab-scroll::-webkit-scrollbar-thumb { background: theme('colors.gray.300'); border-radius: 2px; }
+/* 창고 목록 ( 창고별 재고관리 ) */
+.wh-row { display: flex; align-items: center; width: 100%; height: 32px; padding-right: 10px; padding-left: 12px; font-size: 13px; text-align: left; color: theme('colors.gray.700'); border-left: 3px solid transparent; }
+.wh-row:hover { background: theme('colors.gray.50'); }
+.wh-on, .wh-on:hover { background: theme('colors.blue.50'); color: theme('colors.blue.700'); font-weight: 600; border-left-color: theme('colors.blue.600'); }
+.wh-empty { color: theme('colors.gray.400'); }
+.wh-num { margin-left: 6px; flex: none; font-size: 11px; font-weight: 400; color: theme('colors.gray.400'); }
+.wh-on .wh-num { color: theme('colors.blue.500'); }
 </style>

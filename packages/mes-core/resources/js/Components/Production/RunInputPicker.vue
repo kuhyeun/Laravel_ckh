@@ -16,7 +16,7 @@
             <span v-if="loading" class="text-gray-400">불러오는 중…</span>
             <span class="flex-1"></span>
             <span v-if="hasAny" :class="missingItems.length ? 'text-amber-700' : 'text-green-700'">
-                고름 {{ pickedCount }}<template v-if="groups.length"> · {{ missingItems.length ? `자재 ${missingItems.length}종 안 고름` : `자재 ${groups.length}종 모두 ✓` }}</template>
+                선택 {{ pickedCount }}<template v-if="groups.length"> · {{ missingItems.length ? `자재 ${missingItems.length}종 선택안함` : `자재 ${groups.length}종 모두 ✓` }}</template>
             </span>
         </div>
         <p v-if="!loading && !hasAny" class="px-3 py-2 rounded border border-dashed border-gray-300 text-gray-400">{{ hiddenCount ? '더할 수 있는 투입 LOT 가 없습니다. ( 후보가 모두 이 실적에 이미 연결돼 있음 )' : '고를 LOT 가 없습니다 — 앞 공정 실적 LOT · 출고된 자재 LOT 이 없습니다. 비워 두고 진행합니다.' }}</p>

@@ -19,7 +19,8 @@ use Illuminate\Validation\ValidationException;
 // BOM관리 ( BAS-03 )
 //   품목 × 버전. 변경 한 번이 버전 하나 → 버전 목록이 곧 변경 이력 ( 별도 이력 화면 없음 )
 //   승인은 관문이 아니라 기록 : 승인 없이도 활성 전환되고 경고만 한다
-//   정책 bom.activate_on_approve( 기본 Y ) : 승인하면 그 버전을 바로 활성으로 ( 끄면 승인은 기록만 )
+//   정책 bom.approval( 11-25 · 기본 N ) : 끄면 승인 없이 — 저장한 버전이 바로 활성( 사용 ) · 승인 해제 · 경고 없음
+//   정책 bom.activate_on_approve( 기본 Y · 승인을 쓸 때만 ) : 승인하면 그 버전을 바로 활성으로 ( 끄면 승인은 기록만 )
 //   투입 지점은 라우팅의 "줄"을 가리킨다 → 순서를 바꿔도 참조 유지
 //   자재 줄마다 대체 자재 N ( 자기 소요 · 계산식 ) — 줄 검증 · 동기화 · 복사 · 순환 검사는 BomService ( docs/대체자재-수주자재-설계.md )
 class BomController extends Controller {
@@ -94,6 +95,8 @@ class BomController extends Controller {
             'versions'            => $boms,
             // 정책 bom.activate_on_approve — 화면이 [승인] 확인 문구를 고른다
             'activate_on_approve' => (bool) app(PolicyService::class)->get(self::ACTIVATE_ON_APPROVE),
+            // 정책 bom.approval ( 11-25 ) — 끄면 화면이 승인 표시 · 버튼을 숨긴다
+            'approval'            => Bom::approvalOn(),
         ]);
     }
 
@@ -183,8 +186,9 @@ class BomController extends Controller {
             $warnings[] = '변경일이 미래입니다. 예정 등록이면 정상입니다.';
         }
 
+        $approvalOn = Bom::approvalOn();
         try {
-            DB::transaction(function () use ($bom, $validated, $lines) {
+            DB::transaction(function () use ($bom, $validated, $lines, $approvalOn) {
                 $bom->fill([
                     'item_idx'   => $validated['item_idx'],
                     'version'    => $validated['version'],
@@ -199,6 +203,11 @@ class BomController extends Controller {
 
                 $bom->save();
                 $this->boms->syncLines($bom, $lines);
+
+                // 승인을 쓰지 않으면 저장한 버전이 바로 활성 ( 11-25 — 이전 활성 버전은 비활성 )
+                if (!$approvalOn && $bom->is_active !== 'Y') {
+                    $this->switchActive($bom);
+                }
             });
 
             $bom = Bom::with(self::WITH)->find($bom->bom_idx);
@@ -225,7 +234,7 @@ class BomController extends Controller {
             DB::transaction(fn () => $this->switchActive($bom));
 
             $warnings = [];
-            if (!$bom->isApproved()) {
+            if (Bom::approvalOn() && !$bom->isApproved()) {
                 // W_BOM_NO_APPROVAL : 막지 않고 경고만 ( 대부분 종이로 결재하고 시스템에 옮겨 적는다 )
                 $warnings[] = '승인 없이 활성으로 전환했습니다.';
             }
@@ -244,6 +253,9 @@ class BomController extends Controller {
         $validated = $request->validate(['bom_idx' => 'required|integer|exists:bom,bom_idx']);
 
         $bom = Bom::itemBoms()->findOrFail($validated['bom_idx']);
+        if (!Bom::approvalOn()) {
+            throw ValidationException::withMessages(['bom_idx' => ['BOM 승인을 쓰지 않는 설정입니다. ( 시스템 설정 )']]);
+        }
         $activate = (bool) app(PolicyService::class)->get(self::ACTIVATE_ON_APPROVE) && $bom->is_active !== 'Y';
 
         try {

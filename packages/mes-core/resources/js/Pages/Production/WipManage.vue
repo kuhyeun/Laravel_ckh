@@ -1,7 +1,7 @@
 <!-- 재공관리 ( 3010 ) / 자재관리 > 재공관리 — 조회만 · 공정 사이 반제품 ( 서버 WipController · WipService )
      - 공정 실적 1건 → 그 공정 +수량( 생산 ) · 바로 앞 수량 공정 −수량( 다음 공정 투입 ) — 마지막 공정은 +수량까지 ( 입고 · 출고는 재고 이력 )
      - 재공 이력만 ( 11-05 — 현재 재공 탭은 빼기로 ) : 한 줄씩 · 서버 페이징 · 취소 포함 선택
-     - 행 클릭 → 그 작업지시의 공정실적관리 ( 권한이 있을 때 ) -->
+     - 조회만 — 행을 눌러도 아무것도 열지 않는다 ( 11-25 · 예전 : 그 작업지시의 공정실적관리로 이동 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <SearchBar
@@ -35,7 +35,6 @@
                     :columns="historyColumns"
                     :pagination="paging"
                     empty-text="조건에 맞는 재공 이력이 없습니다."
-                    @row-click="goOpResult"
                     @page="onPage"
                     @sort="onSort"
                 />
@@ -46,7 +45,6 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
-import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
 import DataGrid from '@core/Components/Common/DataGrid.vue';
@@ -74,7 +72,6 @@ const search = reactive({ date_basis: 'occurred', from: '', to: '', keyword: '',
 
 // ---- 선택지 ----
 const processes   = ref([]);
-const opResultUrl = ref(null);
 const processOptions = computed(() => [{ value: '', label: '공정 전체' }, ...processes.value]);
 
 const params = (extra = {}) => {
@@ -92,17 +89,17 @@ const qtyCell = (unitOf) => ({ row, value }) => {
 
 // ---- 재공 이력 ----
 const showLot = ref(false);   // 실적 LOT 지시가 있을 때만 LOT 열 ( formData.show_lot )
-const lotColumn = { header: 'LOT', name: 'lot_no', width: 200, className: 'cursor-pointer', escapeHTML: true, dash: true };
+const lotColumn = { header: 'LOT', name: 'lot_no', width: 200, escapeHTML: true, dash: true };
 const baseColumns = [
-    { header: '일시', name: 'occurred_at', width: 150, align: 'center', sortable: true, className: 'cursor-pointer' },
-    { header: '지시번호', name: 'wo_no', width: 180, sortable: true, className: 'cursor-pointer' },
-    { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 180, sortable: true, className: 'cursor-pointer', escapeHTML: true, dash: true },
-    { header: '공정', name: 'op_label', width: 120, className: 'cursor-pointer', escapeHTML: true },
-    { header: '구분', name: 'kind_label', width: 120, align: 'left', className: 'cursor-pointer', escapeHTML: true },
-    { header: '수량', name: 'qty', width: 110, align: 'right', className: 'cursor-pointer', formatter: qtyCell(r => r.spec_unit) },
-    { header: '투입한 공정', name: 'to_label', width: 120, className: 'cursor-pointer', escapeHTML: true },
-    { header: '작업자', name: 'operator_name', width: 80, align: 'center', className: 'cursor-pointer', escapeHTML: true },
+    { header: '일시', name: 'occurred_at', width: 150, align: 'center', sortable: true },
+    { header: '지시번호', name: 'wo_no', width: 180, sortable: true },
+    { header: '품목', name: 'item_code', minWidth: 160, sortable: true, escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
+    { header: '규격', name: 'item_spec', width: 180, sortable: true, escapeHTML: true, dash: true },
+    { header: '공정', name: 'op_label', width: 120, escapeHTML: true },
+    { header: '구분', name: 'kind_label', width: 120, align: 'left', escapeHTML: true },
+    { header: '수량', name: 'qty', width: 110, align: 'right', formatter: qtyCell(r => r.spec_unit) },
+    { header: '투입한 공정', name: 'to_label', width: 120, escapeHTML: true },
+    { header: '작업자', name: 'operator_name', width: 80, align: 'center', escapeHTML: true },
 ];
 // LOT 열은 수량 다음 ( 생산 + = 그 실적 LOT · 투입 − = 가져간 앞 공정 LOT )
 const historyColumns = computed(() => showLot.value
@@ -136,11 +133,6 @@ async function exportHistory() {
 }
 
 // 행 → 그 작업지시의 공정실적관리
-function goOpResult(row) {
-    if (!opResultUrl.value) return;
-    router.visit(`${opResultUrl.value}?wo=${row.work_order_idx}`);
-}
-
 // ---- 조회 ----
 function runSearch() {
     paging.page = 1;
@@ -151,7 +143,6 @@ onMounted(async () => {
     try {
         const { data } = await window.axios.get(route('production.wip.formData'));
         processes.value = data.processes ?? [];
-        opResultUrl.value = data.op_result_url ?? null;
         showLot.value = !!data.show_lot;
     } catch (e) {
         showFlash('선택지를 불러오지 못했습니다.', true);

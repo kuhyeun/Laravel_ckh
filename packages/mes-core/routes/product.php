@@ -45,6 +45,8 @@ Route::prefix('product')->name('product.')->middleware([UserAuth::class, ItemSco
         });
         Route::middleware(MenuAuth::class . ':Product/ProductAdjust,can_write')->group(function() {
             Route::post('/save', [StockProcessController::class, 'adjust'])->name('save');
+            Route::get('/itemLots', [StockProcessController::class, 'adjustItemLots'])->name('itemLots');   // 재고조정 창 — 품목의 LOT 재고 ( 11-25 )
+            Route::post('/lotChange', [StockProcessController::class, 'lotChange'])->name('lotChange');     // LOT 전환 · 분리 · 합치기 ( 11-25 )
             Route::post('/cancel/{txnIdx}', [StockProcessController::class, 'adjustCancel'])->whereNumber('txnIdx')->name('cancel');
             Route::post('/editDate', [StockProcessController::class, 'adjustEditDate'])->name('editDate');   // 조정일시만 수정 ( 11-25 )
         });

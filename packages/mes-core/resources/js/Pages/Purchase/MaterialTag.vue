@@ -33,7 +33,7 @@
             </div>
             <div class="flex-1 min-h-0 flex flex-col">
                 <DataGrid ref="grid" :loading="loading" setting-key="list" class="flex-1" :data="rows" :columns="columns" :options="{ rowHeaders: 'checkbox' }"
-                    empty-text="조건에 맞는 자재 LOT 이 없습니다." @row-click="row => openPreview([row.lot_idx])" @select="sel => checked = sel" />
+                    empty-text="조건에 맞는 자재 LOT 이 없습니다." @row-click="onRowClick" @select="sel => checked = sel" />
             </div>
         </div>
     </div>
@@ -51,6 +51,7 @@ import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import LotLogModal from '@core/Components/Stock/LotLogModal.vue';
 import LabelPreview from '@core/Components/Label/LabelPreview.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
@@ -79,11 +80,11 @@ const templateOptions = computed(() => [{ value: '', label: '발행한 양식 �
     ...templates.value.map(t => ({ value: t.label_template_idx, label: `${t.template_name} ${t.is_default === 'Y' ? ' · 기본' : ''}` }))]);
 
 const columns = [
-    { header: '입고 일시', name: 'in_at', width: 150, align: 'center', className: 'cursor-pointer', sortable: true },
-    { header: 'LOT', name: 'lot_no', width: 170, className: 'cursor-pointer', sortable: true, escapeHTML: true },
+    { header: '입고 일시', name: 'in_at', width: 140, align: 'center', className: 'cursor-pointer', sortable: true },
+    { header: 'LOT', name: 'lot_no', width: 150, className: 'cursor-pointer', sortable: true, escapeHTML: true },
     { header: '구매처', name: 'partner_name', width: 150, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '품목', name: 'item_code', minWidth: 180, className: 'cursor-pointer', sortable: true, escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
-    { header: '규격', name: 'item_spec', width: 180, className: 'cursor-pointer', sortable: true, escapeHTML: true, dash: true },
+    { header: '규격', name: 'item_spec', width: 140, className: 'cursor-pointer', sortable: true, escapeHTML: true, dash: true },
     { header: '공급처 LOT', name: 'external_lot_no', width: 130, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: 'Heat No', name: 'heat_no', width: 110, className: 'cursor-pointer', escapeHTML: true, dash: true },
     { header: '입고 수량', name: 'in_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) },
@@ -91,6 +92,9 @@ const columns = [
       formatter: ({ row, value }) => Number(value) > 0 ? fmtQty(value, row.spec_unit) : `<span style="color:${COLORS.gray400}">없음</span>` },
     { header: '마지막 인쇄', name: 'printed_at', width: 130, align: 'center', className: 'cursor-pointer', sortable: true,
       formatter: ({ value }) => value ?? `<span style="color:${COLORS.amber700}">미인쇄</span>` },
+    // 인쇄 횟수 ( 11-25 · #14 ) — 누르면 LOT 이력 창 ( 인쇄 이력 · LOT 번호 변경 이력 )
+    { header: '인쇄', name: 'print_times', width: 110, align: 'center', className: 'cursor-pointer', sortable: true,
+      formatter: ({ row }) => row.print_times > 0 ? `<span style="color:${COLORS.blue600};text-decoration:underline">${row.print_times}회 · ${row.print_sheets}장</span>` : `<span style="color:${COLORS.gray400};text-decoration:underline">이력</span>` },
 ];
 
 const rows    = ref([]);
@@ -112,6 +116,15 @@ async function load() {
     } finally {
         loading.value = false;
     }
+}
+
+// 행 클릭 — 「인쇄」 칸이면 LOT 이력 창 · 아니면 미리보기 · 인쇄
+function onRowClick(row, col) {
+    if (col === 'print_times') {
+        modalStore.open(LotLogModal, { modalTitle: `LOT 이력 — ${row.lot_no}`, lotIdx: row.lot_idx }, { size: 'lg' });
+        return;
+    }
+    openPreview([row.lot_idx]);
 }
 
 // 고른 LOT → 라벨( 없으면 발행 ) → 미리보기 · 인쇄

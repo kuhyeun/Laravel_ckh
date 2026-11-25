@@ -1,8 +1,8 @@
 <!-- 생산계획관리 ( 4001 ) / 생산관리 > 생산계획관리 — docs/생산계획-설계.md
      - 선택 단계 : 수주 → 생산계획 → 작업지시 ( 수주에서 바로 지시도 그대로 ) · 계획 하나 = 품목 하나 · 수주 줄 여럿
-     - 월 달력( 그 달 1일 ~ 마지막 날이 든 주 — 4 ~ 6주 ) : 계획 = 시작일 ~ 완료 예정일 막대 ( 상태 색 ) · 막대를 끌어 날짜 옮기기( 기간 유지 ) · 막대 누르면 수정 · 빈 날짜 누르면 그 날로 등록
+     - 월 달력( 그 달 1일 ~ 마지막 날이 든 주 — 4 ~ 6주 ) : 계획 = 시작일 ~ 완료 예정일 막대 ( 상태 색 · 11-25 부터 옅은 바탕 + 점선 ) · 막대를 끌어 날짜 옮기기( 기간 유지 ) · 막대 누르면 수정 · 빈 날짜 누르면 그 날로 등록
        막대 왼쪽 체크 → [작업지시] ( 계획마다 줄 하나인 작업지시서 — 남은 계획 수량 · 그 계획의 수주 줄들 ) · [삭제]
-     - 작업지시서 막대 ( 11-23 ) : 같은 달의 지시서( 취소 제외 · 작업지시 조회 권한이 있을 때 ) — 흰 바탕 · 상태색 테두리 · '지시' ( planCodes sheetBar* )
+     - 작업지시서 막대 ( 11-23 ) : 같은 달의 지시서( 취소 제외 · 작업지시 조회 권한이 있을 때 ) — 상태색을 채운 막대( 11-25 · 계획 점선과 구분 ) · '지시' ( planCodes sheetBar* )
        보기만( 끌기 · 체크 없음 ) · 누르면 그 작업지시서 창 · [ 계획 ] [ 작업지시 ] 체크로 따로 켜고 끈다
      - [목록] : 같은 기간 · 같은 거르기를 표로 -->
 <template>
@@ -88,10 +88,10 @@
 
         <!-- 범례 -->
         <div class="flex items-center gap-3 pt-1.5 text-[11px] text-gray-500 shrink-0">
-            <span v-for="s in PLAN_STATUSES" :key="s.value" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm" :style="{ background: s.bar }"></span>{{ sheets ? '계획 · ' : '' }}{{ s.label }}</span>
+            <span v-for="s in PLAN_STATUSES" :key="s.value" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm" :style="planSwatchStyle(s)"></span>{{ sheets ? '계획 · ' : '' }}{{ s.label }}</span>
             <template v-if="sheets">
                 <span class="w-px h-3 bg-gray-300"></span>
-                <span v-for="s in SHEET_STATES" :key="s.value" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-white" :style="{ border: `1px solid ${s.line}`, borderLeft: `4px solid ${s.line}` }"></span>작업지시 · {{ s.label }}</span>
+                <span v-for="s in SHEET_STATES" :key="s.value" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm" :style="sheetSwatchStyle(s)"></span>작업지시 · {{ s.label }}</span>
             </template>
             <span v-if="canWrite" class="ml-2 text-gray-400">막대를 끌어 날짜를 옮깁니다 ( 기간은 그대로 ) · 빈 날짜를 누르면 그 날로 등록</span>
         </div>
@@ -110,7 +110,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import ProductionPlanForm from '@core/Components/Production/ProductionPlanForm.vue';
 import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
-import { PLAN_STATUSES, PLAN_STATUS_FILTER, planStatusLabel, planStatusColor, planBarStyle, SHEET_STATES, sheetBarStyle, sheetBarText, sheetBarTitle } from '@core/Components/Production/planCodes';
+import { PLAN_STATUSES, PLAN_STATUS_FILTER, planStatusLabel, planStatusColor, planBarStyle, planSwatchStyle, SHEET_STATES, sheetBarStyle, sheetSwatchStyle, sheetBarText, sheetBarTitle } from '@core/Components/Production/planCodes';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';

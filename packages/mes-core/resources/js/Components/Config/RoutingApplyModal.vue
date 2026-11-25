@@ -9,12 +9,17 @@
     <div class="mt-3 text-sm flex flex-col min-h-0">
         <p class="text-gray-600">
             <b>[ {{ routingName }} ]</b> 의 공정 구성을 이 라우팅을 쓰는 품목에도 반영합니다.
-            <span class="block text-xs text-gray-400 mt-0.5">이미 등록된 수주 · 작업지시의 공정은 바뀌지 않습니다. 새로 등록하는 수주부터 적용됩니다.</span>
         </p>
+        <!-- 반영하면 바뀌는 것 ( 11-25 · MES_1125 #2 — 설명 추가 ) -->
+        <ul class="mt-1.5 px-3 py-2 rounded bg-gray-50 text-xs text-gray-600 leading-5 list-disc list-inside">
+            <li>고른 품목의 공정 · 개당 시간 · 초 · 중 · 종 검사가 <b>저장된 현 라우팅</b>과 같아집니다. ( 화면에서 고치고 저장하지 않은 내용은 반영되지 않습니다 )</li>
+            <li>품목 화면에서 따로 고친 공정은 <b class="text-amber-700">덮어써져 사라집니다.</b></li>
+            <li>이미 등록된 수주 · 작업지시의 공정은 바뀌지 않습니다. 새로 등록하는 수주부터 적용됩니다.</li>
+        </ul>
 
         <div class="flex items-center gap-2 mt-3 mb-1.5">
             <BaseInput v-model="q" class="flex-1" size="md" placeholder="품번 · 품명 · 규격" />
-            <span class="text-xs text-gray-400 whitespace-nowrap">{{ checkedIds.size }} / {{ items.length }} 품목 고름</span>
+            <span class="text-xs text-gray-400 whitespace-nowrap">{{ checkedIds.size }} / {{ items.length }} 품목 선택</span>
         </div>
         <div class="border rounded overflow-auto max-h-[46vh]">
             <table class="w-full table-fixed text-xs">
@@ -64,6 +69,7 @@ import { ref, computed } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import { showAlert } from '@core/Utils/message';
 
 const props = defineProps({
     routingIdx:  { type: Number, required: true },
@@ -105,6 +111,13 @@ const saving   = ref(false);
 const errorMsg = ref('');
 async function submit() {
     if (saving.value || !checkedIds.value.size) return;
+    // 확인 ( 11-25 · MES_1125 #2 ) — 품목 공정을 덮어쓰므로 한 번 더 묻는다
+    const n = checkedIds.value.size;
+    const custom = checkedCustom.value ? `\n· 그중 ${checkedCustom.value}개는 품목에서 따로 고친 공정이 사라집니다.` : '';
+    const r = await showAlert('품목에 반영',
+        `${n}개 품목의 공정을 [ ${props.routingName} ] 의 저장된 구성으로 바꿉니다.${custom}\n· 이미 등록된 수주 · 작업지시는 바뀌지 않습니다.\n\n반영할까요?`,
+        'warning', 'confirm');
+    if (!r.isConfirmed) return;
     saving.value = true;
     errorMsg.value = '';
     try {

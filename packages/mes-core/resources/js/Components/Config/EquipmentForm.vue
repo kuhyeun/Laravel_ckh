@@ -16,6 +16,14 @@
             <FormField label="설비명" required :error="errors.equipment_name">
                 <BaseInput v-model="form.equipment_name" class="w-full" :disabled="!canWrite" />
             </FormField>
+            <!-- 라인 · PLC 코드 ( 11-25 · MES_1125 #3 ) — 지금은 저장만 · PLC 코드는 관리자만 -->
+            <FormField label="라인" hint="코드관리 EQUIPMENT_LINE" :error="errors.line_code">
+                <BaseSelect v-model="form.line_code" :options="lineOptions" class="w-full" :disabled="!canWrite" />
+                <p v-if="!lineLoading && lineOptions.length <= 1" class="text-[11px] text-amber-600 mt-0.5">등록된 라인이 없습니다. 코드관리의 EQUIPMENT_LINE 그룹에 먼저 추가하세요.</p>
+            </FormField>
+            <FormField v-if="isAdmin" label="PLC 코드" hint="관리자 · 모니터링 연동용" :error="errors.plc_code">
+                <BaseInput v-model="form.plc_code" class="w-full" maxlength="50" placeholder="예: PLC-01-D100" :disabled="!canWrite" />
+            </FormField>
             <!-- 관리 항목 ( 11-19 ) -->
             <FormField label="설비담당자 ( 정 )" :error="errors.manager_idx">
                 <BaseSelect v-model="form.manager_idx" :options="userOptions" class="w-full" :disabled="!canWrite" />
@@ -84,6 +92,8 @@ import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import FormField from '@core/Components/Common/FormField.vue';
 import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import ListSelect from '@core/Components/Common/ListSelect.vue';
+import { usePage } from '@inertiajs/vue3';
+import { useCommonCode } from '@core/Composables/useCommonCode';
 
 const props = defineProps({
     equipment: { type: Object,   default: null },   // 있으면 수정, 없으면 등록
@@ -101,6 +111,8 @@ const form = reactive({
     equipment_idx:  src.equipment_idx ?? null,
     equipment_code: src.equipment_code ?? '',
     equipment_name: src.equipment_name ?? '',
+    line_code:      src.line_code ?? '',
+    plc_code:       src.plc_code ?? '',
     manager_idx:     src.manager_idx ?? '',
     sub_manager_idx: src.sub_manager_idx ?? '',
     purchase_date:   src.purchase_date ?? '',
@@ -109,6 +121,17 @@ const form = reactive({
     check_base:      src.check_base ?? '',
     is_use:         src.is_use ?? 'Y',
     remark:         src.remark ?? '',
+});
+
+// ---- 라인 · PLC 코드 ( 11-25 ) ----
+const page    = usePage();
+const isAdmin = computed(() => Number(page.props.auth?.user?.user_level ?? 99) <= 1);   // 서버 EquipmentController::isAdmin 과 같은 기준
+const { options: codeOptions, loading: lineLoading } = useCommonCode(['EQUIPMENT_LINE']);
+const lineOptions = computed(() => {
+    const opts = [{ value: '', label: '( 없음 )' }, ...codeOptions('EQUIPMENT_LINE')];
+    // 지금 값이 미사용 코드면 표시용으로 붙인다
+    if (form.line_code && !lineLoading.value && !opts.some(o => o.value === form.line_code)) opts.push({ value: form.line_code, label: `${form.line_code} ( 미사용 )` });
+    return opts;
 });
 
 // ---- 관리 항목 선택지 ( 11-19 ) ----
@@ -181,6 +204,8 @@ async function save() {
             purchase_date:   form.purchase_date || null,
             purchase_cost:   form.purchase_cost === '' ? null : form.purchase_cost,
             check_base:      form.check_cycle === 'NONE' ? null : (form.check_base || null),
+            line_code:       form.line_code || null,
+            plc_code:        isAdmin.value ? (form.plc_code || null) : undefined,   // 관리자가 아니면 보내지 않는다 ( 서버도 무시 )
         });
         props.onSaved?.(data.equipment);
         emit('close');

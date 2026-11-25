@@ -197,7 +197,7 @@
             <div v-if="op.is_ifl && history.length" class="mt-4">
                 <div class="mb-1.5 text-xs font-semibold text-gray-500">검사 이력 ( 취소 포함 )</div>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[784px] table-fixed text-xs border rounded">
+                    <table class="w-full min-w-[770px] table-fixed text-xs border rounded">
                         <colgroup>
                             <col class="w-20"><col class="w-16"><col class="w-20"><col class="w-20"><col><col class="w-20"><col class="w-48"><col class="w-24">
                         </colgroup>

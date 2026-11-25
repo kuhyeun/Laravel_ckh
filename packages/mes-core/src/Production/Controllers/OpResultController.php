@@ -82,6 +82,8 @@ class OpResultController extends Controller {
             'spec_unit'      => $w->item?->spec_unit,
             'lot_no'         => $w->isRunLot() ? '실적별' : $w->lot?->lot_no,
             'due_date'       => $w->sheet?->due_date?->toDateString(),
+            'start_date'     => $w->start_date?->toDateString(),   // 착수 예정일 ( 11-25 · 공정실적 개편 목록 )
+            'remark'         => $w->remark,                         // 작업지시 비고 ( 줄 )
             'ops_count'      => $w->ops_count,
             'done_ops_count' => $w->done_ops_count,
             'status'         => $w->status,
@@ -124,11 +126,28 @@ class OpResultController extends Controller {
                 ->whereIn('ref_idx', $iflOps->pluck('work_order_op_idx'))->whereIn('insp_type', \MesCore\Quality\Services\ProcessInspectionService::STAGE_TYPES)
                 ->where('is_canceled', 'N')->groupBy('ref_idx')->selectRaw('ref_idx, SUM(fail_qty) as n')->pluck('n', 'ref_idx')
             : collect();
+        // 공정 불량 합 ( 11-25 ) — 이 공정에 묶인 불량 기록 전부( 초 · 중 · 종 · 검사 · 앞으로 넣을 실적 불량 ) · 취소 제외
+        $defectQty = DB::table('defect')->whereIn('work_order_op_idx', $ops->pluck('work_order_op_idx')->all() ?: [0])
+            ->where('is_canceled', 'N')->groupBy('work_order_op_idx')->selectRaw('work_order_op_idx, SUM(qty) as n')->pluck('n', 'work_order_op_idx');
+        // 실적별 불량 ( 실적 등록 때 넣은 것 · 11-25 · MES_1125 #11 )
+        $runDefects = DB::table('defect')->whereIn('run_idx', $ops->flatMap(fn ($o) => $o->runs->pluck('run_idx'))->all() ?: [0])
+            ->where('is_canceled', 'N')->groupBy('run_idx')->selectRaw('run_idx, SUM(qty) as n')->pluck('n', 'run_idx');
 
         $subconRuns = DB::table('subcon_receipt')->where('status', 'DONE')->whereIn('run_idx', $ops->flatMap(fn ($o) => $o->runs->pluck('run_idx'))->all() ?: [0])
             ->pluck('run_idx')->flip()->all();
 
-        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left, $inputsBy, $iflOf, $iflFail, $subconRuns) {
+        // 개당 시간 ( 11-25 ) — 지시 공정에 복사된 값 · 0 이면 지금 품목 라우팅의 그 공정 값 ( 지시를 만든 뒤 품목에 넣은 개당(분) )
+        $rlById   = DB::table('routing_line')->whereIn('routing_line_idx', $ops->pluck('routing_line_idx')->filter()->all() ?: [0])->pluck('cycle_time_sec', 'routing_line_idx');
+        $rlByProc = $wo->item?->routing_idx
+            ? DB::table('routing_line')->where('routing_idx', $wo->item->routing_idx)->where('cycle_time_sec', '>', 0)->orderBy('seq')->get(['process_idx', 'cycle_time_sec'])->unique('process_idx')->pluck('cycle_time_sec', 'process_idx')
+            : collect();
+        $cycleOf = function (WorkOrderOp $o) use ($rlById, $rlByProc): float {
+            if ((float) $o->cycle_time_sec > 0) return (float) $o->cycle_time_sec;
+            if ($o->routing_line_idx && (float) ($rlById[$o->routing_line_idx] ?? 0) > 0) return (float) $rlById[$o->routing_line_idx];
+            return (float) ($rlByProc[$o->process_idx] ?? 0);
+        };
+
+        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left, $inputsBy, $iflOf, $iflFail, $defectQty, $runDefects, $subconRuns, $cycleOf) {
             $first = $ops->first(fn (WorkOrderOp $x) => $x->isQtyOp());
             return [
                 'work_order_op_idx' => $o->work_order_op_idx,
@@ -141,6 +160,7 @@ class OpResultController extends Controller {
                 'is_inspection'     => $o->isInspectionOp(),   // 품질 모듈이 켜져 있으면 공정검사( 6002 )에서 검사 — 수량 = 합격
                 'ifl'               => $iflOf($o),             // 초 · 중 · 종 판정 ( 보기만 )
                 'ifl_fail'          => (float) ($iflFail[$o->work_order_op_idx] ?? 0),   // 초 · 중 · 종 불량 수량 합 ( 11-23 )
+                'defect_qty'        => (float) ($defectQty[$o->work_order_op_idx] ?? 0), // 공정 불량 합 ( 모든 불량 기록 · 11-25 )
                 'is_first_qty'      => $first && $first->work_order_op_idx === $o->work_order_op_idx,
                 'base_qty'          => $this->results->baseQty($wo, $ops, $o),
                 'qty'               => (float) $o->qty,
@@ -157,6 +177,7 @@ class OpResultController extends Controller {
                 // 마지막 공정이 수량 공정 : 실적마다 그 수량만큼 제품 입고 ( 실적 입력 때 창고 )
                 'receives_on_run'   => $this->results->receivesOnRun($ops, $o),
                 'equipment_idx'     => $o->equipment_idx,
+                'cycle_time_sec'    => $cycleOf($o),   // 개당 표준시간 ( 초 ) — 실적 시작 시간 자동 계산 ( 11-25 · MES_1125 #7 · 지시 값이 0 이면 품목 라우팅 )
                 'equipments'        => $o->process?->equipments->filter(fn ($pe) => $pe->equipment && $pe->equipment->is_use === 'Y')
                     ->map(fn ($pe) => ['equipment_idx' => $pe->equipment_idx, 'equipment_name' => $pe->equipment->equipment_name])->values() ?? [],
                 'runs'              => $o->runs->map(fn (WorkOrderOpRun $r) => [
@@ -168,6 +189,7 @@ class OpResultController extends Controller {
                     'creator'        => $userName($r->creator),
                     'is_proxy'       => (int) $r->operator_idx !== (int) $r->create_account_idx,
                     'qty'            => (float) $r->qty,
+                    'defect_qty'     => (float) ($runDefects[$r->run_idx] ?? 0),   // 이 실적에 넣은 불량 ( 11-25 )
                     'remark'         => $r->remark,
                     'received'       => (bool) $r->stock_txn_line_idx,
                     'via_subcon'     => isset($subconRuns[$r->run_idx]),   // 외주 입고로 들어온 실적 — 날짜 수정은 외주 입고에서 ( 11-25 )
@@ -249,7 +271,12 @@ class OpResultController extends Controller {
             'inputs.*.input_type' => 'required|in:MATERIAL,RUN',
             'inputs.*.lot_idx'    => 'required|integer',
             'inputs.*.qty'        => 'nullable|numeric|min:0|max:999999999999',   // 앞 공정 실적 LOT 만 ( 자재 LOT 는 수량 없음 · 11-12 — 0 보다 큰지는 서비스가 )
-        ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => '투입 수량은 0보다 커야 합니다.'], ['qty' => '수량', 'operator_idx' => '작업자', 'started_at' => '시작 시간', 'worked_at' => '종료 시간', 'equipment_idx' => '설비', 'warehouse_idx' => '입고 창고', 'inputs.*.qty' => '투입 수량']);
+            // 불량 ( 11-25 · MES_1125 #11 ) : [ { defect_type_code, qty, reason } ] — 양품 수량과 따로 · 공정 불량으로 기록
+            'defects'                    => 'nullable|array|max:30',
+            'defects.*.defect_type_code' => 'nullable|string|max:100',
+            'defects.*.qty'              => 'nullable|numeric|min:0|max:999999999999',
+            'defects.*.reason'           => 'nullable|string|max:200',
+        ], ['qty.gt' => '양품 수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => '투입 수량은 0보다 커야 합니다.'], ['qty' => '양품 수량', 'operator_idx' => '작업자', 'started_at' => '시작 시간', 'worked_at' => '종료 시간', 'equipment_idx' => '설비', 'warehouse_idx' => '입고 창고', 'inputs.*.qty' => '투입 수량']);
 
         $op = WorkOrderOp::find($v['work_order_op_idx']);
         if (!$op) {

@@ -86,10 +86,14 @@ return [
 
     // ---- BOM관리 ( BAS-03 ) ----
     'bom' => [
+        // 승인 사용 ( 11-25 · 기본 끔 ) — 끄면 저장한 버전이 바로 활성( 사용 )이 되고 승인 표시 · 버튼 · 승인 해제가 없다
+        'approval' => [ 'name' => 'BOM 승인 사용', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
+                        'remark' => '켜면 BOM 버전을 승인으로 관리합니다 ( 승인 후 자재를 고치면 승인 해제 · 승인 없이 활성 전환은 경고 ). 끄면 BOM 을 저장할 때 그 버전이 바로 활성( 사용 )이 됩니다',
+                        'depends_on' => [ 'feature.bom', 'Y' ] ],
         // 끄면 승인은 기록만 ( 미리 승인해 두고 쓸 때 [활성으로] ) — 승인 없이 활성 전환은 켜든 끄든 된다 ( 경고만 )
         'activate_on_approve' => [ 'name' => '승인하면 바로 활성', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL',
                                    'remark' => '켜면 BOM 버전을 승인할 때 그 버전이 활성이 됩니다 ( 같은 품목의 이전 활성 버전은 비활성 )',
-                                   'depends_on' => [ 'feature.bom', 'Y' ] ],
+                                   'depends_on' => [ 'bom.approval', 'Y' ] ],
     ],
 
     // ---- B-1 ( 자재 · LOT · 마감 ) · B-2. 자재 · 출하 차감 ----

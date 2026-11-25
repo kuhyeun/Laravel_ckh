@@ -33,12 +33,14 @@ export const STOCK_ROUTES = {
         ...MOVE,
         list: 'stock.list', history: 'stock.history', warehouses: 'stock.warehouses',
         adjustList: 'stock.adjust.list', adjustReasons: 'stock.adjust.reasons', adjustSave: 'stock.adjust.save', adjustCancel: 'stock.adjust.cancel', adjustEditDate: 'stock.adjust.editDate',
+        adjustItemLots: 'stock.adjust.itemLots', adjustLotChange: 'stock.adjust.lotChange',   // 재고조정 창 ( 11-25 )
         miscList: 'stock.misc.list', miscWorkOrders: 'stock.misc.workOrders', miscSave: 'stock.misc.save', miscCancel: 'stock.misc.cancel', miscEditDate: 'stock.misc.editDate',
     },
     product: {
         ...MOVE,
         list: 'product.stock.list', history: 'product.stock.history', warehouses: 'product.stock.warehouses',
         adjustList: 'product.adjust.list', adjustReasons: 'product.adjust.reasons', adjustSave: 'product.adjust.save', adjustCancel: 'product.adjust.cancel', adjustEditDate: 'product.adjust.editDate',
+        adjustItemLots: 'product.adjust.itemLots', adjustLotChange: 'product.adjust.lotChange',
         miscList: 'product.issue.misc.list', miscWorkOrders: 'product.issue.misc.workOrders', miscSave: 'product.issue.misc.save', miscCancel: 'product.issue.misc.cancel', miscEditDate: 'product.issue.misc.editDate',
         productionList: 'product.receipt.list', shipmentList: 'product.issue.shipments',
     },

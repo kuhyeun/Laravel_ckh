@@ -147,16 +147,16 @@
         <div v-show="tab === 'ops'" class="pt-4">
             <p v-if="errors.ops" class="err mb-1">{{ errors.ops[0] }}</p>
             <div class="border rounded overflow-x-auto">
-                <table class="w-full min-w-[832px] table-fixed text-xs">
+                <table class="w-full min-w-[872px] table-fixed text-xs">
                     <colgroup>
                         <col class="w-6"><col class="w-12"><col><col class="w-14">
-                        <col class="w-36"><col class="w-32"><col class="w-36">
+                        <col class="w-[22rem]"><col class="w-36">
                         <col class="w-28"><col class="w-8">
                     </colgroup>
                     <thead class="bg-gray-50 text-gray-500">
                         <tr>
                             <th></th><th class="px-2 py-1.5">OP</th><th class="px-2 py-1.5 text-left">공정</th><th class="px-2 py-1.5">구분</th>
-                            <th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5">기한</th>
+                            <th class="px-2 py-1.5 text-left">설비 · 작업자 <span class="font-normal text-gray-400">( 설비마다 그 설비의 작업자 )</span></th><th class="px-2 py-1.5">기한</th>
                             <th class="px-2 py-1.5">초 · 중 · 종</th><th></th>
                         </tr>
                     </thead>
@@ -172,12 +172,22 @@
                                 <p v-if="errors[`ops.${i}.process_idx`]" class="err">{{ errors[`ops.${i}.process_idx`][0] }}</p>
                             </td>
                             <td class="px-2 py-1 text-center text-gray-500">{{ processKindLabel(procOf(o)) }}</td>
+                            <!-- 「설비 - 작업자」 묶음 ( 11-25 · MES_1125 #5 ) — 설비마다 한 줄 · 그 설비의 작업자 여러 명 · 첫 줄 = 대표( 실적 등록 기본 설비 )
+                                 설비 후보가 없는 공정은 작업자만 한 줄 · 생산계획표에는 설비 칸마다 그 설비의 작업자만 -->
                             <td class="px-1.5 py-1">
-                                <BaseSelect v-if="procOf(o)?.equipments?.length" v-model="o.equipment_idx" :options="equipOptions(o)" size="md" class="w-full" :disabled="!structEditable" />
-                                <span v-else class="text-gray-300">—</span>
+                                <div v-for="(c, ci) in o.crews" :key="c._k" class="flex items-center gap-1" :class="ci ? 'mt-1' : ''">
+                                    <template v-if="procOf(o)?.equipments?.length">
+                                        <BaseSelect v-model="c.equipment_idx" :options="crewEquipOptions(o, c)" size="md" class="w-36 shrink-0" :disabled="!structEditable" />
+                                        <span class="text-gray-300 shrink-0">-</span>
+                                    </template>
+                                    <MultiSelect v-model="c.worker_idxs" :options="workerOptions" :first-tag="ci === 0 ? '대표' : ''" placeholder="작업자" empty-text="고를 수 있는 작업자가 없습니다." class="flex-1 min-w-0" :disabled="!runEditable" />
+                                    <span v-if="ci === 0 && o.crews.length > 1" class="shrink-0 text-[10px] px-1 rounded bg-blue-50 text-blue-700" title="실적 등록의 기본 설비 · 작업자">대표</span>
+                                    <button v-if="structEditable && o.crews.length > 1" type="button" class="shrink-0 px-1 text-gray-400 hover:text-red-500" title="이 설비 빼기" @click="o.crews.splice(ci, 1)">✕</button>
+                                </div>
+                                <button v-if="structEditable && procOf(o)?.equipments?.length > o.crews.length" type="button" class="mt-1 text-[11px] text-blue-600 hover:underline" @click="o.crews.push(blankCrew())">+ 설비 추가</button>
                                 <p v-if="errors[`ops.${i}.equipment_idx`]" class="err">{{ errors[`ops.${i}.equipment_idx`][0] }}</p>
+                                <p v-for="k in crewErrorKeys(i)" :key="k" class="err">{{ errors[k][0] }}</p>
                             </td>
-                            <td class="px-1.5 py-1"><UserSelect v-model="o.worker_idx" :users="ctx.workers" empty-label="—" placeholder="" size="md" class="w-full" :disabled="!runEditable" /></td>
                             <td class="px-1.5 py-1"><BaseDatePicker v-model="o.due_date" size="md" class="w-full" :disabled="!runEditable" /></td>
                             <td class="px-2 py-1 text-center">
                                 <template v-if="isIfl(procOf(o))">
@@ -259,13 +269,13 @@ import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
-import UserSelect from '@core/Components/Common/UserSelect.vue';
+import MultiSelect from '@core/Components/Common/MultiSelect.vue';   // 설비 · 작업자 여러 개 ( 11-25 )
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import { showAlert } from '@core/Utils/message';
 import { woStatusLabel, woStatusColor, processKindLabel, isIfl } from '@core/Components/Production/productionCodes';
 const IFL_KEYS = [{ key: 'insp_first', label: '초물' }, { key: 'insp_middle', label: '중물' }, { key: 'insp_last', label: '종물' }];
-import { blankOp, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
+import { blankOp, blankCrew, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import ProcessPicker from '@core/Components/Common/ProcessPicker.vue';
 import { withSpec, fmtNum } from '@core/Utils/format';
@@ -316,7 +326,12 @@ const routingOptions = computed(() => {
 const ruleOptions    = computed(() => props.ctx.lot.rules.map(r => ({ value: r.lot_rule_idx, label: `${r.lot_rule_name} ( ${r.rule_type === 'PRODUCE_END' ? '종료일' : '생산일'} )` })));
 
 const procOf = (o) => props.ctx.processes.find(p => Number(p.process_idx) === Number(o.process_idx));
-const equipOptions = (o) => [{ value: '', label: '( 미지정 )' }, ...(procOf(o)?.equipments ?? []).map(e => ({ value: e.equipment_idx, label: e.equipment_name + (e.is_default === 'Y' ? ' · 기본' : '') }))];
+// 묶음의 설비 선택지 — 다른 줄에서 고른 설비는 뺀다 ( 같은 설비 두 번 X ) · 「· 기본」 표시는 뺐다 ( 11-25 — 첫 줄 「대표」로 충분 )
+const crewEquipOptions = (o, c) => [{ value: '', label: '( 미지정 )' }, ...(procOf(o)?.equipments ?? [])
+    .filter(e => Number(e.equipment_idx) === Number(c.equipment_idx) || !o.crews.some(x => x !== c && Number(x.equipment_idx) === Number(e.equipment_idx)))
+    .map(e => ({ value: e.equipment_idx, label: e.equipment_name }))];
+const crewErrorKeys = (i) => Object.keys(props.errors ?? {}).filter(k => k.startsWith(`ops.${i}.crews.`));
+const workerOptions = computed(() => (props.ctx.workers ?? []).map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 
 const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
 const fmt = (v) => fmtNum(num(v));   // 빈 칸 · 글자는 0 ( 입력 칸용 ) — 모양은 공용 fmtNum
@@ -357,7 +372,7 @@ function addOp() {
     if (!p) return;
     const def = p.equipments?.find(e => e.is_default === 'Y');
     // 초 · 중 · 종은 그 공정의 기본값( 공정관리 )을 받는다 ( 11-18 )
-    props.line.ops.push(blankOp({ process_idx: p.process_idx, equipment_idx: def?.equipment_idx ?? '', ...(isIfl(p) ? { insp_first: p.insp_first ?? 'N', insp_middle: p.insp_middle ?? 'N', insp_last: p.insp_last ?? 'N' } : {}) }));
+    props.line.ops.push(blankOp({ process_idx: p.process_idx, crews: [blankCrew(def?.equipment_idx ?? '')], ...(isIfl(p) ? { insp_first: p.insp_first ?? 'N', insp_middle: p.insp_middle ?? 'N', insp_last: p.insp_last ?? 'N' } : {}) }));
     addProcessIdx.value = '';
 }
 

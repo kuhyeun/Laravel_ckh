@@ -104,7 +104,9 @@
 
                     <div v-if="canWrite" class="flex items-center gap-2 px-2 py-1.5 border border-dashed border-gray-300 rounded">
                         <!-- 11-24 : 고르기 → [추가] ( 고르자마자 더하지 않는다 · UI 통일 ) -->
-                        <ItemPicker v-model="add.item_idx" :remote="ITEM_REMOTE" :exclude="materials.map(m => m.item_idx)" class="w-72" placeholder="자재 선택" :disabled="add.busy" @select="it => add.item = it" />
+                        <!-- 🔍 큰 창 첫 탭 = 이 작업지시 BOM 전체 ( 11-25 · MES_1125 #12 — 자재 · 반제품 · 제품 확인용 · 눌러서 고를 수도 ) -->
+                        <ItemPicker v-model="add.item_idx" :remote="ITEM_REMOTE" :exclude="materials.map(m => m.item_idx)" class="w-72" placeholder="자재 선택" :disabled="add.busy"
+                            :pinned="plan?.bom?.length ? { title: '이 작업지시 BOM', rows: plan.bom, multi: true } : null" @select="it => add.item = it" @select-many="addMaterials" />
                         <span class="flex-1 min-w-0 text-xs text-gray-400 truncate">외주처로 보낼 자재를 고르고 [추가] · 지시에 없는 자재는 이 외주 공정의 추가 자재로 남습니다</span>
                         <BaseButton size="sm" variant="secondary" class="shrink-0" :disabled="add.busy || !add.item_idx" @click="addMaterial(add.item)">추가</BaseButton>
                     </div>
@@ -234,6 +236,19 @@ async function loadPlan(keep = false) {
         if (!keep) plan.value = null;
     } finally {
         planLoading.value = false;
+    }
+}
+
+// 큰 창 BOM 탭에서 체크한 품목 한 번에 ( 11-25 ) — 이미 카드가 있는 품목은 건너뛴다
+async function addMaterials(list) {
+    const ids = (list ?? []).map(it => Number(it.item_idx)).filter(id => !materials.value.some(m => Number(m.item_idx) === id));
+    if (!ids.length || add.busy) return;
+    add.busy = true; errorText.value = '';
+    try {
+        pendingItems.value = [...new Set([...pendingItems.value, ...ids])];
+        await loadPlan(true);
+    } finally {
+        add.item_idx = ''; add.item = null; add.busy = false;
     }
 }
 

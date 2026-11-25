@@ -177,37 +177,51 @@ class WorkOrderController extends Controller {
 
     // 생산계획표 작업 ( 11-20 ) — 작업지시 공정 중 설비가 있는 것 · 기간( from 부터 2주 )과 겹치는 것
     //   날짜 범위 = 작업지시 착수일 ~ 공정 기한 ( 없으면 작업지시 납기 · 그것도 없으면 착수일 ) — 그 사이 매일 그 설비 칸에
-    //   대상 = 취소를 뺀 대기 · 진행 · 완료 · 도번 = 품번 · 수량 = 지시 수량 + 단위 · 작업자 = 공정 작업자
+    //   대상 = 취소를 뺀 대기 · 진행 · 완료 · 도번 = 품번 · 수량 = 지시 수량 + 단위 · 작업자 = 공정 작업자 ( 11-25 : 설비 · 작업자 여러 개 )
     public function planSheetJobs(Request $request) {
         $data = $request->validate(['from' => ['required', 'date_format:Y-m-d']]);
         $from = $data['from'];
         $to   = date('Y-m-d', strtotime($from . ' +13 days'));
         $end  = 'COALESCE(o.due_date, w.due_date, w.start_date)';
 
+        // 설비 여러 개 ( 11-25 · MES_1125 #5 ) — 공정의 설비마다 그 설비 칸에 한 건 · 작업자는 공정의 작업자 이름을 모아 ( '김 , 이' )
+        $hasEquip = fn ($q) => $q->whereNotNull('o.equipment_idx')
+            ->orWhereExists(fn ($x) => $x->from('work_order_op_equipment as oe')->whereColumn('oe.work_order_op_idx', 'o.work_order_op_idx'));
         $rows = DB::table('work_order_op as o')
             ->join('work_order as w', 'w.work_order_idx', '=', 'o.work_order_idx')
             ->join('item as i', 'i.item_idx', '=', 'w.item_idx')
-            ->leftJoin('account_member as u', 'u.account_idx', '=', 'o.worker_idx')
-            ->whereNotNull('o.equipment_idx')->whereNotNull('w.start_date')
+            ->where($hasEquip)->whereNotNull('w.start_date')
             ->where('w.status', '!=', 'CANCELED')
             ->where('w.start_date', '<=', $to)
             ->whereRaw("{$end} >= ?", [$from])
             ->orderBy('w.start_date')->orderBy('w.wo_no')->orderBy('o.seq')
             ->get([
-                'o.work_order_op_idx as idx', 'o.equipment_idx as equipment', 'w.start_date as start', DB::raw("{$end} as end"),
-                'i.item_code as no', 'w.target_qty as qty', 'i.spec_unit as unit', 'u.user_name as worker',
+                'o.work_order_op_idx', 'o.equipment_idx', 'o.worker_idx', 'w.start_date as start', DB::raw("{$end} as end"),
+                'i.item_code as no', 'w.target_qty as qty', 'i.spec_unit as unit',
             ]);
+        $assigns = WorkOrderService::opAssignments($rows);
+        $names   = DB::table('account_member')->whereIn('account_idx', collect($assigns)->pluck('crews')->flatten(1)->pluck('worker_idxs')->flatten()->unique()->all() ?: [0])->pluck('user_name', 'account_idx');
 
-        return response()->json(['jobs' => $rows->map(fn ($r) => [
-            'idx'       => $r->idx,
-            'equipment' => $r->equipment,
-            'start'     => $r->start,
-            'end'       => max($r->start, $r->end),   // 기한이 착수일보다 앞이면 착수일 하루
-            'no'        => $r->no,
-            'qty'       => (float) $r->qty,
-            'unit'      => $r->unit ?? '',
-            'worker'    => $r->worker ?? '',
-        ])->values()]);
+        $jobs = [];
+        foreach ($rows as $r) {
+            // 설비 묶음마다 그 설비 칸에 — 작업자 = 그 설비의 작업자만
+            foreach ($assigns[$r->work_order_op_idx]['crews'] as $c) {
+                if (!$c['equipment_idx']) continue;
+                $worker = collect($c['worker_idxs'])->map(fn ($id) => $names[$id] ?? null)->filter()->implode(', ');
+                $jobs[] = [
+                    'idx'       => $r->work_order_op_idx,
+                    'equipment' => $c['equipment_idx'],
+                    'start'     => $r->start,
+                    'end'       => max($r->start, $r->end),   // 기한이 착수일보다 앞이면 착수일 하루
+                    'no'        => $r->no,
+                    'qty'       => (float) $r->qty,
+                    'unit'      => $r->unit ?? '',
+                    'worker'    => $worker,
+                ];
+            }
+        }
+
+        return response()->json(['jobs' => $jobs]);
     }
 
     public function formData(MenuPermissionService $permissions) {
@@ -304,6 +318,11 @@ class WorkOrderController extends Controller {
             'lines.*.ops.*.routing_line_idx'         => 'nullable|integer',
             'lines.*.ops.*.equipment_idx'            => 'nullable|integer',
             'lines.*.ops.*.worker_idx'               => ['nullable', 'integer', User::pickableRule()],
+            // 「설비 - 작업자」 묶음 ( 11-25 · MES_1125 #5 ) — 설비마다 그 설비의 작업자들 · 첫 묶음의 설비 · 첫 작업자가 대표
+            'lines.*.ops.*.crews'                    => 'nullable|array|max:20',
+            'lines.*.ops.*.crews.*.equipment_idx'    => 'nullable|integer',
+            'lines.*.ops.*.crews.*.worker_idxs'      => 'nullable|array|max:20',
+            'lines.*.ops.*.crews.*.worker_idxs.*'    => ['integer', User::pickableRule()],
             'lines.*.ops.*.due_date'                 => 'nullable|date_format:Y-m-d',
             'lines.*.ops.*.insp_first'               => 'nullable|in:Y,N',
             'lines.*.ops.*.insp_middle'              => 'nullable|in:Y,N',
@@ -442,6 +461,7 @@ class WorkOrderController extends Controller {
                     'routing_line_idx' => $l->routing_line_idx,
                     'source_routing_line_idx' => $l->source_routing_line_idx,   // 수주 공정이면 품목 공정 줄 ( BOM 투입 지점 미리보기 )
                     'equipment_idx'    => $default?->equipment_idx,
+                    'crews'            => $default ? [['equipment_idx' => $default->equipment_idx, 'worker_idxs' => []]] : [],   // 11-25 : 기본 설비 묶음 하나로 시작
                     'cycle_time_sec'   => (float) $l->cycle_time_sec,
                     'insp_first'       => $l->insp_first,
                     'insp_middle'      => $l->insp_middle,
@@ -503,6 +523,7 @@ class WorkOrderController extends Controller {
     }
 
     private function toForm(WorkOrder $w): array {
+        $assigns = WorkOrderService::opAssignments($w->ops);   // 공정 「설비 - 작업자」 묶음 ( 11-25 )
         $stock = DB::table('stock_balance')->whereIn('item_idx', $w->materials->pluck('child_item_idx')->merge($w->materials->flatMap(fn ($m) => $m->substitutes->pluck('child_item_idx'))))
             ->groupBy('item_idx')->selectRaw('item_idx, SUM(qty) AS qty')->pluck('qty', 'item_idx');
         $held  = app(MaterialIssueService::class)->heldByItem($w->work_order_idx);
@@ -533,7 +554,7 @@ class WorkOrderController extends Controller {
             'due_date'       => $w->due_date?->toDateString(),
             'status'         => $w->status,
             'remark'         => $w->remark,
-            'ops'            => $w->ops->map(fn (WorkOrderOp $o) => [
+            'ops'            => $w->ops->map(function (WorkOrderOp $o) use ($assigns) { $assign = $assigns[$o->work_order_op_idx] ?? ['equipments' => [], 'workers' => []]; return [
                 'work_order_op_idx' => $o->work_order_op_idx,
                 'seq'               => $o->seq,
                 'process_idx'       => $o->process_idx,
@@ -541,6 +562,7 @@ class WorkOrderController extends Controller {
                 'source_routing_line_idx' => $o->routing_line_idx ? RoutingLine::whereKey($o->routing_line_idx)->value('source_routing_line_idx') : null,
                 'equipment_idx'     => $o->equipment_idx,
                 'worker_idx'        => $o->worker_idx,
+                'crews'             => $assign['crews'],   // 11-25 : 「설비 - 작업자」 묶음 ( 첫 묶음 = 대표 )
                 'cycle_time_sec'    => (float) $o->cycle_time_sec,
                 'due_date'          => $o->due_date?->toDateString(),
                 'insp_first'        => $o->insp_first,
@@ -549,7 +571,7 @@ class WorkOrderController extends Controller {
                 'pre_approve_min'   => $o->pre_approve_min,
                 'status'            => $o->status,
                 'remark'            => $o->remark,
-            ])->values(),
+            ]; })->values(),
             'materials'      => $w->materials->map(fn ($m) => [
                 'is_extra'          => $m->isExtra(),   // BOM 외 자재 ( 출고 창에서 추가 · 11-13 )
                 'child_item_idx'    => $m->child_item_idx,

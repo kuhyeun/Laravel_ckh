@@ -6,11 +6,23 @@ let keySeq = 0;
 export const nextKey = () => ++keySeq;
 
 export const blankOp = (extra = {}) => ({
-    _key: nextKey(), work_order_op_idx: null, process_idx: '', routing_line_idx: null, source_routing_line_idx: null, equipment_idx: '', worker_idx: '', due_date: '',
+    _key: nextKey(), work_order_op_idx: null, process_idx: '', routing_line_idx: null, source_routing_line_idx: null, due_date: '',
+    crews: [blankCrew()],   // 「설비 - 작업자」 묶음 [{ _k, equipment_idx, worker_idxs }] ( 11-25 · 첫 묶음 = 대표 · 설비 없는 공정은 설비 '' 묶음 하나 )
     insp_first: 'N', insp_middle: 'N', insp_last: 'N', ...extra,
 });
 
-export const toOps = (list) => list.map(o => blankOp({ ...o, equipment_idx: o.equipment_idx ?? '', worker_idx: o.worker_idx ?? '', due_date: o.due_date ?? '' }));
+// 「설비 - 작업자」 묶음 ( 11-25 ) — 화면에서는 늘 한 줄 이상 ( 빈 줄 = 설비 미지정 · 작업자 없음 )
+export const blankCrew = (equipment_idx = '') => ({ _k: nextKey(), equipment_idx, worker_idxs: [] });
+const toCrews = (o) => {
+    const list = Array.isArray(o.crews) ? o.crews
+        : (o.equipment_idx || o.worker_idx ? [{ equipment_idx: o.equipment_idx, worker_idxs: o.worker_idx ? [o.worker_idx] : [] }] : []);
+    const crews = list.map(c => ({ _k: nextKey(), equipment_idx: c.equipment_idx ?? '', worker_idxs: (c.worker_idxs ?? []).map(Number) }));
+    return crews.length ? crews : [blankCrew()];
+};
+// 서버 공정 → 화면 공정
+export const toOps = (list) => list.map(({ equipment_idx, worker_idx, crews, ...o }) => blankOp({
+    ...o, due_date: o.due_date ?? '', crews: toCrews({ equipment_idx, worker_idx, crews }),
+}));
 
 export const blankLine = (extra = {}) => ({
     _key: nextKey(), work_order_idx: null, wo_no: '', lot_no: '', status: 'WAIT', source: 'MANUAL',
@@ -80,8 +92,9 @@ export const linePayload = (l) => ({
     routing_idx:  l.routing_idx === '' ? null : Number(l.routing_idx),
     ops: l.ops.map(o => ({
         work_order_op_idx: o.work_order_op_idx, process_idx: Number(o.process_idx), routing_line_idx: o.routing_line_idx,
-        equipment_idx: o.equipment_idx === '' ? null : Number(o.equipment_idx),
-        worker_idx: o.worker_idx === '' ? null : Number(o.worker_idx),
+        // 「설비 - 작업자」 묶음 ( 11-25 ) — 빈 줄은 뺀다 · 대표 칸 = 첫 설비 · 첫 작업자 ( 서버도 같은 규칙 )
+        crews: o.crews.filter(c => c.equipment_idx !== '' || c.worker_idxs.length)
+            .map(c => ({ equipment_idx: c.equipment_idx === '' ? null : Number(c.equipment_idx), worker_idxs: c.worker_idxs.map(Number) })),
         due_date: o.due_date || null, insp_first: o.insp_first, insp_middle: o.insp_middle, insp_last: o.insp_last,
     })),
     sources: l.sources.map(s => ({ sales_order_line_idx: s.sales_order_line_idx, qty: s.qty === '' ? null : s.qty })),

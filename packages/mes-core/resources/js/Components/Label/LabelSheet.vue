@@ -1,6 +1,6 @@
 <!-- 라벨 한 장 — 크기는 양식( width_mm × height_mm · 기본 100 × 72 ) / 배치는 layout
-     - LOT_STD      : 자재식별표 · 현품표 — 품번 · 품명 · 규격 / 재질 · 수량 · 공급처 · 공급처 LOT · 입고일
-     - SHIPMENT_STD : 출하 라벨 — 고객사 · 출하번호 · 수주번호 / 고객 발주번호 · 품번 · 품명 · 규격 · 수량 · 출하일
+     - LOT_STD     : 자재식별표 — 품번 · 품명 · 규격 / 재질 · 수량 · 공급처 · 공급처 LOT · 입고일
+     - PRODUCT_STD : 현품표 ( 11-25 · 출하 라벨 대신 ) — 품번 · 품명 · 규격 / 재질 · 수량 · LOT · 지시 번호 · 생산 입고일
      - 아래 = 코드 + 번호 글자 — 정책 barcode.code_type( label.code_type ) : 1D 바코드( Code128 ) 또는 QR ( 11-18 )
      - 양식에 격자 배치( label.design · 기준정보관리 > 라벨 양식 )가 있으면 그것대로 그린다 ( LabelGridSheet ) -->
 <template>
@@ -48,15 +48,14 @@ const qty  = computed(() => props.label.label_qty === null || props.label.label_
 
 const rows = computed(() => {
     const l = props.label;
-    const list = l.layout === 'SHIPMENT_STD'
+    const list = l.layout === 'PRODUCT_STD'
         ? [
-            { k: '고객사',   v: l.partner_name, big: true },
-            { k: '출하번호', v: `${l.shipment_no} · ${l.line_no}줄` },
-            { k: '수주',     v: join(l.order_no, l.customer_po_no) },
-            { k: '품번',     v: l.item_code, big: true },
-            { k: '품명',     v: l.item_name },
-            { k: '규격',     v: join(l.spec, l.material) },
-            { k: '수량',     v: qty.value, big: true },
+            { k: '품번',      v: l.item_code, big: true },
+            { k: '품명',      v: l.item_name },
+            { k: '규격',      v: join(l.spec, l.material) },
+            { k: '수량',      v: qty.value, big: true },
+            { k: 'LOT',       v: l.lot_no },
+            { k: '지시 번호', v: l.wo_no },
         ]
         : [
             { k: '품번',       v: l.item_code, big: true },

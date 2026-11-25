@@ -103,6 +103,9 @@ const gridOptions = {
 const equipmentColumns = [
     { header: '설비코드',   name: 'equipment_code', minWidth: 140, className: 'cursor-pointer', sortable: true },
     { header: '설비명',     name: 'equipment_name', minWidth: 220, className: 'cursor-pointer', sortable: true },
+    { header: '라인',       name: 'line_name',      width: 110, align: 'center', className: 'cursor-pointer', escapeHTML: true },   // 11-25
+    // PLC 코드 : 관리자( 레벨 0 · 1 )만 ( 서버도 다른 사람에게는 보내지 않는다 · 11-25 )
+    ...(Number(usePage().props.auth?.user?.user_level ?? 99) <= 1 ? [{ header: 'PLC 코드', name: 'plc_code', width: 130, align: 'center', className: 'cursor-pointer', escapeHTML: true }] : []),
     { header: '설비담당자( 정 )', name: 'manager_name', width: 110, align: 'center', className: 'cursor-pointer', escapeHTML: true },
     { header: '설비담당자( 부 )', name: 'sub_manager_name', width: 110, align: 'center', className: 'cursor-pointer', escapeHTML: true },
     { header: '구매일자',   name: 'purchase_date',  width: 100, align: 'center', className: 'cursor-pointer', sortable: true },

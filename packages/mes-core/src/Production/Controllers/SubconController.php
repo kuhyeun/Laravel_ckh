@@ -99,6 +99,7 @@ class SubconController extends Controller {
                     'item_spec'         => $wo->item?->spec,
                     'spec_unit'         => $wo->item?->spec_unit,
                     'process_name'      => $op->process?->process_name,
+                    'default_partner_idx' => $op->process?->default_partner_idx,   // 공정의 기본 외주처 ( 11-25 ) — 외주처가 비어 있으면 채운다
                     'prev_label'        => $prev ? $prev->process?->process_name : '지시 수량',
                     'target_qty'        => (float) $wo->target_qty,
                     'base_qty'          => $av['base'],

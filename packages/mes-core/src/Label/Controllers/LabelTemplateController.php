@@ -14,7 +14,7 @@ use MesCore\Config\Services\SiteConfigService;
 use MesCore\Support\StampDesign;
 
 // 라벨 양식 ( 기준정보관리 > 라벨 양식 · Label/LabelTemplateManage · 11-18 )
-//   양식 = 이름 · 대상( LOT / SHIPMENT ) · 크기( mm ) · 격자 배치( design ) · 대상별 기본 양식 하나
+//   양식 = 이름 · 대상( LOT 자재식별표 / PRODUCT 현품표 — 11-25 출하 라벨 없앰 ) · 크기( mm ) · 격자 배치( design ) · 대상별 기본 양식 하나
 //   격자 : 행 × 열로 나누고 칸을 합쳐 칸마다 데이터 항목 · 고정 글자 · 코드( 바코드 / QR )를 둔다 — 그리기는 화면 LabelGridSheet
 //   도장( design.stamps · 11-25 ) : 라벨 위에 떠 있는 그림( 자사 직인 · 로고 · 올린 그림 ) — 라벨 왼쪽 위 기준 mm · 검사는 StampDesign
 //   design 이 없는 양식( 처음 들어 있는 2개 )은 예전 고정 배치로 그린다
@@ -24,7 +24,7 @@ class LabelTemplateController extends Controller {
     // 대상별로 칸에 넣을 수 있는 항목 ( LabelService::sheets 가 주는 키 · 화면 labelDesign.js 와 같다 )
     private const FIELDS = [
         'LOT'      => ['title', 'date', 'item_code', 'item_name', 'spec', 'material', 'spec_material', 'qty', 'lot_no', 'external_lot_no', 'heat_no', 'partner_name', 'barcode_no'],
-        'SHIPMENT' => ['title', 'date', 'item_code', 'item_name', 'spec', 'material', 'spec_material', 'qty', 'partner_name', 'shipment_no', 'shipment_line', 'order_no', 'customer_po_no', 'barcode_no'],
+        'PRODUCT'  => ['title', 'date', 'item_code', 'item_name', 'spec', 'material', 'spec_material', 'qty', 'lot_no', 'wo_no', 'barcode_no'],   // 현품표 ( 11-25 )
     ];
     private const MAX_COLS = 8;
     private const MAX_ROWS = 20;
@@ -48,7 +48,7 @@ class LabelTemplateController extends Controller {
         $v = $request->validate([
             'label_template_idx' => 'nullable|integer',
             'template_name'      => 'required|string|max:50',
-            'target'             => 'required|in:LOT,SHIPMENT',
+            'target'             => 'required|in:LOT,PRODUCT',
             'width_mm'           => 'required|integer|min:20|max:300',
             'height_mm'          => 'required|integer|min:15|max:300',
             'is_default'         => 'required|in:Y,N',

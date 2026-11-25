@@ -145,7 +145,51 @@ class SubconMaterialService {
                 'lots' => ($lots[$i->item_idx] ?? collect())->values()->all(),
             ]))->values()->all(),
             'history'   => $history->values()->all(),
+            'bom'       => $this->bomList($wo, $op),   // 이 지시 품목의 BOM 전체 ( 11-25 · MES_1125 #12 — 자재 고르기 큰 창에 확인용 )
         ];
+    }
+
+    /**
+     * 작업지시 품목의 BOM 전체 ( 11-25 · MES_1125 #12 ) — 자재 고르기 큰 창( ItemSearchModal )에 「이 작업지시 BOM」으로
+     *   1단계 = 이 지시에 복사된 자재( work_order_material — 지시 때의 BOM · 대체 자재 · BOM 외 자재 포함 )
+     *   그 아래 = 각 품목의 지금 사용 중 BOM ( BomService::treeData ) — 반제품 · 그 자재까지 ( 같은 품목은 한 갈래에 한 번 )
+     *   줄 : depth · 품목 · 대분류 · 소분류 · 개당 / 1개로 · 대체 · BOM 외 · 이 외주 공정에 묶임( on_op )
+     */
+    public function bomList(WorkOrder $wo, WorkOrderOp $op): array {
+        $mats  = WorkOrderMaterial::with('childItem')->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get();
+        $boms  = app(\MesCore\Config\Services\BomService::class);
+        $trees = [];
+        $out   = [];
+        $info  = fn ($it) => [
+            'item_idx' => (int) $it['item_idx'], 'item_code' => $it['item_code'], 'item_name' => $it['item_name'], 'spec' => $it['spec'],
+            'material' => $it['material'] ?? null, 'spec_unit' => $it['spec_unit'], 'item_type' => $it['item_type'], 'item_kind' => $it['item_kind'] ?? null,
+        ];
+        // 아래 단계 펼치기 ( 그 품목의 사용 중 BOM )
+        $walk = function (int $itemIdx, int $depth, array $path) use (&$walk, &$trees, &$out, $boms, $info) {
+            $tree = $trees[$itemIdx] ??= $boms->treeData($itemIdx);
+            foreach ($tree['boms'][$itemIdx]['lines'] ?? [] as $l) {
+                foreach ([['child_item_idx' => $l['child_item_idx'], 'qty' => $l['qty'], 'yield_qty' => $l['yield_qty'], 'sub' => false],
+                          ...array_map(fn ($x) => $x + ['sub' => true], $l['substitutes'])] as $c) {
+                    $child = (int) $c['child_item_idx'];
+                    $it = $tree['items'][$child] ?? null;
+                    if (!$it || isset($path[$child])) continue;
+                    $out[] = $info($it) + ['depth' => $depth, 'qty_per' => $c['qty'], 'yield_qty' => $c['yield_qty'], 'is_substitute' => $c['sub'], 'is_extra' => false, 'on_op' => false];
+                    if ($depth < 6) $walk($child, $depth + 1, $path + [$child => true]);
+                }
+            }
+        };
+        foreach ($mats as $m) {
+            $it = $m->childItem;
+            if (!$it) continue;
+            $out[] = $info($it->toArray()) + [
+                'depth' => 1, 'qty_per' => (float) $m->qty_per, 'yield_qty' => $m->yield_qty !== null ? (float) $m->yield_qty : null,
+                'is_substitute' => $m->substitute_of_idx !== null, 'is_extra' => $m->is_extra === 'Y',
+                'on_op' => (int) $m->work_order_op_idx === (int) $op->work_order_op_idx,
+            ];
+            $walk((int) $it->item_idx, 2, [(int) $wo->item_idx => true, (int) $it->item_idx => true]);
+        }
+        // 고를 수 있는 줄 : 지시에 있는 1단계 품목( 그 자재 줄 ) · 자재 — 그 밖의 반제품 · 제품은 확인용 ( 지시에 없는 제품은 출고 줄을 만들 수 없다 )
+        return array_map(fn ($r) => $r + ['pickable' => $r['depth'] === 1 || $r['item_type'] === 'MATERIAL'], $out);
     }
 
     // 출고한 적 없는 추가 자재 줄 지우기 ( 11-24 · ✕ )

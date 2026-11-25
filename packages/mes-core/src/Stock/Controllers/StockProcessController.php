@@ -11,6 +11,7 @@ use MesCore\Basic\Models\SystemCode;
 use MesCore\Stock\Models\StockTxn;
 use MesCore\Stock\Models\StockTxnLine;
 use MesCore\Stock\Services\StockAdjustService;
+use MesCore\Stock\Services\StockLotChangeService;
 use MesCore\Stock\Services\StockMoveService;
 use MesCore\Stock\Services\StockMiscOutService;
 use MesCore\Production\Models\WorkOrder;
@@ -31,7 +32,10 @@ class StockProcessController extends Controller {
     use RespondsWithList;
     use ScopesItemType;
 
-    public function __construct(private StockMoveService $moves, private StockAdjustService $adjusts, private StockMiscOutService $miscs) {}
+    public function __construct(private StockMoveService $moves, private StockAdjustService $adjusts, private StockMiscOutService $miscs, private StockLotChangeService $lotChanges) {}
+
+    // 재고조정 메뉴의 전표 종류 — 수량 조정 + LOT 전환 ( 11-25 )
+    private const ADJUST_TYPES = [StockAdjustService::TXN_TYPE, StockLotChangeService::TXN_TYPE];
 
     // ---- 창고이동 ----
 
@@ -65,7 +69,62 @@ class StockProcessController extends Controller {
     // ---- 재고조정 ----
 
     public function adjustList(Request $request) {
-        return $this->history($request, StockAdjustService::TXN_TYPE, 'adjusts');
+        return $this->history($request, self::ADJUST_TYPES, 'adjusts');
+    }
+
+    // 재고조정 창 ( 11-25 ) — 고른 품목의 LOT × 창고 재고 · 합칠 LOT 후보( 그 품목의 모든 LOT ) · 창고 선택지
+    public function adjustItemLots(Request $request) {
+        $v = $request->validate(['item_idx' => 'required|integer']);
+        $this->assertItemInScope($request, (int) $v['item_idx']);
+        $show = \MesCore\Stock\Models\Lot::showSql('l');
+        $balances = DB::table('stock_balance as b')
+            ->join('warehouse as w', 'w.warehouse_idx', '=', 'b.warehouse_idx')
+            ->leftJoin('lot as l', 'l.lot_idx', '=', 'b.lot_idx')
+            ->where('b.item_idx', $v['item_idx'])->where('b.qty', '!=', 0)
+            ->orderBy('l.in_at')->orderBy('b.lot_idx')->orderBy('w.warehouse_name')
+            ->get(['b.stock_balance_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty', 'w.warehouse_name', DB::raw("{$show} as lot_no"),
+                   'l.external_lot_no', 'l.heat_no', 'l.spec_value', 'l.in_at']);
+        $lots = DB::table('lot as l')
+            ->leftJoinSub(DB::table('stock_balance')->groupBy('lot_idx')->selectRaw('lot_idx, SUM(qty) as qty'), 'sb', 'sb.lot_idx', '=', 'l.lot_idx')
+            ->where('l.item_idx', $v['item_idx'])
+            ->orderByDesc('l.in_at')->orderByDesc('l.lot_idx')->limit(500)
+            ->get(['l.lot_idx', DB::raw("{$show} as lot_no"), 'l.in_at', DB::raw('COALESCE(sb.qty, 0) as qty')]);
+        return response()->json([
+            'balances' => $balances->map(fn ($r) => [
+                'stock_balance_idx' => $r->stock_balance_idx, 'lot_idx' => (int) $r->lot_idx, 'warehouse_idx' => $r->warehouse_idx,
+                'warehouse_name' => $r->warehouse_name, 'qty' => (float) $r->qty, 'lot_no' => $r->lot_no,
+                'external_lot_no' => $r->external_lot_no, 'heat_no' => $r->heat_no,
+                'spec_value' => $r->spec_value !== null ? (float) $r->spec_value : null, 'in_at' => $r->in_at ? substr((string) $r->in_at, 0, 10) : null,
+            ])->values(),
+            'lots' => $lots->map(fn ($r) => ['lot_idx' => $r->lot_idx, 'lot_no' => $r->lot_no, 'qty' => (float) $r->qty,
+                'in_at' => $r->in_at ? substr((string) $r->in_at, 0, 10) : null])->values(),
+            'warehouses'  => \MesCore\Config\Models\Warehouse::options(),
+            'lot_enabled' => app(\MesCore\Stock\Services\LotService::class)->enabled(),
+            'now'         => now()->format('Y-m-d\TH:i'),
+        ]);
+    }
+
+    // LOT 전환 ( 11-25 ) — 다른 품목 새 LOT · LOT 분리 · 합치기 ( StockLotChangeService )
+    public function lotChange(Request $request) {
+        $data = $request->validate([
+            'stock_balance_idx' => 'required|integer',
+            'mode'              => 'required|in:' . implode(',', array_keys(StockLotChangeService::MODES)),
+            'qty'               => 'required|numeric|gt:0|max:999999999999',
+            'to_qty'            => 'nullable|numeric|gt:0|max:999999999999',
+            'to_item_idx'       => 'nullable|integer',
+            'to_lot_idx'        => 'nullable|integer',
+            'to_warehouse_idx'  => 'nullable|integer',
+            'lot_title'         => 'nullable|string|max:60',
+            'reason_code'       => 'required|string|max:30',
+            'remark'            => 'nullable|string|max:200',
+            'occurred_at'       => 'required|date_format:Y-m-d\TH:i',
+        ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'to_qty.gt' => '받는 수량은 0보다 커야 합니다.'], [
+            'qty' => '옮길 수량', 'to_qty' => '받는 수량', 'reason_code' => '사유', 'remark' => '상세', 'occurred_at' => '조정일시', 'lot_title' => '새 LOT 번호',
+        ]);
+        $this->assertBalanceInScope($request, (int) $data['stock_balance_idx']);
+        if (!empty($data['to_item_idx'])) $this->assertItemInScope($request, (int) $data['to_item_idx']);
+
+        return $this->run(fn () => $this->lotChanges->change($data), 'LOT 전환');
     }
 
     public function reasons() {
@@ -91,12 +150,13 @@ class StockProcessController extends Controller {
     }
 
     public function adjustCancel(Request $request, int $txnIdx) {
-        $this->adjusts->cancel($this->findTxn($request, $txnIdx, StockAdjustService::TXN_TYPE));
+        $txn = $this->findTxn($request, $txnIdx, self::ADJUST_TYPES);
+        $txn->txn_type === StockLotChangeService::TXN_TYPE ? $this->lotChanges->cancel($txn) : $this->adjusts->cancel($txn);
         return response()->json(['message' => 'Success']);
     }
 
     public function adjustEditDate(Request $request) {
-        return $this->editTxnDate($request, StockAdjustService::TXN_TYPE, '조정일시');
+        return $this->editTxnDate($request, self::ADJUST_TYPES, '조정일시');
     }
 
     // ---- 기타출고 ( 권한 = 출고관리 ) ----
@@ -177,17 +237,17 @@ class StockProcessController extends Controller {
 
     // 일시 수정 ( 11-25 · 날짜만 — 수량 · LOT · 창고 · 비고는 그대로 ) — 전표 · 원장 일시를 옮긴다 ( StockTxnDateService )
     //   재고조정의 조정 전 장부 수량 · 증감은 등록 때 값 그대로 ( 옮긴 시각으로 다시 계산하지 않는다 )
-    private function editTxnDate(Request $request, string $type, string $label) {
+    private function editTxnDate(Request $request, string|array $type, string $label) {
         $v   = $request->validate(['stock_txn_idx' => 'required|integer']);
         $txn = $this->findTxn($request, (int) $v['stock_txn_idx'], $type);   // 품목 범위 ( 자재 · 제품 )
         $at  = \MesCore\Support\DateEdit::dateTime($request->input('occurred_at'), 'occurred_at', $label);
 
-        [$txn, $warnings] = DB::transaction(fn () => app(\MesCore\Stock\Services\StockTxnDateService::class)->move($txn->stock_txn_idx, [$type], $at));
+        [$txn, $warnings] = DB::transaction(fn () => app(\MesCore\Stock\Services\StockTxnDateService::class)->move($txn->stock_txn_idx, (array) $type, $at));
         return response()->json(['message' => "{$txn->txn_no} 의 {$label}를 고쳤습니다.", 'warnings' => $warnings]);
     }
 
-    private function findTxn(Request $request, int $idx, string $type): StockTxn {
-        $txn = StockTxn::where('txn_type', $type)->find($idx);
+    private function findTxn(Request $request, int $idx, string|array $type): StockTxn {
+        $txn = StockTxn::whereIn('txn_type', (array) $type)->find($idx);
         if (!$txn) {
             abort(404);
         }
@@ -196,7 +256,7 @@ class StockProcessController extends Controller {
     }
 
     // 이력 : 기간( 발생일 ) + 검색어( 번호 · 품번 · 품명 · LOT ) + 상태. 기본 정렬 등록 시각 최근 먼저
-    private function history(Request $request, string $type, string $legacyKey) {
+    private function history(Request $request, string|array $type, string $legacyKey) {
         $v = $request->validate([
             'from'    => 'nullable|date_format:Y-m-d',
             'to'      => 'nullable|date_format:Y-m-d|after_or_equal:from',
@@ -205,12 +265,12 @@ class StockProcessController extends Controller {
         ]);
 
         $query = StockTxnLine::query()
-            ->select('stock_txn_line.*', 'stock_txn.txn_no', 'stock_txn.occurred_at', 'stock_txn.recorded_at', 'stock_txn.status as txn_status', 'stock_txn.create_account_idx as txn_creator')
+            ->select('stock_txn_line.*', 'stock_txn.txn_no', 'stock_txn.txn_type', 'stock_txn.remark as txn_remark', 'stock_txn.occurred_at', 'stock_txn.recorded_at', 'stock_txn.status as txn_status', 'stock_txn.create_account_idx as txn_creator')
             ->join('stock_txn', 'stock_txn.stock_txn_idx', '=', 'stock_txn_line.stock_txn_idx')
-            ->where('stock_txn.txn_type', $type)
+            ->whereIn('stock_txn.txn_type', (array) $type)
             ->when($this->itemScope($request), fn ($q, $scope) => $q->whereHas('item', fn ($r) => $r->where('item_type', $scope)))
             ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot', 'warehouse:warehouse_idx,warehouse_name', 'toWarehouse:warehouse_idx,warehouse_name', 'workOrder:work_order_idx,wo_no'])
-            ->orderByDesc('stock_txn.recorded_at')->orderByDesc('stock_txn.stock_txn_idx');
+            ->orderByDesc('stock_txn.recorded_at')->orderByDesc('stock_txn.stock_txn_idx')->orderBy('stock_txn_line.line_no');
 
         if (!empty($v['from']))   $query->where('stock_txn.occurred_at', '>=', $v['from'] . ' 00:00:00');
         if (!empty($v['to']))     $query->where('stock_txn.occurred_at', '<=', $v['to'] . ' 23:59:59');
@@ -247,6 +307,8 @@ class StockProcessController extends Controller {
             'occurred_at'     => substr((string) $l->occurred_at, 0, 16),
             'recorded_at'     => substr((string) $l->recorded_at, 0, 16),
             'status'          => $l->txn_status,
+            // 재고조정 메뉴의 구분 ( 11-25 ) — 수량 조정 · LOT 전환( 다른 품목 새 LOT · LOT 분리 · LOT 합치기 — 전표 비고 )
+            'kind'            => $l->txn_type === StockLotChangeService::TXN_TYPE ? ($l->txn_remark ?: 'LOT 전환') : ($l->txn_type === StockAdjustService::TXN_TYPE ? '수량 조정' : null),
             'item_code'       => $l->item?->item_code,
             'item_name'       => $l->item?->item_name,
             'item_spec'       => $l->item?->spec,

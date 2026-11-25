@@ -357,7 +357,7 @@ class BomService {
             // 자기 자신 · 순환 · 대체 자재 규칙 — 앞 품목의 저장 결과까지 보고 검사한다
             $this->assertLines($itemIdx, $rows, "boms.{$i}.lines");
 
-            if ($bom->isApproved() && $this->linesChanged($bom, $rows)) {
+            if (Bom::approvalOn() && $bom->isApproved() && $this->linesChanged($bom, $rows)) {
                 $bom->clearApproval();
                 $bom->save();
                 $unapproved[] = $item->item_code;

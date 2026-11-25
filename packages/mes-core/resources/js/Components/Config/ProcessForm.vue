@@ -29,6 +29,11 @@
                         </label>
                     </div>
                 </FormField>
+                <!-- 기본 외주처 ( 외주 공정만 · 11-25 ) — 외주 출고 · 외주 발주에서 외주처가 비어 있으면 이 값으로 채운다 -->
+                <FormField v-if="form.process_type === 'SUBCON'" label="기본 외주처" hint="외주 출고 · 발주 때 먼저 채워집니다" :error="errors.default_partner_idx" class="col-span-2">
+                    <PartnerSelect v-model="form.default_partner_idx" :options="partnerOptions" all-label="( 없음 )"
+                        :current="form.default_partner_name ? { partner_name: form.default_partner_name } : null" current-note="외주처 아님 · 미사용" class="w-full" :disabled="readonly" />
+                </FormField>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">
                         구분 코드 <span class="text-xs text-gray-400">( 라우트시트 인쇄 · 영문 대문자 1~3자 )</span>
@@ -138,6 +143,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import FormField from '@core/Components/Common/FormField.vue';
+import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { PROCESS_TYPES, INSPECTION_KINDS } from '@core/Components/Config/processCodes';
 
@@ -162,6 +168,8 @@ const form = reactive({
     class_code:      '',
     inspection_kind: 'NORMAL',
     insp_first: 'N', insp_middle: 'N', insp_last: 'N',   // 초 · 중 · 종 검사 기본값 ( 생산 공정 · 11-18 )
+    default_partner_idx:  '',   // 기본 외주처 ( 외주 공정만 · 11-25 )
+    default_partner_name: '',
     is_use:          'Y',
     remark:          '',
     equipments:      [],   // [{ _rowKey, equipment_idx, equipment_name, equipment_is_use, is_default, setup_loss }]
@@ -176,6 +184,8 @@ function applyProcess(p) {
         class_code:      p.class_code ?? '',
         inspection_kind: p.inspection_kind ?? 'NORMAL',
         insp_first: p.insp_first ?? 'N', insp_middle: p.insp_middle ?? 'N', insp_last: p.insp_last ?? 'N',
+        default_partner_idx:  p.default_partner_idx ?? '',
+        default_partner_name: p.default_partner_name ?? '',
         is_use:          p.is_use ?? 'Y',
         remark:          p.remark ?? '',
         equipments:      (p.equipments ?? []).map(e => ({ ...e, _rowKey: `e${++rowSeq}` })),
@@ -242,6 +252,7 @@ const loading = ref(false);
 onMounted(async () => {
     if (!readonly.value) {
         loadEquipmentOptions();
+        loadPartnerOptions();
     }
     if (!isEdit.value) return;
 
@@ -262,6 +273,15 @@ const errorMsg = ref('');
 const saving   = ref(false);
 
 // 초 · 중 · 종을 붙일 수 있는 공정 : 생산 · 설비생산 ( 시스템 공정 제외 — 서버 Process::isIfl )
+// ---- 기본 외주처 선택지 ( 외주처 · 11-25 ) ----
+const partnerOptions = ref([]);
+async function loadPartnerOptions() {
+    try {
+        const { data } = await window.axios.get(route('config.process.partners'));
+        partnerOptions.value = data.partners ?? [];
+    } catch (e) { /* 못 불러와도 공정 저장은 된다 */ }
+}
+
 const IFL_KEYS = [{ key: 'insp_first', label: '초물' }, { key: 'insp_middle', label: '중물' }, { key: 'insp_last', label: '종물' }];
 const iflOk    = computed(() => ['PRODUCTION', 'EQUIPMENT'].includes(form.process_type) && props.process?.is_system !== 'Y');
 
@@ -276,6 +296,8 @@ async function save() {
             ...form,
             inspection_kind: form.process_type === 'INSPECTION' ? 'NORMAL' : null,
             ...Object.fromEntries(IFL_KEYS.map(k => [k.key, iflOk.value ? form[k.key] : 'N'])),
+            default_partner_idx: form.process_type === 'SUBCON' && form.default_partner_idx !== '' ? Number(form.default_partner_idx) : null,
+            default_partner_name: undefined,
             equipments: form.equipments.map(r => ({
                 equipment_idx: r.equipment_idx === '' ? null : Number(r.equipment_idx),
                 is_default:    r.is_default,

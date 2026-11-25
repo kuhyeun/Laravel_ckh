@@ -51,7 +51,7 @@ class ResetTransactionsCommand extends Command {
         // 알림 ( 받은 알림 — 사용자별 받기 설정 notification_pref 는 남김 )
         'notification',
         // 라벨 발행
-        'barcode_label', 'label_print_log',
+        'barcode_label', 'label_print_log', 'lot_title_log',
         // 변경 이력 ( 수주 사본 · 기준정보 변경 모두 — 새로 시작 )
         'routing_change_log', 'bom_change_log',
     ];

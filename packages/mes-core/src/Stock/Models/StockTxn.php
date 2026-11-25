@@ -21,6 +21,7 @@ class StockTxn extends Model {
         'IN_PURCHASE' => '구매 입고',
         'MOVE'        => '창고이동',
         'ADJUST'      => '재고조정',
+        'LOT_CHANGE'  => 'LOT 전환',   // 재고조정의 다른 품목 새 LOT · LOT 분리 · 합치기 ( 11-25 )
         'ISSUE_WO'      => '자재출고',
         'IN_RETURN'     => '자재반납',
         'IN_LEFTOVER'   => '잔재 입고',   // 쓰고 남은 토막을 다른 품목으로 ( 11-12 )

@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\DB;
 class LabelTemplateSeeder extends Seeder {
 
     private array $templates = [
-        ['template_name' => '자재식별표 · 현품표 100×72', 'target' => 'LOT',      'layout' => 'LOT_STD'],
-        ['template_name' => '출하 라벨 100×72',          'target' => 'SHIPMENT', 'layout' => 'SHIPMENT_STD'],
+        ['template_name' => '자재식별표 100×72', 'target' => 'LOT',     'layout' => 'LOT_STD'],
+        ['template_name' => '현품표 100×72',     'target' => 'PRODUCT', 'layout' => 'PRODUCT_STD'],   // 11-25 : 출하 라벨 → 현품표
     ];
 
     public function run(): void {

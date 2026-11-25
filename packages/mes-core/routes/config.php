@@ -89,6 +89,7 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
             Route::get('/show/{processIdx}', [ProcessController::class, 'show'])->whereNumber('processIdx')->name('show');
             // 공정 화면의 설비 선택지 ( 설비관리 권한 없이도 조회 가능 )
             Route::get('/equipments', [ProcessController::class, 'equipmentOptions'])->name('equipments');
+            Route::get('/partners', [ProcessController::class, 'partnerOptions'])->name('partners');   // 기본 외주처 선택지 ( 11-25 )
         });
 
         Route::middleware($processWrite)->group(function() {

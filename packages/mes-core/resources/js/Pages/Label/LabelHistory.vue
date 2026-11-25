@@ -19,7 +19,6 @@
             :blank="blankFilters"
             @search="loadFirstPage"
         >
-            <BaseSelect v-model="search.target" :options="TARGET_OPTIONS" class="w-32" />
             <BaseSelect v-model="search.status" :options="STATUS_OPTIONS" class="w-28" />
             <BaseSelect v-model="search.printed" :options="PRINTED_OPTIONS" class="w-28" />
         </SearchBar>
@@ -82,8 +81,7 @@ const canDelete = computed(() => page.props.permissions?.[menuCode]?.can_delete 
 const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 const modalStore = useModalStore();
 
-const TARGET_LABEL    = { LOT: 'LOT', SHIPMENT_LINE: '출하' };
-const TARGET_OPTIONS  = [{ value: '', label: '대상 전체' }, { value: 'LOT', label: 'LOT' }, { value: 'SHIPMENT_LINE', label: '출하' }];
+const KIND_LABEL      = { LOT: '자재식별표', PRODUCT: '현품표' };   // 11-25 : 출하 라벨 없앰 · LOT 종류로 구분
 const STATUS_OPTIONS  = [{ value: '', label: '상태 전체' }, { value: 'ISSUED', label: '발행' }, { value: 'SCRAPPED', label: '폐기' }];
 const PRINTED_OPTIONS = [{ value: '', label: '인쇄 전체' }, { value: 'Y', label: '인쇄함' }, { value: 'N', label: '미인쇄' }];
 // 검색 조건 ( 서버 LabelController applyKeyword 의 키 — 통합검색은 SearchBar 가 붙인다 )
@@ -91,21 +89,19 @@ const SEARCH_FIELDS = [
     { value: 'barcode_no',  label: '바코드 번호' },
     { value: 'item_code',   label: '품번' },
     { value: 'item_name',   label: '품명' },
-    { value: 'shipment_no', label: '출하번호' },
 ];
-const blankFilters = () => ({ target: '', status: 'ISSUED', printed: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const blankFilters = () => ({ status: 'ISSUED', printed: '' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ date_basis: 'created', from: '', to: '', keyword: '', ...blankFilters() });
 
 const num = (v) => v === null || v === undefined ? '' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 6 });
 const columns = [
     { header: '발행일', name: 'create_datetime', width: 125, align: 'center', sortable: true },
-    { header: '대상', name: 'target', width: 60, align: 'center', formatter: ({ value }) => TARGET_LABEL[value] ?? value },
+    { header: '구분', name: 'kind', width: 80, align: 'center', formatter: ({ value }) => KIND_LABEL[value] ?? value },
     { header: '바코드 번호', name: 'barcode_no', minWidth: 160, sortable: true, escapeHTML: true, lockHide: true },
-    { header: 'LOT · 출하번호', name: 'ref_no', width: 150, escapeHTML: true },
+    { header: 'LOT', name: 'ref_no', width: 150, escapeHTML: true },
     { header: '품번', name: 'item_code', width: 140, sortable: true, escapeHTML: true },
     { header: '품명', name: 'item_name', minWidth: 160, sortable: true, escapeHTML: true },
     { header: '규격', name: 'item_spec', width: 110, sortable: true, escapeHTML: true },
-    { header: '고객사', name: 'partner_name', width: 140, escapeHTML: true },
     { header: '양식', name: 'template_name', width: 150, escapeHTML: true },
     { header: '장수', name: 'label_count', width: 60, align: 'right' },
     { header: '라벨당 수량', name: 'label_qty', width: 90, align: 'right', formatter: ({ value }) => num(value) },

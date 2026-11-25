@@ -239,6 +239,10 @@ function openPick() {
         modalTitle: '외주 공정 담기',
         existing: form.lines.map(l => l.work_order_op_idx),
         onPick: (rows) => {
+            // 외주처가 비어 있으면 담은 공정의 기본 외주처로 ( 11-25 · 발주서당 외주처 하나 — 첫 값 )
+            if ((form.partner_idx === '' || form.partner_idx === null) && rows.some(r => r.default_partner_idx)) {
+                form.partner_idx = rows.find(r => r.default_partner_idx).default_partner_idx;
+            }
             rows.forEach(r => form.lines.push({
                 _key: ++keySeq, subcon_order_line_idx: null, work_order_idx: r.work_order_idx, work_order_op_idx: r.work_order_op_idx,
                 wo_no: r.wo_no, item_code: r.item_code, item_name: r.item_name, item_spec: r.item_spec, spec_unit: r.spec_unit, lot_mode: r.lot_mode,

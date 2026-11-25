@@ -118,6 +118,7 @@ const processColumns = [
       formatter: ({ row }) => [['insp_first', '초'], ['insp_middle', '중'], ['insp_last', '종']].filter(([k]) => row[k] === 'Y').map(([, t]) => t).join(' · ') },
     { header: '기본 설비', name: 'default_equipment_name', minWidth: 140, className: 'cursor-pointer' },
     { header: '설비 수',   name: 'equipments_count', width: 70, align: 'right', className: 'cursor-pointer' },
+    { header: '기본 외주처', name: 'default_partner_name', minWidth: 140, className: 'cursor-pointer' },   // 외주 공정만 ( 11-25 )
     {
         header: '사용', name: 'is_use', width: 70, align: 'center', className: 'cursor-pointer',
         formatter: ({ value }) => value === 'Y' ? '사용' : `<span style="color:${COLORS.gray400}">미사용</span>`,

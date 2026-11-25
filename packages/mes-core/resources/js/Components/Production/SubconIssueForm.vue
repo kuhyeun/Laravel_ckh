@@ -112,7 +112,7 @@ const props = defineProps({
 const emit = defineEmits(['close']);
 
 const form = reactive({
-    partner_idx: props.orderLine?.partner_idx ?? '', qty: String(props.target.available_qty || ''), amount: '',
+    partner_idx: props.orderLine?.partner_idx ?? props.target.default_partner_idx ?? '', qty: String(props.target.available_qty || ''), amount: '',
     issued_at: props.now, remark: '', inputs: [], order_line_idx: '',
 });
 // 외주 발주 ( 11-23 ) : 고정( 발주서에서 ) 또는 그 외주처의 발주 중 고르기

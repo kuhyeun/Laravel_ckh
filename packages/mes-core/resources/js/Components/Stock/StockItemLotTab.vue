@@ -1,7 +1,8 @@
 <!-- 재고관리 품목 LOT 탭 ( 11-23 ) — 재고관리( StockStatus · 화면 옵션 item_tabs )에서 품목 합계 행을 누르면 열리는 탭의 본문
-     - 그 품목의 LOT × 창고 ( 전 창고 ) · 도구줄 : LOT · 공급처 LOT · Heat No 찾기 · 무재고 포함 · 라벨 미발행 · 엑셀 · 새로고침
+     - 그 품목의 LOT × 창고 ( 전 창고 ) · 도구줄 : LOT · 공급처 LOT · Heat No 찾기 · 재고없음 포함 · 라벨 미발행 · 엑셀 · 새로고침
      - 거르기 · 페이지는 tab( 부모가 가진 탭 상태 )에 둔다 — 다른 탭에 갔다 와도 그대로 ( 목록은 다시 읽는다 )
-     - LOT 행 클릭 → open( 행 ) — 부모가 LOT 입출고 이력 창을 연다 · 처리 뒤 부모가 load() 를 부른다 -->
+     - LOT 행 클릭 → open( 행 ) — 부모가 LOT 입출고 이력 창을 연다 · 처리 뒤 부모가 load() 를 부른다
+     - [전체 이력] → open-all — 그 품목의 모든 LOT 입출고 이력을 시간순으로 ( 11-25 · 창고별이면 그 창고만 ) -->
 <template>
     <div class="flex-1 min-h-0 flex flex-col">
         <div class="flex items-center gap-3 px-3 py-2 bg-gray-50/70 shrink-0 flex-wrap">
@@ -11,9 +12,10 @@
             <span class="text-xs text-gray-500">합계 <b class="text-blue-700">{{ qtyText(total, tab.item.spec_unit) }}</b> · {{ paging.total.toLocaleString() }} 줄</span>
             <div class="flex-1"></div>
             <BaseInput v-model="tab.keyword" size="md" class="w-44" :placeholder="isProduct ? 'LOT 찾기' : 'LOT · 공급처 LOT · Heat No'" @keyup.enter="loadFirst" />
-            <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="tab.with_zero" @change="loadFirst" /> 무재고 포함</label>
+            <label class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="tab.with_zero" @change="loadFirst" /> 재고없음 포함</label>
             <label v-if="labelEnabled" class="inline-flex items-center gap-1 text-xs cursor-pointer"><input type="checkbox" class="accent-blue-600" true-value="1" false-value="0" v-model="tab.no_label" @change="loadFirst" /> 라벨 미발행</label>
             <BaseButton size="sm" variant="secondary" :disabled="loading" @click="loadFirst">조회</BaseButton>
+            <BaseButton size="sm" variant="secondary" @click="emit('open-all', tab.item)">전체 이력</BaseButton>
             <GridSettingButton :grid="grid" />
             <ExcelExportButton :rows="exportRows" :columns="columns" :grid="grid" :filename="`LOT재고_${tab.item.item_code}`" />
         </div>
@@ -43,7 +45,7 @@ const props = defineProps({
     labelEnabled: { type: Boolean, default: false },
     isProduct:    { type: Boolean, default: false },
 });
-const emit = defineEmits(['open']);
+const emit = defineEmits(['open', 'open-all']);
 const { showFlash } = useToast();
 
 const grid    = ref(null);

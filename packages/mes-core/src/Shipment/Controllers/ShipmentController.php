@@ -166,14 +166,21 @@ class ShipmentController extends Controller {
     // 수주 줄 고르기 : 그 고객사 · 확정 · 진행 줄 · 남은 출하 > 0 ( 납품일 이른 순 )
     public function soLines(Request $request) {
         $v = $request->validate(['partner_idx' => 'required|integer', 'shipment_idx' => 'nullable|integer']);
-        $lines = SalesOrderLine::with(['order:sales_order_idx,order_no,partner_idx,status', 'item:item_idx,item_code,item_name,spec,material,spec_unit'])
+        $lines = SalesOrderLine::with(['order:sales_order_idx,order_no,partner_idx,status', 'order.partner:partner_idx,partner_name', 'item:item_idx,item_code,item_name,spec,material,spec_unit'])
             ->where('line_status', 'OPEN')
             ->whereHas('order', fn ($q) => $q->where('partner_idx', $v['partner_idx'])->where('status', 'CONFIRMED'))
             ->orderBy('due_date')->orderBy('sales_order_line_idx')->get();
-        $waiting = $this->shipments->waitingByLine($lines->pluck('sales_order_line_idx')->all(), $v['shipment_idx'] ?? null);   // 한 번에 ( 전에는 줄마다 )
-        $lines = $lines
+        return response()->json(['lines' => $this->soLineRows($lines, $v['shipment_idx'] ?? null)]);
+    }
+
+    // 수주 줄 → 화면 줄 ( 남은 출하 수량이 있는 것만 ) — soLines · lotOrders 같이
+    private function soLineRows($lines, ?int $shipmentIdx) {
+        $waiting = $this->shipments->waitingByLine($lines->pluck('sales_order_line_idx')->all(), $shipmentIdx);   // 한 번에 ( 전에는 줄마다 )
+        return $lines
             ->map(fn (SalesOrderLine $l) => [
                 'sales_order_line_idx' => $l->sales_order_line_idx,
+                'partner_idx'  => $l->order?->partner_idx,
+                'partner_name' => $l->order?->partner?->partner_name,
                 'order_no'     => $l->order?->order_no,
                 'line_no'      => $l->line_no,
                 'item_idx'     => $l->item_idx,
@@ -187,9 +194,42 @@ class ShipmentController extends Controller {
                 'unit_price'   => $l->unit_price !== null ? (float) $l->unit_price : null,
                 'produced_qty' => (float) $l->produced_qty,
                 'shipped_qty'  => (float) $l->shipped_qty,
-                'remaining'    => $this->shipments->soRemaining($l, $v['shipment_idx'] ?? null, $waiting[$l->sales_order_line_idx] ?? 0.0),
+                'remaining'    => $this->shipments->soRemaining($l, $shipmentIdx, $waiting[$l->sales_order_line_idx] ?? 0.0),
             ])->filter(fn ($l) => $l['remaining'] > 0.000001)->values();
-        return response()->json(['lines' => $lines]);
+    }
+
+    /**
+     * 현품표 스캔 ( 11-25 ) — 그 제품 LOT 이 어느 수주에서 나왔는지 : LOT → 생산 입고 · 지시 LOT → 작업지시 → work_order_source → 수주 줄
+     *   LOT 전환( 분리 · 다른 품목 )으로 생긴 LOT 은 원 LOT 을 따라 올라간다
+     *   lines = 출하할 수 있는 수주 줄( 확정 · 열림 · 남은 수량 ) — 납기 순 / had_orders = 수주에서 나온 LOT 인지 ( 다 출하된 경우 구분 )
+     */
+    public function lotOrders(Request $request) {
+        $v = $request->validate(['lot_idx' => 'required|integer', 'shipment_idx' => 'nullable|integer']);
+        $lots = [(int) $v['lot_idx']];
+        $cur  = (int) $v['lot_idx'];
+        for ($i = 0; $i < 10; $i++) {
+            $p = DB::table('lot')->where('lot_idx', $cur)->where('source', 'CONVERT')->value('parent_lot_idx');
+            if (!$p || in_array((int) $p, $lots, true)) break;
+            $lots[] = $cur = (int) $p;
+        }
+        $wos = DB::table('stock_txn_line as tl')->join('stock_txn as t', 't.stock_txn_idx', '=', 'tl.stock_txn_idx')
+            ->where('t.txn_type', 'IN_PRODUCTION')->where('t.status', '!=', 'CANCELED')->where('tl.line_status', '!=', 'CANCELED')
+            ->whereIn('tl.lot_idx', $lots)->whereNotNull('tl.work_order_idx')->pluck('tl.work_order_idx')
+            ->merge(DB::table('work_order')->whereIn('lot_idx', $lots)->pluck('work_order_idx'))->unique()->values();
+        $soLineIdxs = DB::table('work_order_source')->whereIn('work_order_idx', $wos->all() ?: [0])->pluck('sales_order_line_idx')->unique()->values();
+        $lines = SalesOrderLine::with(['order:sales_order_idx,order_no,partner_idx,status', 'order.partner:partner_idx,partner_name', 'item:item_idx,item_code,item_name,spec,material,spec_unit'])
+            ->whereIn('sales_order_line_idx', $soLineIdxs->all() ?: [0])
+            ->where('line_status', 'OPEN')
+            ->whereHas('order', fn ($q) => $q->where('status', 'CONFIRMED'))
+            ->orderBy('due_date')->orderBy('sales_order_line_idx')->get();
+        // 그 LOT 의 품목 ( 수주가 없을 때 「수주 없이」 줄로 )
+        $item = DB::table('lot as l')->join('item as i', 'i.item_idx', '=', 'l.item_idx')->where('l.lot_idx', $v['lot_idx'])
+            ->first(['i.item_idx', 'i.item_code', 'i.item_name', 'i.spec', 'i.spec_unit', 'i.std_sale_price', 'i.is_sale']);
+        return response()->json([
+            'lines'      => $this->soLineRows($lines, $v['shipment_idx'] ?? null),
+            'had_orders' => $soLineIdxs->isNotEmpty(),
+            'item'       => $item ? (array) $item : null,
+        ]);
     }
 
     // LOT 후보 ( 선점 반영 — 이 출하의 지정분은 빼고 계산 )
@@ -261,15 +301,14 @@ class ShipmentController extends Controller {
     public function cancel(Request $request) {
         $v = $request->validate(['shipment_idxs' => 'required|array|min:1|max:100', 'shipment_idxs.*' => 'integer']);
         $n = 0;
-        $scrapped = 0;   // 폐기한 라벨 장수 — 화면이 "붙어 있는 라벨을 떼세요" 를 알린다
         // 하나라도 막히면 전부 되돌린다 ( 입고 취소와 같게 — 전에는 앞 건만 취소된 채 화면엔 실패로 보였다 )
-        DB::transaction(function () use ($v, &$n, &$scrapped) {
+        DB::transaction(function () use ($v, &$n) {
             foreach (Shipment::whereIn('shipment_idx', $v['shipment_idxs'])->orderBy('shipment_idx')->get() as $s) {
-                $scrapped += $this->shipments->cancel($s);
+                $this->shipments->cancel($s);
                 $n++;
             }
         });
-        return response()->json(['message' => 'Success', 'canceled' => $n, 'labels_scrapped' => $scrapped]);
+        return response()->json(['message' => 'Success', 'canceled' => $n]);
     }
 
     // ---- 내부 ----

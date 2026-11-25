@@ -30,9 +30,13 @@ class MaterialTagController extends Controller {
             ->leftJoinSub(DB::table('stock_balance')->groupBy('lot_idx')->selectRaw('lot_idx, SUM(qty) as qty'), 'sb', 'sb.lot_idx', '=', 'l.lot_idx')
             ->leftJoinSub(DB::table('barcode_label')->where('status', 'ISSUED')->whereNotNull('lot_idx')->groupBy('lot_idx')
                 ->selectRaw('lot_idx, COUNT(*) as n, MAX(last_printed_at) as printed_at'), 'b', 'b.lot_idx', '=', 'l.lot_idx')
+            // 인쇄 횟수 ( 11-25 · #14 ) — 이 LOT 의 모든 라벨( 폐기 포함 )의 인쇄 기록 : 회 = 인쇄 번 수 · 장 = 장수 합
+            ->leftJoinSub(DB::table('label_print_log as pl')->join('barcode_label as pb', 'pb.label_idx', '=', 'pl.label_idx')->groupBy('pb.lot_idx')
+                ->selectRaw('pb.lot_idx, COUNT(*) as times, SUM(pl.print_count) as sheets'), 'pc', 'pc.lot_idx', '=', 'l.lot_idx')
             ->select('l.lot_idx', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'l.external_lot_no', 'l.heat_no', 'l.source', 'l.in_at', 'l.spec_value', 'pt.partner_name',
                 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.spec_unit', 'i.pack_qty', 'rin.in_qty',
-                DB::raw('COALESCE(sb.qty, 0) as stock_qty'), DB::raw('COALESCE(b.n, 0) as label_n'), 'b.printed_at');
+                DB::raw('COALESCE(sb.qty, 0) as stock_qty'), DB::raw('COALESCE(b.n, 0) as label_n'), 'b.printed_at',
+                DB::raw('COALESCE(pc.times, 0) as print_times'), DB::raw('COALESCE(pc.sheets, 0) as print_sheets'));
         if (!empty($v['from'])) $q->where('l.in_at', '>=', $v['from']);
         if (!empty($v['to']))   $q->where('l.in_at', '<', date('Y-m-d', strtotime($v['to'] . ' +1 day')));
         if (!empty($v['partner_idx'])) $q->where('l.partner_idx', $v['partner_idx']);
@@ -63,6 +67,8 @@ class MaterialTagController extends Controller {
             'in_qty'          => (float) $r->in_qty,
             'stock_qty'       => (float) $r->stock_qty,
             'label_n'         => (int) $r->label_n,
+            'print_times'     => (int) $r->print_times,
+            'print_sheets'    => (int) $r->print_sheets,
             'printed_at'      => $r->printed_at ? substr((string) $r->printed_at, 0, 16) : null,
         ])->values()]);
     }
@@ -104,9 +110,14 @@ class MaterialTagController extends Controller {
     //   반납( IN_RETURN )은 뺀다 — 나갔던 자재가 같은 LOT 으로 돌아온 것이라 입고 수량이 아니다
     private function lots() {
         $in = DB::table('stock_txn_line as tl')->join('stock_txn as t', 't.stock_txn_idx', '=', 'tl.stock_txn_idx')
-            ->where('t.txn_type', 'like', 'IN\_%')->whereNotIn('t.txn_type', ['IN_PRODUCTION', 'IN_RETURN'])
+            ->leftJoin('lot as nl', 'nl.lot_idx', '=', 'tl.lot_idx')
+            // 그 LOT 을 만든 전환 = 같은 전표의 뺀 줄이 그 LOT 의 원 LOT
+            ->leftJoin('stock_txn_line as sa', fn ($j) => $j->on('sa.stock_txn_idx', '=', 'tl.stock_txn_idx')->on('sa.lot_idx', '=', 'nl.parent_lot_idx')->where('sa.pass_qty', '<', 0))
+            // 입고 + LOT 전환으로 생긴 LOT 의 받은 줄 ( 11-25 · 재고조정 )
+            ->where(fn ($w) => $w->where(fn ($x) => $x->where('t.txn_type', 'like', 'IN\_%')->whereNotIn('t.txn_type', ['IN_PRODUCTION', 'IN_RETURN']))
+                ->orWhere(fn ($x) => $x->where('t.txn_type', 'LOT_CHANGE')->where('tl.pass_qty', '>', 0)->where('nl.source', 'CONVERT')->whereNotNull('sa.stock_txn_line_idx')))
             ->where('t.status', '!=', 'CANCELED')->where('tl.line_status', '!=', 'CANCELED')->whereNotNull('tl.lot_idx')
-            ->groupBy('tl.lot_idx')->selectRaw('tl.lot_idx, SUM(tl.qty) as in_qty');
+            ->groupBy('tl.lot_idx')->selectRaw("tl.lot_idx, SUM(CASE WHEN t.txn_type = 'LOT_CHANGE' THEN tl.pass_qty ELSE tl.qty END) as in_qty");
         return DB::table('lot as l')
             ->join('item as i', 'i.item_idx', '=', 'l.item_idx')
             ->joinSub($in, 'rin', 'rin.lot_idx', '=', 'l.lot_idx')

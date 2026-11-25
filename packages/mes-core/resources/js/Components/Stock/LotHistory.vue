@@ -3,7 +3,8 @@
      - 아래 [입고] · [출고] · [창고이동] · [재고조정]이 처리 창을 연다 ( 그 메뉴 쓰기 권한이 있을 때 — 입고 = 입고관리 · 출고 = 출고관리 )
      - 발생 시각( 업무 순서 ) · 등록 시각( 전산 입력 ) 둘 다 보여 준다 ( 재고-수불-설계 §4.3 )
      - 누계는 서버가 행을 따라 더한 값 ( 원장 GROUP BY 아님 )
-     - LOT 표시 번호 ( 11-24 ) : 위에 LOT 번호 · [번호 변경] ( LotTitleEditor — 자재 = 재고관리 · 제품 = 제품재고 쓰기 권한 ) → onLotRenamed( lot ) -->
+     - LOT 표시 번호 ( 11-24 ) : 위에 LOT 번호 · [번호 변경] ( LotTitleEditor — 자재 = 재고관리 · 제품 = 제품재고 쓰기 권한 ) → onLotRenamed( lot )
+     - lotIdx 가 없으면 품목 전체 이력 ( 11-25 · 품목 LOT 탭의 [전체 이력] ) — 그 품목의 모든 LOT 을 시간순 · LOT 열 · 누계 = 품목 합 -->
 <template>
     <div class="mt-3 text-sm">
         <p class="text-gray-600 mb-1">{{ title }}</p>
@@ -18,18 +19,20 @@
                         <th class="px-2 py-1.5 text-left">등록</th>
                         <th class="px-2 py-1.5 text-left">구분</th>
                         <th class="px-2 py-1.5 text-left">전표</th>
+                        <th v-if="allLots" class="px-2 py-1.5 text-left">LOT</th>
                         <th class="px-2 py-1.5 text-left">창고</th>
                         <th class="px-2 py-1.5 text-right">증감</th>
                         <th class="px-2 py-1.5 text-right">누계</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr v-if="!rows.length"><td colspan="7" class="px-2 py-4 text-center text-gray-400">이력이 없습니다.</td></tr>
+                    <tr v-if="!rows.length"><td :colspan="allLots ? 8 : 7" class="px-2 py-4 text-center text-gray-400">이력이 없습니다.</td></tr>
                     <tr v-for="r in rows" :key="r.stock_ledger_idx" class="border-t" :class="r.reversed ? 'text-gray-400 line-through' : ''">
                         <td class="px-2 py-1.5 whitespace-nowrap">{{ r.occurred_at }}</td>
                         <td class="px-2 py-1.5 whitespace-nowrap text-gray-400">{{ r.recorded_at }}</td>
                         <td class="px-2 py-1.5">{{ r.txn_type_label }}</td>
                         <td class="px-2 py-1.5">{{ r.txn_no }}</td>
+                        <td v-if="allLots" class="px-2 py-1.5 whitespace-nowrap">{{ r.lot_no || '-' }}</td>
                         <td class="px-2 py-1.5">{{ r.warehouse_name }}</td>
                         <td class="px-2 py-1.5 text-right" :class="r.qty_delta < 0 ? 'text-red-600' : 'text-blue-700'">{{ r.qty_delta > 0 ? '+' : '' }}{{ fmtNum(r.qty_delta) }}</td>
                         <td class="px-2 py-1.5 text-right font-semibold">{{ fmtNum(r.running) }}</td>
@@ -70,7 +73,7 @@ import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({
     itemIdx:      { type: Number, required: true },
-    lotIdx:       { type: Number, required: true },
+    lotIdx:       { type: Number, default: null },   // 없으면 품목 전체 이력 ( 11-25 )
     warehouseIdx: { type: Number, default: null },
     title:        { type: String, default: '' },
     balanceIdx:   { type: Number, default: null },     // 있으면 이동 · 조정 버튼 ( 권한이 있을 때 )
@@ -92,6 +95,7 @@ function act(type) {
     props.onAction?.(type, () => go(1));   // 처리한 행은 맨 앞 페이지에
 }
 
+const allLots   = computed(() => props.lotIdx === null || props.lotIdx === undefined);
 const loading   = ref(true);
 const error     = ref('');
 const rows      = ref([]);
@@ -109,7 +113,8 @@ async function load() {
     loading.value = true;
     error.value   = '';
     try {
-        const params = { item_idx: props.itemIdx, lot_idx: props.lotIdx, page: paging.page, per_page: paging.perPage };
+        const params = { item_idx: props.itemIdx, page: paging.page, per_page: paging.perPage };
+        if (!allLots.value) params.lot_idx = props.lotIdx;
         if (props.warehouseIdx) params.warehouse_idx = props.warehouseIdx;
         const { data } = await window.axios.get(route(STOCK_ROUTES[props.scope].history), { params });
         rows.value   = data.rows ?? [];

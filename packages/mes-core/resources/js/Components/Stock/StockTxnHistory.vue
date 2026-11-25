@@ -5,12 +5,16 @@
      - type : move | adjust | misc ( 기타출고 — 출고관리의 탭 ) | production ( 생산 입고 — 제품입고 ) | shipment ( 출하 — 제품출고의 탭 )
        production · shipment 는 조회만 ( 입고 · 취소는 공정실적, 출하 · 취소는 출하관리 ) — 생산 입고 행 클릭 = 그 작업지시의 공정실적
      - scope : material | product — API 범위 ( stockCodes STOCK_ROUTES · 품목 구분은 서버 라우트 )
-     - slot head : 버튼 줄 왼쪽 ( 출고관리 · 제품출고 탭 버튼 ) — 화면 제목은 상단 TopFrame 이 메뉴 이름으로 -->
+     - slot head : 버튼 줄 왼쪽 ( 출고관리 · 제품출고 탭 버튼 ) — 화면 제목은 상단 TopFrame 이 메뉴 이름으로
+     - 재고조정 ( 11-25 ) : [+ 재고조정] → StockLotAdjustModal ( 품목 → LOT → 수량 조정 · 다른 품목 새 LOT · LOT 분리 · 합치기 )
+       이력에 「구분」 열 · LOT 전환은 한 전표 두 줄( 뺀 LOT · 받은 LOT ) — 어느 줄을 눌러도 전표 전체를 취소 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 탭 줄 : 넘겨준 화면만 ( 출고관리 · 제품출고 ) — 나머지는 줄 없이 검색바부터 -->
-        <div v-if="$slots.head" class="flex items-center gap-1 pb-2 shrink-0">
+        <div v-if="$slots.head || canCreate" class="flex items-center gap-1 pb-2 shrink-0">
             <slot name="head" />
+            <BaseButton v-if="canCreate" size="sm" variant="primary" @click="openCreate">+ 재고조정</BaseButton>
+            <span v-if="canCreate" class="ml-1.5 text-xs text-gray-400">품목을 골라 LOT 수량 조정 · 다른 품목 새 LOT · LOT 분리 · 다른 LOT 에 합치기</span>
         </div>
 
         <SearchBar
@@ -64,6 +68,9 @@ import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import GridSettingButton from '@core/Components/Common/GridSettingButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import BaseButton from '@core/Components/Base/BaseButton.vue';
+import StockLotAdjustModal from '@core/Components/Stock/StockLotAdjustModal.vue';
+import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 import { COLORS } from '@core/Utils/colors';
@@ -122,7 +129,10 @@ const CONFIG = {
         editNote: '조정 전 장부 수량 · 증감은 등록 때 값 그대로입니다.',
         columns: [
             { header: '조정번호', name: 'txn_no', width: 115, sortable: true },
-            { ...common[0], header: '조정일시' }, common[1], common[2], common[3],
+            { ...common[0], header: '조정일시' }, common[1],
+            { header: '구분', name: 'kind', width: 105, align: 'center', escapeHTML: true,
+              formatter: ({ value, row }) => value && value !== '수량 조정' ? `<span style="color:${COLORS.blue700};font-weight:600">${value}</span>${row.delta < 0 ? ' · 뺌' : ' · 받음'}` : (value ?? '') },
+            common[2], common[3], common[5],
             { header: '창고', name: 'warehouse_name', width: 90, escapeHTML: true },
             { header: '장부 → 조정 후', name: 'book_qty', width: 105, align: 'right', formatter: ({ row }) => `${fmtNum(row.book_qty)} → ${fmtNum(row.qty)}` },
             { header: '증감', name: 'delta', width: 65, align: 'right',
@@ -199,6 +209,16 @@ const sort    = reactive({ key: '', dir: '' });
 
 const { showFlash } = useToast();   // 화면 알림 = Toast ( style-guide §7 )
 
+// [+ 재고조정] ( 11-25 · 재고조정 메뉴 ) — 쓰기 권한
+const modalStore = useModalStore();
+const canCreate  = computed(() => props.type === 'adjust' && canWrite.value && !!R.adjustLotChange && route().has(R.adjustLotChange));
+function openCreate() {
+    modalStore.open(StockLotAdjustModal, {
+        modalTitle: isProduct ? '제품 재고조정' : '재고조정', scope: props.scope,
+        onDone: (no, warnings) => { showFlash(`${no} 처리했습니다.${warnings?.length ? ` ( ${warnings.join(' / ')} )` : ''}`); loadFirstPage(); },
+    }, { size: 'xl' });
+}
+
 async function load() {
     loading.value = true;
     try {
@@ -249,7 +269,10 @@ function openDateEdit(row) {
 
 async function askCancel(row) {
     if (!cfg.cancel || !canWrite.value || row.status !== 'DONE') return;
-    const r = await showAlert(`${cfg.title} 취소`, `${row.txn_no} ( ${row.item_code} · ${row.lot_no ?? ''} )\n${cfg.title}을 취소하고 재고를 되돌립니다.`, 'warning', 'confirm');
+    const isLotChange = props.type === 'adjust' && row.kind && row.kind !== '수량 조정';
+    const r = await showAlert(`${cfg.title} 취소`, isLotChange
+        ? `${row.txn_no} ( ${row.kind} )\n뺀 LOT 과 받은 LOT 의 재고를 함께 되돌립니다. 새로 만든 LOT 은 재고 0 으로 남습니다.`
+        : `${row.txn_no} ( ${row.item_code} · ${row.lot_no ?? ''} )\n${cfg.title}을 취소하고 재고를 되돌립니다.`, 'warning', 'confirm');
     if (!r.isConfirmed) return;
     try {
         await window.axios.post(route(cfg.cancel, row.stock_txn_idx));

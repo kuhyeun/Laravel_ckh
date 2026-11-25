@@ -97,9 +97,16 @@ class WorkOrderService {
                 $errors["ops.{$i}.process_idx"] = ['공정을 찾을 수 없습니다.'];
                 continue;
             }
-            if (!empty($op['equipment_idx'])
-                && !($candidates->get($proc->process_idx) ?? collect())->contains('equipment_idx', (int) $op['equipment_idx'])) {
-                $errors["ops.{$i}.equipment_idx"] = ['그 공정의 설비 후보가 아닙니다.'];   // E_WO_EQUIP
+            // 설비 여러 개 ( 11-25 ) — 모두 그 공정의 설비 후보여야 한다 · 같은 설비 두 번 X
+            $eqList = self::opEquipments($op);
+            if (count($eqList) !== count(array_unique($eqList))) {
+                $errors["ops.{$i}.equipment_idx"] = ['같은 설비가 두 번 있습니다.'];
+            }
+            foreach ($eqList as $eq) {
+                if (!($candidates->get($proc->process_idx) ?? collect())->contains('equipment_idx', $eq)) {
+                    $errors["ops.{$i}.equipment_idx"] = ['그 공정의 설비 후보가 아닙니다.'];   // E_WO_EQUIP
+                    break;
+                }
             }
             // 초 · 중 · 종 ( 11-18 ) : 생산 공정의 옵션 — 안 켜도 된다
         }
@@ -310,11 +317,115 @@ class WorkOrderService {
             $byIdx = collect($data['ops'])->keyBy('work_order_op_idx');
             foreach ($wo->ops as $op) {
                 if ($row = $byIdx->get($op->work_order_op_idx)) {
-                    $op->fill(['due_date' => $row['due_date'] ?? null, 'worker_idx' => $row['worker_idx'] ?? null])->save();
+                    $crews = self::opCrews($row);
+                    $op->fill(['due_date' => $row['due_date'] ?? null, 'worker_idx' => self::opWorkers($row)[0] ?? null])->save();
+                    $this->syncCrews($op->work_order_op_idx, $crews, true);   // 진행 중 : 설비 줄은 그대로 · 작업자만
                 }
             }
         });
         return $wo->fresh(self::FORM_RELATIONS);
+    }
+
+    // ---- 공정 「설비 - 작업자」 묶음 ( 11-25 · MES_1125 #5 ) ----
+    //   요청 줄 : crews = [{ equipment_idx | null, worker_idxs: [] }] — 설비마다 그 설비의 작업자들 ( 설비 없는 공정은 설비 null 묶음 하나 )
+    //   crews 가 없으면 예전 모양( equipment_idxs / worker_idxs · equipment_idx / worker_idx )을 묶음으로 바꾼다 ( 작업자는 첫 설비에 )
+    //   대표 = 첫 묶음의 설비 · 첫 작업자 ( work_order_op.equipment_idx / worker_idx )
+    public static function opCrews(array $row): array {
+        $ints = fn ($l) => array_values(array_unique(array_filter(array_map('intval', (array) $l))));
+        if (isset($row['crews']) && is_array($row['crews'])) {
+            $crews = array_map(fn ($c) => ['equipment_idx' => ((int) ($c['equipment_idx'] ?? 0)) ?: null, 'worker_idxs' => $ints($c['worker_idxs'] ?? [])], $row['crews']);
+        } else {
+            $eqs = $ints($row['equipment_idxs'] ?? (!empty($row['equipment_idx']) ? [$row['equipment_idx']] : []));
+            $wks = $ints($row['worker_idxs'] ?? (!empty($row['worker_idx']) ? [$row['worker_idx']] : []));
+            $crews = $eqs ? array_map(fn ($e, $k) => ['equipment_idx' => $e, 'worker_idxs' => $k === 0 ? $wks : []], $eqs, array_keys($eqs))
+                          : [['equipment_idx' => null, 'worker_idxs' => $wks]];
+        }
+        // 빈 묶음 빼기 · 설비 없는 묶음은 하나로 모은다
+        $out = [];
+        $none = [];
+        foreach ($crews as $c) {
+            if ($c['equipment_idx']) {
+                $out[] = $c;
+            } else {
+                $none = array_values(array_unique(array_merge($none, $c['worker_idxs'])));
+            }
+        }
+        if ($none) {
+            $out[] = ['equipment_idx' => null, 'worker_idxs' => $none];
+        }
+        return $out;
+    }
+
+    public static function opEquipments(array $row): array {
+        return array_values(array_filter(array_column(self::opCrews($row), 'equipment_idx')));
+    }
+
+    public static function opWorkers(array $row): array {
+        return array_values(array_unique(array_merge([], ...array_column(self::opCrews($row), 'worker_idxs') ?: [[]])));
+    }
+
+    /**
+     * 묶음 맞추기 — $workersOnly( 진행 중 ) : 설비 줄은 그대로 두고 그 설비의 작업자만 ( 없는 설비의 묶음은 무시 )
+     */
+    private function syncCrews(int $opIdx, array $crews, bool $workersOnly = false): void {
+        $W = DB::table('work_order_op_worker');
+        $E = DB::table('work_order_op_equipment');
+        if ($workersOnly) {
+            $rows = $E->where('work_order_op_idx', $opIdx)->pluck('op_equipment_idx', 'equipment_idx');
+            DB::table('work_order_op_worker')->where('work_order_op_idx', $opIdx)->delete();
+            foreach ($crews as $c) {
+                $eqRow = $c['equipment_idx'] ? ($rows[$c['equipment_idx']] ?? false) : null;
+                if ($eqRow === false) continue;
+                $this->insertWorkers($opIdx, $eqRow, $c['worker_idxs']);
+            }
+            return;
+        }
+        DB::table('work_order_op_worker')->where('work_order_op_idx', $opIdx)->delete();
+        DB::table('work_order_op_equipment')->where('work_order_op_idx', $opIdx)->delete();
+        $k = 0;
+        foreach ($crews as $c) {
+            $eqRow = null;
+            if ($c['equipment_idx']) {
+                $eqRow = DB::table('work_order_op_equipment')->insertGetId(['work_order_op_idx' => $opIdx, 'equipment_idx' => $c['equipment_idx'], 'sort_order' => $k++], 'op_equipment_idx');
+            }
+            $this->insertWorkers($opIdx, $eqRow, $c['worker_idxs']);
+        }
+    }
+
+    private function insertWorkers(int $opIdx, ?int $eqRow, array $workers): void {
+        if (!$workers) return;
+        DB::table('work_order_op_worker')->insert(array_map(fn ($w, $k) => [
+            'work_order_op_idx' => $opIdx, 'op_equipment_idx' => $eqRow, 'worker_idx' => $w, 'sort_order' => $k,
+        ], $workers, array_keys($workers)));
+    }
+
+    /**
+     * 공정들의 묶음 ( 화면 · 생산계획표 ) — [ op_idx => [ 'crews' => [{ equipment_idx, worker_idxs }] ] ]
+     *   표가 비었으면 대표 칸으로 ( 옮기기 전 데이터 )
+     */
+    public static function opAssignments(iterable $ops): array {
+        $ops = collect($ops);
+        $ids = $ops->pluck('work_order_op_idx')->filter()->all();
+        $eqs = $ids ? DB::table('work_order_op_equipment')->whereIn('work_order_op_idx', $ids)->orderBy('sort_order')->get()->groupBy('work_order_op_idx') : collect();
+        $wks = $ids ? DB::table('work_order_op_worker')->whereIn('work_order_op_idx', $ids)->orderBy('sort_order')->get()->groupBy('work_order_op_idx') : collect();
+        $out = [];
+        foreach ($ops as $o) {
+            $id    = $o->work_order_op_idx;
+            $ws    = $wks[$id] ?? collect();
+            $crews = ($eqs[$id] ?? collect())->map(fn ($e) => [
+                'equipment_idx' => (int) $e->equipment_idx,
+                'worker_idxs'   => $ws->where('op_equipment_idx', $e->op_equipment_idx)->pluck('worker_idx')->map(fn ($v) => (int) $v)->values()->all(),
+            ])->values()->all();
+            $none = $ws->whereNull('op_equipment_idx')->pluck('worker_idx')->map(fn ($v) => (int) $v)->values()->all();
+            if ($none) {
+                $crews[] = ['equipment_idx' => null, 'worker_idxs' => $none];
+            }
+            if (!$crews && ($o->equipment_idx || $o->worker_idx)) {
+                $crews = [['equipment_idx' => $o->equipment_idx ? (int) $o->equipment_idx : null, 'worker_idxs' => $o->worker_idx ? [(int) $o->worker_idx] : []]];
+            }
+            $out[$id] = ['crews' => $crews];
+        }
+        return $out;
     }
 
     /** @return array<int,int> routing_line_idx → work_order_op_idx */
@@ -336,8 +447,9 @@ class WorkOrderService {
                 'seq'                    => ($n + 1) * 10,
                 'process_idx'            => $row['process_idx'],
                 'routing_line_idx'       => $rl?->routing_line_idx,
-                'equipment_idx'          => ($row['equipment_idx'] ?? null) ?: null,
-                'worker_idx'             => ($row['worker_idx'] ?? null) ?: null,
+                // 대표 = 목록의 첫 값 ( 11-25 — 실적 등록 기본 설비 · 물림 손실 등 기존 읽기용 )
+                'equipment_idx'          => self::opEquipments($row)[0] ?? null,
+                'worker_idx'             => self::opWorkers($row)[0] ?? null,
                 'cycle_time_sec'         => (string) ($rl?->cycle_time_sec ?? 0),
                 'due_date'               => ($row['due_date'] ?? null) ?: null,
                 'insp_first'             => $ifl && $this->yes($row['insp_first'] ?? 'N') ? 'Y' : 'N',
@@ -349,6 +461,7 @@ class WorkOrderService {
                 'remark'                 => $row['remark'] ?? null,
             ])->save();
 
+            $this->syncCrews($op->work_order_op_idx, self::opCrews($row));
             $keep[] = $op->work_order_op_idx;
             if ($rl) {
                 // BOM 투입 지점은 품목 라우팅( ② ) 줄 — 수주 라우팅( ③ ) 줄이면 그 원본 줄로도 찾게

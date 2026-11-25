@@ -3,6 +3,7 @@
      - 변경 한 번이 버전 하나 → 버전 목록이 곧 변경 이력 ( 별도 이력 화면 없음 )
      - 승인은 관문이 아니라 기록 : 승인 없이도 활성 전환되고 경고만
      - 정책 bom.activate_on_approve( 시스템 설정 · 기본 켬 ) : [승인] 하면 그 버전이 바로 활성 ( 끄면 승인은 기록만 )
+     - 정책 bom.approval( 11-25 · 기본 끔 ) : 끄면 승인 표시 · [승인] · 승인 열이 없고, [저장] 하면 그 버전이 바로 활성 ( 사용 )
      - 투입 지점은 라우팅의 "줄" ( 그 줄이 작업지시에 없으면 그 자재도 소요 없음 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
@@ -45,8 +46,10 @@
                             @update:model-value="onVersionChange"
                         />
                         <span v-if="form.is_active === 'Y'" class="shrink-0 whitespace-nowrap text-[11px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">활성</span>
-                        <span v-if="form.approved_at" class="text-[11px] text-gray-500">승인 {{ form.approved_at }}</span>
-                        <span v-else-if="form.bom_idx" class="text-[11px] text-amber-600">미승인</span>
+                        <template v-if="approvalOn">
+                            <span v-if="form.approved_at" class="text-[11px] text-gray-500">승인 {{ form.approved_at }}</span>
+                            <span v-else-if="form.bom_idx" class="text-[11px] text-amber-600">미승인</span>
+                        </template>
                     </template>
                     <div class="flex-1"></div>
                     <!-- 트리 보기 : 활성 BOM 을 하위 BOM 까지 ( 11-12 ) -->
@@ -54,7 +57,7 @@
                     <template v-if="selectedItem && canWrite">
                         <BaseButton size="sm" variant="secondary" @click="newVersion">{{ form.bom_idx ? '버전 추가' : '새 BOM' }}</BaseButton>
                         <BaseButton v-if="form.bom_idx && form.is_active !== 'Y'" size="sm" variant="secondary" @click="activate">활성으로</BaseButton>
-                        <BaseButton v-if="form.bom_idx && !form.approved_at" size="sm" variant="secondary" @click="approve">승인</BaseButton>
+                        <BaseButton v-if="approvalOn && form.bom_idx && !form.approved_at" size="sm" variant="secondary" @click="approve">승인</BaseButton>
                         <BaseButton size="sm" variant="primary" :disabled="saving" @click="save">저장</BaseButton>
                     </template>
                 </div>
@@ -216,7 +219,7 @@
                                             <th class="px-2 py-1.5 font-medium text-left">버전</th>
                                             <th class="px-2 py-1.5 font-medium">상태</th>
                                             <th class="px-2 py-1.5 font-medium">변경일</th>
-                                            <th class="px-2 py-1.5 font-medium">승인</th>
+                                            <th v-if="approvalOn" class="px-2 py-1.5 font-medium">승인</th>
                                             <th class="px-2 py-1.5 font-medium">자재</th>
                                         </tr>
                                     </thead>
@@ -234,7 +237,7 @@
                                                 <span v-else class="text-gray-300">—</span>
                                             </td>
                                             <td class="px-2 py-1.5 text-center text-gray-600">{{ v.changed_at ?? '—' }}</td>
-                                            <td class="px-2 py-1.5 text-center text-gray-600">{{ v.approved_at ?? '미승인' }}</td>
+                                            <td v-if="approvalOn" class="px-2 py-1.5 text-center text-gray-600">{{ v.approved_at ?? '미승인' }}</td>
                                             <td class="px-2 py-1.5 text-center text-gray-600">{{ v.lines_count }}</td>
                                         </tr>
                                     </tbody>
@@ -364,6 +367,7 @@ async function selectItem(it) {
         if (!isLatest()) return;
         versions.value     = vRes.data.versions ?? [];
         activateOnApprove.value = vRes.data.activate_on_approve !== false;
+        approvalOn.value        = vRes.data.approval === true;
         routingLines.value = rRes.data.routingLines ?? [];
 
         // 활성 버전이 있으면 그것을, 없으면 첫 버전을 연다
@@ -444,11 +448,14 @@ async function refreshVersions() {
     const { data } = await window.axios.get(route('config.bom.versions', form.item_idx ?? selectedItem.value.item_idx));
     versions.value = data.versions ?? [];
     activateOnApprove.value = data.activate_on_approve !== false;
+    approvalOn.value        = data.approval === true;
     await loadItems();
 }
 
 // 정책 bom.activate_on_approve ( 시스템 설정 — 기본 켬 ) : 승인하면 바로 활성
 const activateOnApprove = ref(true);
+// 정책 bom.approval ( 11-25 · 기본 끔 ) : 끄면 승인 없이 — 저장하면 그 버전이 바로 활성
+const approvalOn = ref(false);
 
 async function save() {
     saving.value = true;
@@ -479,12 +486,14 @@ async function save() {
         };
         const { data } = await window.axios.post(route('config.bom.save'), payload);
         const wasApproved = !!form.approved_at;
+        const wasActive   = form.is_active === 'Y';
         await refreshVersions();
         await loadBom(data.bom.bom_idx);
 
         const notes = [...(data.warnings ?? [])];
-        if (wasApproved && !form.approved_at) notes.push('자재가 바뀌어 승인이 해제되었습니다.');
-        showFlash(notes.length ? `저장되었습니다. ⚠ ${notes.join(' / ')}` : '저장되었습니다.');
+        if (approvalOn.value && wasApproved && !form.approved_at) notes.push('자재가 바뀌어 승인이 해제되었습니다.');
+        const done = !approvalOn.value && !wasActive && form.is_active === 'Y' ? `저장되었습니다. [ ${form.version} ] 이 사용 중인 버전이 되었습니다.` : '저장되었습니다.';
+        showFlash(notes.length ? `${done} ⚠ ${notes.join(' / ')}` : done);
     } catch (e) {
         const status = e.response?.status;
         if (status === 422) {
@@ -501,7 +510,7 @@ async function save() {
 
 // 활성 전환 ( 승인 없어도 되고, 없으면 경고 )
 async function activate() {
-    const msg = form.approved_at
+    const msg = form.approved_at || !approvalOn.value
         ? `[ ${form.version} ]을(를) 활성으로 전환합니다.`
         : `[ ${form.version} ]은(는) 아직 승인되지 않았습니다.\n그래도 활성으로 전환할까요?`;
     const result = await showAlert('활성 전환', msg, 'question', 'confirm');

@@ -80,8 +80,16 @@ class Bom extends Model {
         return $this->approved_at !== null;
     }
 
-    // 승인 후 라인을 고치면 승인이 풀린다 ( 승인한 내용과 다른 것이 되므로 )
+    // 승인 사용 ( 정책 bom.approval · 11-25 · 기본 끔 ) — 끄면 승인 해제도 없다 ( 저장한 버전이 바로 활성 )
+    public static function approvalOn(): bool {
+        return app(\MesCore\Basic\Services\PolicyService::class)->isEnabled('bom.approval');
+    }
+
+    // 승인 후 라인을 고치면 승인이 풀린다 ( 승인한 내용과 다른 것이 되므로 ) — 승인을 쓰지 않으면 그대로
     public function clearApproval(): void {
+        if (!self::approvalOn()) {
+            return;
+        }
         $this->approved_at = null;
         $this->approved_by = null;
     }

@@ -234,7 +234,7 @@ onMounted(async () => {
         }
         if (ev.nativeEvent?.target?.closest?.('.tui-grid-btn-tree')) return;
         const row = grid.getRow(ev.rowKey);
-        if (row) emit('row-click', row);
+        if (row) emit('row-click', row, ev.columnName);   // 두 번째 = 누른 칸 이름 ( 칸마다 다른 동작 — 11-25 )
     });
 
     ['check', 'uncheck', 'checkAll', 'uncheckAll'].forEach(ev => grid?.on(ev, emitSelect));

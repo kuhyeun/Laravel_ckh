@@ -10,7 +10,6 @@ use Illuminate\Validation\ValidationException;
 use MesCore\Basic\Services\PolicyService;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Warehouse;
-use MesCore\Label\Services\LabelService;
 use MesCore\Order\Models\SalesOrder;
 use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Shipment\Models\Shipment;
@@ -55,7 +54,7 @@ class ShipmentService {
         'CANCELED'         => '취소',
     ];
 
-    public function __construct(private StockService $stock, private PolicyService $policy, private LabelService $labels) {}
+    public function __construct(private StockService $stock, private PolicyService $policy) {}
 
     // ---- 판정 ----
 
@@ -288,14 +287,8 @@ class ShipmentService {
             if (!$keep) {
                 throw ValidationException::withMessages(['lines' => ['출하할 줄을 넣으세요.']]);
             }
-            // 뺀 줄 — 라벨을 발행한 줄은 뺄 수 없다 ( 발행이력이 그 줄을 가리킨다 · 폐기된 라벨 포함 )
-            $removed = ShipmentLine::where('shipment_idx', $s->shipment_idx)->whereNotIn('shipment_line_idx', $keep)->get();
-            $labeled = $this->labels->labeledShipmentLines($removed->pluck('shipment_line_idx')->all());
-            if ($labeled) {
-                $nos = $removed->whereIn('shipment_line_idx', $labeled)->pluck('line_no')->implode(', ');
-                throw ValidationException::withMessages(['lines' => ["라벨을 발행한 줄( {$nos} )은 뺄 수 없습니다. 출하를 취소하고 다시 등록하세요."]]);
-            }
-            $removed->each->delete();
+            // 뺀 줄 ( 11-25 : 출하 줄 라벨을 없애 라벨 확인도 뺐다 )
+            ShipmentLine::where('shipment_idx', $s->shipment_idx)->whereNotIn('shipment_line_idx', $keep)->get()->each->delete();
             return $s;
         });
 
@@ -521,7 +514,7 @@ class ShipmentService {
             $s->fill(['status' => 'CANCELED', 'canceled_by' => Auth::id(), 'canceled_at' => now()])->save();
             $this->refreshOrders($s);
 
-            return $this->labels->scrapShipmentLines($s->lines->pluck('shipment_line_idx')->all(), '출하 취소');
+            return 0;   // 폐기한 라벨 장수 — 출하 줄 라벨을 없애 늘 0 ( 11-25 · 현품표는 LOT 라벨이라 출하 취소와 상관없다 )
         });
     }
 

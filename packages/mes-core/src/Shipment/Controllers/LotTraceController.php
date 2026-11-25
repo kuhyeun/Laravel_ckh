@@ -355,9 +355,13 @@ class LotTraceController extends Controller {
         foreach ($this->shipmentsOf($lots) as $r) {
             $out["L{$r->lot_idx}"][] = ["S{$r->shipment_line_idx}", ''];
         }
-        // 잔재 LOT
+        // 잔재 LOT · LOT 전환으로 생긴 LOT ( 11-25 )
         foreach (DB::table('lot')->whereIn('parent_lot_idx', $lots)->orderBy('lot_idx')->get(['lot_idx', 'parent_lot_idx']) as $r) {
             $out["L{$r->parent_lot_idx}"][] = ["L{$r->lot_idx}", ''];
+        }
+        // LOT 합치기 ( 11-25 · 재고조정 ) — 원 LOT → 합친 LOT
+        foreach ($this->mergeLinks($lots, 'from') as $r) {
+            $out["L{$r->from_lot}"][] = ["L{$r->to_lot}", $this->qtyLabel((float) $r->qty, 1)];
         }
         // 남은 재고
         foreach (DB::table('stock_balance as b')->join('warehouse as w', 'w.warehouse_idx', '=', 'b.warehouse_idx')->whereIn('b.lot_idx', $lots)
@@ -429,11 +433,30 @@ class LotTraceController extends Controller {
             ->get(['l.lot_idx', 'l.stock_txn_line_idx', 'l.qty']) as $r) {
             $out["L{$r->lot_idx}"][] = ["R{$r->stock_txn_line_idx}", ''];
         }
-        // 잔재 → 원 LOT
+        // 잔재 · LOT 전환 → 원 LOT
         foreach (DB::table('lot')->whereIn('lot_idx', $lots)->where('parent_lot_idx', '>', 0)->get(['lot_idx', 'parent_lot_idx']) as $r) {
             $out["L{$r->lot_idx}"][] = ["L{$r->parent_lot_idx}", ''];
         }
+        // LOT 합치기 → 원 LOT ( 11-25 )
+        foreach ($this->mergeLinks($lots, 'to') as $r) {
+            $out["L{$r->to_lot}"][] = ["L{$r->from_lot}", $this->qtyLabel((float) $r->qty, 1)];
+        }
         return $out;
+    }
+
+    // LOT 합치기 ( 재고조정 LOT 전환 중 기존 LOT 으로 옮긴 것 · 취소 제외 ) — from_lot → to_lot · 옮긴 수량 합
+    //   $side : from = 이 LOT 들에서 나간 것 / to = 이 LOT 들로 들어온 것
+    private function mergeLinks(array $lots, string $side): Collection {
+        if (!$lots) return collect();
+        return DB::table('stock_txn_line as a')
+            ->join('stock_txn as t', 't.stock_txn_idx', '=', 'a.stock_txn_idx')
+            ->join('stock_txn_line as b', fn ($j) => $j->on('b.stock_txn_idx', '=', 'a.stock_txn_idx')->where('b.pass_qty', '>', 0))
+            ->join('lot as tl', 'tl.lot_idx', '=', 'b.lot_idx')
+            ->where('t.txn_type', 'LOT_CHANGE')->where('t.status', '!=', 'CANCELED')->where('a.pass_qty', '<', 0)
+            ->where(fn ($w) => $w->whereNull('tl.parent_lot_idx')->orWhereColumn('tl.parent_lot_idx', '!=', 'a.lot_idx'))   // 새 LOT 은 위( parent ) 에서
+            ->whereIn($side === 'from' ? 'a.lot_idx' : 'b.lot_idx', $lots)
+            ->groupBy('a.lot_idx', 'b.lot_idx')
+            ->selectRaw('a.lot_idx as from_lot, b.lot_idx as to_lot, SUM(b.pass_qty) as qty')->get();
     }
 
     // ---- 공정 LOT 연결 ( work_order_run_input · 해제 · 취소 실적 제외 ) ----

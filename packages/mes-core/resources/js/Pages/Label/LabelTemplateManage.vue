@@ -27,7 +27,7 @@
                             <span class="truncate font-medium" :class="t.is_use === 'N' ? 'text-gray-400 line-through' : ''">{{ t.template_name }}</span>
                             <span v-if="t.is_default === 'Y'" class="shrink-0 text-[10px] px-1 rounded bg-green-50 text-green-700">기본</span>
                         </div>
-                        <div class="text-[11px] text-gray-400">{{ targetLabel(t.target) }} · {{ t.width_mm }} × {{ t.height_mm }}mm · {{ t.design ? '격자' : '고정 배치' }}<template v-if="t.used_count"> · 발행 {{ t.used_count }}건</template></div>
+                        <div class="text-[11px] text-gray-400">{{ targetLabel(t.target) }} · {{ t.width_mm }} × {{ t.height_mm }}mm<template v-if="t.used_count"> · 발행 {{ t.used_count }}건</template></div>
                     </div>
                 </div>
             </div>

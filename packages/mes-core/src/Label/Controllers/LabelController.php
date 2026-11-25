@@ -20,8 +20,7 @@ class LabelController extends Controller {
 
     // 대상별로 발행 · 인쇄를 열 수 있는 화면 ( 하나라도 쓰기 권한이 있으면 )
     private const ISSUE_PAGES = [
-        BarcodeLabel::TARGET_LOT      => ['Purchase/ReceiptManage', 'Purchase/MaterialTag', 'Stock/StockStatus', 'Product/ProductStock', 'Label/LabelHistory'],   // 물품표( 3012 ) 포함
-        BarcodeLabel::TARGET_SHIPMENT => ['Shipment/ShipmentManage', 'Shipment/ShipmentTag', 'Label/LabelHistory'],   // 현품표( 7005 ) 포함
+        BarcodeLabel::TARGET_LOT => ['Purchase/ReceiptManage', 'Purchase/MaterialTag', 'Stock/StockStatus', 'Product/ProductStock', 'Shipment/ShipmentTag', 'Label/LabelHistory'],   // 물품표( 3012 ) · 현품표( 7005 — 11-25 제품 LOT ) 포함 · 출하 줄 라벨은 11-25 없앰
     ];
     private const HISTORY_PAGE = 'Label/LabelHistory';
     private const SORTABLE     = ['create_datetime', 'barcode_no', 'last_printed_at'];
@@ -38,35 +37,35 @@ class LabelController extends Controller {
         return response()->json([
             'enabled'      => $on,
             'can_lot'      => $on && $this->canIssue(BarcodeLabel::TARGET_LOT),
-            'can_shipment' => $on && $this->canIssue(BarcodeLabel::TARGET_SHIPMENT),
         ]);
     }
 
     // 발행 창 기본값 ( 번호 · 장수 · 라벨당 수량 · 이미 발행한 장수 ) + 양식
     public function draft(Request $request) {
         $v = $request->validate([
-            'target'        => 'required|in:LOT,SHIPMENT_LINE',
+            'target'        => 'required|in:LOT',
             'items'         => 'required|array|min:1|max:200',
             'items.*.id'    => 'required|integer',
             'items.*.qty'   => 'nullable|numeric',
         ]);
         $this->guard($v['target']);
 
-        $isLot = $v['target'] === BarcodeLabel::TARGET_LOT;
-        $rows  = $isLot
-            ? $this->labels->draftLots(array_map(fn ($r) => ['lot_idx' => $r['id'], 'qty' => $r['qty'] ?? null], $v['items']))
-            : $this->labels->draftShipmentLines(array_column($v['items'], 'id'));
+        $rows  = $this->labels->draftLots(array_map(fn ($r) => ['lot_idx' => $r['id'], 'qty' => $r['qty'] ?? null], $v['items']));
+        // 양식 : LOT 종류( 자재식별표 · 현품표 — 11-25 )에 맞는 것 · 섞여 있으면 둘 다 ( 자재식별표 먼저 )
+        $kinds = array_values(array_unique($this->labels->kindsOf(array_column($v['items'], 'id'))));
+        $templates = collect(['LOT', 'PRODUCT'])->filter(fn ($k) => in_array($k, $kinds, true))
+            ->flatMap(fn ($k) => $this->labels->templates($k))->values();
 
         return response()->json([
             'rows'      => $rows,
-            'templates' => $this->labels->templates($isLot ? 'LOT' : 'SHIPMENT'),
+            'templates' => $templates,
         ]);
     }
 
     // 발행 → 인쇄용 데이터를 바로 돌려준다 ( 화면은 미리보기를 연다 · [인쇄] 를 눌러야 인쇄 기록 )
     public function issue(Request $request) {
         $v = $request->validate([
-            'target'               => 'required|in:LOT,SHIPMENT_LINE',
+            'target'               => 'required|in:LOT',
             'label_template_idx'   => 'required|integer',
             'rows'                 => 'required|array|min:1|max:200',
             'rows.*.id'            => 'required|integer|distinct',
@@ -114,7 +113,6 @@ class LabelController extends Controller {
         $v = $request->validate([
             'from'    => 'nullable|date_format:Y-m-d',
             'to'      => 'nullable|date_format:Y-m-d|after_or_equal:from',
-            'target'  => 'nullable|in:LOT,SHIPMENT_LINE',
             'status'  => 'nullable|in:ISSUED,SCRAPPED',
             'printed' => 'nullable|in:Y,N',
             'keyword' => 'nullable|string|max:100',
@@ -123,36 +121,28 @@ class LabelController extends Controller {
 
         $query = BarcodeLabel::query()->with([
             'template:label_template_idx,template_name',
-            'lot:lot_idx,lot_no,lot_title,item_idx', 'lot.item:item_idx,item_code,item_name,spec',
-            'shipmentLine:shipment_line_idx,shipment_idx,item_idx,line_no', 'shipmentLine.item:item_idx,item_code,item_name,spec',
-            'shipmentLine.shipment:shipment_idx,shipment_no,partner_idx', 'shipmentLine.shipment.partner:partner_idx,partner_name',
+            'lot:lot_idx,lot_no,lot_title,item_idx,source', 'lot.item:item_idx,item_code,item_name,spec,item_type',
         ])->orderByDesc('create_datetime')->orderByDesc('label_idx');
 
         if (!empty($v['from']))   $query->where('create_datetime', '>=', $v['from']);
         if (!empty($v['to']))     $query->where('create_datetime', '<', date('Y-m-d', strtotime($v['to'] . ' +1 day')));
-        if (!empty($v['target'])) $query->where('target', $v['target']);
         if (!empty($v['status'])) $query->where('status', $v['status']);
         if (($v['printed'] ?? '') === 'Y') $query->where('print_total', '>', 0);
         if (($v['printed'] ?? '') === 'N') $query->where('print_total', 0);
 
-        $itemOf = fn (Builder $q, string $kw, string $col) => $q->where(fn ($w) => $w
-            ->whereHas('lot.item', fn ($r) => $r->where($col, 'like', $kw))
-            ->orWhereHas('shipmentLine.item', fn ($r) => $r->where($col, 'like', $kw)));
+        $itemOf = fn (Builder $q, string $kw, string $col) => $q->whereHas('lot.item', fn ($r) => $r->where($col, 'like', $kw));
         $this->applyKeyword($query, $v['keyword'] ?? null, [
             'barcode_no'  => fn ($q, $kw) => $q->where('barcode_no', 'like', $kw),
             'item_code'   => fn ($q, $kw) => $itemOf($q, $kw, 'item_code'),
             'item_name'   => fn ($q, $kw) => $itemOf($q, $kw, 'item_name'),
-            'shipment_no' => fn ($q, $kw) => $q->whereHas('shipmentLine.shipment', fn ($r) => $r->where('shipment_no', 'like', $kw)),
         ]);
 
-        // 품번 · 품명 · 규격 열 정렬 = 보이는 품목( LOT 라벨은 LOT 의 품목, 출하 라벨은 출하 줄의 품목 ) ( 11-25 )
-        $item = fn (string $col) => \Illuminate\Support\Facades\DB::raw("(SELECT si.{$col} FROM item si WHERE si.item_idx = CASE WHEN barcode_label.target = '" . BarcodeLabel::TARGET_LOT . "'"
-            . ' THEN (SELECT sl.item_idx FROM lot sl WHERE sl.lot_idx = barcode_label.lot_idx)'
-            . ' ELSE (SELECT ss.item_idx FROM shipment_line ss WHERE ss.shipment_line_idx = barcode_label.shipment_line_idx) END)');
+        // 품번 · 품명 · 규격 열 정렬 = LOT 의 품목 ( 11-25 )
+        $item = fn (string $col) => \Illuminate\Support\Facades\DB::raw("(SELECT si.{$col} FROM item si WHERE si.item_idx = (SELECT sl.item_idx FROM lot sl WHERE sl.lot_idx = barcode_label.lot_idx))");
         $sortable = self::SORTABLE + ['item_code' => $item('item_code'), 'item_name' => $item('item_name'), 'item_spec' => $item('spec')];
 
         return $this->listResponse($request, $query, $sortable, 'labels', function (BarcodeLabel $b) {
-            $item = $b->target === BarcodeLabel::TARGET_LOT ? $b->lot?->item : $b->shipmentLine?->item;
+            $item = $b->lot?->item;
             return [
                 'label_idx'       => $b->label_idx,
                 'target'          => $b->target,
@@ -160,8 +150,8 @@ class LabelController extends Controller {
                 'item_code'       => $item?->item_code,
                 'item_name'       => $item?->item_name,
                 'item_spec'       => $item?->spec,
-                'ref_no'          => $b->target === BarcodeLabel::TARGET_LOT ? $b->lot?->lot_no : $b->shipmentLine?->shipment?->shipment_no,
-                'partner_name'    => $b->shipmentLine?->shipment?->partner?->partner_name,
+                'ref_no'          => $b->lot?->lot_no,
+                'kind'            => $this->labels->kindOf($b->lot),   // 자재식별표 LOT · 현품표 PRODUCT ( 11-25 )
                 'template_name'   => $b->template?->template_name,
                 'label_count'     => $b->label_count,
                 'label_qty'       => $b->label_qty,

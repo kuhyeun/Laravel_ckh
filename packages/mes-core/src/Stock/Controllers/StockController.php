@@ -54,7 +54,7 @@ class StockController extends Controller {
 
         if ($allWh) {
             // 품목 하나 = 한 줄 ( 전 창고 ) — 창고 · LOT 수는 재고가 있는 것만 센다
-            //   품목 기준( 품목 ← 잔고 ) : 무재고 포함이면 입고된 적 없는 품목도 ( 사용 중 품목 · 미사용이어도 잔고 줄이 있으면 ) · 11-23
+            //   품목 기준( 품목 ← 잔고 ) : 재고없음 포함이면 입고된 적 없는 품목도 ( 사용 중 품목 · 미사용이어도 잔고 줄이 있으면 ) · 11-23
             $query = StockBalance::query()->from('item as i')
                 ->leftJoin('stock_balance as b', 'b.item_idx', '=', 'i.item_idx')
                 ->leftJoin('warehouse as w', 'w.warehouse_idx', '=', 'b.warehouse_idx')
@@ -145,7 +145,7 @@ class StockController extends Controller {
     public function history(Request $request) {
         $v = $request->validate([
             'item_idx'      => 'required|integer',
-            'lot_idx'       => 'required|integer',
+            'lot_idx'       => 'nullable|integer',   // 없으면 그 품목의 모든 LOT ( 전체 이력 — 11-25 )
             'warehouse_idx' => 'nullable|integer',
             'page'          => 'nullable|integer|min:1',
             'per_page'      => 'nullable|integer|min:10|max:' . self::HISTORY_PER_PAGE_MAX,
@@ -153,7 +153,8 @@ class StockController extends Controller {
         $this->assertItemInScope($request, (int) $v['item_idx']);
 
         $base = StockLedger::query()
-            ->where('item_idx', $v['item_idx'])->where('lot_idx', $v['lot_idx'])
+            ->where('item_idx', $v['item_idx'])
+            ->when(!empty($v['lot_idx']), fn ($q) => $q->where('lot_idx', $v['lot_idx']))
             ->when(!empty($v['warehouse_idx']), fn ($q) => $q->where('warehouse_idx', $v['warehouse_idx']));
         $total   = (clone $base)->count();
         $perPage = (int) ($v['per_page'] ?? self::HISTORY_PER_PAGE);
@@ -168,8 +169,12 @@ class StockController extends Controller {
 
         $txns = StockTxn::whereIn('stock_txn_idx', $rows->pluck('stock_txn_idx')->unique())->pluck('txn_no', 'stock_txn_idx');
         $whs  = Warehouse::whereIn('warehouse_idx', $rows->pluck('warehouse_idx')->unique())->pluck('warehouse_name', 'warehouse_idx');
+        // 전체 이력이면 줄마다 LOT 번호 ( 표시 번호 )
+        $lots = empty($v['lot_idx'])
+            ? \MesCore\Stock\Models\Lot::whereIn('lot_idx', $rows->pluck('lot_idx')->filter()->unique())->get(['lot_idx', 'lot_no', 'lot_title'])->mapWithKeys(fn ($l) => [$l->lot_idx => $l->lot_no])
+            : collect();
 
-        $out = $rows->map(function (StockLedger $l) use (&$running, $txns, $whs) {
+        $out = $rows->map(function (StockLedger $l) use (&$running, $txns, $whs, $lots) {
             $after    = $running;
             $running -= (float) $l->qty_delta;   // 다음( 더 오래된 ) 행의 누계
             return [
@@ -180,6 +185,7 @@ class StockController extends Controller {
                 'txn_type'         => $l->txn_type,
                 'txn_type_label'   => (StockTxn::TYPES[$l->txn_type] ?? $l->txn_type) . ($l->reverses_idx ? ' 취소' : ''),
                 'warehouse_name'   => $whs[$l->warehouse_idx] ?? '',
+                'lot_no'           => $l->lot_idx ? ($lots[$l->lot_idx] ?? null) : null,
                 'qty_delta'        => (float) $l->qty_delta,
                 'running'          => $after,
                 'reversed'         => (bool) $l->reversed_by_idx,
@@ -201,7 +207,27 @@ class StockController extends Controller {
             'can_adjust' => $permissions->canPage($user, $isProduct ? 'Product/ProductAdjust' : 'Stock/StockAdjust', 'can_write'),
             'can_issue'  => $permissions->canPage($user, $isProduct ? 'Product/ProductIssue' : 'Production/MaterialIssue', 'can_write'),   // [출고] — 자재 : 작업지시 출고 · 기타출고 / 제품 : 기타출고
             'can_receipt'=> !$isProduct && $permissions->canPage($user, 'Purchase/ReceiptManage', 'can_write'),                          // [입고]
-        ]);
+        ] + ($request->boolean('stats') ? ['stats' => $this->warehouseStats($request)] : []));
+    }
+
+    // 창고별 재고관리 왼쪽 목록의 숫자 ( 11-25 ) — 재고가 있는( 0 아님 ) 품목 수 · LOT( 잔고 줄 ) 수 · 품목 구분 범위
+    //   [ warehouse_idx => { items, lots, own_items, own_lots } ] ( items · lots = 하위 창고 포함 · own = 그 창고만 ) + 'all'
+    private function warehouseStats(Request $request): array {
+        $rows = DB::table('stock_balance as b')->join('item as i', 'i.item_idx', '=', 'b.item_idx')
+            ->where('b.qty', '!=', 0)
+            ->when($this->itemScope($request), fn ($q, $scope) => $q->where('i.item_type', $scope))
+            ->get(['b.warehouse_idx', 'b.item_idx']);
+        $byWh = $rows->groupBy('warehouse_idx');
+        $out  = ['all' => ['items' => $rows->pluck('item_idx')->unique()->count(), 'lots' => $rows->count()]];
+        foreach (DB::table('warehouse')->pluck('warehouse_idx') as $wh) {
+            $sub  = collect($this->withDescendants((int) $wh))->flatMap(fn ($w) => $byWh->get($w, collect()));
+            $own  = $byWh->get($wh, collect());
+            $out[$wh] = [
+                'items' => $sub->pluck('item_idx')->unique()->count(), 'lots' => $sub->count(),
+                'own_items' => $own->pluck('item_idx')->unique()->count(), 'own_lots' => $own->count(),
+            ];
+        }
+        return $out;
     }
 
     // 잔고 한 행 ( 창고이동 · 재고조정 · 출고 창이 연다 ) — 자재 · 제품 재고 화면과 그 처리 메뉴 어느 쪽 권한으로도

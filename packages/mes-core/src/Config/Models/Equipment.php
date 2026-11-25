@@ -18,6 +18,8 @@ class Equipment extends Model {
     protected $fillable = [
         'equipment_code',
         'equipment_name',
+        'line_code',   // 라인 ( 공통코드 EQUIPMENT_LINE · 11-25 )
+        'plc_code',    // PLC 코드 ( 관리자만 · 11-25 )
         // 관리 항목 ( 11-19 ) — 담당자( 정 · 부 ) · 구매 · 점검 기준
         'manager_idx', 'sub_manager_idx', 'purchase_date', 'purchase_cost', 'check_cycle', 'check_base',
         'is_use',

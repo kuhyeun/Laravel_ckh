@@ -9,15 +9,16 @@ import { qtyText } from '@core/Components/Stock/stockCodes';
 export const MAX_COLS = 8;
 export const MAX_ROWS = 20;
 
+// 대상 ( 11-25 ) : LOT = 자재식별표( 자재 LOT ) · PRODUCT = 현품표( 생산 입고된 제품 LOT ) — 출하 라벨은 없앴다
 export const TARGETS = [
-    { value: 'LOT',      label: '자재식별표 · 현품표' },
-    { value: 'SHIPMENT', label: '출하 라벨' },
+    { value: 'LOT',     label: '자재식별표' },
+    { value: 'PRODUCT', label: '현품표' },
 ];
-export const targetLabel = (v) => v === 'SHIPMENT' ? '출하' : 'LOT';
+export const targetLabel = (v) => v === 'PRODUCT' ? '현품표' : '자재식별표';
 
 export const FIELDS = {
     LOT: [
-        { key: 'title',           label: '제목 ( 자재식별표 · 현품표 )' },
+        { key: 'title',           label: '제목 ( 자재식별표 )' },
         { key: 'item_code',       label: '품번' },
         { key: 'item_name',       label: '품명' },
         { key: 'spec',            label: '규격' },
@@ -31,21 +32,18 @@ export const FIELDS = {
         { key: 'date',            label: '입고일' },
         { key: 'barcode_no',      label: '바코드 번호 ( 글자 )' },
     ],
-    SHIPMENT: [
-        { key: 'title',          label: '제목 ( 출하 라벨 )' },
-        { key: 'partner_name',   label: '고객사' },
-        { key: 'item_code',      label: '품번' },
-        { key: 'item_name',      label: '품명' },
-        { key: 'spec',           label: '규격' },
-        { key: 'material',       label: '재질' },
-        { key: 'spec_material',  label: '규격 / 재질' },
-        { key: 'qty',            label: '수량 ( 라벨당 )' },
-        { key: 'shipment_no',    label: '출하번호' },
-        { key: 'shipment_line',  label: '출하번호 · 줄' },
-        { key: 'order_no',       label: '수주번호' },
-        { key: 'customer_po_no', label: '고객 발주번호' },
-        { key: 'date',           label: '출하일' },
-        { key: 'barcode_no',     label: '바코드 번호 ( 글자 )' },
+    PRODUCT: [
+        { key: 'title',         label: '제목 ( 현품표 )' },
+        { key: 'item_code',     label: '품번' },
+        { key: 'item_name',     label: '품명' },
+        { key: 'spec',          label: '규격' },
+        { key: 'material',      label: '재질' },
+        { key: 'spec_material', label: '규격 / 재질' },
+        { key: 'qty',           label: '수량 ( 라벨당 )' },
+        { key: 'lot_no',        label: 'LOT 번호' },
+        { key: 'wo_no',         label: '지시 번호' },
+        { key: 'date',          label: '생산 입고일' },
+        { key: 'barcode_no',    label: '바코드 번호 ( 글자 )' },
     ],
 };
 export const fieldLabel = (target, key) => FIELDS[target]?.find(f => f.key === key)?.label ?? key;
@@ -57,7 +55,6 @@ export function fieldValue(l, key) {
     switch (key) {
         case 'qty':           return l.label_qty === null || l.label_qty === undefined ? '' : qtyText(l.label_qty, l.spec_unit, l.spec_value);
         case 'spec_material': return join(l.spec, l.material);
-        case 'shipment_line': return l.shipment_no ? `${l.shipment_no} · ${l.line_no}줄` : '';
         default:              return l[key] ?? '';
     }
 }
@@ -69,10 +66,10 @@ export const SAMPLE = {
         item_code: 'MT-01', item_name: '원자재 예시', spec: 'Φ20 × 3000', material: 'SUS304', spec_unit: 'EA', spec_value: null, label_qty: 50,
         partner_name: '예시 공급처', external_lot_no: 'SUP-2611-07', heat_no: 'H-55021',
     },
-    SHIPMENT: {
-        target: 'SHIPMENT_LINE', title: '출하 라벨', date: '2026-11-18', barcode_no: 'SH-261118-001-01',
+    PRODUCT: {
+        target: 'LOT', title: '현품표', date: '2026-11-18', barcode_no: 'PRD-01_261118_001', lot_no: 'PRD-01_261118_001',
         item_code: 'PRD-01', item_name: '제품 예시', spec: '120 × 80', material: 'AL6061', spec_unit: 'EA', spec_value: null, label_qty: 100,
-        partner_name: '예시 고객사', shipment_no: 'SH-261118-001', line_no: 1, order_no: 'SO-261110-003', customer_po_no: 'PO-88120',
+        wo_no: 'WO-261117-002',
     },
 };
 
@@ -101,8 +98,8 @@ export const starterDesign = (target, codeType = 'BARCODE') => ({ ...starterLayo
 function starterLayout(target, codeType) {
     const qr   = codeType === 'QR';
     const wide = qr ? 2 : 3;   // 아래 세 줄의 값 칸 너비 ( QR 이면 오른쪽 한 열을 비운다 )
-    const rowsOf = target === 'SHIPMENT'
-        ? [['고객사', 'partner_name', true], ['품번', 'item_code', true], ['품명', 'item_name', false], ['수량', 'qty', true], ['출하번호', 'shipment_line', false], ['수주', 'order_no', false]]
+    const rowsOf = target === 'PRODUCT'
+        ? [['품번', 'item_code', true], ['품명', 'item_name', false], ['규격', 'spec_material', false], ['수량', 'qty', true], ['LOT', 'lot_no', false], ['지시 번호', 'wo_no', false]]
         : [['품번', 'item_code', true], ['품명', 'item_name', false], ['규격', 'spec_material', false], ['수량', 'qty', true], ['공급처', 'partner_name', false], ['LOT', 'lot_no', false]];
     const body = qr ? rowsOf : rowsOf.slice(0, 5);
 

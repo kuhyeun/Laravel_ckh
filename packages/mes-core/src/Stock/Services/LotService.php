@@ -3,6 +3,7 @@
 namespace MesCore\Stock\Services;
 
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MesCore\Basic\Services\PolicyService;
@@ -29,6 +30,7 @@ class LotService {
      * 표시 LOT 번호 바꾸기 ( 11-24 · docs/LOT표시번호-설계.md ) — 비우거나 원번호와 같으면 원번호로 ( lot_title = NULL )
      *   다른 LOT 의 원번호 · 표시 번호와 겹치면 막는다 ( 스캔 · 검색이 한 LOT 으로만 )
      *   이미 발행한 라벨은 그대로 ( 바코드 = 발행 당시 번호 ) — 새 번호 바코드는 [새로 발행]
+     *   번호가 실제로 바뀌면 lot_title_log 에 한 줄 ( 11-25 · MES_1125 #14 )
      */
     public function rename(int $lotIdx, ?string $title): Lot {
         return DB::transaction(function () use ($lotIdx, $title) {
@@ -44,15 +46,88 @@ class LotService {
                 if (mb_strlen($title) > 60) {
                     throw ValidationException::withMessages(['lot_title' => ['LOT 번호는 60자까지입니다.']]);
                 }
-                $dup = Lot::where('lot_idx', '!=', $lotIdx)->where(fn ($q) => $q->where('lot_no', $title)->orWhere('lot_title', $title))->first(['lot_idx', 'lot_no', 'lot_title']);
-                if ($dup) {
-                    throw ValidationException::withMessages(['lot_title' => ["「{$title}」 은 다른 LOT( {$dup->original_no} )에서 쓰고 있습니다."]]);
-                }
+                $this->assertTitleFree($title, $lotIdx);
             }
+            $before = $lot->lot_no;   // 바꾸기 전 표시 번호
             $lot->lot_title = $title;
             $lot->save();
-            return $lot->fresh();
+            $lot = $lot->fresh();
+            if ($lot->lot_no !== $before) {
+                DB::table('lot_title_log')->insert([
+                    'lot_idx' => $lotIdx, 'before_no' => $before, 'after_no' => $lot->lot_no,
+                    'changed_by' => Auth::id() ?? 0, 'changed_at' => now(),
+                ]);
+            }
+            return $lot;
         });
+    }
+
+    // 다른 LOT 의 원번호 · 표시 번호와 겹치면 막는다 ( 스캔 · 검색이 한 LOT 으로만 )
+    public function assertTitleFree(string $title, int $exceptLotIdx = 0, string $field = 'lot_title'): void {
+        $dup = Lot::where('lot_idx', '!=', $exceptLotIdx)->where(fn ($q) => $q->where('lot_no', $title)->orWhere('lot_title', $title))->first(['lot_idx', 'lot_no', 'lot_title']);
+        if ($dup) {
+            throw ValidationException::withMessages([$field => ["「{$title}」 은 다른 LOT( {$dup->original_no} )에서 쓰고 있습니다."]]);
+        }
+    }
+
+    /**
+     * LOT 전환으로 새 LOT ( 11-25 · 재고조정 [다른 품목 새 LOT] · [LOT 분리] ) — 트랜잭션 안에서
+     *   번호 : 그 품목의 LOT 규칙 ( 제품 = 생산 기준 첫 규칙 · 자재 = 자재 기준 첫 규칙 — 공급처 LOT 그대로 쓰는 설정이면 규칙 없이 )
+     *          규칙이 없으면 원 LOT 번호 + -S순번
+     *   물려받기 : 같은 품목( 분리 ) = 공급처 · 공급처 LOT · Heat No · 조각 규격 · 입고일 / 다른 품목 = 공급처 · Heat No ( 입고일 = 처리일 )
+     *   $title : 표시 번호 ( 있으면 lot_title — 겹치면 막는다 )
+     */
+    public function issueChangeLot(Item $item, Lot $src, string $at, ?string $title = null): Lot {
+        $same = (int) $item->item_idx === (int) $src->item_idx;
+        $date = substr($at, 0, 10);
+        $rule = null;
+        $lotNo = null;
+        if ($item->item_type === 'MATERIAL') {
+            if ($this->materialSource() !== 'EXTERNAL') $rule = $this->materialRules()->first();
+        } else {
+            $rule = $this->productionRules()->first();
+        }
+        if ($rule) {
+            $partnerCode = $src->partner_idx ? (string) DB::table('partner')->where('partner_idx', $src->partner_idx)->value('partner_code') : '';
+            $lotNo = LotRule::render($rule->format_spec ?? [], (string) $rule->separator, [
+                'item_code'    => $item->item_code,
+                'item_spec'    => $item->spec,
+                'date'         => $date,
+                'seq'          => $this->nextSeq($rule, $date),
+                'partner_code' => $partnerCode,
+                'with_partner' => $partnerCode !== '' && $this->partnerMode($rule) === 'ALWAYS',
+            ]);
+            if (Lot::where('lot_no', $lotNo)->exists()) $lotNo = null;   // 규칙에 순번이 없어 겹치면 아래 방식으로
+        }
+        if ($lotNo === null) {
+            $base = $src->original_no . '-S';
+            $seq  = (int) Lot::where('lot_no', 'like', $base . '%')->count();
+            do {
+                $lotNo = mb_substr($base . str_pad((string) ++$seq, 2, '0', STR_PAD_LEFT), 0, 50);
+            } while (Lot::where('lot_no', $lotNo)->exists());
+            $rule = null;
+        }
+
+        $title = $title !== null ? trim($title) : '';
+        if ($title !== '') {
+            if (mb_strlen($title) > 60) throw ValidationException::withMessages(['lot_title' => ['LOT 번호는 60자까지입니다.']]);
+            if ($title === $lotNo) $title = '';
+            else $this->assertTitleFree($title);
+        }
+
+        return Lot::create([
+            'item_idx'        => $item->item_idx,
+            'lot_no'          => mb_substr($lotNo, 0, 50),
+            'lot_title'       => $title !== '' ? $title : null,
+            'external_lot_no' => $same ? $src->external_lot_no : null,
+            'heat_no'         => $src->heat_no,
+            'partner_idx'     => $src->partner_idx,
+            'spec_value'      => $same ? $src->spec_value : null,
+            'parent_lot_idx'  => $src->lot_idx,
+            'source'          => 'CONVERT',
+            'lot_rule_idx'    => $rule?->lot_rule_idx,
+            'in_at'           => $same && $src->in_at ? $src->in_at : $at,
+        ]);
     }
 
     public function enabled(): bool {

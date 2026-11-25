@@ -15,7 +15,7 @@ class Defect extends Model {
     const UPDATED_AT = null;
 
     protected $fillable = [
-        'inspection_idx', 'insp_type', 'item_idx', 'lot_idx', 'partner_idx', 'work_order_op_idx', 'shipment_line_idx',
+        'inspection_idx', 'insp_type', 'item_idx', 'lot_idx', 'partner_idx', 'work_order_op_idx', 'run_idx', 'shipment_line_idx',
         'qty', 'defect_type_code', 'reason', 'occurred_at', 'is_canceled', 'create_account_idx',
     ];
 
