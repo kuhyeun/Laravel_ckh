@@ -402,6 +402,7 @@ class SalesOrderController extends Controller {
                 'locked'               => $l->hasDownstream(),
                 'min_qty'              => $l->minQty(),
                 'directed_qty'         => $l->directedQty(),   // 작업지시에 담긴 수량 ( 수주 창의 [작업지시] )
+                'work_orders'          => $l->directedWorkOrders(),   // 담은 작업지시 ( 있으면 그 지시를 연다 · 11-25 )
                 'remark'               => $l->remark,
                 'routing'              => $this->routingPayload($l),
                 'material'             => $this->materialPayload($l),

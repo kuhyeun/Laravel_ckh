@@ -105,7 +105,7 @@
                             </td>
                             <td class="px-1.5 py-1"><BaseInput v-model="r.qty" type="number" min="0" size="md" class="w-full text-right" /></td>
                             <td class="px-1.5 py-1"><WarehouseSelect v-model="r.warehouse_idx" :options="warehouses" size="md" class="w-full" /></td>
-                            <td class="px-1 py-1 leading-9 text-center"><button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="leftRows.splice(i, 1)">✕</button></td>
+                            <td class="px-1 py-1 leading-8 text-center"><button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="leftRows.splice(i, 1)">✕</button></td>
                         </tr>
                     </tbody>
                 </table>

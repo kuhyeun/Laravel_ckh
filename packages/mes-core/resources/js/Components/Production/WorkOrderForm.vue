@@ -26,11 +26,11 @@
             <div class="grid grid-cols-6 gap-x-4 gap-y-3 shrink-0">
                 <div>
                     <label class="lbl">지시서 번호</label>
-                    <p class="h-9 flex items-center text-gray-700">{{ sheet.sheet_no || '저장할 때 매깁니다' }}</p>
+                    <p class="h-8 flex items-center text-gray-700">{{ sheet.sheet_no || '저장할 때 매깁니다' }}</p>
                 </div>
                 <div>
                     <label class="lbl">상태</label>
-                    <div class="h-9 flex items-center gap-2">
+                    <div class="h-8 flex items-center gap-2">
                         <span class="font-semibold" :style="{ color: woStatusColor(sheet.status) }">{{ woStatusLabel(sheet.status) }}</span>
                     </div>
                 </div>

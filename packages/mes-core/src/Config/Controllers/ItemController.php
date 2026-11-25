@@ -7,6 +7,8 @@ use MesCore\Config\Models\Bom;
 use MesCore\Config\Models\BomLine;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\LeadTime;
+use MesCore\Config\Models\ItemPartner;
+use MesCore\Config\Models\Partner;
 use MesCore\Basic\Services\PolicyService;
 use MesCore\Config\Models\Routing;
 use MesCore\Config\Services\RoutingService;
@@ -44,6 +46,12 @@ class ItemController extends Controller {
         'main_material.child_item_idx' => '주 자재',
         'main_material.qty'            => '주 자재 소요',
         'routing_lines'                => '공정',
+        'partners'                     => '거래처',
+        'partners.*.partner_idx'       => '거래처',
+        'partners.*.contact_name'      => '담당자 이름',
+        'partners.*.contact_phone'     => '담당자 번호',
+        'partners.*.unit_price'        => '단가',
+        'partners.*.remark'            => '비고',
     ];
 
     // 목록 : 검색어( 품번·품명 ) + 대분류 + 사용 여부( Y / N / 전체 )
@@ -152,6 +160,15 @@ class ItemController extends Controller {
             'lead_time.pack_days'     => 'nullable|integer|min:0|max:999',
             // 공정 탭 : 품목 라우팅( ② ) 공정 줄 — 보내지 않으면( null ) 손대지 않음
             'routing_lines'           => 'nullable|array|max:100',
+            // 거래처 탭 ( 11-25 ) : 구매처 N · 주 거래처 하나 — 보내지 않으면( null ) 손대지 않음
+            'partners'                    => 'nullable|array|max:100',
+            'partners.*.item_partner_idx' => 'nullable|integer',
+            'partners.*.partner_idx'      => 'required|integer|exists:partner,partner_idx',
+            'partners.*.is_main'          => 'required|in:Y,N',
+            'partners.*.contact_name'     => 'nullable|string|max:50',
+            'partners.*.contact_phone'    => 'nullable|string|max:30',
+            'partners.*.unit_price'       => 'nullable|numeric|min:0|max:9999999999999',
+            'partners.*.remark'           => 'nullable|string|max:500',
         ] + RoutingService::lineRules('routing_lines'), ItemRules::MESSAGES + [
             'main_material.qty.gt'                     => '주 자재 소요는 0보다 커야 합니다.',
             'main_material.qty.required_with'          => '주 자재 소요를 넣으세요.',
@@ -169,7 +186,8 @@ class ItemController extends Controller {
         // 라우팅 : 틀( ① ) + 공정 줄 → 저장 뒤 품목 라우팅( ② ) ( item.routing_idx 는 서비스가 맞춘다 )
         $templateIdx  = isset($validated['routing_idx']) ? (int) $validated['routing_idx'] : null;
         $routingLines = $isProduct && isset($validated['routing_lines']) ? array_values($validated['routing_lines']) : null;
-        unset($validated['main_material'], $validated['policies'], $validated['lead_time'], $validated['routing_idx'], $validated['routing_lines']);
+        $partners     = isset($validated['partners']) ? array_values($validated['partners']) : null;
+        unset($validated['main_material'], $validated['policies'], $validated['lead_time'], $validated['routing_idx'], $validated['routing_lines'], $validated['partners']);
 
         $policy = app(PolicyService::class);
 
@@ -185,6 +203,9 @@ class ItemController extends Controller {
         if ($mainMaterial) {
             $this->assertMainMaterial($item, $mainMaterial['child_item_idx']);
         }
+        if ($partners !== null) {
+            $partners = $this->assertPartners($item, $partners);
+        }
 
         // 공정 줄 업무 규칙 ( 검사 · 선행 승인 ) — 공정 없음은 허용( 라우팅 없는 제품 )
         $warnings = $routingLines !== null
@@ -192,7 +213,7 @@ class ItemController extends Controller {
             : [];
 
         try {
-            DB::transaction(function () use ($item, $validated, $isProduct, $mainMaterial, $policyValues, $leadTime, $policy, $templateIdx, $routingLines, &$warnings) {
+            DB::transaction(function () use ($item, $validated, $isProduct, $mainMaterial, $policyValues, $leadTime, $policy, $templateIdx, $routingLines, $partners, &$warnings) {
                 $item->fill($validated)->save();
                 $this->specs->ensure($item->spec);   // 없는 규격은 규격 코드에 더한다
                 // 품목 라우팅( ② ) — 제품이 아니면 미사용으로 · 1개 생산 표준시간도 여기서
@@ -212,6 +233,9 @@ class ItemController extends Controller {
 
                 if ($leadTime !== null) {
                     $this->syncLeadTime($item, $leadTime);
+                }
+                if ($partners !== null) {
+                    $this->syncPartners($item, $partners);
                 }
             });
 
@@ -370,7 +394,27 @@ class ItemController extends Controller {
             return $row;
         };
 
+        // 거래처 탭 ( 11-25 ) : 이 품목의 거래처 줄 + 고를 수 있는 구매처
+        $itemPartners = $itemIdx
+            ? ItemPartner::with('partner:partner_idx,partner_code,partner_name,is_supplier,is_use')
+                ->where('item_idx', $itemIdx)->orderBy('sort_order')->orderBy('item_partner_idx')->get()
+                ->map(fn (ItemPartner $p) => [
+                    'item_partner_idx' => $p->item_partner_idx,
+                    'partner_idx'      => $p->partner_idx,
+                    'partner_code'     => $p->partner?->partner_code,
+                    'partner_name'     => $p->partner?->partner_name,
+                    'is_main'          => $p->is_main,
+                    'contact_name'     => $p->contact_name,
+                    'contact_phone'    => $p->contact_phone,
+                    'unit_price'       => $p->unit_price,
+                    'remark'           => $p->remark,
+                ])->values()
+            : [];
+        $suppliers = Partner::where('is_supplier', 'Y')->where('is_use', 'Y')->orderBy('partner_name')->forPicker()->get();
+
         return response()->json([
+            'item_partners'       => $itemPartners,
+            'supplier_partners'   => $suppliers,
             'routings'            => $routings,
             'default_routing_idx' => $routings->firstWhere('is_default', 'Y')?->routing_idx,
             'processes'           => $processes,
@@ -405,6 +449,70 @@ class ItemController extends Controller {
     // 리드타임 품목 행 동기화 ( BAS-09 와 같은 행 )
     //   ITEM    → 행을 만들거나 고쳐서 사용으로
     //   DEFAULT → 행이 있으면 미사용으로 내림 ( 지우지 않는다 — 다시 품목별로 바꾸면 되살린다 )
+    /**
+     * 거래처 탭 검사 ( 11-25 ) — 같은 거래처 두 번 X · 구매처만( 이미 저장된 줄은 그 뒤 구분이 바뀌어도 그대로 둔다 ) · 주 거래처는 하나
+     * 줄이 있는데 주 거래처가 없으면 첫 줄을 주 거래처로 — 정리된 줄을 돌려준다
+     */
+    private function assertPartners(Item $item, array $rows): array {
+        $errors = [];
+        $saved  = $item->exists
+            ? ItemPartner::where('item_idx', $item->item_idx)->pluck('partner_idx', 'item_partner_idx')->all()
+            : [];
+        $suppliers = Partner::whereIn('partner_idx', array_column($rows, 'partner_idx'))->pluck('is_supplier', 'partner_idx')->all();
+
+        $seen = [];
+        foreach ($rows as $i => $r) {
+            $pid = (int) $r['partner_idx'];
+            if (isset($seen[$pid])) {
+                $errors["partners.{$i}.partner_idx"] = ['같은 거래처가 이미 있습니다.'];
+            }
+            $seen[$pid] = true;
+            $unchanged = !empty($r['item_partner_idx']) && (int) ($saved[$r['item_partner_idx']] ?? 0) === $pid;
+            if (!$unchanged && ($suppliers[$pid] ?? 'N') !== 'Y') {
+                $errors["partners.{$i}.partner_idx"] = ['구매처만 고를 수 있습니다.'];
+            }
+        }
+        if (collect($rows)->where('is_main', 'Y')->count() > 1) {
+            $errors['partners'] = ['주 거래처는 하나만 고르세요.'];
+        }
+        if ($errors) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        if ($rows && !collect($rows)->contains('is_main', 'Y')) {
+            $rows[0]['is_main'] = 'Y';
+        }
+        return $rows;
+    }
+
+    // 거래처 줄 맞추기 — 보낸 줄만 남긴다 ( 없는 줄은 지움 · idx 가 있으면 고침 · 없으면 새로 )
+    private function syncPartners(Item $item, array $rows): void {
+        $keep = [];
+        foreach ($rows as $i => $r) {
+            $row = (!empty($r['item_partner_idx'])
+                ? ItemPartner::where('item_idx', $item->item_idx)->find($r['item_partner_idx'])
+                : null) ?? new ItemPartner(['item_idx' => $item->item_idx]);
+            $row->fill([
+                'partner_idx'   => (int) $r['partner_idx'],
+                'is_main'       => $r['is_main'],
+                'contact_name'  => $r['contact_name'] ?? null,
+                'contact_phone' => $r['contact_phone'] ?? null,
+                'unit_price'    => ($r['unit_price'] ?? '') === '' ? null : $r['unit_price'],
+                'remark'        => $r['remark'] ?? null,
+                'sort_order'    => $i,
+            ]);
+            $row->item_idx = $item->item_idx;
+            $keep[] = $row;
+        }
+        // 지울 줄 먼저 ( 같은 거래처를 지웠다 다시 넣는 경우 unique 에 걸리지 않게 )
+        ItemPartner::where('item_idx', $item->item_idx)
+            ->whereNotIn('item_partner_idx', collect($keep)->pluck('item_partner_idx')->filter()->all())
+            ->delete();
+        foreach ($keep as $row) {
+            $row->save();
+        }
+    }
+
     private function syncLeadTime(Item $item, array $leadTime): void {
         $row = LeadTime::where('item_idx', $item->item_idx)->first();
 

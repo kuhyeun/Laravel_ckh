@@ -19,7 +19,7 @@
                     <BaseButton v-if="!readonly && !locked && itemIdx" size="sm" variant="secondary" :disabled="busy" @click="reload">품목 공정에서 다시 불러오기</BaseButton>
                 </template>
             </RoutingLinesEditor>
-            <p class="mt-2 text-xs text-gray-400">개당 시간 합계 <b class="text-gray-600">{{ totalCycleOf(lines) }}</b> 초</p>
+            <p class="mt-2 text-xs text-gray-400">개당 시간 합계 <b class="text-gray-600">{{ fmtMin(totalCycleOf(lines)) }}</b></p>
         </div>
 
         <ModalFooter>
@@ -35,7 +35,7 @@ import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
-import { totalCycleOf } from '@core/Components/Config/routingLines';
+import { totalCycleOf, fmtMin } from '@core/Components/Config/routingLines';
 import { showAlert } from '@core/Utils/message';
 
 const props = defineProps({

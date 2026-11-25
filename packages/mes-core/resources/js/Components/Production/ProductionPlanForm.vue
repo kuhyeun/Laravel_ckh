@@ -12,10 +12,10 @@
         <template v-else>
             <div class="grid grid-cols-4 gap-x-4 gap-y-3">
                 <FormField label="계획번호">
-                    <p class="h-9 flex items-center text-gray-700">{{ form.plan_no || '저장할 때 자동으로 매깁니다' }}</p>
+                    <p class="h-8 flex items-center text-gray-700">{{ form.plan_no || '저장할 때 자동으로 매깁니다' }}</p>
                 </FormField>
                 <FormField label="품목">
-                    <p class="h-9 flex items-center text-gray-700 truncate" :title="itemLabel">{{ itemLabel || '수주 줄을 담으면 정해집니다' }}</p>
+                    <p class="h-8 flex items-center text-gray-700 truncate" :title="itemLabel">{{ itemLabel || '수주 줄을 담으면 정해집니다' }}</p>
                 </FormField>
                 <FormField label="생산 시작일" required :error="errors.start_date">
                     <BaseDatePicker v-model="form.start_date" class="w-full" :disabled="readonly" @update:model-value="onStartChange" />
@@ -56,17 +56,17 @@
                             <tr v-if="!form.sources.length"><td :colspan="(!readonly && canChangeLines) ? 7 : 6" class="px-2 py-4 text-center text-gray-400">수주 줄을 담으세요.</td></tr>
                             <!-- 글자 칸은 입력 칸( sm 30px )과 같은 줄 높이 · 세로 가운데 — 오류 문구가 붙어도 글자는 입력 칸 높이에 맞춰 위쪽 -->
                             <tr v-for="(s, i) in form.sources" :key="s.sales_order_line_idx" class="border-t align-top">
-                                <td class="px-2 whitespace-nowrap py-1 leading-9">{{ s.order_no }} <span class="text-gray-400">#{{ s.line_no }}</span></td>
-                                <td class="px-2 truncate py-1 leading-9" :title="s.partner_name">{{ s.partner_name }}</td>
-                                <td class="px-2 text-center py-1 leading-9">{{ s.due_date }}</td>
-                                <td class="px-2 text-right text-gray-500 py-1 leading-9">{{ fmtNum(s.order_qty) }}</td>
+                                <td class="px-2 whitespace-nowrap py-1 leading-8">{{ s.order_no }} <span class="text-gray-400">#{{ s.line_no }}</span></td>
+                                <td class="px-2 truncate py-1 leading-8" :title="s.partner_name">{{ s.partner_name }}</td>
+                                <td class="px-2 text-center py-1 leading-8">{{ s.due_date }}</td>
+                                <td class="px-2 text-right text-gray-500 py-1 leading-8">{{ fmtNum(s.order_qty) }}</td>
                                 <td class="px-1.5 py-1">
                                     <BaseInput v-model="s.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="readonly" />
                                     <p v-if="srcErr(i)" class="text-[11px] text-red-500">{{ srcErr(i) }}</p>
                                 </td>
-                                <td class="px-2 text-right text-gray-500 py-1 leading-9">{{ fmtNum(s.directed_qty) }}</td>
-                                <td v-if="!readonly && canChangeLines" class="px-1 text-center py-1 leading-9">
-                                    <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="빼기" @click="removeSource(i)">✕</button>
+                                <td class="px-2 text-right text-gray-500 py-1 leading-8">{{ fmtNum(s.directed_qty) }}</td>
+                                <td v-if="!readonly && canChangeLines" class="px-1 text-center py-1 leading-8">
+                                    <button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500" title="빼기" @click="removeSource(i)">✕</button>
                                 </td>
                             </tr>
                         </tbody>

@@ -147,8 +147,8 @@
                                         <td v-if="SHOW_CALC" class="px-1.5 py-1">
                                             <BaseInput v-model="l.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" />
                                         </td>
-                                        <td v-if="canWrite" class="px-1.5 text-center py-1 leading-9">
-                                            <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="form.lines.splice(i, 1)">✕</button>
+                                        <td v-if="canWrite" class="px-1.5 text-center py-1 leading-8">
+                                            <button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="form.lines.splice(i, 1)">✕</button>
                                         </td>
                                     </tr>
                                     <!-- 대체 자재 : 소요는 대체 자재 기준 ( 출고 때 주 자재 대신 · 섞어서 낸다 — 자동 채움은 주 자재만 ) -->
@@ -170,7 +170,7 @@
                                                         <td :colspan="(canWrite ? 5 : 4) + (SHOW_CALC ? 2 : 0) - (SHOW_OP ? 0 : 1)" class="py-1 text-gray-400">대체 자재가 없습니다. 이 자재 대신 쓸 수 있는 자재를 넣으면 자재 출고 때 대신 · 섞어서 낼 수 있습니다.</td>
                                                     </tr>
                                                     <tr v-for="(sub, j) in l.substitutes" :key="sub._rowKey" class="align-top">
-                                                        <td class="text-gray-300 py-1 leading-9">└</td>
+                                                        <td class="text-gray-300 py-1 leading-8">└</td>
                                                         <td class="pr-1.5 py-1">
                                                             <ItemPicker v-model="sub.child_item_idx" :remote="{}" :exclude="[selectedItem?.item_idx, l.child_item_idx]" placeholder="대체 자재 선택"
                                                                 :can-create="canCreateItem" :disabled="!canWrite"
@@ -181,11 +181,11 @@
                                                             <QtyModeInput v-model:qty="sub.qty" v-model:yield="sub.yield_qty" :disabled="!canWrite" />
                                                             <p v-if="subError(i, j, 'qty') || subError(i, j, 'yield_qty')" class="text-[11px] text-red-500">{{ subError(i, j, 'yield_qty') || subError(i, j, 'qty') }}</p>
                                                         </td>
-                                                        <td v-if="SHOW_OP" class="pr-1.5 text-gray-400 py-1 leading-9">투입 지점은 주 자재와 같음</td>
+                                                        <td v-if="SHOW_OP" class="pr-1.5 text-gray-400 py-1 leading-8">투입 지점은 주 자재와 같음</td>
                                                         <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.calc_code" size="md" class="w-full" placeholder="계산식" :disabled="!canWrite" /></td>
                                                         <td v-if="SHOW_CALC" class="pr-1.5 py-1"><BaseInput v-model="sub.ext_n01" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" /></td>
-                                                        <td v-if="canWrite" class="text-center py-1 leading-9">
-                                                            <button type="button" class="inline-flex items-center h-9 align-top px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
+                                                        <td v-if="canWrite" class="text-center py-1 leading-8">
+                                                            <button type="button" class="inline-flex items-center h-8 align-top px-1.5 py-0.5 text-gray-400 hover:text-red-500" title="대체 자재 삭제" @click="l.substitutes.splice(j, 1)">✕</button>
                                                         </td>
                                                     </tr>
                                                 </tbody>

@@ -43,7 +43,7 @@
                 <div class="flex items-center justify-between px-3 py-2 border-b bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">
                         {{ form.routing_idx ? '라우팅 수정' : '라우팅 등록' }}
-                        <span v-if="totalCycle > 0" class="text-gray-400 font-normal">[ 개당 합계 {{ totalCycle }}초 ]</span>
+                        <span v-if="totalCycle > 0" class="text-gray-400 font-normal">[ 개당 합계 {{ fmtMin(totalCycle) }} ]</span>
                     </span>
                     <div class="flex items-center gap-2">
                         <BaseButton v-if="canWrite && form.routing_idx" size="sm" variant="secondary" :disabled="saving" title="이 라우팅을 쓰는 품목의 공정을 지금 저장된 구성으로 맞춥니다" @click="openApplyLater">품목에 반영</BaseButton>
@@ -102,7 +102,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
-import { toLinePayload, totalCycleOf, defaultLines } from '@core/Components/Config/routingLines';
+import { toLinePayload, totalCycleOf, defaultLines, fmtMin } from '@core/Components/Config/routingLines';
 import RoutingApplyModal from '@core/Components/Config/RoutingApplyModal.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';

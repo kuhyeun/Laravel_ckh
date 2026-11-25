@@ -118,7 +118,7 @@ input[type="checkbox"][disabled] ~ .custom-input {
 
 /* 전체 폰트/색 */
 .tui-grid-container {
-  font-family: 'Inter', system-ui, -apple-system, 'Malgun Gothic', sans-serif;
+  font-family: var(--app-font);   /* 11-25 : 글꼴 하나 ( core.css ) */
   font-size: 13px;
   color: theme('colors.gray.700');
 }

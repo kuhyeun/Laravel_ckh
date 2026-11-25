@@ -34,7 +34,7 @@
             <!-- 머리 -->
             <div class="grid grid-cols-6 gap-x-4 gap-y-3 shrink-0">
                 <FormField label="출하번호">
-                    <p class="h-9 flex items-center text-gray-700">{{ form.shipment_no || '저장할 때 매깁니다' }}</p>
+                    <p class="h-8 flex items-center text-gray-700">{{ form.shipment_no || '저장할 때 매깁니다' }}</p>
                 </FormField>
                 <FormField label="고객사" required :error="errors.partner_idx" class="col-span-2">
                     <PartnerSelect v-model="form.partner_idx" :options="ctx.partners" class="w-full" placeholder="고객사 선택" :current="{ partner_name: form.partner_name }" :disabled="!editable || lines.some(l => l.sales_order_line_idx)" @update:model-value="onPartnerChange" />

@@ -10,10 +10,13 @@ use MesCore\Http\Controller;
 use MesCore\Label\Models\BarcodeLabel;
 use MesCore\Label\Models\LabelTemplate;
 use MesCore\Label\Services\LabelService;
+use MesCore\Config\Services\SiteConfigService;
+use MesCore\Support\StampDesign;
 
 // 라벨 양식 ( 기준정보관리 > 라벨 양식 · Label/LabelTemplateManage · 11-18 )
 //   양식 = 이름 · 대상( LOT / SHIPMENT ) · 크기( mm ) · 격자 배치( design ) · 대상별 기본 양식 하나
 //   격자 : 행 × 열로 나누고 칸을 합쳐 칸마다 데이터 항목 · 고정 글자 · 코드( 바코드 / QR )를 둔다 — 그리기는 화면 LabelGridSheet
+//   도장( design.stamps · 11-25 ) : 라벨 위에 떠 있는 그림( 자사 직인 · 로고 · 올린 그림 ) — 라벨 왼쪽 위 기준 mm · 검사는 StampDesign
 //   design 이 없는 양식( 처음 들어 있는 2개 )은 예전 고정 배치로 그린다
 //   지우기 : 발행한 라벨이 있으면 못 지운다( 미사용으로 ) · 기본 양식은 못 지운다
 class LabelTemplateController extends Controller {
@@ -28,7 +31,7 @@ class LabelTemplateController extends Controller {
 
     public function __construct(private LabelService $labels, private PolicyService $policy) {}
 
-    public function list() {
+    public function list(SiteConfigService $site) {
         abort_unless($this->labels->enabled(), 404);
         $used = BarcodeLabel::selectRaw('label_template_idx, COUNT(*) as cnt')->groupBy('label_template_idx')->pluck('cnt', 'label_template_idx');
 
@@ -36,6 +39,7 @@ class LabelTemplateController extends Controller {
             'templates' => LabelTemplate::orderBy('target')->orderByRaw("is_default = 'Y' desc")->orderBy('label_template_idx')->get()
                 ->map(fn (LabelTemplate $t) => $this->row($t) + ['used_count' => (int) ($used[$t->label_template_idx] ?? 0)])->values(),
             'code_type' => $this->labels->codeType(),
+            'images'    => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],   // 미리 보기의 도장( 자사 직인 · 로고 · 11-25 )
         ]);
     }
 
@@ -60,7 +64,7 @@ class LabelTemplateController extends Controller {
         if ($t->exists && $t->target !== $v['target']) {
             throw ValidationException::withMessages(['target' => ['대상은 바꿀 수 없습니다. 새 양식으로 만드세요.']]);
         }
-        $design = isset($v['design']) ? $this->design($v['design'], $v['target']) : null;
+        $design = isset($v['design']) ? $this->design($v['design'], $v['target'], (float) $v['width_mm'], (float) $v['height_mm']) : null;
         if (!$t->exists && !$design) {
             throw ValidationException::withMessages(['design' => ['칸 배치를 만들어 주세요.']]);
         }
@@ -110,7 +114,7 @@ class LabelTemplateController extends Controller {
     }
 
     // 격자 배치 검사 · 정리 — 범위 · 겹침 · 항목 키 ( 모르는 값은 버리지 않고 422 )
-    private function design(array $d, string $target): array {
+    private function design(array $d, string $target, float $labelW, float $labelH): array {
         $fail = fn (string $msg) => throw ValidationException::withMessages(['design' => [$msg]]);
         $cols = (int) ($d['cols'] ?? 0);
         $rows = (int) ($d['rows'] ?? 0);
@@ -166,6 +170,7 @@ class LabelTemplateController extends Controller {
             'col_w' => $weights($d['col_w'] ?? [], $cols), 'row_h' => $weights($d['row_h'] ?? [], $rows),
             'border' => ($d['border'] ?? 'Y') === 'N' ? 'N' : 'Y',
             'cells' => $cells,
+            'stamps' => StampDesign::clean($d['stamps'] ?? [], $labelW, $labelH),   // 라벨 크기 안으로 ( 크기를 줄이면 도장도 안쪽으로 )
         ];
     }
 }

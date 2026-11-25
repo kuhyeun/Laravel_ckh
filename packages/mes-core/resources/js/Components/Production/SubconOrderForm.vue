@@ -14,7 +14,7 @@
         <template v-else>
             <div class="grid grid-cols-3 gap-x-4 gap-y-3">
                 <FormField label="발주번호">
-                    <p class="h-9 flex items-center gap-2 text-gray-700">
+                    <p class="h-8 flex items-center gap-2 text-gray-700">
                         {{ form.order_no || '저장할 때 자동으로 매깁니다' }}
                         <span v-if="isEdit" class="px-2 py-0.5 rounded text-xs text-white" :style="{ background: statusColor(form.status) }">{{ statusLabel(form.status) }}</span>
                     </p>
@@ -75,15 +75,15 @@
                                 <td :colspan="colCount" class="px-2 py-4 text-center text-gray-400">[+ 외주 공정] 으로 작업지시의 외주 공정을 담으세요.</td>
                             </tr>
                             <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
-                                <td class="px-2 text-center text-gray-400 py-1 leading-9">{{ i + 1 }}</td>
+                                <td class="px-2 text-center text-gray-400 py-1 leading-8">{{ i + 1 }}</td>
                                 <td class="px-2 py-1">
                                     <p class="truncate leading-4 pt-0.5" :title="l.wo_no">{{ l.wo_no }}</p>
                                     <p class="truncate leading-4 text-gray-500" :title="itemLabel(l)">{{ itemLabel(l) }}</p>
                                     <p v-if="lineError(i, 'work_order_op_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'work_order_op_idx') }}</p>
                                 </td>
-                                <td class="px-2 py-1 leading-9 font-medium truncate">{{ l.process_name }}</td>
-                                <td class="px-2 py-1 leading-9 text-right">{{ l.has_prev ? fmtNum(l.base_qty) : '—' }}</td>
-                                <td class="px-2 py-1 leading-9 text-right font-semibold" :class="l.available_qty > 0 ? 'text-blue-700' : 'text-gray-400'">{{ fmtNum(l.available_qty) }}</td>
+                                <td class="px-2 py-1 leading-8 font-medium truncate">{{ l.process_name }}</td>
+                                <td class="px-2 py-1 leading-8 text-right">{{ l.has_prev ? fmtNum(l.base_qty) : '—' }}</td>
+                                <td class="px-2 py-1 leading-8 text-right font-semibold" :class="l.available_qty > 0 ? 'text-blue-700' : 'text-gray-400'">{{ fmtNum(l.available_qty) }}</td>
                                 <td class="px-1.5 py-1">
                                     <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="readonly" />
                                     <p v-if="lineError(i, 'qty')" class="text-[11px] text-red-500">{{ lineError(i, 'qty') }}</p>
@@ -93,11 +93,11 @@
                                     <BaseInput v-model="l.unit_price" type="number" min="0" size="md" class="w-full text-right" :disabled="readonly" />
                                     <p v-if="lineError(i, 'unit_price')" class="text-[11px] text-red-500">{{ lineError(i, 'unit_price') }}</p>
                                 </td>
-                                <td class="px-2 py-1 leading-9 text-right">{{ fmtNum(lineAmount(l)) }}</td>
+                                <td class="px-2 py-1 leading-8 text-right">{{ fmtNum(lineAmount(l)) }}</td>
                                 <td class="px-1.5 py-1">
                                     <BaseDatePicker v-model="l.due_date" size="md" class="w-full" :disabled="readonly" />
                                 </td>
-                                <td class="px-2 py-1 leading-9 text-right">
+                                <td class="px-2 py-1 leading-8 text-right">
                                     <span :class="l.issued_qty > 0 ? 'text-gray-800' : 'text-gray-400'">{{ fmtNum(l.issued_qty) }}</span>
                                     <span class="text-gray-300"> / </span>
                                     <span :class="l.received_qty > 0 ? 'text-gray-800' : 'text-gray-400'">{{ fmtNum(l.received_qty) }}</span>

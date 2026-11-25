@@ -12,7 +12,7 @@
                 <BaseInput v-model="form.inspection_item_name" class="w-full" placeholder="예: 외경" :disabled="!canWrite" />
             </FormField>
             <FormField label="성격" required :error="errors.is_quantitative">
-                <div class="flex items-center gap-5 h-9">
+                <div class="flex items-center gap-5 h-8">
                     <label v-for="t in NATURE_OPTIONS" :key="t.value" class="inline-flex items-center gap-1.5" :class="!canWrite ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
                         <input type="radio" class="accent-blue-600" :value="t.value" v-model="form.is_quantitative" :disabled="!canWrite" />
                         <span>{{ t.label }}</span>

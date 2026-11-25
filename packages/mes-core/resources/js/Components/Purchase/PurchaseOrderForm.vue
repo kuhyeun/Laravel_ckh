@@ -39,25 +39,25 @@
                 <!-- 머리 -->
                 <div class="grid grid-cols-3 gap-x-4 gap-y-3">
                     <FormField label="발주번호">
-                        <p class="h-9 flex items-center text-gray-700">{{ form.order_no || '저장할 때 자동으로 매깁니다' }}</p>
+                        <p class="h-8 flex items-center text-gray-700">{{ form.order_no || '저장할 때 자동으로 매깁니다' }}</p>
                     </FormField>
                     <FormField label="발주일" required :error="errors.order_date">
                         <BaseDatePicker v-model="form.order_date" class="w-full" :disabled="readonly && !dateEditing" />
                     </FormField>
                     <FormField label="상태">
-                        <div v-if="editableStatus" class="h-9 flex items-center gap-4">
+                        <div v-if="editableStatus" class="h-8 flex items-center gap-4">
                             <label v-for="s in statusChoices" :key="s.value" class="inline-flex items-center gap-1.5" :class="readonly ? 'opacity-60' : 'cursor-pointer'">
                                 <input type="radio" class="accent-blue-600" :value="s.value" v-model="form.status" :disabled="readonly" />
                                 <span>{{ s.label }}</span>
                             </label>
                         </div>
-                        <div v-else class="h-9 flex items-center gap-2">
+                        <div v-else class="h-8 flex items-center gap-2">
                             <span class="px-2 py-0.5 rounded text-xs text-white" :style="{ background: orderStatusColor(form.status) }">{{ orderStatusLabel(form.status) }}</span>
                         </div>
                     </FormField>
 
                     <FormField label="구매처" required :error="errors.partner_idx">
-                        <PartnerSelect v-model="form.partner_idx" :options="partners" class="w-full" placeholder="구매처 선택" :current="{ partner_name: form.partner_name }" :disabled="readonly || orderLocked" />
+                        <PartnerSelect v-model="form.partner_idx" :options="partners" class="w-full" placeholder="구매처 선택" :current="{ partner_name: form.partner_name }" :disabled="readonly || orderLocked" @update:model-value="onPartnerChange" />
                     </FormField>
                     <FormField label="발주명" :error="errors.order_name">
                         <BaseInput v-model="form.order_name" class="w-full" placeholder="예: 10월 1차" :disabled="readonly" />
@@ -78,8 +78,8 @@
                         <div class="flex-1"></div>
                         <template v-if="!readonly">
                             <span class="text-xs text-gray-500">입고 예정일 일괄</span>
-                            <BaseDatePicker v-model="bulkDue" size="md" class="w-36" />
-                            <BaseButton size="sm" variant="secondary" :disabled="!bulkDue" @click="applyBulkDue">빈 칸에 적용</BaseButton>
+                            <!-- 날짜 + [빈 칸에 적용] 한 덩어리 ( DateApplyInput · 11-25 ) -->
+                            <DateApplyInput v-model="bulkDue" button-text="적용" @apply="applyBulkDue" />
                             <BaseButton size="sm" variant="secondary" @click="openOrderMaterials">+ 수주 자재에서</BaseButton>
                             <BaseButton size="sm" variant="secondary" @click="addLine">+ 품목</BaseButton>
                         </template>
@@ -121,14 +121,16 @@
                                     <td :colspan="colCount" class="px-2 py-4 text-center text-gray-400">품목을 추가하세요.</td>
                                 </tr>
                                 <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
-                                    <td class="px-2 text-center text-gray-400 py-1 leading-9">{{ i + 1 }}</td>
+                                    <td class="px-2 text-center text-gray-400 py-1 leading-8">{{ i + 1 }}</td>
                                     <td class="px-1.5 py-1">
                                         <ItemPicker v-model="l.item_idx" :remote="ITEM_REMOTE" show-type :disabled="readonly || l.locked || l.sources.length > 0" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @select="row => onItemPicked(l, row)" />
                                         <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
                                         <!-- 출처 수주 줄 ( 수주 자재에서 담은 줄 ) — 하나면 그대로 · 여럿이면 「수주 n건 ▸」 펼침 ( 11-24 ) -->
                                         <p v-if="l.sources.length === 1" class="mt-0.5 flex items-start gap-1 text-[11px] leading-4 text-blue-700">
                                             <span class="shrink-0 whitespace-nowrap px-1 rounded bg-blue-50">수주</span>
-                                            <span class="min-w-0 line-clamp-2 break-words" :title="l.sources[0].label">{{ l.sources[0].label }}</span>
+                                            <!-- 11-25 : 누르면 그 수주 ( 위에 겹쳐 열림 ) -->
+                                            <button v-if="l.sources[0].sales_order_idx" type="button" class="min-w-0 line-clamp-2 break-words text-left hover:underline" :title="`${l.sources[0].label} — 눌러서 수주 열기`" @click="openSourceOrder(l.sources[0])">{{ l.sources[0].label }}</button>
+                                            <span v-else class="min-w-0 line-clamp-2 break-words" :title="l.sources[0].label">{{ l.sources[0].label }}</span>
                                             <button v-if="!readonly" type="button" class="shrink-0 text-gray-400 hover:text-red-500" title="수주 연결 끊기 ( 일반 줄로 )" @click="unlinkSource(l, 0)">✕</button>
                                         </p>
                                         <div v-else-if="l.sources.length > 1" class="mt-0.5 text-[11px] leading-4 text-blue-700">
@@ -139,7 +141,8 @@
                                             </button>
                                             <ul v-if="l._open" class="mt-0.5 space-y-0.5">
                                                 <li v-for="(s, k) in l.sources" :key="s.sales_order_line_idx" class="flex items-start gap-1">
-                                                    <span class="min-w-0 flex-1 truncate" :title="s.label">· {{ s.label }}</span>
+                                                    <button v-if="s.sales_order_idx" type="button" class="min-w-0 flex-1 truncate text-left hover:underline" :title="`${s.label} — 눌러서 수주 열기`" @click="openSourceOrder(s)">· {{ s.label }}</button>
+                                                    <span v-else class="min-w-0 flex-1 truncate" :title="s.label">· {{ s.label }}</span>
                                                     <span class="shrink-0 text-gray-500">몫 {{ fmt(s.qty) }}</span>
                                                     <button v-if="!readonly" type="button" class="shrink-0 text-gray-400 hover:text-red-500" title="이 수주 연결만 끊기" @click="unlinkSource(l, k)">✕</button>
                                                 </li>
@@ -151,22 +154,22 @@
                                         <p v-if="lineError(i, 'qty')" class="text-[11px] text-red-500">{{ lineError(i, 'qty') }}</p>
                                         <p v-else-if="l.locked" class="text-[11px] text-gray-400">최소 {{ fmt(l.min_qty) }}</p>
                                     </td>
-                                    <td class="px-2 text-center text-gray-500 py-1 leading-9">{{ l.spec_unit }}</td>
+                                    <td class="px-2 text-center text-gray-500 py-1 leading-8">{{ l.spec_unit }}</td>
                                     <td class="px-1.5 py-1">
                                         <BaseInput v-model="l.unit_price" type="number" min="0" size="md" class="w-full text-right" :disabled="readonly" />
                                         <p v-if="lineError(i, 'unit_price')" class="text-[11px] text-red-500">{{ lineError(i, 'unit_price') }}</p>
                                     </td>
-                                    <td class="px-2 text-right text-gray-700 py-1 leading-9">{{ fmt(lineAmount(l)) }}</td>
+                                    <td class="px-2 text-right text-gray-700 py-1 leading-8">{{ fmt(lineAmount(l)) }}</td>
                                     <td class="px-1.5 py-1">
                                         <BaseDatePicker v-model="l.due_date" size="md" class="w-full" :disabled="readonly && !dateEditing" />
                                         <p v-if="lineError(i, 'due_date')" class="text-[11px] text-red-500">{{ lineError(i, 'due_date') }}</p>
                                     </td>
-                                    <td v-if="isEdit" class="px-2 text-right text-gray-500 py-1 leading-9">{{ fmt(l.received_qty) }}<span v-if="l.failed_qty" class="block text-[11px] text-red-500" title="수입검사 불합격 — 다시 받지 않습니다 ( 받음 + 불합격 = 완료 )">불합격 {{ fmt(l.failed_qty) }}</span></td>
+                                    <td v-if="isEdit" class="px-2 text-right text-gray-500 py-1 leading-8">{{ fmt(l.received_qty) }}<span v-if="l.failed_qty" class="block text-[11px] text-red-500" title="수입검사 불합격 — 다시 받지 않습니다 ( 받음 + 불합격 = 완료 )">불합격 {{ fmt(l.failed_qty) }}</span></td>
                                     <td class="px-1.5 py-1">
                                         <BaseInput v-model="l.remark" size="md" class="w-full" :disabled="readonly" />
                                     </td>
-                                    <td v-if="!readonly" class="px-1 text-center py-1 leading-9">
-                                        <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400" :disabled="l.locked" :title="l.locked ? '입고가 시작된 줄은 지울 수 없습니다' : '줄 삭제'" @click="removeLine(i)">✕</button>
+                                    <td v-if="!readonly" class="px-1 text-center py-1 leading-8">
+                                        <button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400" :disabled="l.locked" :title="l.locked ? '입고가 시작된 줄은 지울 수 없습니다' : '줄 삭제'" @click="removeLine(i)">✕</button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -226,6 +229,8 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import FormField from '@core/Components/Common/FormField.vue';
 import ModalFooter from '@core/Components/Common/ModalFooter.vue';
+import DateApplyInput from '@core/Components/Common/DateApplyInput.vue';
+import SalesOrderForm from '@core/Components/Order/SalesOrderForm.vue';
 import PurchaseOrderPreview from '@core/Components/Purchase/PurchaseOrderPreview.vue';
 import { showAlert } from '@core/Utils/message';
 import { ORDER_STATUSES, EDITABLE_STATUSES, orderStatusLabel, orderStatusColor } from '@core/Components/Purchase/purchaseCodes';
@@ -301,7 +306,7 @@ const today    = ref('');
 // 발주할 수 있는 품목 = 조달 구분이 구매인 것 ( 자재 · 제품 상관없이 — 품목관리 · 11-13 )
 const ITEM_REMOTE = { use: 'PURCHASE', extra: ['std_buy_price'] };
 
-// 품목을 고르면( 고른 줄 ) 단위 · 발주단가를 채운다
+// 품목을 고르면( 고른 줄 ) 단위 · 발주단가를 채운다 → 구매처가 정해져 있고 품목 「거래처」 탭에 그 구매처 단가가 있으면 그 단가로 ( 11-25 )
 function onItemPicked(line, it) {
     if (!it) return;
     line.item_spec  = it.spec;
@@ -309,6 +314,35 @@ function onItemPicked(line, it) {
     line.item_name  = it.item_name;
     line.spec_unit  = it.spec_unit;
     line.unit_price = Number(it.std_buy_price ?? 0);
+    if (it.item_idx) line.item_idx = it.item_idx;   // select 가 v-model 보다 먼저 올 수 있다 → 단가 찾기 전에 품목을 맞춰 둔다
+    applyPartnerPrices([line]);
+}
+
+// ---- 구매처 단가 ( 11-25 ) — 품목 「거래처」 탭의 이 구매처 단가 ----
+//   있는 품목만 바꾸고 없는 품목은 그대로 ( 기본 발주단가 · 손으로 고친 값 ) · 저장된 발주를 불러올 때는 부르지 않는다
+async function applyPartnerPrices(lines, { notify = false } = {}) {
+    const partnerIdx = form.partner_idx;
+    const targets = lines.filter(l => l.item_idx !== '' && l.item_idx !== null);
+    if (readonly.value || partnerIdx === '' || partnerIdx === null || !targets.length) return;
+    try {
+        const { data } = await window.axios.get(route('purchase.order.partnerPrices'), {
+            params: { partner_idx: partnerIdx, item_idxs: [...new Set(targets.map(l => Number(l.item_idx)))] },
+        });
+        if (form.partner_idx !== partnerIdx) return;   // 그 사이 구매처를 또 바꿨다
+        const prices = data.prices ?? {};
+        let n = 0;
+        targets.forEach(l => {
+            const p = prices[l.item_idx];
+            if (p !== undefined && p !== null && Number(l.unit_price) !== Number(p)) { l.unit_price = Number(p); n++; }
+        });
+        if (notify && n) showFlash(`구매처 단가 ${n}건을 적용했습니다.`);
+    } catch (e) {
+        // 단가를 못 불러와도 발주는 그대로 ( 손으로 넣으면 된다 )
+    }
+}
+// 구매처를 고르거나 바꾸면 : 이미 넣은 품목 줄에 그 구매처 단가를 ( 있는 것만 )
+function onPartnerChange() {
+    applyPartnerPrices(form.lines, { notify: true });
 }
 
 // ---- 줄 ----
@@ -339,7 +373,7 @@ function addFromOrders(rows, merged = false) {
         unit_price: Number(r.std_buy_price ?? 0), due_date: bulkDue.value || '' });
     if (!merged) {
         rows.forEach(r => form.lines.push({ ...base(r), qty: r.remain_qty > 0 ? String(r.remain_qty) : '',
-            sources: [{ sales_order_line_idx: r.sales_order_line_idx, qty: r.remain_qty, label: srcLabel(r) }] }));
+            sources: [{ sales_order_line_idx: r.sales_order_line_idx, sales_order_idx: r.sales_order_idx, qty: r.remain_qty, label: srcLabel(r) }] }));
     } else {
         const by = new Map();
         rows.forEach(r => { if (!by.has(r.item_idx)) by.set(r.item_idx, []); by.get(r.item_idx).push(r); });
@@ -349,12 +383,13 @@ function addFromOrders(rows, merged = false) {
             const need   = Math.max(0, Math.round((remain - (Number(g[0].stock_qty) || 0)) * 1e6) / 1e6);
             if (need <= 0) { enough.push(g[0].item_code); return; }
             form.lines.push({ ...base(g[0]), qty: String(need), _open: false,
-                sources: g.map(r => ({ sales_order_line_idx: r.sales_order_line_idx, qty: Math.max(0, Number(r.remain_qty) || 0), label: srcLabel(r) })) });
+                sources: g.map(r => ({ sales_order_line_idx: r.sales_order_line_idx, sales_order_idx: r.sales_order_idx, qty: Math.max(0, Number(r.remain_qty) || 0), label: srcLabel(r) })) });
         });
         if (enough.length) showFlash(`재고로 충분해 담지 않았습니다 : ${enough.join(', ')}`);
     }
     sortLines();
     errors.value = {};
+    applyPartnerPrices(form.lines);   // 구매처 단가 ( 11-25 )
 }
 // [계산] 탭에서 고른 자재 → 발주 줄 ( 수량 = 발주 수량 · 단가 = 발주단가 · 입고 예정일 = 일괄 ) — 이미 있는 품목은 패널이 거른다 · 빈 줄은 먼저 지운다
 const { showFlash } = useToast();
@@ -369,6 +404,7 @@ function addFromCalc(rows) {
     });
     sortLines();
     errors.value = {};
+    applyPartnerPrices(form.lines);   // 구매처 단가 ( 11-25 )
     showFlash(rows.length === 1 ? `발주 품목에 추가했습니다 : ${rows[0].item_code} ${rows[0].item_name}` : `자재 ${rows.length}건을 발주 품목에 추가했습니다.`);
 }
 // 품목 줄 정렬 ( 11-24 ) — 품번 → 입고 예정일 → 원래 순서 ( 수주 자재에서 가져온 줄도 수주가 아니라 품목별로 ) · 품목을 안 고른 줄은 뒤로
@@ -542,6 +578,16 @@ async function saveDateEdit() {
     } finally {
         saving.value = false;
     }
+}
+
+// 출처 수주 열기 ( 발주 줄의 「수주 SO-… #n」 — 11-25 ) — 보기 전용 ( 고치는 것은 수주관리에서 ) · 수주 창의 작업지시 칸에서 지시까지 이어서 볼 수 있다
+function openSourceOrder(s) {
+    const no = String(s.label ?? '').split(' ')[0];
+    modalStore.open(
+        SalesOrderForm,
+        { order: { sales_order_idx: s.sales_order_idx }, canWrite: false, modalTitle: `수주 상세 [ ${no} ]` },
+        { size: 'xl' }
+    );
 }
 
 function handleError(e, fallback) {

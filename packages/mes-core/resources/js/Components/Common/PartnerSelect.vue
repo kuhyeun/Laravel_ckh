@@ -8,7 +8,7 @@
     <div class="flex items-center gap-1">
         <BaseSelect :model-value="modelValue" :options="options" :size="size" :placeholder="placeholder" :disabled="disabled" class="flex-1 min-w-0"
             @update:model-value="v => emit('update:modelValue', v)" />
-        <button v-if="!allLabel && !disabled" type="button" class="shrink-0 h-9 w-9 inline-flex items-center justify-center rounded border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-blue-700" title="큰 창에서 찾기" @click="openBig">
+        <button v-if="!allLabel && !disabled" type="button" class="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded border border-gray-300 text-gray-500 hover:bg-gray-50 hover:text-blue-700" title="큰 창에서 찾기" @click="openBig">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" class="w-4 h-4"><circle cx="9" cy="9" r="6" /><path d="m14 14 4 4" stroke-linecap="round" /></svg>
         </button>
     </div>

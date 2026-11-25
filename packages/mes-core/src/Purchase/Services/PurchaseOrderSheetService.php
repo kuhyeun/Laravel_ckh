@@ -71,6 +71,8 @@ class PurchaseOrderSheetService {
                 'address'  => $site?->address ?: $o->partner?->address,   // 출고지가 없으면 거래처 주소
                 'tel'      => $site?->tel ?: ($o->partner?->tel ?: $contact?->phone),
                 'contact'  => $contact?->contact_name,
+                'fax'      => $o->partner?->fax,                                   // 11-25
+                'email'    => $o->partner?->email ?: $contact?->email,             // 거래처 이메일이 없으면 담당자
             ],
             'lines'      => $lines->all(),
             'total'      => (float) $o->total_amount,

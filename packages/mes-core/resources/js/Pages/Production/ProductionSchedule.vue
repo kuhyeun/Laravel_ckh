@@ -21,10 +21,10 @@
             <span class="text-xs text-gray-400">{{ loading ? '불러오는 중…' : `지시 공정 ${ops.length.toLocaleString()} 건` }}</span>
             <div class="flex-1"></div>
             <div class="inline-flex rounded border border-gray-300 overflow-hidden">
-                <button v-for="g in GROUPS" :key="g.key" type="button" class="px-3 h-9 text-sm" :class="group === g.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="group = g.key">{{ g.label }}</button>
+                <button v-for="g in GROUPS" :key="g.key" type="button" class="px-3 h-8 text-sm" :class="group === g.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="group = g.key">{{ g.label }}</button>
             </div>
             <div class="inline-flex rounded border border-gray-300 overflow-hidden">
-                <button v-for="v in VIEWS" :key="v.key" type="button" class="px-3 h-9 text-sm" :class="view === v.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="setView(v.key)">{{ v.label }}</button>
+                <button v-for="v in VIEWS" :key="v.key" type="button" class="px-3 h-8 text-sm" :class="view === v.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="setView(v.key)">{{ v.label }}</button>
             </div>
         </div>
 

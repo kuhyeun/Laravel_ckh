@@ -5,7 +5,7 @@
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-2 pb-2 shrink-0">
             <div class="inline-flex rounded border border-gray-300 overflow-hidden">
-                <button v-for="t in DIRS" :key="t.key" type="button" class="px-4 h-9 text-sm" :class="dir === t.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="changeDir(t.key)">{{ t.label }}</button>
+                <button v-for="t in DIRS" :key="t.key" type="button" class="px-4 h-8 text-sm" :class="dir === t.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="changeDir(t.key)">{{ t.label }}</button>
             </div>
             <span class="text-xs text-gray-400">{{ dir === 'forward' ? '자재 LOT 을 누르면 → 어느 지시 · 제품 · 출하로 갔는지' : '생산 · 출하 LOT 을 누르면 → 어떤 자재 · 반제품 · 입고에서 왔는지' }}</span>
         </div>

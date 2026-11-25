@@ -8,26 +8,28 @@
                 <!-- 머리 : 거래일자 · 제목 / 공급받는자 · 공급자 — 품목 표와 칸 격자를 따로 둔다 -->
                 <table class="inv" :class="copy.cls">
                     <colgroup>
-                        <!-- 공급받는자 : 세로 제목 · 라벨 · 값 / 공급자 : 세로 제목 · 라벨 · 값 · 라벨 · 값 -->
-                        <col style="width: 4%"><col style="width: 10%"><col style="width: 29%">
+                        <!-- 공급받는자 : 세로 제목 · 라벨 · 값 · 라벨 · 값( 상호 줄만 성명 — 다른 줄은 값이 3칸 ) / 공급자 : 세로 제목 · 라벨 · 값 · 라벨 · 값 -->
+                        <col style="width: 4%"><col style="width: 10%"><col style="width: 15%"><col style="width: 6%"><col style="width: 8%">
                         <col style="width: 4%"><col style="width: 10%"><col style="width: 20%"><col style="width: 8%"><col style="width: 15%">
                     </colgroup>
                     <tr class="h-title">
                         <td colspan="2" class="c lbl-sm">거 래 일 자<br><span class="val">{{ page.doc.date }}</span></td>
-                        <td colspan="6" class="title"><img v-if="images.logo" :src="images.logo" alt="" class="logo">거 래 명 세 서 <span class="sub">( {{ copy.label }} )</span>
+                        <td colspan="8" class="title"><img v-if="images.logo" :src="images.logo" alt="" class="logo">거 래 명 세 서 <span class="sub">( {{ copy.label }} )</span>
                             <span v-if="page.of > 1" class="pageno">{{ page.no }} / {{ page.of }}</span></td>
                     </tr>
                     <tr class="h-info">
                         <td rowspan="4" class="vlabel">공<br>급<br>받<br>는<br>자</td>
                         <td class="c lbl">상 호<br><span class="lbl-sm">( 법인명 )</span></td>
                         <td class="c val">{{ page.doc.receiver.name }}</td>
+                        <td class="c lbl">성 명</td>
+                        <td class="c val">{{ page.doc.receiver.ceo_name }}</td>
                         <td rowspan="4" class="vlabel zone-l">공<br>급<br>자</td>
                         <td class="c lbl">등록번호</td>
                         <td colspan="3" class="c val big">{{ page.doc.supplier.biz_no }}</td>
                     </tr>
                     <tr class="h-info">
                         <td class="c lbl">사업장<br>주 소</td>
-                        <td class="c val small">{{ page.doc.receiver.address }}</td>
+                        <td colspan="3" class="c val small">{{ page.doc.receiver.address }}</td>
                         <td class="c lbl">상 호<br><span class="lbl-sm">( 법인명 )</span></td>
                         <td class="c val">{{ page.doc.supplier.name }}</td>
                         <td class="c lbl">성 명</td>
@@ -35,13 +37,13 @@
                     </tr>
                     <tr class="h-info">
                         <td class="c lbl">전화번호</td>
-                        <td class="c val">{{ page.doc.receiver.tel }}</td>
+                        <td colspan="3" class="c val">{{ page.doc.receiver.tel }}</td>
                         <td class="c lbl">사업장<br>주 소</td>
                         <td colspan="3" class="c val small">{{ page.doc.supplier.address }}</td>
                     </tr>
                     <tr class="h-info">
                         <td class="c lbl">합계금액<br><span class="lbl-sm">{{ vatLabel(page.doc.vat) }}</span></td>
-                        <td class="c val big">₩{{ won(page.doc.total) }}</td>
+                        <td colspan="3" class="c val big">₩{{ won(page.doc.total) }}</td>
                         <td class="c lbl">전 화</td>
                         <td class="c val small">{{ page.doc.supplier.tel }}</td>
                         <td class="c lbl">팩 스</td>

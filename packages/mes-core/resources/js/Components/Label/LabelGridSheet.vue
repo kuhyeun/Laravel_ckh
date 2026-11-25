@@ -1,7 +1,9 @@
 <!-- 격자 배치 라벨 한 장 ( 11-18 ) — 양식의 design 대로 그린다 ( labelDesign.js )
      - 크기는 mm · 글자는 pt ( 화면 미리보기와 인쇄가 같다 ) · 열 너비 / 행 높이는 비율
      - 칸 : 데이터 항목 · 고정 글자 · 코드( 바코드 / QR — 번호 글자를 아래에 같이 둘 수 있다 )
-     - editable : 양식 편집 화면 — 칸을 누르면 pick( 칸, 이벤트 ) · selected( 'r:c' 모음 )인 칸을 칠한다 · 선이 없어도 점선으로 칸을 보인다 -->
+     - editable : 양식 편집 화면 — 칸을 누르면 pick( 칸, 이벤트 ) · selected( 'r:c' 모음 )인 칸을 칠한다 · 선이 없어도 점선으로 칸을 보인다
+     - 도장( design.stamps · 11-25 ) : 라벨 위에 떠 있는 그림 — 라벨 왼쪽 위 기준 mm ( StampLayer ) · 자사 직인 · 로고 = images ( 없으면 label.images — LabelService::sheets )
+       stampEdit : 양식 편집 화면의 「도장」 탭 — 끌어서 옮기기 · 크기 · 누른 도장은 stamp-select( id ) -->
 <template>
     <div class="lg-sheet" :class="{ 'lg-border': design.border !== 'N', 'lg-edit': editable }" :style="sheetStyle">
         <div v-for="t in tiles" :key="`${t.r}:${t.c}`" class="lg-cell"
@@ -19,6 +21,8 @@
             </div>
             <span v-else-if="t.cell?.type" class="lg-text">{{ t.cell.type === 'TEXT' ? t.cell.text : fieldValue(label, t.cell.field) }}</span>
         </div>
+        <StampLayer :stamps="design.stamps" :width-mm="Number(label.width_mm) || 100" :height-mm="Number(label.height_mm) || 72" :images="images ?? label.images ?? {}"
+            :editable="stampEdit" :selected="stampSel" @select="id => $emit('stamp-select', id)" />
     </div>
 </template>
 
@@ -26,6 +30,7 @@
 import { computed } from 'vue';
 import Barcode from '@core/Components/Label/Barcode.vue';
 import QrCode from '@core/Components/Label/QrCode.vue';
+import StampLayer from '@core/Components/Common/StampLayer.vue';
 import { tilesOf, fieldValue } from '@core/Components/Label/labelDesign';
 
 const props = defineProps({
@@ -33,8 +38,11 @@ const props = defineProps({
     design:   { type: Object, required: true },
     editable: { type: Boolean, default: false },
     selected: { type: Object, default: null },    // Set< 'r:c' >
+    images:   { type: Object, default: null },    // { seal, logo } data URI — 도장의 자사 그림 ( 편집 화면 · 11-25 )
+    stampEdit: { type: Boolean, default: false }, // 도장 끌기 ( 편집 화면 )
+    stampSel: { type: String, default: null },    // 고른 도장 id
 });
-defineEmits(['pick']);
+defineEmits(['pick', 'stamp-select']);
 
 const tiles = computed(() => tilesOf(props.design));
 const code  = computed(() => String(props.label.barcode_no ?? ''));
@@ -55,7 +63,7 @@ const cellStyle = (t) => ({
 </script>
 
 <style scoped>
-.lg-sheet { box-sizing: border-box; display: grid; padding: 1.5mm; background: #fff; color: #000; overflow: hidden; font-family: 'Malgun Gothic', sans-serif; line-height: 1.15; }
+.lg-sheet { position: relative; box-sizing: border-box; display: grid; padding: 1.5mm; background: #fff; color: #000; overflow: hidden; font-family: 'Malgun Gothic', sans-serif; line-height: 1.15; }
 .lg-cell { box-sizing: border-box; display: flex; align-items: center; min-width: 0; min-height: 0; overflow: hidden; padding: 0.3mm 1mm; }
 /* 칸 선 : 왼쪽 · 위는 종이가, 오른쪽 · 아래는 칸이 — 겹쳐서 두꺼워지지 않게 */
 .lg-border { background-clip: padding-box; }

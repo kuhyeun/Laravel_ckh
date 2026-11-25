@@ -25,5 +25,11 @@ export const defaultLines = (processes) => {
     }] : [];
 };
 
-// 개당 시간 합계 ( 1개 생산 표준시간 )
+// 개당 시간 합계 ( 1개 생산 표준시간 · 초 )
 export const totalCycleOf = (lines) => lines.reduce((s, l) => s + (Number(l.cycle_time_sec) || 0), 0);
+
+// 개당 시간 : 화면은 분 · 저장 · 일정 계산은 초 그대로 ( 11-25 — 현장은 분 단위로 잡는 경우가 많다 ) — 1.5 분 = 90 초
+export const secToMin = (sec) => Math.round((Number(sec) || 0) / 60 * 100) / 100;
+export const minToSec = (min) => Math.round((Number(min) || 0) * 60 * 100) / 100;
+// 표시용 "1.5 분" ( 소수 둘째 자리까지 )
+export const fmtMin = (sec) => `${secToMin(sec).toLocaleString(undefined, { maximumFractionDigits: 2 })} 분`;

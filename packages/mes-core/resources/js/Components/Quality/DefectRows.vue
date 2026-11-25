@@ -37,8 +37,8 @@
                             <BaseInput v-model="r.reason" class="w-full" maxlength="200" :placeholder="placeholder" :disabled="disabled" />
                             <p v-if="err(i, 'reason')" class="text-[11px] text-red-500 leading-4">{{ err(i, 'reason') }}</p>
                         </td>
-                        <td v-if="!disabled" class="px-1 py-1 leading-9 text-center">
-                            <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="remove(i)">✕</button>
+                        <td v-if="!disabled" class="px-1 py-1 leading-8 text-center">
+                            <button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="remove(i)">✕</button>
                         </td>
                     </tr>
                 </tbody>

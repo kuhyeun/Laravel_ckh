@@ -6,7 +6,7 @@
        · 바꿨다가 돌아오면 그 방식에 넣어 둔 값이 그대로 ( 이 칸이 기억한다 ) -->
 <template>
     <div class="flex items-center gap-1">
-        <button type="button" class="shrink-0 h-9 w-12 rounded border text-[11px] leading-none transition-colors disabled:opacity-60"
+        <button type="button" class="shrink-0 h-8 w-12 rounded border text-[11px] leading-none transition-colors disabled:opacity-60"
             :class="yieldMode ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
             :disabled="disabled"
             :title="yieldMode ? '생산 가능 수량 — 자재 1개로 만드는 제품 수 ( 필요량 = 수량 ÷ 이 값을 올림 ). 누르면 소요량으로' : '소요량 — 제품 1개에 드는 양. 누르면 생산 가능 수량( 자재 1개로 제품 N개 )으로'"

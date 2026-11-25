@@ -22,7 +22,7 @@
                     <BaseInput v-model="form.process_name" class="w-full" :disabled="readonly" />
                 </FormField>
                 <FormField label="공정 구분" required :error="errors.process_type" class="col-span-2">
-                    <div class="flex items-center gap-5 h-9">
+                    <div class="flex items-center gap-5 h-8">
                         <label v-for="t in PROCESS_TYPES" :key="t.value" class="inline-flex items-center gap-1.5" :class="readonly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
                             <input type="radio" class="accent-blue-600" :value="t.value" v-model="form.process_type" :disabled="readonly" />
                             <span>{{ t.label }}</span>
@@ -44,7 +44,7 @@
                      검사 공정은 일반 검사 하나뿐이라 검사 종류 칸은 없앴다 -->
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">초 · 중 · 종 검사 <span class="text-xs text-gray-400">( 생산 공정만 · 기본값 )</span></label>
-                    <div class="flex items-center gap-4 h-9" :class="iflOk ? '' : 'opacity-40'">
+                    <div class="flex items-center gap-4 h-8" :class="iflOk ? '' : 'opacity-40'">
                         <label v-for="k in IFL_KEYS" :key="k.key" class="inline-flex items-center gap-1.5 cursor-pointer">
                             <input type="checkbox" class="base-checkbox w-4 h-4" :checked="form[k.key] === 'Y'" :disabled="readonly || !iflOk" @change="e => form[k.key] = e.target.checked ? 'Y' : 'N'" />
                             {{ k.label }}
@@ -99,15 +99,15 @@
                                     <BaseSelect v-model="r.equipment_idx" :options="rowEquipmentOptions(r)" size="md" class="w-full" placeholder="설비 선택" :disabled="readonly" />
                                     <p v-if="rowError(i, 'equipment_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'equipment_idx') }}</p>
                                 </td>
-                                <td class="px-1.5 py-1 text-center leading-9">
+                                <td class="px-1.5 py-1 text-center leading-8">
                                     <input type="radio" class="accent-blue-600" :checked="r.is_default === 'Y'" :disabled="readonly" @change="setDefault(i)" />
                                 </td>
                                 <td class="px-1.5 py-1">
                                     <BaseInput v-model="r.setup_loss" type="number" min="0" :empty-value="0" size="md" class="w-full text-right" :disabled="readonly" />
                                     <p v-if="rowError(i, 'setup_loss')" class="text-[11px] text-red-500">{{ rowError(i, 'setup_loss') }}</p>
                                 </td>
-                                <td v-if="!readonly" class="px-1.5 text-center py-1 leading-9">
-                                    <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="행 삭제" @click="removeEquipment(i)">✕</button>
+                                <td v-if="!readonly" class="px-1.5 text-center py-1 leading-8">
+                                    <button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500" title="행 삭제" @click="removeEquipment(i)">✕</button>
                                 </td>
                             </tr>
                         </tbody>

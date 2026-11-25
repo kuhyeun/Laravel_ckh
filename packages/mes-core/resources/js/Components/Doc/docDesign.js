@@ -1,10 +1,11 @@
 // 문서 양식 ( A4 — 발주서 · 출하지시서 · 11-18 ) — 편집 화면( Config/DocTemplateManage ) · 그리기( DocSheet ) · 인쇄( DocPages ) 가 같이 쓴다
-//   design : { margin_mm, head : 격자, table : { rows_per_page, row_h_mm, head_h_mm, size, sum, columns: [ { field, label, width, align, wrap } ] }, foot : 격자 }
+//   design : { margin_mm, head : 격자, table : { rows_per_page, row_h_mm, head_h_mm, size, sum, columns: [ { field, label, width, align, wrap } ] }, foot : 격자, stamps }
 //   열 wrap ( 11-24 ) : 칸 폭을 넘으면 아랫줄로 · 그 행만 높아진다 → 장은 줄 수가 아니라 높이로 나눈다( paginate · measureLines )
-//   격자   : { height_mm, cols, rows, col_w[], row_h[], border, cells: [ { r, c, rs, cs, type, field, text, image, size, bold, align, wrap, bg } ] }
-//            type = FIELD( 항목 ) · TEXT( 글자 ) · IMAGE( logo · seal ) · null( 빈 칸 )
+//   격자   : { height_mm, cols, rows, col_w[], row_h[], border, cells: [ { r, c, rs, cs, type, field, text, size, bold, align, wrap, bg } ] }
+//            type = FIELD( 항목 ) · TEXT( 글자 ) · null( 빈 칸 ) — 예전 그림 칸( IMAGE )은 없앴다 ( 11-25 · 빈 칸으로 그린다 )
+//   stamps ( 11-25 ) : 장 위에 떠 있는 도장 [ { id, src, x_mm, y_mm, w_mm, h_mm } ] — 장 왼쪽 위( 여백 포함 ) 기준 · Common/stamps.js · StampLayer
 //   항목 · 열 키는 서버 DocTemplateController::FIELDS · COLUMNS 와 같게
-import { fmtNum, withSpec } from '@core/Utils/format';
+import { fmtNum, withSpec, koreanAmount } from '@core/Utils/format';
 
 export const MAX_COLS = 12;
 export const MAX_ROWS = 16;
@@ -23,15 +24,18 @@ const OURS = [
     { key: 'our_name', label: '우리 회사 · 상호' }, { key: 'our_biz_no', label: '우리 회사 · 등록번호' }, { key: 'our_ceo', label: '우리 회사 · 대표자' },
     { key: 'our_address', label: '우리 회사 · 주소' }, { key: 'our_tel', label: '우리 회사 · 전화' }, { key: 'our_fax', label: '우리 회사 · 팩스' },
 ];
+// 합계금액 한글포함 ( 11-25 ) — '₩ 11,970,000 ( 금 천백구십칠만 원 )' · 「합계금액」은 그대로
+const TOTAL_KOR = [{ key: 'total_with_kor', label: '합계금액 ( 한글포함 )' }];
 const PRINT = [{ key: 'writer', label: '출력한 사람' }, { key: 'print_date', label: '출력일' }, { key: 'page_no', label: '쪽 번호 ( 1 / 2 )' }];
 
 // 머리 · 아래 영역의 항목
 export const FIELDS = {
     PURCHASE_ORDER: [
         { key: 'order_no', label: '발주번호' }, { key: 'order_date', label: '발주일' }, { key: 'order_name', label: '발주명' },
-        { key: 'due_date', label: '납기일 ( 가장 이른 )' }, { key: 'total', label: '합계금액' }, { key: 'remark', label: '비고' },
+        { key: 'due_date', label: '납기일 ( 가장 이른 )' }, { key: 'total', label: '합계금액' }, ...TOTAL_KOR, { key: 'remark', label: '비고' },
         { key: 'partner_name', label: '구매처 · 상호' }, { key: 'partner_biz_no', label: '구매처 · 등록번호' }, { key: 'partner_ceo', label: '구매처 · 대표자' },
         { key: 'partner_address', label: '구매처 · 주소' }, { key: 'partner_tel', label: '구매처 · 전화' }, { key: 'partner_contact', label: '구매처 · 담당자' },
+        { key: 'partner_fax', label: '구매처 · 팩스' }, { key: 'partner_email', label: '구매처 · 이메일' },
         ...OURS, ...PRINT,
     ],
     SHIPMENT_ORDER: [
@@ -40,6 +44,7 @@ export const FIELDS = {
         { key: 'total_qty', label: '수량 합계' }, { key: 'remark', label: '비고' },
         { key: 'partner_name', label: '고객사 · 상호' }, { key: 'partner_biz_no', label: '고객사 · 등록번호' }, { key: 'partner_ceo', label: '고객사 · 대표자' },
         { key: 'partner_tel', label: '고객사 · 전화' }, { key: 'partner_contact', label: '고객사 · 담당자' },
+        { key: 'partner_fax', label: '고객사 · 팩스' }, { key: 'partner_email', label: '고객사 · 이메일' },
         ...OURS, ...PRINT,
     ],
     // 검사기준서 : 품목 · LOT · 검사자 · 검사일 같은 칸은 「글자」 칸 + 빈 칸으로 만들어 손으로 적는다
@@ -50,9 +55,10 @@ export const FIELDS = {
     // 외주 발주서 ( 11-23 ) : 수신 = 외주처
     SUBCON_ORDER: [
         { key: 'order_no', label: '발주번호' }, { key: 'order_date', label: '발주일' }, { key: 'due_date', label: '납기' }, { key: 'manager_name', label: '담당' },
-        { key: 'total', label: '합계금액' }, { key: 'total_qty', label: '수량 합계' }, { key: 'remark', label: '비고' },
+        { key: 'total', label: '합계금액' }, ...TOTAL_KOR, { key: 'total_qty', label: '수량 합계' }, { key: 'remark', label: '비고' },
         { key: 'partner_name', label: '외주처 · 상호' }, { key: 'partner_biz_no', label: '외주처 · 등록번호' }, { key: 'partner_ceo', label: '외주처 · 대표자' },
         { key: 'partner_address', label: '외주처 · 주소' }, { key: 'partner_tel', label: '외주처 · 전화' }, { key: 'partner_contact', label: '외주처 · 담당자' },
+        { key: 'partner_fax', label: '외주처 · 팩스' }, { key: 'partner_email', label: '외주처 · 이메일' },
         ...OURS, ...PRINT,
     ],
     // 검사성적서 ( 11-23 ) : 저장된 검사 기록 — 문서 번호 = 입고번호 / 작업지시 · 공정 / 출하번호 · 거래처 = 구매처 / 고객사 ( 공정은 빈 칸 )
@@ -101,6 +107,11 @@ export const COLUMNS = {
 export const columnDef = (type, key) => COLUMNS[type]?.find(c => c.key === key);
 
 const won = (v) => v === null || v === undefined || v === '' ? '' : fmtNum(v, 0);
+// 합계금액 한글포함 ( 금액이 없으면 빈 칸 )
+const totalKor = (v) => {
+    const k = koreanAmount(v);
+    return { total_with_kor: k ? `₩ ${won(v)} ( 금 ${k} 원 )` : '' };
+};
 
 // 서버 문서( sheets 한 건 ) → 머리 · 아래 영역의 값 ( 쪽 번호는 DocSheet 가 장마다 )
 export function fieldValues(type, doc, ctx = {}) {
@@ -109,6 +120,7 @@ export function fieldValues(type, doc, ctx = {}) {
         remark: doc.remark ?? '',
         our_name: s.name, our_biz_no: s.biz_no, our_ceo: s.ceo_name, our_address: s.address, our_tel: s.tel, our_fax: s.fax,
         partner_name: r.name, partner_biz_no: r.biz_no, partner_ceo: r.ceo_name, partner_address: r.address, partner_tel: r.tel, partner_contact: r.contact,
+        partner_fax: r.fax, partner_email: r.email,   // 11-25
         writer: ctx.writer ?? '', print_date: ctx.today ?? '',
     };
     if (type === 'INSPECTION_SPEC') {
@@ -124,13 +136,13 @@ export function fieldValues(type, doc, ctx = {}) {
     }
     if (type === 'SUBCON_ORDER') {
         return { ...base, order_no: doc.order_no, order_date: doc.order_date, due_date: doc.due_date ?? '', manager_name: doc.manager_name ?? '',
-            total: `₩ ${won(doc.total)}`, total_qty: fmtNum(doc.total_qty) };
+            total: `₩ ${won(doc.total)}`, ...totalKor(doc.total), total_qty: fmtNum(doc.total_qty) };
     }
     if (type === 'SHIPMENT_ORDER') {
         return { ...base, shipment_no: doc.shipment_no, plan_date: doc.plan_date, shipped_at: doc.shipped_at, status_label: doc.status_label,
             manager_name: doc.manager_name, ship_address: doc.ship_address, total_qty: fmtNum(doc.total_qty) };
     }
-    return { ...base, order_no: doc.order_no, order_date: doc.order_date, order_name: doc.order_name, due_date: doc.due_date, total: `₩ ${won(doc.total)}` };
+    return { ...base, order_no: doc.order_no, order_date: doc.order_date, order_name: doc.order_name, due_date: doc.due_date, total: `₩ ${won(doc.total)}`, ...totalKor(doc.total) };
 }
 
 // 품목 줄 한 칸의 글자
@@ -207,12 +219,14 @@ export function neededHeight(d) {
 }
 
 // ---- 처음 배치 ----
-const cell = (r, c, cs, rs, more) => ({ r, c, rs, cs, type: null, field: null, text: null, image: null, size: 9, bold: false, align: 'left', wrap: false, bg: false, ...more });
+const cell = (r, c, cs, rs, more) => ({ r, c, rs, cs, type: null, field: null, text: null, size: 9, bold: false, align: 'left', wrap: false, bg: false, ...more });
 const cap  = (r, c, text, more = {}) => cell(r, c, 1, 1, { type: 'TEXT', text, align: 'center', bold: true, bg: true, ...more });
 const val  = (r, c, field, cs = 1, more = {}) => cell(r, c, cs, 1, { type: 'FIELD', field, ...more });
 const col  = (type, field, width, more = {}) => { const d = columnDef(type, field); return { field, label: d.head, width, align: d.align, wrap: defaultWrap(field), ...more }; };
 
-export function starterDesign(type) {
+// 처음 배치 = 격자 · 표 + 도장 없음
+export const starterDesign = (type) => ({ ...starterLayout(type), stamps: [] });
+function starterLayout(type) {
     if (type === 'SUBCON_ORDER') {
         const T = 'SUBCON_ORDER';
         return {
@@ -340,7 +354,7 @@ export const SAMPLE = {
     INSPECTION_SPEC: SPEC_SAMPLE,
     SUBCON_ORDER: {
         order_no: 'SCO-261123-001', order_date: '2026-11-23', due_date: '2026-11-30', manager_name: '이생산', remark: '도금 두께 8㎛ 이상', total: 640000, total_qty: 320,
-        supplier: OUR, receiver: { name: '예시 도금', biz_no: '333-44-55555', ceo_name: '박외주', address: '경기도 안산시 예시로 9', tel: '031-555-6666', contact: '김담당' },
+        supplier: OUR, receiver: { name: '예시 도금', biz_no: '333-44-55555', ceo_name: '박외주', address: '경기도 안산시 예시로 9', tel: '031-555-6666', contact: '김담당', fax: '031-555-6667', email: 'order@example-plating.co.kr' },
         lines: [
             { no: 1, wo_no: 'WO-261117-001-02', item_code: 'PLT-210', item_name: '도금 플레이트', item_spec: '120 × 80', unit: 'EA', process_name: '도금', qty: 300, unit_price: 2000, amount: 600000, due_date: '2026-11-28', remark: '' },
             { no: 2, wo_no: 'WO-261120-005-01', item_code: 'PNL-330', item_name: '전면 패널', item_spec: '400 × 300', unit: 'EA', process_name: '도금', qty: 20, unit_price: 2000, amount: 40000, due_date: '2026-11-30', remark: '' },
@@ -358,7 +372,7 @@ export const SAMPLE = {
     },
     PURCHASE_ORDER: {
         order_no: 'PO-261118-001', order_date: '2026-11-18', order_name: '11월 3주 원자재', due_date: '2026-11-25', remark: '비고란 예시 텍스트 입니다', total: 1870000,
-        supplier: OUR, receiver: { name: '예시 공급처', biz_no: '222-33-44444', ceo_name: '김공급', address: '인천시 남동구 예시대로 45', tel: '032-111-2222', contact: '박담당' },
+        supplier: OUR, receiver: { name: '예시 공급처', biz_no: '222-33-44444', ceo_name: '김공급', address: '인천시 남동구 예시대로 45', tel: '032-111-2222', contact: '박담당', fax: '032-111-2223', email: 'sales@example-supply.co.kr' },
         lines: [
             { no: 1, item_code: 'MT-01', item_name: '자재 - 1', item_spec: 'Φ20 × 3000', unit: 'EA', qty: 100, unit_price: 12000, amount: 1200000, due_date: '0000-00-00', remark: '' },
             { no: 2, item_code: 'MT-02', item_name: '자재 - 2', item_spec: '500 × 200 x 70', unit: 'EA', qty: 150, unit_price: 31000, amount: 620000, due_date: '0000-00-00', remark: '' },
@@ -366,7 +380,7 @@ export const SAMPLE = {
     },
     SHIPMENT_ORDER: {
         shipment_no: 'SH-261118-001', plan_date: '2026-11-19', shipped_at: '', status_label: '출하대기', manager_name: '이출하', ship_address: '충남 아산시 예시산단로 77 2공장', remark: '오전 중 상차', total_qty: 180,
-        supplier: OUR, receiver: { name: '예시 고객사', biz_no: '555-66-77777', ceo_name: '최고객', tel: '041-333-4444', contact: '정담당' },
+        supplier: OUR, receiver: { name: '예시 고객사', biz_no: '555-66-77777', ceo_name: '최고객', tel: '041-333-4444', contact: '정담당', fax: '041-333-4445', email: 'buyer@example-customer.co.kr' },
         lines: [
             { no: 1, item_code: 'PD-01', item_name: '완제품 예시', item_spec: '100 × 50 × 10', unit: 'EA', qty: 100, lot_nos: 'PD-01_2611_002', warehouse: '제품 창고', order_no: 'SO-261110-003', customer_po_no: 'PO-88120', remark: '' },
             { no: 2, item_code: 'PD-02', item_name: '브라켓', item_spec: 'L형', unit: 'EA', qty: 80, lot_nos: 'PD-02_2611_005', warehouse: '제품 창고', order_no: 'SO-261110-003', customer_po_no: 'PO-88120', remark: '' },

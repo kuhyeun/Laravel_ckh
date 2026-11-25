@@ -27,7 +27,7 @@
             <!-- 외주 발주 ( 11-23 ) : 발주서에서 열면 고정 · 아니면 그 외주처의 발주를 골라도 되고 안 골라도 된다 -->
             <div v-if="orderLine || orderOptions.length > 1" class="col-span-2">
                 <label class="lbl">외주 발주</label>
-                <p v-if="orderLine" class="h-9 flex items-center">{{ orderLine.order_no }} <span class="ml-2 text-xs text-gray-500">발주 {{ fmtNum(orderLine.qty) }} · 단가 {{ fmtNum(orderLine.unit_price) }}</span></p>
+                <p v-if="orderLine" class="h-8 flex items-center">{{ orderLine.order_no }} <span class="ml-2 text-xs text-gray-500">발주 {{ fmtNum(orderLine.qty) }} · 단가 {{ fmtNum(orderLine.unit_price) }}</span></p>
                 <BaseSelect v-else v-model="form.order_line_idx" :options="orderOptions" class="w-full" />
             </div>
             <div>

@@ -26,13 +26,13 @@
                 </FormField>
                 <FormField v-if="lot.enabled && lot.source === 'INTERNAL' && lot.rules.length" label="LOT 규칙" :error="errors.lot_rule_idx">
                     <BaseSelect v-if="lot.rules.length > 1" v-model="form.lot_rule_idx" :options="ruleOptions" class="w-full" />
-                    <p v-else class="h-9 flex items-center text-gray-700">{{ lot.rules[0].lot_rule_name }}</p>
+                    <p v-else class="h-8 flex items-center text-gray-700">{{ lot.rules[0].lot_rule_name }}</p>
                     <label v-if="selectedRule?.partner_mode === 'ASK'" class="inline-flex items-center gap-1.5 mt-1 text-xs cursor-pointer">
                         <input type="checkbox" class="accent-blue-600" v-model="form.with_partner" /> LOT 번호에 거래처 넣기
                     </label>
                 </FormField>
                 <FormField v-else-if="lot.enabled && lot.source === 'EXTERNAL'" label="LOT 번호">
-                    <p class="h-9 flex items-center text-xs text-gray-500">공급처 LOT 을 그대로 씁니다 ( 줄마다 입력 )</p>
+                    <p class="h-8 flex items-center text-xs text-gray-500">공급처 LOT 을 그대로 씁니다 ( 줄마다 입력 )</p>
                 </FormField>
             </div>
 

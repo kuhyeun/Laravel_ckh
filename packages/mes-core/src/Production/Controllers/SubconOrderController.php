@@ -154,7 +154,8 @@ class SubconOrderController extends Controller {
                 'order_no' => $o['order_no'], 'order_date' => $o['order_date'], 'due_date' => $o['due_date'], 'manager_name' => $o['manager_name'],
                 'remark' => $o['remark'], 'total' => $o['total'], 'total_qty' => collect($o['lines'])->sum('qty'),
                 'supplier' => $our,
-                'receiver' => ['name' => $p?->partner_name, 'biz_no' => $p?->biz_no, 'ceo_name' => $p?->ceo_name, 'address' => $p?->address, 'tel' => $p?->tel ?: $contact?->phone, 'contact' => $contact?->contact_name],
+                'receiver' => ['name' => $p?->partner_name, 'biz_no' => $p?->biz_no, 'ceo_name' => $p?->ceo_name, 'address' => $p?->address, 'tel' => $p?->tel ?: $contact?->phone, 'contact' => $contact?->contact_name,
+                    'fax' => $p?->fax, 'email' => $p?->email ?: $contact?->email],   // fax · email : 11-25 ( 이메일은 거래처 → 담당자 )
                 'lines' => collect($o['lines'])->values()->map(fn ($l, $k) => [
                     'no' => $k + 1, 'wo_no' => $l['wo_no'], 'item_code' => $l['item_code'], 'item_name' => $l['item_name'], 'item_spec' => $l['item_spec'],
                     'process_name' => $l['process_name'], 'unit' => $l['spec_unit'], 'qty' => $l['qty'], 'unit_price' => $l['unit_price'], 'amount' => $l['amount'],

@@ -69,6 +69,8 @@ class ShipmentOrderSheetService {
                 'ceo_name' => $s->partner?->ceo_name,
                 'tel'      => $site?->tel ?: ($s->partner?->tel ?: $contact?->phone),
                 'contact'  => $contact?->contact_name,
+                'fax'      => $s->partner?->fax,                                   // 11-25
+                'email'    => $s->partner?->email ?: $contact?->email,             // 거래처 이메일이 없으면 담당자
             ],
             'lines'        => $lines->all(),
             'total_qty'    => (float) $lines->sum('qty'),

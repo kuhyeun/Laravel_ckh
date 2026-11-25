@@ -9,31 +9,34 @@ use Illuminate\Validation\ValidationException;
 use MesCore\Config\Models\DocTemplate;
 use MesCore\Config\Services\SiteConfigService;
 use MesCore\Http\Controller;
+use MesCore\Support\StampDesign;
 
 // 문서 양식 ( 기준정보관리 > 문서 양식 · Config/DocTemplateManage · 11-18 ) — A4 문서( 발주서 · 출하지시서 )의 배치
 //   양식 = 머리 영역( 격자 ) + 품목 표( 열 목록 · 한 장 줄 수 ) + 아래 영역( 격자 ) — 그리기는 화면 DocSheet
 //   문서 종류별 기본 양식 하나 : 기본 양식이 있으면 그 문서가 그 양식으로 인쇄된다. 없으면 발주서 = 예전 고정 배치 · 출하지시서 = 처음 배치
+//   도장( design.stamps · 11-25 ) : 장 위에 떠 있는 그림( 자사 직인 · 로고 · 올린 그림 ) — 장마다 같은 자리 · 검사는 StampDesign
+//     예전 칸 그림( IMAGE · 로고 / 직인 칸 )은 도장으로 바뀌었다 — 그런 칸은 빈 칸으로 저장한다
 //   항목 키는 화면 docDesign.js 와 같게 ( 모르는 키는 422 )
 class DocTemplateController extends Controller {
 
     // 머리 · 아래 영역에 넣을 수 있는 항목
     private const FIELDS = [
-        'PURCHASE_ORDER' => ['order_no', 'order_date', 'order_name', 'due_date', 'total', 'remark',
+        'PURCHASE_ORDER' => ['order_no', 'order_date', 'order_name', 'due_date', 'total', 'total_with_kor', 'remark',
             'our_name', 'our_biz_no', 'our_ceo', 'our_address', 'our_tel', 'our_fax',
-            'partner_name', 'partner_biz_no', 'partner_ceo', 'partner_address', 'partner_tel', 'partner_contact',
+            'partner_name', 'partner_biz_no', 'partner_ceo', 'partner_address', 'partner_tel', 'partner_contact', 'partner_fax', 'partner_email',
             'writer', 'print_date', 'page_no'],
         'SHIPMENT_ORDER' => ['shipment_no', 'plan_date', 'shipped_at', 'status_label', 'manager_name', 'ship_address', 'total_qty', 'remark',
             'our_name', 'our_biz_no', 'our_ceo', 'our_address', 'our_tel', 'our_fax',
-            'partner_name', 'partner_biz_no', 'partner_ceo', 'partner_tel', 'partner_contact',
+            'partner_name', 'partner_biz_no', 'partner_ceo', 'partner_tel', 'partner_contact', 'partner_fax', 'partner_email',
             'writer', 'print_date', 'page_no'],
         // 검사기준서 ( 11-18 ) — 기준서 이름 · 비고 · 항목 수 ( 품목 · LOT · 검사자 같은 칸은 빈 칸 + 글자로 만들어 손으로 적는다 )
         'INSPECTION_SPEC' => ['spec_name', 'remark', 'item_count',
             'our_name', 'our_biz_no', 'our_ceo', 'our_address', 'our_tel', 'our_fax',
             'writer', 'print_date', 'page_no'],
         // 외주 발주서 ( 11-23 ) — 수신 = 외주처
-        'SUBCON_ORDER' => ['order_no', 'order_date', 'due_date', 'manager_name', 'total', 'total_qty', 'remark',
+        'SUBCON_ORDER' => ['order_no', 'order_date', 'due_date', 'manager_name', 'total', 'total_with_kor', 'total_qty', 'remark',
             'our_name', 'our_biz_no', 'our_ceo', 'our_address', 'our_tel', 'our_fax',
-            'partner_name', 'partner_biz_no', 'partner_ceo', 'partner_address', 'partner_tel', 'partner_contact',
+            'partner_name', 'partner_biz_no', 'partner_ceo', 'partner_address', 'partner_tel', 'partner_contact', 'partner_fax', 'partner_email',
             'writer', 'print_date', 'page_no'],
         // 검사성적서 ( 11-23 ) — 저장된 검사 기록 + 측정값
         'INSPECTION_REPORT' => ['insp_type_name', 'doc_no', 'item_code', 'item_name', 'item_spec', 'name_spec', 'lot_no', 'partner_name',
@@ -60,7 +63,7 @@ class DocTemplateController extends Controller {
     public function list(SiteConfigService $site) {
         return response()->json([
             'templates' => DocTemplate::orderBy('doc_type')->orderByRaw("is_default = 'Y' desc")->orderBy('doc_template_idx')->get()->map(fn (DocTemplate $t) => $this->row($t))->values(),
-            'images'    => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],   // 미리 보기의 로고 · 직인
+            'images'    => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],   // 미리 보기의 도장( 자사 직인 · 로고 )
         ]);
     }
 
@@ -120,7 +123,7 @@ class DocTemplateController extends Controller {
 
     private function design(array $d, string $type, string $orientation): array {
         $fail  = fn (string $msg) => throw ValidationException::withMessages(['design' => [$msg]]);
-        [, $pageH] = self::PAGE[$orientation];
+        [$pageW, $pageH] = self::PAGE[$orientation];
         $margin = $this->clamp($d['margin_mm'] ?? 8, 3, 25);
         $head   = $this->grid(is_array($d['head'] ?? null) ? $d['head'] : [], $type, '머리 영역');
         $foot   = $this->grid(is_array($d['foot'] ?? null) ? $d['foot'] : [], $type, '아래 영역');
@@ -136,6 +139,8 @@ class DocTemplateController extends Controller {
                 'label' => mb_substr((string) ($c['label'] ?? ''), 0, 30),
                 'width' => $this->clamp($c['width'] ?? 1, 0.2, 20, 2),
                 'align' => in_array($c['align'] ?? null, ['left', 'center', 'right'], true) ? $c['align'] : 'left',
+                // 줄바꿈 ( 11-24 ) — 저장에서 빠져 다시 열면 사라졌다 ( 11-25 ) · 안 정한 열은 null = 열 종류별 기본값( docDesign defaultWrap )
+                'wrap'  => array_key_exists('wrap', $c) && $c['wrap'] !== null ? (bool) $c['wrap'] : null,
             ];
         }
         if (!$cols) {
@@ -156,7 +161,9 @@ class DocTemplateController extends Controller {
             $fail('배치가 종이 높이( ' . $pageH . 'mm )를 넘습니다. ( 지금 ' . round($need, 1) . 'mm ) 한 장 줄 수나 영역 높이를 줄이세요.');
         }
 
-        return ['margin_mm' => $margin, 'head' => $head, 'table' => $table, 'foot' => $foot];
+        $stamps = StampDesign::clean($d['stamps'] ?? [], $pageW, $pageH);   // 장( A4 · 여백 포함 ) 왼쪽 위 기준 mm
+
+        return ['margin_mm' => $margin, 'head' => $head, 'table' => $table, 'foot' => $foot, 'stamps' => $stamps];
     }
 
     // 격자 영역 하나 — 범위 · 겹침 · 항목 키
@@ -185,7 +192,7 @@ class DocTemplateController extends Controller {
                     $taken["$y:$x"] = true;
                 }
             }
-            $kind = in_array($c['type'] ?? null, ['FIELD', 'TEXT', 'IMAGE'], true) ? $c['type'] : null;
+            $kind = in_array($c['type'] ?? null, ['FIELD', 'TEXT'], true) ? $c['type'] : null;   // 예전 그림 칸( IMAGE )은 빈 칸으로 ( 11-25 — 도장으로 )
             if ($kind === 'FIELD' && !in_array($c['field'] ?? null, self::FIELDS[$type], true)) {
                 $fail('이 문서에 넣을 수 없는 항목이 있습니다.');
             }
@@ -196,7 +203,6 @@ class DocTemplateController extends Controller {
                 'r' => $r, 'c' => $k, 'rs' => $rs, 'cs' => $cs, 'type' => $kind,
                 'field' => $kind === 'FIELD' ? $c['field'] : null,
                 'text'  => $kind === 'TEXT' ? mb_substr((string) ($c['text'] ?? ''), 0, 200) : null,
-                'image' => $kind === 'IMAGE' ? (($c['image'] ?? null) === 'seal' ? 'seal' : 'logo') : null,
                 'size'  => $this->clamp($c['size'] ?? 9, 5, 40),
                 'bold'  => !empty($c['bold']),
                 'align' => in_array($c['align'] ?? null, ['left', 'center', 'right'], true) ? $c['align'] : 'left',

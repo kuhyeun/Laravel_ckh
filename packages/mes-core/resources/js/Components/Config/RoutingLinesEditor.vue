@@ -33,7 +33,7 @@
                         <th class="px-2 py-1.5"></th>
                         <th class="px-2 py-1.5 font-medium">순서</th>
                         <th class="px-2 py-1.5 font-medium">공정 <span class="text-red-400">*</span></th>
-                        <th class="px-2 py-1.5 font-medium">개당(초)</th>
+                        <th class="px-2 py-1.5 font-medium" title="공정 1개를 만드는 데 걸리는 시간 ( 분 · 소수 가능 — 1.5 = 1분 30초 )">개당(분)</th>
                         <th class="px-2 py-1.5 font-medium">초 · 중 · 종 검사</th>
                         <th v-if="!readonly" class="px-2 py-1.5"></th>
                     </tr>
@@ -65,13 +65,14 @@
                             <p v-if="rowError(i, 'process_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'process_idx') }}</p>
                         </td>
                         <td class="px-1.5 py-1">
-                            <BaseInput v-model="l.cycle_time_sec" type="number" min="0" :empty-value="0" size="md" class="w-full text-right" :disabled="readonly || isSystemProcess(l)" />
+                            <!-- 분으로 넣고 초로 저장 ( 11-25 ) — 입력 중 글자( '1.' 등 )는 _cycle_min 에 두고 cycle_time_sec 만 계산해 넣는다 -->
+                            <BaseInput :model-value="cycleMinOf(l)" type="number" min="0" step="0.01" :empty-value="0" size="md" class="w-full text-right" :disabled="readonly || isSystemProcess(l)" @update:model-value="v => setCycleMin(l, v)" />
                             <p v-if="rowError(i, 'cycle_time_sec')" class="text-[11px] text-red-500">{{ rowError(i, 'cycle_time_sec') }}</p>
                         </td>
                         <td class="px-1.5 py-1">
                             <template v-if="iflOk(l)">
-                                <!-- 높이 = 옆 입력칸( h-9 ) — 행이 align-top 이라 이 칸만 세로 중앙 ( 11-19 ) -->
-                                <div class="flex items-center gap-5 h-9 text-sm">
+                                <!-- 높이 = 옆 입력칸( h-8 ) — 행이 align-top 이라 이 칸만 세로 중앙 ( 11-19 ) -->
+                                <div class="flex items-center gap-5 h-8 text-sm">
                                     <label v-for="k in INSP_KEYS" :key="k.key" class="inline-flex items-center gap-1.5 cursor-pointer select-none">
                                         <input type="checkbox" class="base-checkbox w-4 h-4" :checked="l[k.key] === 'Y'" :disabled="readonly" @change="e => setInsp(l, k.key, e.target.checked)" />
                                         {{ k.label }}
@@ -101,7 +102,7 @@
                                 </div>
                                 <p v-if="rowError(i, 'pre_approve')" class="text-[11px] text-red-500">{{ rowError(i, 'pre_approve') }}</p>
                             </template>
-                            <span v-else class="flex items-center h-9 text-xs text-gray-300">—</span>
+                            <span v-else class="flex items-center h-8 text-xs text-gray-300">—</span>
                         </td>
                         <td v-if="!readonly" class="px-1.5 py-1 text-center">
                             <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="줄 삭제" @click="removeLine(i)">✕</button>
@@ -119,6 +120,14 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import ProcessPicker from '@core/Components/Common/ProcessPicker.vue';
 import { showAlert } from '@core/Utils/message';
+import { secToMin, minToSec } from '@core/Components/Config/routingLines';
+
+// 개당 시간 입력 ( 분 ) — 입력 중 글자가 있으면 그대로, 없으면 저장된 초를 분으로
+const cycleMinOf  = (l) => l._cycle_min ?? String(secToMin(l.cycle_time_sec));
+function setCycleMin(l, v) {
+    l._cycle_min     = v;
+    l.cycle_time_sec = v === '' || v === null ? 0 : minToSec(v);
+}
 
 const props = defineProps({
     lines:       { type: Array,   required: true },          // 고칠 줄 ( 그 자리에서 바뀐다 )

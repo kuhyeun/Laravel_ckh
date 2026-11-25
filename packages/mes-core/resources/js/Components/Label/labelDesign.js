@@ -1,5 +1,6 @@
 // 라벨 격자 배치 ( 11-18 ) — 양식 편집 화면( Label/LabelTemplateManage ) · 그리기( LabelGridSheet ) 가 같이 쓴다
-//   design : { cols, rows, col_w[], row_h[], border, cells: [ { r, c, rs, cs, type, field, text, code, show_no, scale, size, bold, align } ] }
+//   design : { cols, rows, col_w[], row_h[], border, cells: [ { r, c, rs, cs, type, field, text, code, show_no, scale, size, bold, align } ], stamps }
+//     stamps ( 11-25 ) = 라벨 위에 떠 있는 도장 [ { id, src, x_mm, y_mm, w_mm, h_mm } ] — 라벨 왼쪽 위 기준 · Common/stamps.js · StampLayer
 //     scale = 코드 크기 % ( 30 ~ 100 · 없으면 100 = 칸을 다 채움 )
 //     type = FIELD( 데이터 항목 ) · TEXT( 고정 글자 ) · CODE( 바코드 / QR ) · null( 빈 칸 — 합친 칸만 저장된다 )
 //   항목 키는 서버 LabelService::sheets 가 주는 값 ( LabelTemplateController::FIELDS 와 같게 )
@@ -96,7 +97,8 @@ const cap  = (r, text) => cell(r, 0, 1, 1, { type: 'TEXT', text, size: 8 });
 const val  = (r, field, cs, more = {}) => cell(r, 1, cs, 1, { type: 'FIELD', field, ...more });
 
 // 새 양식의 처음 배치 — 바코드면 맨 아래 한 줄, QR 이면 오른쪽 아래 네모
-export function starterDesign(target, codeType = 'BARCODE') {
+export const starterDesign = (target, codeType = 'BARCODE') => ({ ...starterLayout(target, codeType), stamps: [] });
+function starterLayout(target, codeType) {
     const qr   = codeType === 'QR';
     const wide = qr ? 2 : 3;   // 아래 세 줄의 값 칸 너비 ( QR 이면 오른쪽 한 열을 비운다 )
     const rowsOf = target === 'SHIPMENT'

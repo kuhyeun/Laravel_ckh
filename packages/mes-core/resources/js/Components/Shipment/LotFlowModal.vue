@@ -66,10 +66,10 @@
                             <p class="text-[11px] text-gray-500">{{ traceHint.msg }}</p>
                             <p class="h-4 text-xs font-semibold text-gray-800 truncate" :title="traceHint.lot">{{ traceHint.lot }}</p>
                             <div class="mt-1.5 grid grid-cols-2 gap-1.5">
-                                <button type="button" class="h-9 rounded text-sm font-semibold transition-colors"
+                                <button type="button" class="h-8 rounded text-sm font-semibold transition-colors"
                                     :class="canTrace(selected, 'backward') ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'"
                                     :disabled="!canTrace(selected, 'backward')" title="이 LOT 를 만든 자재까지 거슬러 올라갑니다" @click="retrace(selected, 'backward')">◀ 역추적</button>
-                                <button type="button" class="h-9 rounded text-sm font-semibold transition-colors"
+                                <button type="button" class="h-8 rounded text-sm font-semibold transition-colors"
                                     :class="canTrace(selected, 'forward') ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-sm' : 'bg-gray-100 text-gray-400 cursor-not-allowed'"
                                     :disabled="!canTrace(selected, 'forward')" title="이 LOT 가 쓰인 곳 · 출하까지 따라갑니다" @click="retrace(selected, 'forward')">정추적 ▶</button>
                             </div>
@@ -289,7 +289,7 @@ const LABEL_H = 16;
 let measureCtx = null;
 const textW = (t) => {
     measureCtx ??= document.createElement('canvas').getContext('2d');
-    measureCtx.font = '11px Pretendard, "Noto Sans KR", sans-serif';
+    measureCtx.font = '11px "Noto Sans KR", "Malgun Gothic", sans-serif';
     return Math.ceil(measureCtx.measureText(t).width) + 10;
 };
 function placeLabels(edges, lanes, pos, hOf, up) {

@@ -7,6 +7,7 @@ use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Config\Models\Item;
 use MesCore\Config\Models\Partner;
+use MesCore\Config\Models\ItemPartner;
 use MesCore\Purchase\Models\PurchaseOrder;
 use MesCore\Purchase\Models\PurchaseOrderLine;
 use MesCore\Purchase\Services\PurchaseOrderService;
@@ -133,6 +134,21 @@ class PurchaseOrderController extends Controller {
             // 기준정보관리 > 문서 양식의 발주서 기본 양식 ( 없으면 null — 화면이 예전 고정 배치로 그린다 · 11-18 )
             'template' => \MesCore\Config\Models\DocTemplate::forPrint('PURCHASE_ORDER'),
         ]);
+    }
+
+    // 구매처 단가 ( 11-25 ) — 품목 「거래처」 탭에 이 구매처의 단가가 있는 품목만 { item_idx: 단가 } ( 없는 품목은 빠진다 → 화면이 그대로 둔다 )
+    public function partnerPrices(Request $request) {
+        $v = $request->validate([
+            'partner_idx' => 'required|integer',
+            'item_idxs'   => 'required|array|max:500',
+            'item_idxs.*' => 'integer',
+        ]);
+        $prices = ItemPartner::where('partner_idx', $v['partner_idx'])
+            ->whereIn('item_idx', $v['item_idxs'])
+            ->whereNotNull('unit_price')
+            ->pluck('unit_price', 'item_idx');
+
+        return response()->json(['prices' => (object) $prices->map(fn ($p) => (float) $p)->all()]);
     }
 
     // 등록 · 수정 모달용 : 구매처( 구매처 구분 · 사용 중 ) + 품목( 사용 중 — 자재 먼저 )
@@ -394,6 +410,7 @@ class PurchaseOrderController extends Controller {
         return [
             'sources' => $srcs->map(fn ($s) => [
                 'sales_order_line_idx' => (int) $s->sales_order_line_idx,
+                'sales_order_idx'      => $s->salesOrderLine?->sales_order_idx ? (int) $s->salesOrderLine->sales_order_idx : null,   // 눌러서 그 수주 열기 ( 11-25 )
                 'qty'                  => (float) $s->qty,
                 'label'                => $s->salesOrderLine ? "{$s->salesOrderLine->order?->order_no} #{$s->salesOrderLine->line_no} · {$s->salesOrderLine->item?->item_code} {$s->salesOrderLine->item?->item_name}" : "#{$s->sales_order_line_idx}",
             ])->all(),

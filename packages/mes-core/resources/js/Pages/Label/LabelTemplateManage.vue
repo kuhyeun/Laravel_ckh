@@ -5,6 +5,7 @@
        열 너비 · 행 높이는 라벨 위 · 왼쪽의 비율 칸으로 · 라벨은 예시 데이터로 그대로 그린다 ( LabelGridSheet — 인쇄와 같은 부품 )
      - 저장된 양식은 보기 화면( 라벨 미리 보기 + [격자 편집] / [격자로 바꾸기] )으로 열고, 단추를 눌러야 격자 편집이 열린다 · 저장 · 초기화하면 보기 화면으로 돌아온다
      - 처음 들어 있는 양식( 격자 없음 )은 고정 배치 — [격자로 바꾸기] 를 누르면 격자로 고칠 수 있다 ( 저장하기 전까지는 그대로 )
+     - 도장( 11-25 ) : 격자 편집의 「도장」 탭 — 그림 올리기 · 자사 직인 / 로고 · 목록 [삭제] / 라벨에서 끌어 옮기고 오른쪽 아래 네모로 크기 ( 칸과 상관없이 겹친다 )
      - 코드 칸의 기본 종류 = 정책 barcode.code_type · 발행한 라벨이 있는 양식은 못 지운다( 미사용으로 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
@@ -70,7 +71,7 @@
 
                     <!-- 보기 화면 : 격자 양식 — [격자 편집] 을 눌러야 고친다 ( 저장하면 여기로 돌아온다 ) -->
                     <div v-if="form.design && !editing" class="flex gap-4 items-start">
-                        <div class="lt-stage"><div :style="{ zoom }"><LabelGridSheet :label="sampleLabel" :design="form.design" class="shadow" /></div></div>
+                        <div class="lt-stage"><div :style="{ zoom }"><LabelGridSheet :label="sampleLabel" :design="form.design" :images="images" class="shadow" /></div></div>
                         <div class="text-sm text-gray-600 space-y-2 max-w-sm">
                             <p><b>격자 배치</b> 양식입니다. 라벨의 값은 예시이고, 인쇄는 {{ form.width_mm }} × {{ form.height_mm }}mm 로 나옵니다.</p>
                             <p class="text-gray-500">칸 배치를 고치려면 격자 편집을 여세요. 이름 · 크기 · 기본 양식은 위에서 바로 고칠 수 있습니다.</p>
@@ -90,7 +91,11 @@
 
                     <!-- 격자 편집 -->
                     <template v-else>
-                        <div class="flex items-center gap-3 flex-wrap px-3 py-2 rounded border border-gray-200 bg-gray-50/60">
+                        <div class="inline-flex p-0.5 rounded bg-gray-100">
+                            <button v-for="k in EDIT_TABS" :key="k.key" type="button" class="px-4 py-1.5 rounded text-xs"
+                                :class="editTab === k.key ? 'bg-white shadow-sm font-semibold text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="setEditTab(k.key)">{{ k.label }}</button>
+                        </div>
+                        <div v-if="editTab === 'cell'" class="flex items-center gap-3 flex-wrap px-3 py-2 rounded border border-gray-200 bg-gray-50/60">
                             <div class="flex items-center gap-1">
                                 <span class="text-xs text-gray-500 mr-1">열</span>
                                 <button type="button" class="lt-step" :disabled="!canWrite || form.design.cols <= 1" @click="setCols(form.design.cols - 1)">−</button>
@@ -125,13 +130,23 @@
                                         <div class="lt-rows" :style="{ height: `${form.height_mm}mm`, gridTemplateRows: frs(form.design.row_h) }">
                                             <input v-for="(hh, i) in form.design.row_h" :key="i" v-model.number="form.design.row_h[i]" type="number" min="0.2" max="20" step="0.1" class="lt-ratio" :disabled="!canWrite" :title="`${i + 1}행 높이 비율`" />
                                         </div>
-                                        <LabelGridSheet :label="sampleLabel" :design="form.design" :editable="canWrite" :selected="selKeys" class="shadow" @pick="pick" />
+                                        <LabelGridSheet :label="sampleLabel" :design="form.design" :images="images" :editable="canWrite && editTab === 'cell'" :selected="selKeys" class="shadow" @pick="pick"
+                                            :stamp-edit="canWrite && editTab === 'stamp'" :stamp-sel="stampSel" @stamp-select="id => stampSel = id" />
                                     </div>
                                 </div>
                             </div>
 
+                            <!-- 도장 ( 11-25 ) -->
+                            <div v-if="editTab === 'stamp'" class="w-72 shrink-0 border border-gray-200 rounded">
+                                <div class="px-3 py-2 border-b bg-gray-50/70 text-sm font-semibold text-gray-600">도장</div>
+                                <div class="p-3">
+                                    <StampPanel :stamps="form.design.stamps" :images="images" :box-w="Number(form.width_mm) || 100" :box-h="Number(form.height_mm) || 72"
+                                        :width="Math.min(20, (Number(form.width_mm) || 100) / 3)" :selected="stampSel" :disabled="!canWrite" @select="id => stampSel = id" />
+                                </div>
+                            </div>
+
                             <!-- 고른 칸 -->
-                            <div class="w-72 shrink-0 border border-gray-200 rounded">
+                            <div v-else class="w-72 shrink-0 border border-gray-200 rounded">
                                 <div class="px-3 py-2 border-b bg-gray-50/70 text-sm font-semibold text-gray-600">칸 내용</div>
                                 <div class="p-3 space-y-3">
                                     <p v-if="!sel" class="text-gray-400 text-sm">왼쪽 라벨에서 칸을 고르세요.</p>
@@ -212,6 +227,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import LabelSheet from '@core/Components/Label/LabelSheet.vue';
 import LabelGridSheet from '@core/Components/Label/LabelGridSheet.vue';
+import StampPanel from '@core/Components/Common/StampPanel.vue';
 import { TARGETS, FIELDS, SAMPLE, MAX_COLS, MAX_ROWS, targetLabel, tilesOf, starterDesign } from '@core/Components/Label/labelDesign';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
@@ -228,9 +244,18 @@ const { showFlash } = useToast();
 const KINDS  = [{ key: null, label: '비움' }, { key: 'FIELD', label: '항목' }, { key: 'TEXT', label: '글자' }, { key: 'CODE', label: '코드' }];
 const CODES  = [{ key: 'BARCODE', label: '바코드' }, { key: 'QR', label: 'QR' }];
 const ALIGNS = [{ key: 'left', label: '왼쪽' }, { key: 'center', label: '가운데' }, { key: 'right', label: '오른쪽' }];
+const EDIT_TABS = [{ key: 'cell', label: '칸 편집' }, { key: 'stamp', label: '도장' }];
 
 const templates = ref([]);
 const codeType  = ref('BARCODE');
+const images    = ref({});        // 도장의 자사 직인 · 로고 ( data URI · 11-25 )
+const editTab   = ref('cell');    // 격자 편집 : 칸 편집 · 도장
+const stampSel  = ref(null);      // 고른 도장 id
+function setEditTab(k) {
+    editTab.value = k;
+    stampSel.value = null;
+    if (k === 'stamp') { sel.value = null; anchor = null; }
+}
 const loading   = ref(true);
 const saving    = ref(false);
 const errorText = ref('');
@@ -254,6 +279,8 @@ let origin = null, originUnsaved = false;
 function load(data, unsaved = false) {
     origin = clone(data); originUnsaved = unsaved;   // [초기화] 가 돌아갈 곳
     Object.assign(form, clone(data));
+    if (form.design) form.design.stamps ??= [];   // 도장 없이 저장된 양식 ( 11-25 이전 )
+    editTab.value = 'cell'; stampSel.value = null;
     converted.value = false;
     editing.value   = !data.label_template_idx;   // 저장된 양식은 보기 화면으로 연다 ( 저장 · 초기화 뒤에도 ) · 새 양식은 바로 편집
     sel.value = null; anchor = null; errorText.value = '';
@@ -409,6 +436,7 @@ async function loadTemplates() {
         const { data } = await window.axios.get(route('label.template.list'));
         templates.value = data.templates ?? [];
         codeType.value  = data.code_type === 'QR' ? 'QR' : 'BARCODE';
+        images.value    = data.images ?? {};
     } catch (e) {
         showFlash('라벨 양식을 불러오지 못했습니다.', true);
     } finally {

@@ -36,7 +36,7 @@
                 <div class="col-span-2 flex items-start gap-10">
                     <div class="min-w-0">
                         <label class="block text-gray-500 font-medium mb-1">구분 <span class="text-red-400">*</span> <span class="text-xs text-gray-400">( 여러 개 선택 가능 )</span></label>
-                        <div class="flex items-center gap-5 h-9">
+                        <div class="flex items-center gap-5 h-8">
                             <BaseCheckbox v-for="r in ROLES" :key="r.key" v-model="form[r.key]" true-value="Y" false-value="N" :disabled="!canWrite">
                                 {{ r.label }}
                             </BaseCheckbox>
@@ -44,7 +44,7 @@
                         <p v-if="errors.roles" class="text-xs text-red-500 mt-0.5">{{ errors.roles[0] }}</p>
                     </div>
                     <FormField label="사용 여부" class="shrink-0">
-                        <div class="flex items-center h-9">
+                        <div class="flex items-center h-8">
                             <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
                                 {{ form.is_use === 'Y' ? '사용' : '미사용' }}
                             </BaseCheckbox>
@@ -89,17 +89,29 @@
                 <FormField label="사업자번호" :error="errors.biz_no">
                     <BaseInput v-model="form.biz_no" class="w-full" placeholder="000-00-00000" :disabled="!canWrite" />
                 </FormField>
-                <FormField label="담당자" :error="errors.ceo_name">
-                    <BaseInput v-model="form.ceo_name" class="w-full" :disabled="!canWrite" />
+                <!-- 대표자 ( 11-25 — 예전 라벨이 「담당자」였다 · 담당자는 담당자 탭 ) · 문서( 거래명세서 · 발주서 … )의 거래처 대표자 -->
+                <!--   순서 ( 11-25 ) : 사업자번호 · 대표자 / 거래처 전화 · 대표자 전화 / FAX · 이메일 — 두 칸씩 같은 폭 -->
+                <FormField label="대표자" hint="담당자는 [ 담당자 ] 탭" :error="errors.ceo_name">
+                    <BaseInput v-model="form.ceo_name" class="w-full" maxlength="50" :disabled="!canWrite" />
                 </FormField>
-                <FormField label="전화번호" :error="errors.tel">
+                <FormField label="거래처 전화번호" :error="errors.tel">
                     <BaseInput v-model="form.tel" class="w-full" placeholder="000-0000-0000" maxlength="30" :disabled="!canWrite" />
+                </FormField>
+                <FormField label="대표자 전화번호" :error="errors.ceo_tel">
+                    <BaseInput v-model="form.ceo_tel" class="w-full" placeholder="010-0000-0000" maxlength="30" :disabled="!canWrite" />
+                </FormField>
+                <FormField label="FAX" :error="errors.fax">
+                    <BaseInput v-model="form.fax" class="w-full" placeholder="000-0000-0000" maxlength="30" :disabled="!canWrite" />
+                </FormField>
+                <FormField label="이메일" :error="errors.email">
+                    <BaseInput v-model="form.email" type="email" class="w-full" placeholder="name@example.com" maxlength="100" :disabled="!canWrite" />
                 </FormField>
                 <FormField label="주소" :error="errors.address" class="col-span-2">
                     <BaseInput v-model="form.address" class="w-full" maxlength="200" :disabled="!canWrite" />
                 </FormField>
+                <!-- 비고 : 처음엔 한 줄( 주소 칸과 같은 높이 · 11-25 — 창에 스크롤이 덜 생기게 ) · 길면 모서리를 끌어 늘린다 / ! : 공통 textarea.base-input 이 최소 2줄 높이를 정해 두어서 · 처음 높이는 인라인( 끌어 늘리면 브라우저가 이 값을 바꾼다 ) -->
                 <FormField label="비고" class="col-span-2">
-                    <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
+                    <textarea v-model="form.remark" rows="1" class="base-input w-full !min-h-8 !py-[5px] !leading-5" style="height: 32px" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
                 </FormField>
             </div>
 
@@ -118,8 +130,8 @@
                         <colgroup>
                             <col class="w-32">
                             <col class="w-32">
-                            <col class="w-28">
-                            <col class="w-32">
+                            <col class="w-36">
+                            <col class="w-48">
                             <col>
                             <col v-if="canWrite" class="w-10">
                         </colgroup>
@@ -158,8 +170,8 @@
                                     <BaseInput v-model="c.email" size="md" :disabled="!canWrite" />
                                     <p v-if="rowError('contacts', i, 'email')" class="text-[11px] text-red-500">{{ rowError('contacts', i, 'email') }}</p>
                                 </td>
-                                <td v-if="canWrite" class="px-1.5 text-center py-1 leading-9">
-                                    <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="행 삭제" @click="form.contacts.splice(i, 1)">✕</button>
+                                <td v-if="canWrite" class="px-1.5 text-center py-1 leading-8">
+                                    <button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500" title="행 삭제" @click="form.contacts.splice(i, 1)">✕</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -209,11 +221,11 @@
                                     <BaseInput v-model="s.tel" size="md" :disabled="!canWrite" />
                                     <p v-if="rowError('sites', i, 'tel')" class="text-[11px] text-red-500">{{ rowError('sites', i, 'tel') }}</p>
                                 </td>
-                                <td class="px-1.5 text-center text-xs text-gray-500 py-1 leading-9">
+                                <td class="px-1.5 text-center text-xs text-gray-500 py-1 leading-8">
                                     {{ form.contacts.filter(c => c.site_key === s.key).length }} 명
                                 </td>
-                                <td v-if="canWrite" class="px-1.5 text-center py-1 leading-9">
-                                    <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="행 삭제" @click="removeSite(i)">✕</button>
+                                <td v-if="canWrite" class="px-1.5 text-center py-1 leading-8">
+                                    <button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500" title="행 삭제" @click="removeSite(i)">✕</button>
                                 </td>
                             </tr>
                         </tbody>
@@ -298,6 +310,9 @@ const form = reactive({
     ceo_name:     '',
     address:      '',
     tel:          '',
+    ceo_tel:      '',
+    fax:          '',
+    email:        '',
     is_use:       'Y',
     remark:       '',
     sites:        [],   // [{ site_idx, key, site_name, address, tel, remark }]
@@ -316,6 +331,9 @@ function applyPartner(p) {
         ceo_name:     p.ceo_name ?? '',
         address:      p.address ?? '',
         tel:          p.tel ?? '',
+        ceo_tel:      p.ceo_tel ?? '',
+        fax:          p.fax ?? '',
+        email:        p.email ?? '',
         is_use:       p.is_use ?? 'Y',
         remark:       p.remark ?? '',
         sites:        (p.sites ?? []).map(s => ({ ...s })),

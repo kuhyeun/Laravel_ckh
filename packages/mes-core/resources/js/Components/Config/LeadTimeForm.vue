@@ -9,10 +9,10 @@
 
         <!-- 품목 -->
         <FormField label="품목" :required="!isDefault && !isEdit" :error="errors.item_idx" class="mb-3">
-            <p v-if="isDefault" class="h-9 flex items-center font-semibold text-gray-700">
+            <p v-if="isDefault" class="h-8 flex items-center font-semibold text-gray-700">
                 ( 기본값 ) <span class="ml-2 text-xs font-normal text-gray-400">품목별 행이 없는 품목에 적용됩니다</span>
             </p>
-            <p v-else-if="isEdit" class="h-9 flex items-center text-gray-700">
+            <p v-else-if="isEdit" class="h-8 flex items-center text-gray-700">
                 {{ leadTime.item_name }} <span class="ml-1 text-gray-400">[{{ leadTime.item_code }}]</span>
                 <span v-if="leadTime.item_is_use === 'N'" class="ml-1 text-xs text-gray-400">( 미사용 품목 )</span>
             </p>
@@ -34,12 +34,12 @@
             </div>
             <div>
                 <span class="block text-xs text-gray-500 mb-0.5">계</span>
-                <p class="h-9 flex items-center justify-end pr-1 font-semibold text-gray-700">{{ total }} 일</p>
+                <p class="h-8 flex items-center justify-end pr-1 font-semibold text-gray-700">{{ total }} 일</p>
             </div>
         </div>
         <p v-for="s in STAGES" v-show="errors[s.key]" :key="'e' + s.key" class="text-xs text-red-500 mt-0.5">{{ s.label }} : {{ errors[s.key]?.[0] }}</p>
         <p v-if="errors.days" class="text-xs text-red-500 mt-0.5">{{ errors.days[0] }}</p>
-        <p class="text-xs text-gray-400 mt-1">일수는 수량과 무관합니다. 개당 생산 시간은 공정라우팅의 개당(초)에서 관리합니다.</p>
+        <p class="text-xs text-gray-400 mt-1">일수는 수량과 무관합니다. 개당 생산 시간은 공정라우팅의 개당(분)에서 관리합니다.</p>
 
         <div class="grid grid-cols-2 gap-x-4 gap-y-3 mt-3">
             <div v-if="!isDefault" class="col-span-2 pt-1">

@@ -1,5 +1,5 @@
 <template>
-    <div class="w-[250px] whitespace-nowrap">
+    <div class="w-[230px] whitespace-nowrap">
         <nav class="p-3">
             <ul>
                 <MenuItem

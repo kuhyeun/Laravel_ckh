@@ -22,6 +22,7 @@ Route::prefix('purchase')->name('purchase.')->middleware([UserAuth::class])->gro
             Route::get('/list', [PurchaseOrderController::class, 'list'])->name('list');
             Route::get('/show/{orderIdx}', [PurchaseOrderController::class, 'show'])->whereNumber('orderIdx')->name('show');
             Route::get('/formData', [PurchaseOrderController::class, 'formData'])->name('formData');
+            Route::get('/partnerPrices', [PurchaseOrderController::class, 'partnerPrices'])->name('partnerPrices');   // 구매처 단가 ( 품목 거래처 탭 · 11-25 )
             Route::get('/sheets', [PurchaseOrderController::class, 'sheets'])->name('sheets');   // [미리보기 · 인쇄]
             Route::get('/calc', [PurchaseOrderController::class, 'calc'])->name('calc');   // [계산] 탭 ( 11-20 )
             Route::get('/orderMaterials', [PurchaseOrderController::class, 'orderMaterials'])->name('orderMaterials');   // [+ 수주 자재에서]

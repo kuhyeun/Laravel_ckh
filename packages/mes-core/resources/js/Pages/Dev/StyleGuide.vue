@@ -233,7 +233,7 @@
                             <p class="col-span-2 text-xs text-gray-400 font-mono">값 : {{ pick.d || '( 빈 값 )' }} · {{ pick.dt || '( 빈 값 )' }}</p>
                         </div>
                     </ShowcaseCard>
-                    <ShowcaseCard title="검색바 · 패널 머리 ( 입력 · 선택은 모두 md 36px — 11-12 )" :code="code.pickerSm">
+                    <ShowcaseCard title="검색바 · 패널 머리 ( 입력 · 선택은 모두 md 32px — 11-25 )" :code="code.pickerSm">
                         <BaseDatePicker v-model="pick.from" size="md" />
                         <span class="text-gray-400">~</span>
                         <BaseDatePicker v-model="pick.to" size="md" />

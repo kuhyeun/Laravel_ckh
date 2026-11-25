@@ -1,0 +1,7 @@
+/* 글꼴 : Noto Sans KR 하나로 통일 ( 11-25 ) — @fontsource/noto-sans-kr 5.3.1 · 빌드에 포함 ( 인터넷 없는 현장 서버에서도 )
+   쓰는 굵기만 : 400 보통 · 500 medium · 600 semibold · 700 bold ( 글자 범위별로 나뉜 파일이라 화면에 나온 글자 묶음만 받는다 )
+   앱( app.css 첫 줄 )과 로그인 화면( user/login.blade.php — Vite 를 따로 부른다 )이 같이 쓴다 */
+@import '@fontsource/noto-sans-kr/400.css';
+@import '@fontsource/noto-sans-kr/500.css';
+@import '@fontsource/noto-sans-kr/600.css';
+@import '@fontsource/noto-sans-kr/700.css';

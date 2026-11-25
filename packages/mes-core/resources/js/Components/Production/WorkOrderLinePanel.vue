@@ -29,12 +29,12 @@
             <div class="grid grid-cols-4 gap-x-4 gap-y-3">
                 <div>
                     <label class="lbl">줄 번호</label>
-                    <p class="h-9 flex items-center text-gray-700">{{ line.wo_no || '저장할 때 매깁니다' }}</p>
+                    <p class="h-8 flex items-center text-gray-700">{{ line.wo_no || '저장할 때 매깁니다' }}</p>
                 </div>
                 <div>
                     <label class="lbl">사용처</label>
-                    <div v-if="line.sources.length" class="h-9 flex items-center"><span class="text-blue-700 font-semibold">수주</span><span class="ml-1 text-xs text-gray-400">( 수주 연결이 있음 )</span></div>
-                    <div v-else class="h-9 flex items-center gap-3">
+                    <div v-if="line.sources.length" class="h-8 flex items-center"><span class="text-blue-700 font-semibold">수주</span><span class="ml-1 text-xs text-gray-400">( 수주 연결이 있음 )</span></div>
+                    <div v-else class="h-8 flex items-center gap-3">
                         <label v-for="s in [{ v: 'MANUAL', l: '수동' }, { v: 'STOCK', l: '재고' }]" :key="s.v" class="inline-flex items-center gap-1" :class="!structEditable ? 'opacity-60' : 'cursor-pointer'">
                             <input type="radio" class="accent-blue-600" :value="s.v" v-model="line.source" :disabled="!structEditable" /> {{ s.l }}
                         </label>
@@ -42,11 +42,11 @@
                 </div>
                 <div>
                     <label class="lbl">LOT</label>
-                    <p class="h-9 flex items-center text-gray-700">{{ line.lot_no || ( !ctx.lot.enabled ? 'LOT 미사용' : ctx.lot.run_lot ? '실적마다 발급합니다' : '저장할 때 발급합니다' ) }}</p>
+                    <p class="h-8 flex items-center text-gray-700">{{ line.lot_no || ( !ctx.lot.enabled ? 'LOT 미사용' : ctx.lot.run_lot ? '실적마다 발급합니다' : '저장할 때 발급합니다' ) }}</p>
                 </div>
                 <div>
                     <label class="lbl">상태</label>
-                    <p class="h-9 flex items-center font-semibold" :style="{ color: woStatusColor(line.status) }">{{ woStatusLabel(line.status) }}</p>
+                    <p class="h-8 flex items-center font-semibold" :style="{ color: woStatusColor(line.status) }">{{ woStatusLabel(line.status) }}</p>
                 </div>
 
                 <div class="col-span-2">
@@ -76,7 +76,7 @@
                 <div class="col-span-2">
                     <label class="lbl">LOT 규칙</label>
                     <BaseSelect v-if="ctx.lot.rules.length > 1" v-model="line.lot_rule_idx" :options="ruleOptions" class="w-full" :disabled="!structEditable" />
-                    <p v-else class="h-9 flex items-center text-gray-700">{{ ctx.lot.rules[0]?.lot_rule_name ?? '—' }}</p>
+                    <p v-else class="h-8 flex items-center text-gray-700">{{ ctx.lot.rules[0]?.lot_rule_name ?? '—' }}</p>
                     <p v-if="errors.lot_rule_idx" class="err">{{ errors.lot_rule_idx[0] }}</p>
                 </div>
 

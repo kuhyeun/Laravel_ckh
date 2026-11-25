@@ -13,19 +13,20 @@
         <!-- 수신( 구매처 ) / 발주처( 우리 ) -->
         <table class="po">
             <colgroup>
-                <col style="width: 13%"><col style="width: 33%">
+                <!-- 왼쪽 : 라벨 · 값 · 라벨 · 값 ( 수신 줄만 대표자 — 다른 줄은 값이 3칸 ) -->
+                <col style="width: 13%"><col style="width: 15%"><col style="width: 8%"><col style="width: 10%">
                 <col style="width: 4%"><col style="width: 11%"><col style="width: 17%"><col style="width: 8%"><col style="width: 14%">
             </colgroup>
             <tr class="h-info">
                 <td class="lbl">발주번호</td>
-                <td class="val strong">{{ page.doc.order_no }}</td>
+                <td colspan="3" class="val strong">{{ page.doc.order_no }}</td>
                 <td rowspan="5" class="vlabel zone-l">발<br>주<br>처</td>
                 <td class="lbl">등록번호</td>
                 <td colspan="3" class="val c big">{{ page.doc.supplier.biz_no }}</td>
             </tr>
             <tr class="h-info">
                 <td class="lbl">발 주 일</td>
-                <td class="val">{{ page.doc.order_date }}</td>
+                <td colspan="3" class="val">{{ page.doc.order_date }}</td>
                 <td class="lbl">상 호</td>
                 <td class="val c">{{ page.doc.supplier.name }}</td>
                 <td class="lbl">성 명</td>
@@ -34,12 +35,14 @@
             <tr class="h-info">
                 <td class="lbl">수 신</td>
                 <td class="val strong">{{ page.doc.receiver.name }}</td>
+                <td class="lbl">대 표 자</td>
+                <td class="val">{{ page.doc.receiver.ceo_name }}</td>
                 <td class="lbl">주 소</td>
                 <td colspan="3" class="val small">{{ page.doc.supplier.address }}</td>
             </tr>
             <tr class="h-info">
                 <td class="lbl">담 당 자</td>
-                <td class="val">{{ page.doc.receiver.contact }}</td>
+                <td colspan="3" class="val">{{ page.doc.receiver.contact }}</td>
                 <td class="lbl">전 화</td>
                 <td class="val c small">{{ page.doc.supplier.tel }}</td>
                 <td class="lbl">팩 스</td>
@@ -47,7 +50,7 @@
             </tr>
             <tr class="h-info">
                 <td class="lbl">전 화</td>
-                <td class="val">{{ page.doc.receiver.tel }}</td>
+                <td colspan="3" class="val">{{ page.doc.receiver.tel }}</td>
                 <td class="lbl">발 주 자</td>
                 <td colspan="3" class="val c">{{ writer }}</td>
             </tr>

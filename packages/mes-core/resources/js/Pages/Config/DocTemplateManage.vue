@@ -1,9 +1,11 @@
 <!-- 문서 양식 ( 기준정보관리 > 문서 양식 · 11-18 ) — A4 문서( 발주서 · 출하지시서 )의 배치를 만든다
      - 좌 : 양식 목록 ( 문서 종류별 · 기본 양식 표시 ) / 가운데 : 종이 미리 보기( 예시 문서 · 인쇄와 같은 부품 DocSheet ) / 우 : 고른 영역의 설정
      - 양식 = 머리 영역( 격자 ) + 품목 표( 열 목록 ) + 아래 영역( 격자 ) — 종이에서 영역을 누르거나 오른쪽 위 단추로 고른다
-       머리 · 아래 : 칸을 눌러 고르고( Shift + 클릭 = 여러 칸 ) [합치기] · [나누기] — 칸마다 항목 · 글자 · 그림( 로고 / 직인 )과 글자 모양
+       머리 · 아래 : 칸을 눌러 고르고( Shift + 클릭 = 여러 칸 ) [합치기] · [나누기] — 칸마다 항목 · 글자와 글자 모양
        품목 표    : 열을 더하고 빼고 순서를 바꾼다 ( 머리글 · 너비 · 정렬 · 줄바꿈 ) · 한 장 줄 수 · 줄 높이 · 합계 줄
                     줄바꿈( 11-24 ) : 칸 폭을 넘으면 아랫줄로 → 그 행만 높아지고 한 장에 들어가는 줄이 줄어든다 · 넘치면 다음 장 ( 새 열 · 새 양식은 품명 · 규격 · 비고가 켜진 채 )
+     - 도장( 11-25 ) : 「도장」 탭 — 그림 올리기 · 자사 직인 / 로고( 자사정보관리 ) · 목록 [삭제] / 종이에서 끌어 옮기고 오른쪽 아래 네모로 크기
+                       칸과 상관없이 글자 위에 겹친다 · 여러 장인 문서는 장마다 같은 자리 ( 예전 칸 그림( IMAGE )을 대신한다 )
      - 기본 양식으로 켠 양식이 그 문서의 인쇄에 쓰인다. 기본 양식이 없으면 발주서 = 예전 고정 배치 · 출하지시서 = 처음 배치
      - [초기화] = 고치기 전( 양식을 연 때 · 마지막 저장 )으로 되돌린다 ( 확인창 ) -->
 <template>
@@ -71,7 +73,8 @@
                     <div class="flex-1 min-w-0 overflow-auto bg-gray-200 p-4">
                         <div class="mx-auto w-fit shadow-md" :style="{ zoom }">
                             <DocSheet :doc-type="form.doc_type" :design="form.design" :orientation="form.orientation" :page="samplePage" :images="images"
-                                :editable="canWrite" :active="zone" :selected="grid?.selKeys.value ?? null" @pick="onPick" />
+                                :editable="canWrite && zone !== 'stamp'" :active="zone" :selected="grid?.selKeys.value ?? null" @pick="onPick"
+                                :stamp-edit="canWrite && zone === 'stamp'" :stamp-sel="stampSel" @stamp-select="id => stampSel = id" />
                         </div>
                     </div>
 
@@ -116,6 +119,12 @@
                                 </div>
                                 <p class="text-[11px] text-gray-400">너비는 비율입니다 ( 열끼리 견줘 나눕니다 ) · 「빈 칸」 열은 손으로 적는 확인란 등에 씁니다</p>
                             </div>
+                        </div>
+
+                        <!-- 도장 ( 11-25 ) -->
+                        <div v-else-if="zone === 'stamp'" class="flex-1 min-h-0 overflow-y-auto px-3 pb-3">
+                            <StampPanel :stamps="form.design.stamps" :images="images" :box-w="pageSize.w" :box-h="pageSize.h" :width="25"
+                                :selected="stampSel" :disabled="!canWrite" note="여러 장인 문서는 장마다 같은 자리에 찍힙니다" @select="id => stampSel = id" />
                         </div>
 
                         <!-- 머리 · 아래 영역 -->
@@ -173,13 +182,6 @@
                                             <label class="lbl">글자</label>
                                             <BaseInput v-model="cur.text" class="w-full" placeholder="예: 발 주 서" maxlength="200" :disabled="!canWrite" />
                                         </div>
-                                        <div v-if="cur?.type === 'IMAGE'">
-                                            <label class="lbl">그림 ( 자사정보관리에 올린 것 )</label>
-                                            <div class="inline-flex p-0.5 rounded bg-gray-100 w-full">
-                                                <button v-for="k in IMAGES" :key="k.key" type="button" class="flex-1 px-1 py-1 rounded text-xs" :disabled="!canWrite"
-                                                    :class="cur.image === k.key ? 'bg-white shadow-sm font-semibold text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="cur.image = k.key">{{ k.label }}</button>
-                                            </div>
-                                        </div>
                                         <template v-if="cur?.type === 'FIELD' || cur?.type === 'TEXT'">
                                             <div class="flex items-end gap-3">
                                                 <div class="w-20"><label class="lbl">크기 pt</label><BaseInput v-model="cur.size" type="number" min="5" class="w-full text-right" :disabled="!canWrite" /></div>
@@ -213,6 +215,7 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import DocSheet from '@core/Components/Doc/DocSheet.vue';
+import StampPanel from '@core/Components/Common/StampPanel.vue';
 import { DOC_TYPES, FIELDS, COLUMNS, SAMPLE, PAGE, MAX_COLS, MAX_ROWS, docTypeLabel, columnDef, starterDesign, paginate, neededHeight, defaultWrap } from '@core/Components/Doc/docDesign';
 import { measureLineHeights } from '@core/Components/Doc/measureLines';
 import { useGridEdit } from '@core/Components/Doc/useGridEdit';
@@ -228,10 +231,9 @@ const canWrite  = computed(() => myPerm.value.can_write === true);
 const canDelete = computed(() => myPerm.value.can_delete === true);
 const { showFlash } = useToast();
 
-const ZONES      = [{ key: 'head', label: '머리 영역' }, { key: 'table', label: '품목 표' }, { key: 'foot', label: '아래 영역' }];
+const ZONES      = [{ key: 'head', label: '머리 영역' }, { key: 'table', label: '품목 표' }, { key: 'foot', label: '아래 영역' }, { key: 'stamp', label: '도장' }];
 const ORIENTS    = [{ value: 'P', label: '세로' }, { value: 'L', label: '가로' }];
-const KINDS      = [{ key: null, label: '비움' }, { key: 'FIELD', label: '항목' }, { key: 'TEXT', label: '글자' }, { key: 'IMAGE', label: '그림' }];
-const IMAGES     = [{ key: 'logo', label: '로고' }, { key: 'seal', label: '직인' }];
+const KINDS      = [{ key: null, label: '비움' }, { key: 'FIELD', label: '항목' }, { key: 'TEXT', label: '글자' }];   // 그림 칸은 도장으로 ( 11-25 )
 const ALIGNS     = [{ key: 'left', label: '왼쪽' }, { key: 'center', label: '가운데' }, { key: 'right', label: '오른쪽' }];
 const ALIGNS_OPT = ALIGNS.map(a => ({ value: a.key, label: a.label }));
 const fmt1       = (v) => (Math.round(v * 10) / 10).toString();
@@ -242,6 +244,7 @@ const loading   = ref(true);
 const saving    = ref(false);
 const errorText = ref('');
 const zone      = ref('head');
+const stampSel  = ref(null);   // 고른 도장 id ( 「도장」 탭 )
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const blank = (type = 'PURCHASE_ORDER') => ({
@@ -260,6 +263,8 @@ let origin = null, originUnsaved = false;
 function load(data, unsaved = false) {
     origin = clone(data); originUnsaved = unsaved;   // [초기화] 가 돌아갈 곳
     Object.assign(form, clone(data));
+    form.design.stamps ??= [];   // 도장 없이 저장된 양식 ( 11-25 이전 )
+    stampSel.value = null;
     grids.head.clearPick(); grids.foot.clearPick();
     errorText.value = '';
     snapshot.value = unsaved ? '' : JSON.stringify(payload());
@@ -284,7 +289,7 @@ const need       = computed(() => neededHeight({ ...form.design, margin_mm: Numb
 const overflow   = computed(() => need.value > pageSize.value.h + 0.01);
 
 // ---- 영역 ----
-const newCell = (r, c) => ({ r, c, rs: 1, cs: 1, type: null, field: null, text: null, image: null, size: 9, bold: false, align: 'left', wrap: false, bg: false });
+const newCell = (r, c) => ({ r, c, rs: 1, cs: 1, type: null, field: null, text: null, size: 9, bold: false, align: 'left', wrap: false, bg: false });
 const grids = {
     head: useGridEdit(() => form.design.head, { maxCols: MAX_COLS, maxRows: MAX_ROWS, blank: newCell }),
     foot: useGridEdit(() => form.design.foot, { maxCols: MAX_COLS, maxRows: MAX_ROWS, blank: newCell }),
@@ -311,7 +316,6 @@ function setType(type) {
     cell.type = type;
     if (type === 'FIELD') cell.field ??= FIELDS[form.doc_type][0].key;
     if (type === 'TEXT')  cell.text  ??= '';
-    if (type === 'IMAGE') { cell.image ??= 'logo'; cell.align = 'center'; }
     g.prune();
 }
 function setBg(v) {

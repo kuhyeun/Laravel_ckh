@@ -1,3 +1,4 @@
+@import './fonts.css';   /* 글꼴 Noto Sans KR ( 11-25 ) — @import 는 맨 위 */
 @import '@core-css/core.css';
 
 @tailwind base;

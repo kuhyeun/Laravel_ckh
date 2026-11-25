@@ -5,8 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>로그인</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    @vite('resources/css/fonts.css')
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
+        body, input, button { font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; }
+        body { display: flex; justify-content: center; align-items: center; height: 100vh; flex-direction: column; }
         form { border: 1px solid #ccc; padding: 2rem; border-radius: 8px; }
         div { margin-bottom: 1rem; }
         label { display: block; margin-bottom: 0.25rem; }

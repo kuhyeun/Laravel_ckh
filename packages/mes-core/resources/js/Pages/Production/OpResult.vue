@@ -252,7 +252,7 @@
                                 <!-- 투입 LOT ( 11-23 ) : 단추 → 창( 찾기 · 고르기 ) · 뱃지 = 고른 LOT 수 ( 다 골랐으면 초록 · 덜 골랐으면 주황 ) -->
                                 <div v-if="runLot && !line.lot_input_auto">
                                     <label class="lbl">투입 LOT <span v-if="inputSummary.hasAny" class="text-red-500">*</span></label>
-                                    <button type="button" class="h-9 px-3 inline-flex items-center gap-2 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm text-gray-700"
+                                    <button type="button" class="h-8 px-3 inline-flex items-center gap-2 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm text-gray-700"
                                         :title="inputSummary.hasAny ? `고름 ${runForm.inputs.length}${inputSummary.missing ? ` · 자재 ${inputSummary.missing}종 안 고름` : ''}` : '고를 투입 LOT 가 없습니다'"
                                         @click="openRunInputs">
                                         투입 LOT 선택

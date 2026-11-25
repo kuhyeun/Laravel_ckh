@@ -1,12 +1,12 @@
 <template>
-    <div class="relative flex items-center h-[50px] px-5 py-3 font-bold">
-        <div class="top-left-content flex items-center">
+    <div class="relative flex items-center h-[50px] px-5 py-3 font-bold" :class="{ 'title-anim': titleAnim }" :style="{ '--top-left-w': topLeftW + 'px' }">
+        <div ref="topLeftEl" class="top-left-content flex items-center">
             <button id="sidebar-toggle" class="p-1 mr-2 border border-transparent rounded-md box-border hover:border-black" @click="toggleSidebar">
                 <Bars3BottomLeftIcon class="h-5 w-5" />
             </button>
             <h1 class="top-frame-title">{{ page.props.appName }}</h1>
         </div>
-        <!-- 화면 제목 = 지금 메뉴 이름 ( 화면마다 두던 제목 줄의 h2 대신 ) — 본문 왼쪽 끝과 같은 x 에 -->
+
         <h2 v-if="pageTitle" class="top-page-title text-lg tracking-tight text-gray-800 truncate">
             {{ pageTitle }}
             <span v-if="page.props.readOnly && page.props.auth?.user?.user_level === 0" class="ml-2 align-middle text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-normal">조회 전용</span>
@@ -16,7 +16,6 @@
             <button id="user-info" class="mr-3" @click="openUserInfo">
                 <InformationCircleIcon class="h-6 w-6 fill-gray-700 hover:fill-blue-500"/>
             </button>
-            <!-- 내 알림 ( 11-13 — 결재 요청 · 승인 · 반려 ) -->
             <NotificationBell />
             <Link :href="route('user.dashboard')" class="mr-3 text-gray-700  hover:text-blue-500">대시보드</Link>
             <button type="button" class="text-gray-700 hover:text-blue-500" @click="logout">로그아웃</button>
@@ -25,7 +24,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { route } from 'ziggy-js';
 import { storeToRefs } from 'pinia';
 import { useUiStore } from '@core/Stores/uiStore';
@@ -61,7 +60,27 @@ const pageTitle = computed(() => {
     return find(page.props.userMenu) || find(page.props.adminMenu);
 });
 
+// 메뉴 접기 · 펴기 때 화면 제목이 부드럽게 옮겨 가게 ( 11-25 ) — 접힌 자리 = 로고 영역 폭 뒤 → 폭을 재서 CSS 변수로
+//   움직임은 버튼을 누른 동안( 0.35초 )만 켠다 — 늘 켜 두면 화면이 뜰 때 글꼴이 늦게 들어와 로고 폭이 바뀌며 제목이 미끄러졌다
+const topLeftEl = ref(null);
+const topLeftW = ref(180);
+const titleAnim = ref(false);
+let topLeftRo = null;
+let titleAnimTimer = null;
+onMounted(() => {
+    const measure = () => { if (topLeftEl.value) topLeftW.value = topLeftEl.value.offsetWidth; };
+    measure();
+    if (window.ResizeObserver && topLeftEl.value) {
+        topLeftRo = new ResizeObserver(measure);
+        topLeftRo.observe(topLeftEl.value);
+    }
+});
+onBeforeUnmount(() => { topLeftRo?.disconnect(); clearTimeout(titleAnimTimer); });
+
 const toggleSidebar = () => {
+    titleAnim.value = true;
+    clearTimeout(titleAnimTimer);
+    titleAnimTimer = setTimeout(() => { titleAnim.value = false; }, 350);
     const sidebarStateKey = 'sidebar-collapsed';
     const isCollapsed = document.documentElement.classList.toggle( 'sidebar-collapsed' );
 
@@ -92,7 +111,13 @@ const openUserInfo = () => {
 
 <style>
 /* 본문 왼쪽 끝( 사이드바 250px + 본문 p-6 24px — AppLayout )과 같은 x. 사이드바를 접으면 로고 뒤로 붙인다
-   ( 접힘은 html 클래스라 scoped 로는 못 잡는다 ) */
+   ( 접힘은 html 클래스라 scoped 로는 못 잡는다 )
+   접혔을 때도 absolute 그대로 left 만 바꾼다 ( static ↔ absolute 는 애니메이션이 안 되어 툭 튀었다 ) — 사이드바와 같은 300ms ease-in-out
+   접힌 자리 = 좌우 여백 20px + 로고 영역 폭( --top-left-w · 스크립트가 잰다 ) + 1.5rem */
 .top-page-title { position: absolute; left: 274px; max-width: calc(100% - 274px - 160px); }
-html.sidebar-collapsed .top-page-title { position: static; margin-left: 1.5rem; max-width: none; }
+html.sidebar-collapsed .top-page-title {
+    left: calc(20px + var(--top-left-w, 180px) + 1.5rem);
+    max-width: calc(100% - 20px - var(--top-left-w, 180px) - 1.5rem - 160px);
+}
+.title-anim .top-page-title { transition: left 300ms ease-in-out, max-width 300ms ease-in-out; }
 </style>

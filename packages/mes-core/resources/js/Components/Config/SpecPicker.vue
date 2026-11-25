@@ -69,7 +69,7 @@ const active = ref(-1);   // 키보드로 가리킨 줄 ( -1 = 없음 · results
 const open = ref(false);
 const adding = ref(false);
 const popStyle = ref({});
-// size : core.css 의 .base-input.sm / .lg 에 맡긴다 ( BaseInput 과 같은 높이 — sm 30px · md 36px · lg 42px )
+// size : core.css 의 .base-input.sm / .lg 에 맡긴다 ( BaseInput 과 같은 높이 — sm 28px · md 32px · lg 42px )
 const sizeClass = computed(() => ({ sm: 'sm', lg: 'lg' }[props.size] ?? ''));
 
 const text = computed(() => String(props.modelValue ?? '').trim());

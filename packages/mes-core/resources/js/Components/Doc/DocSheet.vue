@@ -2,11 +2,13 @@
      - 장 = 용지 그대로( 세로 210 × 297 · 가로 297 × 210 ) · 여백은 안쪽 padding ( 인쇄는 @page margin 0 — DocPages )
      - 품목 표 : 줄 높이 · 한 장 줄 수 고정 ( 빈 줄도 그린다 ) · 합계 줄 = 문서 전체 합계 ( 더하는 열만 )
        줄바꿈 열( wrap · 11-24 ) : 칸 안에서 아랫줄로 · 줄마다 높이 = page.heights ( paginate ) · 표 영역 높이는 늘 같다( 아래 영역 위치 고정 )
-     - editable : 편집 화면 — 머리 · 아래 칸을 누르면 pick( 영역, 칸, 이벤트 ) · 표를 누르면 pick( 'table' ) · active 영역에 테두리 -->
+     - editable : 편집 화면 — 머리 · 아래 칸을 누르면 pick( 영역, 칸, 이벤트 ) · 표를 누르면 pick( 'table' ) · active 영역에 테두리
+     - 도장( design.stamps · 11-25 ) : 장 위에 떠 있는 그림 — 장 왼쪽 위( 여백 포함 ) 기준 mm · 모든 장에 같은 자리 ( StampLayer )
+       stampEdit : 편집 화면의 「도장」 탭 — 끌어서 옮기기 · 크기 ( 칸 고르기는 끈다 ) · 누른 도장은 stamp-select( id ) -->
 <template>
     <div class="ds" :style="{ width: `${size.w}mm`, height: `${size.h}mm`, padding: `${design.margin_mm}mm` }">
         <div class="ds-zone" :class="{ 'ds-active': editable && active === 'head' }">
-            <DocGrid :design="design.head" :values="values" :images="images" :editable="editable" :selected="active === 'head' ? selected : null" @pick="(t, e) => $emit('pick', 'head', t, e)" />
+            <DocGrid :design="design.head" :values="values" :editable="editable" :selected="active === 'head' ? selected : null" @pick="(t, e) => $emit('pick', 'head', t, e)" />
         </div>
 
         <div class="ds-zone ds-table-zone" :class="{ 'ds-active': editable && active === 'table', 'ds-click': editable }" :style="{ height: `${zoneH}mm` }" @click="editable && $emit('pick', 'table')">
@@ -28,14 +30,17 @@
         </div>
 
         <div class="ds-zone" :class="{ 'ds-active': editable && active === 'foot' }">
-            <DocGrid :design="design.foot" :values="values" :images="images" :editable="editable" :selected="active === 'foot' ? selected : null" @pick="(t, e) => $emit('pick', 'foot', t, e)" />
+            <DocGrid :design="design.foot" :values="values" :editable="editable" :selected="active === 'foot' ? selected : null" @pick="(t, e) => $emit('pick', 'foot', t, e)" />
         </div>
+
+        <StampLayer :stamps="design.stamps" :width-mm="size.w" :height-mm="size.h" :images="images" :editable="stampEdit" :selected="stampSel" @select="id => $emit('stamp-select', id)" />
     </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
 import DocGrid from '@core/Components/Doc/DocGrid.vue';
+import StampLayer from '@core/Components/Common/StampLayer.vue';
 import { PAGE, lineValue, sumValue } from '@core/Components/Doc/docDesign';
 import { columnWidths } from '@core/Components/Doc/measureLines';
 
@@ -44,12 +49,14 @@ const props = defineProps({
     design:      { type: Object, required: true },
     orientation: { type: String, default: 'P' },
     page:        { type: Object, required: true },   // paginate() 한 장 : { doc, fields, no, of, rows }
-    images:      { type: Object, default: () => ({}) },
+    images:      { type: Object, default: () => ({}) },   // { logo, seal } data URI — 도장의 자사 그림
     editable:    { type: Boolean, default: false },
     active:      { type: String, default: null },    // head · table · foot
     selected:    { type: Object, default: null },    // Set< 'r:c' > ( active 영역의 )
+    stampEdit:   { type: Boolean, default: false },  // 도장 끌기 ( 편집 화면 · 11-25 )
+    stampSel:    { type: String, default: null },    // 고른 도장 id
 });
-defineEmits(['pick']);
+defineEmits(['pick', 'stamp-select']);
 
 const size   = computed(() => PAGE[props.orientation] ?? PAGE.P);
 const values = computed(() => ({ ...props.page.fields, page_no: `${props.page.no} / ${props.page.of}` }));
@@ -62,7 +69,7 @@ const zoneH = computed(() => {
 </script>
 
 <style scoped>
-.ds { box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #fff; color: #111;
+.ds { position: relative; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #fff; color: #111;
     font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .ds-zone { flex: none; position: relative; }
 .ds-table-zone { overflow: hidden; }

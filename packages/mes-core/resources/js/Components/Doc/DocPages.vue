@@ -2,6 +2,7 @@
      - 문서마다 design.table.rows_per_page 줄씩 장을 나눈다 ( 머리 · 아래 영역은 장마다 )
        줄바꿈 열이 있으면( 11-24 ) 줄 높이를 재서( measureLines ) 표 영역에 들어가는 만큼씩 — 넘치면 다음 장
      - 인쇄 : 사본을 body 바로 아래에 두고 html.doc-printing 이 붙어 있는 동안 그것만 보인다 · 용지 = A4 방향 그대로 · 여백 0 ( 여백은 장 안쪽 )
+     - 도장( design.stamps · 11-25 ) : DocSheet 가 장마다 같은 자리에 그린다 — 그림은 data URI( images · 양식 안 )라 인쇄 전에 기다릴 것이 없다
      - 쓰는 곳 : DocPreview( 출하지시서 ) · PurchaseOrderPreview( 발주서에 기본 양식이 있을 때 ) -->
 <template>
     <div class="flex-1 min-h-0 overflow-auto bg-gray-200 py-4">

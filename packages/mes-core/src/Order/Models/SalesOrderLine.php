@@ -99,6 +99,25 @@ class SalesOrderLine extends Model {
             ->sum('qty');
     }
 
+    // 이 줄을 담은 작업지시( 취소 제외 ) 목록 — 수주 창 작업지시 칸 : 있으면 그 지시를 연다 ( 11-25 )
+    public function directedWorkOrders(): array {
+        if (!$this->sales_order_line_idx) {
+            return [];
+        }
+        return WorkOrderSource::where('sales_order_line_idx', $this->sales_order_line_idx)
+            ->whereHas('workOrder', fn ($q) => $q->where('status', '!=', 'CANCELED'))
+            ->with('workOrder:work_order_idx,sheet_idx,wo_no,status')
+            ->orderBy('work_order_idx')
+            ->get()
+            ->map(fn ($s) => [
+                'work_order_idx' => (int) $s->work_order_idx,
+                'sheet_idx'      => (int) $s->workOrder->sheet_idx,
+                'wo_no'          => $s->workOrder->wo_no,
+                'status'         => $s->workOrder->status,
+                'qty'            => (float) $s->qty,
+            ])->values()->all();
+    }
+
     // 다른 표가 이 줄을 가리키는가 ( 취소된 작업지시 · 출하 · 발주 출처 포함 ) — 가리키면 지우지 않고 취소한다
     //   작업지시 출처 · 출하 줄은 restrictOnDelete 라 지우면 문구 없이 500 이 났고, 발주 출처는 cascade 라 연결이 조용히 사라졌다
     public function hasReference(): bool {

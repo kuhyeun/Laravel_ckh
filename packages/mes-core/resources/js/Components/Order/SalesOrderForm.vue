@@ -39,19 +39,19 @@
                 <!-- 머리 -->
                 <div class="grid grid-cols-3 gap-x-4 gap-y-3">
                     <FormField label="수주번호">
-                        <p class="h-9 flex items-center text-gray-700">{{ form.order_no || '저장할 때 자동으로 매깁니다' }}</p>
+                        <p class="h-8 flex items-center text-gray-700">{{ form.order_no || '저장할 때 자동으로 매깁니다' }}</p>
                     </FormField>
                     <FormField label="수주일" required :error="errors.order_date">
                         <BaseDatePicker v-model="form.order_date" class="w-full" :disabled="readonly && !dateEditing" />
                     </FormField>
                     <FormField label="상태">
-                        <div v-if="editableStatus" class="h-9 flex items-center gap-4">
+                        <div v-if="editableStatus" class="h-8 flex items-center gap-4">
                             <label v-for="s in statusChoices" :key="s.value" class="inline-flex items-center gap-1.5" :class="readonly ? 'opacity-60' : 'cursor-pointer'">
                                 <input type="radio" class="accent-blue-600" :value="s.value" v-model="form.status" :disabled="readonly" />
                                 <span>{{ s.label }}</span>
                             </label>
                         </div>
-                        <div v-else class="h-9 flex items-center gap-2">
+                        <div v-else class="h-8 flex items-center gap-2">
                             <span class="px-2 py-0.5 rounded text-xs text-white" :style="{ background: orderStatusColor(form.status) }">{{ orderStatusLabel(form.status) }}</span>
                         </div>
                     </FormField>
@@ -70,8 +70,8 @@
                         <BaseInput v-model="form.manager_name" class="w-full" maxlength="50" :disabled="readonly" />
                     </FormField>
                     <FormField label="비고" class="col-span-2">
-                        <!-- 처음 높이 = 다른 칸( 36px · 한 줄 ) — 길게 쓰면 오른쪽 아래를 끌어 늘린다 ( 11-23 · 높이를 고정하면 끌어도 안 늘어나서 최소 높이만 ) -->
-                        <textarea v-model="form.remark" rows="1" class="base-input w-full !min-h-9 !py-1.5" :class="readonly ? 'resize-none': 'resize-y'" :disabled="readonly"></textarea>
+                        <!-- 처음 높이 = 다른 칸( 32px · 한 줄 ) — 길게 쓰면 오른쪽 아래를 끌어 늘린다 ( 11-23 · 높이를 고정하면 끌어도 안 늘어나서 최소 높이만 ) -->
+                        <textarea v-model="form.remark" rows="1" class="base-input w-full !min-h-8 !py-1.5" :class="readonly ? 'resize-none': 'resize-y'" :disabled="readonly"></textarea>
                     </FormField>
                 </div>
 
@@ -87,8 +87,8 @@
                         <div class="flex-1"></div>
                         <template v-if="!readonly">
                             <span class="text-xs text-gray-500">납품일 일괄</span>
-                            <BaseDatePicker v-model="bulkDue" size="md" class="w-36" />
-                            <BaseButton size="sm" variant="secondary" :disabled="!bulkDue" @click="applyBulkDue">빈 칸에 적용</BaseButton>
+                            <!-- 날짜 + [빈 칸에 적용] 한 덩어리 ( DateApplyInput · 11-25 ) -->
+                            <DateApplyInput v-model="bulkDue" button-text="적용" @apply="applyBulkDue" />
                             <BaseButton v-if="canCreateItem" size="sm" variant="secondary" @click="openNewItem">+ 새 품목 등록</BaseButton>
                             <BaseButton size="sm" variant="secondary" @click="addLine">+ 품목</BaseButton>
                         </template>
@@ -97,10 +97,10 @@
 
                     <div class="border rounded overflow-x-auto">
                         <!-- 최소 폭 = 고정 칸 1048 + 품목 280 ( 수정은 작업지시 칸 80 더 ) — 칸을 여유 있게, 모달보다 넓으면 가로 스크롤 ( 11-12 ) -->
-                        <table class="w-full table-fixed text-xs" :class="isEdit ? 'min-w-[1408px]' : 'min-w-[1328px]'">
+                        <table class="w-full table-fixed text-xs">
                             <colgroup>
                                 <col class="w-10">
-                                <col>
+                                <col class="w-64">
                                 <col class="w-28">
                                 <col class="w-14">
                                 <col class="w-32">
@@ -108,8 +108,8 @@
                                 <col class="w-40">
                                 <col class="w-24">
                                 <col class="w-24">
-                                <col class="w-48">
-                                <col v-if="isEdit" class="w-20">
+                                <!-- <col class="w-48"> -->
+                                <col v-if="isEdit" class="w-32">
                                 <col v-if="!readonly" class="w-10">
                             </colgroup>
                             <thead class="bg-gray-50 text-gray-500">
@@ -123,7 +123,7 @@
                                     <th class="px-2 py-1.5">납품일 *</th>
                                     <th class="px-2 py-1.5">공정</th>
                                     <th class="px-2 py-1.5">자재</th>
-                                    <th class="px-2 py-1.5 text-left">비고</th>
+                                    <!-- <th class="px-2 py-1.5 text-left">비고</th> -->
                                     <th v-if="isEdit" class="px-2 py-1.5">작업지시</th>
                                     <th v-if="!readonly" class="px-2 py-1.5"></th>
                                 </tr>
@@ -133,7 +133,7 @@
                                     <td :colspan="colCount" class="px-2 py-4 text-center text-gray-400">품목을 추가하세요.</td>
                                 </tr>
                                 <tr v-for="(l, i) in form.lines" :key="l._key" class="border-t align-top">
-                                    <td class="px-2 text-center text-gray-400 py-1 leading-9">{{ i + 1 }}</td>
+                                    <td class="px-2 text-center text-gray-400 py-1 leading-8">{{ i + 1 }}</td>
                                     <td class="px-1.5 py-1">
                                         <ItemPicker v-model="l.item_idx" :remote="ITEM_REMOTE" :disabled="readonly || l.locked" :current="{ item_code: l.item_code, item_name: l.item_name, spec: l.item_spec }" @select="row => onItemPicked(l, row)" />
                                         <p v-if="lineError(i, 'item_idx')" class="text-[11px] text-red-500">{{ lineError(i, 'item_idx') }}</p>
@@ -142,42 +142,47 @@
                                         <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :class="isUnderMin(l) ? '!border-red-400' : ''" :disabled="readonly" />
                                         <p v-if="lineError(i, 'qty')" class="text-[11px] text-red-500">{{ lineError(i, 'qty') }}</p>
                                     </td>
-                                    <td class="px-2 text-center text-gray-500 py-1 leading-9">{{ l.spec_unit }}</td>
+                                    <td class="px-2 text-center text-gray-500 py-1 leading-8">{{ l.spec_unit }}</td>
                                     <td class="px-1.5 py-1">
                                         <BaseInput v-model="l.unit_price" type="number" min="0" size="md" class="w-full text-right" :disabled="readonly" />
                                         <p v-if="lineError(i, 'unit_price')" class="text-[11px] text-red-500">{{ lineError(i, 'unit_price') }}</p>
                                     </td>
-                                    <td class="px-2 text-right text-gray-700 py-1 leading-9">{{ fmt(lineAmount(l)) }}</td>
+                                    <td class="px-2 text-right text-gray-700 py-1 leading-8">{{ fmt(lineAmount(l)) }}</td>
                                     <td class="px-1.5 py-1">
                                         <BaseDatePicker v-model="l.due_date" size="md" class="w-full" :disabled="readonly && !dateEditing" />
                                         <p v-if="lineError(i, 'due_date')" class="text-[11px] text-red-500">{{ lineError(i, 'due_date') }}</p>
                                     </td>
-                                    <td class="px-1.5 text-center py-1 leading-9">
+                                    <td class="px-1.5 text-center py-1 leading-8">
                                         <button v-if="l.item_idx" type="button" class="text-blue-700 hover:underline" @click="openRouting(l, i)">공정 {{ l.routing_lines.length }}</button>
                                         <span v-else class="text-gray-300">—</span>
                                         <span v-if="l.routing_locked" class="shrink-0 whitespace-nowrap ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 공정을 바꿀 수 없습니다">잠김</span>
                                         <span v-else-if="l.routing_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 공정과 다르게 고쳤습니다">수정됨</span>
                                         <p v-if="routingError(i)" class="text-[11px] text-red-500">공정을 확인하세요</p>
                                     </td>
-                                    <td class="px-1.5 text-center py-1 leading-9">
+                                    <td class="px-1.5 text-center py-1 leading-8">
                                         <button v-if="l.item_idx" type="button" class="text-blue-700 hover:underline" @click="openMaterial(l, i)">자재 {{ l.material_lines.length }}</button>
                                         <span v-else class="text-gray-300">—</span>
                                         <span v-if="l.material_locked" class="shrink-0 whitespace-nowrap ml-1 text-[10px] px-1 rounded bg-gray-100 text-gray-500" title="작업지시가 생성되어 자재를 바꿀 수 없습니다">잠김</span>
                                         <span v-else-if="l.material_modified" class="ml-1 text-[10px] px-1 rounded bg-amber-50 text-amber-700" title="품목 BOM 과 다르게 고쳤습니다">수정됨</span>
                                         <p v-if="materialError(i)" class="text-[11px] text-red-500">자재를 확인하세요</p>
                                     </td>
-                                    <td class="px-1.5 py-1">
+                                    <!-- 비고란 숨김처리 -->
+                                    <!-- <td class="px-1.5 py-1">
                                         <BaseInput v-model="l.remark" size="md" class="w-full" maxlength="200" :disabled="readonly" />
                                         <p v-if="lineError(i, 'remark')" class="text-[11px] text-red-500">{{ lineError(i, 'remark') }}</p>
-                                    </td>
-                                    <!-- 작업지시 ( 50-생산 §4 — 이 줄을 담은 지시 창. 남은 지시 수량이 기본 ) · 줄 높이( h-9 ) 안에 한 줄
-                                         지시 · 생산 · 출하 수량은 뺐다 ( 11-20 — 수주 진행관리에서 본다 ) -->
-                                    <td v-if="isEdit" class="px-1.5 text-center py-1 leading-9">
-                                        <button v-if="canDirect(l)" type="button" class="text-blue-700 hover:underline whitespace-nowrap" @click="openWorkOrder(l, i)">작업지시</button>
+                                    </td> -->
+                                    <td v-if="isEdit" class="px-1.5 text-center py-1 leading-8">
+                                        <!-- 11-25 : 담은 작업지시가 있으면 그 지시 번호( 누르면 그 지시서 ) · 남은 수량이 있으면 [+ 지시] / 없으면 [작업지시] 등록 -->
+                                        <template v-if="l.work_orders?.length">
+                                            <button v-for="w in l.work_orders" :key="w.work_order_idx" type="button" class="block w-full truncate text-blue-700 hover:underline"
+                                                :title="`${w.wo_no} · ${woStatusLabel(w.status)} · 담은 수량 ${fmt(w.qty)} — 눌러서 열기`" @click="openDirected(w)">{{ w.wo_no }}</button>
+                                            <button v-if="canDirect(l)" type="button" class="text-[11px] text-gray-500 hover:text-blue-700 hover:underline whitespace-nowrap" :title="`남은 ${fmt(num(l.qty) - num(l.directed_qty))} 을 지시`" @click="openWorkOrder(l, i)">+ 지시</button>
+                                        </template>
+                                        <button v-else-if="canDirect(l)" type="button" class="text-blue-700 hover:underline whitespace-nowrap" @click="openWorkOrder(l, i)">작업지시</button>
                                         <span v-else class="text-gray-300">—</span>
                                     </td>
-                                    <td v-if="!readonly" class="px-1 text-center py-1 leading-9">
-                                        <button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400" :disabled="l.locked" :title="l.locked ? '생산 · 출하가 시작된 줄은 지울 수 없습니다' : '줄 삭제'" @click="removeLine(i)">✕</button>
+                                    <td v-if="!readonly" class="px-1 text-center py-1 leading-8">
+                                        <button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:hover:text-gray-400" :disabled="l.locked" :title="l.locked ? '생산 · 출하가 시작된 줄은 지울 수 없습니다' : '줄 삭제'" @click="removeLine(i)">✕</button>
                                     </td>
                                 </tr>
                             </tbody>
@@ -230,6 +235,8 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import FormField from '@core/Components/Common/FormField.vue';
 import ModalFooter from '@core/Components/Common/ModalFooter.vue';
+import DateApplyInput from '@core/Components/Common/DateApplyInput.vue';
+import { woStatusLabel } from '@core/Components/Production/productionCodes';
 import { useToast } from '@core/Composables/useToast';
 import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
 import ItemForm from '@core/Components/Config/ItemForm.vue';
@@ -491,6 +498,24 @@ onMounted(async () => {
 // ---- 작업지시 ( 수주 줄 → 지시 — 50-생산 §4 ) ----
 // 저장된 줄 · 확정 수주 · 남은 지시 수량이 있을 때. 권한은 지시 화면( 서버 )이 본다
 const canDirect = (l) => isEdit.value && l.sales_order_line_idx && form.status === 'CONFIRMED' && num(l.qty) - num(l.directed_qty) > 0;
+
+// 담은 작업지시 열기 ( 그 줄이 선택된 지시서 — 작업지시관리 행 클릭과 같다 · 11-25 ) — 고치면 수주 다시 조회
+function openDirected(w) {
+    modalStore.open(
+        WorkOrderForm,
+        {
+            order: { sheet_idx: w.sheet_idx, work_order_idx: w.work_order_idx },
+            canWrite: true,
+            onSaved: async () => {
+                const { data } = await window.axios.get(route('order.sales.show', form.sales_order_idx));
+                fillForm(data.order);
+                props.onSaved?.(data.order, [], { silent: true });
+            },
+            modalTitle: `작업지시서 [ ${String(w.wo_no).replace(/-\d+$/, '')} ]`,
+        },
+        { size: 'xl', closeOnClickOutside: false }
+    );
+}
 
 function openWorkOrder(l, i) {
     const remaining = num(l.qty) - num(l.directed_qty);

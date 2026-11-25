@@ -20,15 +20,19 @@
                     </div>
 
                     <div class="modal-body flex-1 min-h-0 flex flex-col p-3 overflow-y-auto">
-                        <!-- !mt-0 : 화면들 첫 줄의 mt-3 은 제목과 띄우던 간격 — 머리가 따로라 필요 없다 -->
+                        <!-- !mt-0 : 화면들 첫 줄의 mt-3 은 제목과 띄우던 간격 — 머리가 따로라 필요 없다
+                             줄어들지 않게( flex 1 0 auto · 11-25 ) — 화면 맨 위에 min-h-0 이 있으면 본문 높이에 맞춰 줄어들고 넘친 내용( 단추 줄 )이
+                             상자 밖으로 삐져나와 아래 이름표와 겹쳤다 ( 거래처 수정 + 입고검사 칸 ) → 본문이 스크롤
+                             전체 화면( size-full · 높이 고정 )만 예전처럼 줄여서 화면 안쪽이 나눠 쓴다 -->
                         <component
-                            class="flex-1 !mt-0"
+                            class="!mt-0"
+                            :class="modal.size === 'full' ? 'flex-1 min-h-0' : 'flex-[1_0_auto]'"
                             :is="modal.component"
                             v-bind="modal.props"
                             @close="modalStore.close(modal.id)"
                         />
-                        <!-- 이름표 줄 : 보일 때만 ( 빈 줄도 여백이 남아 창에 스크롤이 생겼다 · 11-25 ) -->
-                        <div v-if="showSourceTag" class="flex justify-end mt-2 -mb-1.5 -mr-1.5"><DevSourceTag :name="sourceName(modal.component)" /></div>
+                        <!-- 이름표 줄 : 보일 때만 ( 빈 줄도 여백이 남아 창에 스크롤이 생겼다 · 11-25 ) · mt-3 = 단추 줄( ModalFooter )이 아래 여백만큼 내려온 자리 다음 -->
+                        <div v-if="showSourceTag" class="flex justify-end mt-3 -mb-1.5 -mr-1.5"><DevSourceTag :name="sourceName(modal.component)" /></div>
                     </div>
                 </div>
             </div>

@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => {
     return {
         plugins: [
             laravel({
-                input: ['resources/css/app.css', 'resources/js/app.js'],
+                input: ['resources/css/app.css', 'resources/js/app.js', 'resources/css/fonts.css'],   // fonts.css : 로그인 화면( blade )용 글꼴 ( 11-25 )
                 refresh: true,
             }),
             vue(),

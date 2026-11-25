@@ -33,7 +33,7 @@
             </template>
             <div class="flex-1"></div>
             <div class="inline-flex rounded border border-gray-300 overflow-hidden">
-                <button v-for="v in VIEWS" :key="v.key" type="button" class="px-3 h-9 text-sm" :class="view === v.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="view = v.key">{{ v.label }}</button>
+                <button v-for="v in VIEWS" :key="v.key" type="button" class="px-3 h-8 text-sm" :class="view === v.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="view = v.key">{{ v.label }}</button>
             </div>
         </div>
 

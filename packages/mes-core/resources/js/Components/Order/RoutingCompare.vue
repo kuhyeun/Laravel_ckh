@@ -37,8 +37,8 @@
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr>
-                                <th class="px-2 py-1">순서</th><th class="px-2 py-1 text-left truncate" :title="c.left">{{ c.left }}</th><th class="px-2 py-1 text-right">개당(초)</th><th class="px-2 py-1">검사</th>
-                                <th class="px-2 py-1 border-l">순서</th><th class="px-2 py-1 text-left truncate" :title="c.right">{{ c.right }}</th><th class="px-2 py-1 text-right">개당(초)</th><th class="px-2 py-1">검사</th>
+                                <th class="px-2 py-1">순서</th><th class="px-2 py-1 text-left truncate" :title="c.left">{{ c.left }}</th><th class="px-2 py-1 text-right">개당(분)</th><th class="px-2 py-1">검사</th>
+                                <th class="px-2 py-1 border-l">순서</th><th class="px-2 py-1 text-left truncate" :title="c.right">{{ c.right }}</th><th class="px-2 py-1 text-right">개당(분)</th><th class="px-2 py-1">검사</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -47,14 +47,14 @@
                                 <template v-if="r.left">
                                     <td class="px-2 py-1 text-center text-gray-400">{{ r.li + 1 }}</td>
                                     <td class="px-2 py-1 truncate" :class="r.kind === 'removed' ? 'line-through text-red-700' : ''" :title="procName(r.left.process_idx)">{{ procName(r.left.process_idx) }}</td>
-                                    <td class="px-2 py-1 text-right" :class="r.changed?.includes('cycle_time_sec') ? 'font-semibold' : ''">{{ fmtNum(r.left.cycle_time_sec) }}</td>
+                                    <td class="px-2 py-1 text-right" :class="r.changed?.includes('cycle_time_sec') ? 'font-semibold' : ''">{{ fmtNum(secToMin(r.left.cycle_time_sec), 2) }}</td>
                                     <td class="px-2 py-1 text-center" :class="r.changed?.some(f => f.startsWith('insp')) ? 'font-semibold' : ''">{{ inspText(r.left) }}</td>
                                 </template>
                                 <td v-else colspan="4"></td>
                                 <template v-if="r.right">
                                     <td class="px-2 py-1 text-center text-gray-400 border-l">{{ r.ri + 1 }}</td>
                                     <td class="px-2 py-1 truncate" :class="r.kind === 'added' ? 'text-green-800 font-semibold' : ''" :title="procName(r.right.process_idx)">{{ procName(r.right.process_idx) }}</td>
-                                    <td class="px-2 py-1 text-right" :class="r.changed?.includes('cycle_time_sec') ? 'font-semibold text-amber-800' : ''">{{ fmtNum(r.right.cycle_time_sec) }}</td>
+                                    <td class="px-2 py-1 text-right" :class="r.changed?.includes('cycle_time_sec') ? 'font-semibold text-amber-800' : ''">{{ fmtNum(secToMin(r.right.cycle_time_sec), 2) }}</td>
                                     <td class="px-2 py-1 text-center" :class="r.changed?.some(f => f.startsWith('insp')) ? 'font-semibold text-amber-800' : ''">{{ inspText(r.right) }}</td>
                                 </template>
                                 <td v-else colspan="4" class="border-l"></td>
@@ -97,6 +97,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import { fmtNum } from '@core/Utils/format';
+import { secToMin } from '@core/Components/Config/routingLines';
 
 const props = defineProps({
     lineIdx: { type: Number, required: true },

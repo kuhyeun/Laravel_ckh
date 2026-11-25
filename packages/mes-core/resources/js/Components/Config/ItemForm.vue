@@ -24,17 +24,20 @@
             >
                 {{ t.label }}
                 <span v-if="t.key === 'files' && fileCount" class="ml-0.5 text-xs text-gray-400">{{ fileCount }}</span>
+                <span v-if="t.key === 'partners'" class="text-xs text-gray-400">( {{ itemPartners.length }} )</span>
                 <span v-if="tabHasError(t.key)" class="ml-0.5 text-red-500">•</span>
             </button>
         </div>
 
         <!-- 탭 1 · 기본 -->
-        <div v-show="tab === 'basic'" class="grid grid-cols-2 gap-x-4 gap-y-3 pt-4">
+        <!-- 4칸 격자 ( 11-25 ) — 창이 넓어( xl ) 2칸이면 입력칸이 600px × 30px 로 길쭉했다 → 짧은 칸 1칸 · 품명 · 규격 · 주 자재는 2칸
+               품번( 2 ) | 품명( 2 ) / 대분류 | 소분류 | 규격 | 단위 / 주 자재( 2 ) | 소요 / 조달 구분 | 판매 여부 | 사용 여부 | 시리얼 / 비고( 4 ) -->
+        <div v-show="tab === 'basic'" class="grid grid-cols-4 gap-x-4 gap-y-3 pt-4">
             <!-- 새 품목은 비우면 자동 ( 자재 MT · 반제품 SM · 제품 PD + 일련번호 · 11-12 ) -->
-            <FormField label="품번" :required="isEdit" :hint="isEdit ? '' : '비우면 자동'" :error="errors.item_code">
+            <FormField label="품번" :required="isEdit" :hint="isEdit ? '' : '비우면 자동'" :error="errors.item_code" class="col-span-2">
                 <BaseInput v-model="form.item_code" class="w-full" :placeholder="isEdit ? '예: PN-A' : `비우면 자동 ( 예: ${autoCodeHint} )`" :disabled="!canWrite" />
             </FormField>
-            <FormField label="품명" required :error="errors.item_name">
+            <FormField label="품명" required :error="errors.item_name" class="col-span-2">
                 <BaseInput v-model="form.item_name" class="w-full" :disabled="!canWrite" />
             </FormField>
             <FormField label="대분류" required :error="errors.item_type">
@@ -43,12 +46,12 @@
             <FormField label="소분류" required :error="errors.item_kind">
                 <BaseSelect v-model="form.item_kind" :options="kindOptions" class="w-full" :disabled="!canWrite" />
             </FormField>
-            <FormField label="단위" required :error="errors.spec_unit">
-                <UnitSelect v-model="form.spec_unit" :disabled="!canWrite" empty-hint />
-            </FormField>
             <FormField label="규격" :error="errors.spec">
                 <!-- 코드관리 규격에서 찾기 · 새 규격도 그대로 ( 저장하면 규격 코드에 추가 ) -->
                 <SpecPicker v-model="form.spec" :can-create="canWrite" :disabled="!canWrite" />
+            </FormField>
+            <FormField label="단위" required :error="errors.spec_unit">
+                <UnitSelect v-model="form.spec_unit" :disabled="!canWrite" empty-hint />
             </FormField>
 
             <!-- 재질 일단 보류 -->
@@ -60,13 +63,13 @@
 
             <!-- 주 자재( BOM ) 는 만드는 품목( 제품 )만 · 공정은 공정 탭 -->
             <!-- 주 자재 : 가공품은 제품 1 : 원자재 1 이 대부분 → 저장하면 BOM V1 이 만들어진다 -->
-            <div v-if="isProduct" class="col-span-2 border-t pt-3">
+            <div v-if="isProduct" class="col-span-4 border-t pt-3">
                 <div class="flex items-baseline gap-2 mb-1">
                     <span class="text-gray-500 font-medium">주 자재</span>
                     <span v-if="bomLocked" class="text-xs text-amber-600">BOM 자재가 {{ bomLineCount }}건이라 여기서는 수정할 수 없습니다. BOM관리에서 다루세요.</span>
                     <span v-else class="text-xs text-gray-400">저장하면 BOM {{ mainMaterial.bom_line_idx ? '자재 줄이 수정' : 'V1 이 자동 생성' }}됩니다. 비우면 줄이 삭제됩니다.</span>
                 </div>
-                <div class="grid grid-cols-3 gap-x-4 gap-y-2">
+                <div class="grid grid-cols-4 gap-x-4 gap-y-2">
                     <div class="col-span-2">
                         <!-- 품번 · 품명 · 규격으로 찾기 · 없으면 새 자재 등록 ( 품번이 같아도 규격이 다르면 다른 자재 ) -->
                         <ItemPicker v-model="mainMaterial.child_item_idx" :remote="{ types: ['MATERIAL'] }" :exclude="[form.item_idx]" placeholder="( 없음 )" allow-empty size="md"
@@ -100,24 +103,30 @@
                 <p v-if="errors.procure_type" class="text-xs text-red-500 mt-0.5">{{ errors.procure_type[0] }}</p>
             </div>
             <FormField label="판매 여부" :error="errors.is_sale">
-                <div class="h-9 flex items-center">
+                <div class="h-8 flex items-center">
                     <BaseCheckbox variant="switch" v-model="form.is_sale" true-value="Y" false-value="N" :disabled="!canWrite">
                         {{ form.is_sale === 'Y' ? '판매함' : '판매 안 함' }}
                     </BaseCheckbox>
                 </div>
             </FormField>
 
-            <div class="flex items-center gap-6 col-span-2 pt-1">
-                <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
-                    {{ form.is_use === 'Y' ? '사용' : '미사용' }}
-                </BaseCheckbox>
-                <BaseCheckbox v-if="serialEnabled || form.serial_use === 'Y'" variant="switch" v-model="form.serial_use" true-value="Y" false-value="N" :disabled="!canWrite">
-                    시리얼 사용 <span class="text-xs text-gray-400">( 낱개마다 번호 — 중요 제품만 )</span>
-                </BaseCheckbox>
-            </div>
-            <p v-if="errors.serial_use" class="col-span-2 text-xs text-red-500 -mt-2">{{ errors.serial_use[0] }}</p>
-            <FormField label="비고" class="col-span-2">
-                <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
+            <FormField label="사용 여부">
+                <div class="h-8 flex items-center">
+                    <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
+                        {{ form.is_use === 'Y' ? '사용' : '미사용' }}
+                    </BaseCheckbox>
+                </div>
+            </FormField>
+            <FormField v-if="serialEnabled || form.serial_use === 'Y'" label="시리얼" hint="낱개마다 번호 — 중요 제품만" :error="errors.serial_use">
+                <div class="h-8 flex items-center">
+                    <BaseCheckbox variant="switch" v-model="form.serial_use" true-value="Y" false-value="N" :disabled="!canWrite">
+                        {{ form.serial_use === 'Y' ? '사용' : '사용 안 함' }}
+                    </BaseCheckbox>
+                </div>
+            </FormField>
+            <!-- 비고 : 처음엔 한 줄( 다른 칸과 같은 높이 ) · 길면 모서리를 끌어 늘린다 / ! : 공통 textarea.base-input 이 최소 2줄 높이를 정해 두어서 -->
+            <FormField label="비고" class="col-span-4">
+                <textarea v-model="form.remark" rows="1" class="base-input w-full !min-h-8 !py-[5px] !leading-5" style="height: 32px" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
             </FormField>
         </div>
 
@@ -140,7 +149,7 @@
                     <BaseButton v-if="canWrite && form.routing_idx" size="sm" variant="secondary" :disabled="templateLoading" @click="reloadTemplate">틀에서 다시 불러오기</BaseButton>
                 </template>
             </RoutingLinesEditor>
-            <p class="mt-2 text-xs text-gray-400">1개 생산 표준시간 = 개당 시간 합계 <b class="text-gray-600">{{ fmtNum(cycleTime) }}</b> 초</p>
+            <p class="mt-2 text-xs text-gray-400">1개 생산 표준시간 = 개당 시간 합계 <b class="text-gray-600">{{ fmtMin(cycleTime) }}</b></p>
         </div>
 
         <!-- 탭 2 · 재고 · 발주 -->
@@ -201,6 +210,75 @@
             <p class="mt-3 text-xs text-gray-400">전표 라인의 기본값입니다. 전표에서 고친 값은 라인에 저장되며, 여기를 바꿔도 기존 전표는 그대로입니다.</p>
         </div>
 
+        <!-- 탭 · 거래처 ( 11-25 ) — 거래처 등록의 담당자 탭처럼 줄로 · 구매처만 · 주 거래처 하나( 첫 줄이 기본 ) -->
+        <div v-show="tab === 'partners'" class="pt-4">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-xs text-gray-400">이 품목을 사는 구매처입니다. <b class="font-semibold text-gray-500">주</b>에 표시한 거래처가 주 거래처입니다. 단가는 그 거래처와의 단가입니다.</p>
+                <BaseButton v-if="canWrite" size="sm" variant="secondary" @click="addPartner">+ 거래처</BaseButton>
+            </div>
+            <p v-if="errors.partners" class="mb-2 text-xs text-red-500">{{ errors.partners[0] }}</p>
+
+            <div class="overflow-x-auto border rounded">
+                <table class="w-full min-w-[860px] table-fixed text-sm">
+                    <colgroup>
+                        <col class="w-12">
+                        <col class="w-72">
+                        <col class="w-36">
+                        <col class="w-40">
+                        <col class="w-36">
+                        <col>
+                        <col v-if="canWrite" class="w-10">
+                    </colgroup>
+                    <thead class="bg-gray-50 text-gray-500">
+                        <tr>
+                            <th class="px-2 py-1.5 font-medium">주</th>
+                            <th class="px-2 py-1.5 font-medium">거래처 <span class="text-red-400">*</span></th>
+                            <th class="px-2 py-1.5 font-medium">담당자</th>
+                            <th class="px-2 py-1.5 font-medium">번호</th>
+                            <th class="px-2 py-1.5 font-medium">단가</th>
+                            <th class="px-2 py-1.5 font-medium">비고</th>
+                            <th v-if="canWrite" class="px-2 py-1.5"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-if="!itemPartners.length">
+                            <td :colspan="canWrite ? 7 : 6" class="px-2 py-4 text-center text-gray-400">거래처가 없습니다.</td>
+                        </tr>
+                        <tr v-for="(p, i) in itemPartners" :key="p._rowKey" class="border-t align-top" :class="p.is_main === 'Y' ? 'bg-blue-50/40' : ''">
+                            <td class="px-1.5 py-1 text-center">
+                                <label class="inline-flex items-center justify-center h-8 w-full" :class="canWrite ? 'cursor-pointer' : 'cursor-not-allowed'" title="주 거래처">
+                                    <input type="radio" name="item-main-partner" class="accent-blue-600" :checked="p.is_main === 'Y'" :disabled="!canWrite" @change="setMainPartner(i)" />
+                                </label>
+                            </td>
+                            <td class="px-1.5 py-1">
+                                <PartnerSelect v-model="p.partner_idx" :options="supplierPartners" :current="p.partner_name ? { partner_name: p.partner_name } : null" current-note="구매처 아님 · 미사용" placeholder="구매처 선택" class="w-full" :disabled="!canWrite" />
+                                <p v-if="rowError(i, 'partner_idx')" class="text-[11px] text-red-500">{{ rowError(i, 'partner_idx') }}</p>
+                            </td>
+                            <td class="px-1.5 py-1">
+                                <BaseInput v-model="p.contact_name" maxlength="50" :disabled="!canWrite" />
+                                <p v-if="rowError(i, 'contact_name')" class="text-[11px] text-red-500">{{ rowError(i, 'contact_name') }}</p>
+                            </td>
+                            <td class="px-1.5 py-1">
+                                <BaseInput v-model="p.contact_phone" maxlength="30" placeholder="010-0000-0000" :disabled="!canWrite" />
+                                <p v-if="rowError(i, 'contact_phone')" class="text-[11px] text-red-500">{{ rowError(i, 'contact_phone') }}</p>
+                            </td>
+                            <td class="px-1.5 py-1">
+                                <BaseInput v-model="p.unit_price" type="number" min="0" class="w-full text-right" :disabled="!canWrite" />
+                                <p v-if="rowError(i, 'unit_price')" class="text-[11px] text-red-500">{{ rowError(i, 'unit_price') }}</p>
+                            </td>
+                            <td class="px-1.5 py-1">
+                                <BaseInput v-model="p.remark" maxlength="500" :disabled="!canWrite" />
+                                <p v-if="rowError(i, 'remark')" class="text-[11px] text-red-500">{{ rowError(i, 'remark') }}</p>
+                            </td>
+                            <td v-if="canWrite" class="px-1.5 text-center py-1 leading-8">
+                                <button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="removePartner(i)">✕</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- 탭 4 · 추가정보 -->
         <div v-show="tab === 'extra'" class="pt-4 space-y-4">
             <!-- 품질 -->
@@ -255,7 +333,7 @@
                 <div class="mb-2 text-xs font-semibold text-gray-500 border-b pb-1">
                     리드타임 <span class="font-normal text-gray-400">( 일 · 수량과 무관 )</span>
                 </div>
-                <div class="flex flex-wrap items-center gap-x-5 gap-y-1 min-h-9">
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-1 min-h-8">
                     <label class="inline-flex items-center gap-1.5" :class="!canWrite ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
                         <input type="radio" class="accent-blue-600" value="DEFAULT" v-model="leadTime.mode" :disabled="!canWrite" />
                         <span>기본값</span>
@@ -273,7 +351,7 @@
                     </div>
                     <div>
                         <span class="block text-xs text-gray-500 mb-0.5">계</span>
-                        <p class="h-9 flex items-center justify-end pr-1 font-semibold text-gray-700">{{ leadTotal }} 일</p>
+                        <p class="h-8 flex items-center justify-end pr-1 font-semibold text-gray-700">{{ leadTotal }} 일</p>
                     </div>
                 </div>
                 <p v-if="leadTime.mode === 'ITEM'" class="text-xs text-gray-400 mt-1">비운 칸은 해당 없음( 0일 )입니다. 칸별로 기본값을 따르지 않습니다.</p>
@@ -287,7 +365,7 @@
             <section>
                 <div class="mb-2 text-xs font-semibold text-gray-500 border-b pb-1">1개 생산 표준시간</div>
                 <p class="text-gray-700">
-                    <b>{{ fmtNum(cycleTime) }}</b> 초
+                    <b>{{ fmtMin(cycleTime) }}</b>
                     <span class="ml-1 text-xs text-gray-400">
                         {{ routingLines.length ? '공정 탭의 공정 개당 시간 합계' : '공정이 없습니다' }} · 읽기 전용
                     </span>
@@ -327,9 +405,10 @@ import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import SpecPicker from '@core/Components/Config/SpecPicker.vue';
-import { toLinePayload, totalCycleOf } from '@core/Components/Config/routingLines';
+import { toLinePayload, totalCycleOf, fmtMin } from '@core/Components/Config/routingLines';
 import { showAlert } from '@core/Utils/message';
 import UnitSelect from '@core/Components/Common/UnitSelect.vue';
+import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import { fmtNum } from '@core/Utils/format';
 
 // 신규 등록 때 골라 둔 첨부를 저장 뒤 올린다 ( AttachFiles deferred · 11-12 ) — 실패한 파일만 알린다
@@ -356,6 +435,7 @@ const TABS = [
     { key: 'routing', label: '공정' },
     // { key: 'stock', label: '재고·발주' }, // 발주 주기, 포장 관련 상세 내용이 포함되어있으나, 현재는 기능이 없으므로 숨김 처리
     { key: 'price', label: '단가' },
+    { key: 'partners', label: '거래처' },   // 11-25 : 구매처 N · 주 거래처 하나
     { key: 'extra', label: '추가정보' },
     { key: 'files', label: '첨부' },
 ];
@@ -393,6 +473,7 @@ const FIELD_TAB = {
 };
 // main_material.* 는 기본 탭, 라우팅은 공정 탭, 정책 · 리드타임은 추가정보 탭
 const tabOf = (field) => field.startsWith('routing_') ? 'routing'
+    : field.startsWith('partners') ? 'partners'
     : (field.startsWith('policies.') || field.startsWith('lead_time')) ? 'extra' : (FIELD_TAB[field] ?? 'basic');
 
 const tab = ref('basic');
@@ -426,6 +507,28 @@ const form = reactive({
     remark:           src.remark ?? '',
     routing_idx:      '',   // 라우팅 틀( ① ) — 품목 라우팅( ② )의 틀은 formData 에서
 });
+
+// ---- 거래처 탭 ( 11-25 ) ----
+const itemPartners     = reactive([]);   // [{ item_partner_idx, _rowKey, partner_idx, partner_name, is_main, contact_name, contact_phone, unit_price, remark }]
+const supplierPartners = ref([]);        // 고를 수 있는 구매처 ( 사용 중 )
+let partnerSeq = 0;
+const newPartnerKey = () => `n${++partnerSeq}`;
+function addPartner() {
+    itemPartners.push({
+        item_partner_idx: null, _rowKey: newPartnerKey(), partner_idx: '', partner_name: '',
+        is_main: itemPartners.length ? 'N' : 'Y',   // 첫 줄 = 주 거래처
+        contact_name: '', contact_phone: '', unit_price: '', remark: '',
+    });
+}
+function setMainPartner(i) {
+    itemPartners.forEach((p, k) => { p.is_main = k === i ? 'Y' : 'N'; });
+}
+function removePartner(i) {
+    const wasMain = itemPartners[i].is_main === 'Y';
+    itemPartners.splice(i, 1);
+    if (wasMain && itemPartners.length) itemPartners[0].is_main = 'Y';   // 주 거래처를 지우면 첫 줄이 주
+}
+const rowError = (i, field) => errors.value[`partners.${i}.${field}`]?.[0] ?? '';
 
 // ---- 라우팅 틀 · 공정 · 주 자재 ( BOM ) ----
 const routings     = ref([]);
@@ -489,6 +592,12 @@ async function loadFormData() {
             params: form.item_idx ? { item_idx: form.item_idx } : {},
         });
         routings.value     = data.routings ?? [];
+        supplierPartners.value = data.supplier_partners ?? [];
+        itemPartners.splice(0, itemPartners.length, ...(data.item_partners ?? []).map(p => ({
+            ...p, _rowKey: `p${p.item_partner_idx}`,
+            contact_name: p.contact_name ?? '', contact_phone: p.contact_phone ?? '',
+            unit_price: p.unit_price ?? '', remark: p.remark ?? '',
+        })));
         processes.value    = data.processes ?? [];
         bomLineCount.value = data.bom_line_count ?? 0;
 
@@ -626,6 +735,12 @@ async function save() {
             policies: Object.fromEntries(
                 (policyKeysByType.value[form.item_type] ?? []).map(k => [k, policies[k] === '' || policies[k] === undefined ? null : policies[k]])
             ),
+            // 거래처 탭 : 줄 그대로 ( 단가 빈 칸 = null )
+            partners: itemPartners.map(({ _rowKey, partner_name, partner_code, ...p }) => ({
+                ...p,
+                partner_idx: p.partner_idx === '' ? null : Number(p.partner_idx),
+                unit_price: p.unit_price === '' || p.unit_price === null ? null : p.unit_price,
+            })),
             lead_time: {
                 mode: leadTime.mode,
                 ...Object.fromEntries(LEAD_STAGES.map(st => [st.key, leadTime[st.key] === '' || leadTime[st.key] === null ? null : Number(leadTime[st.key])])),

@@ -73,7 +73,7 @@
                         </div>
                         <div class="col-span-3">
                             <label class="block text-gray-500 font-medium mb-1">기준 <span class="text-red-400">*</span></label>
-                            <div class="flex flex-wrap items-center gap-x-5 gap-y-1 min-h-9">
+                            <div class="flex flex-wrap items-center gap-x-5 gap-y-1 min-h-8">
                                 <label v-for="t in TYPE_OPTIONS" :key="t.value" class="inline-flex items-center gap-1.5" :class="!canWrite ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
                                     <input type="radio" class="accent-blue-600" :value="t.value" v-model="form.rule_type" :disabled="!canWrite" />
                                     <span>{{ t.label }}</span>

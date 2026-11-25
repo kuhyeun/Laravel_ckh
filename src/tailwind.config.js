@@ -17,7 +17,7 @@ export default {
         },
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                sans: ['"Noto Sans KR"', '"Malgun Gothic"', ...defaultTheme.fontFamily.sans],   // 11-25 : 글꼴 하나 ( Figtree 는 불러오지도 않았다 )
             },
         },
     },

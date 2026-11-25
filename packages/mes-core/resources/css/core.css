@@ -30,6 +30,21 @@ html.sidebar-collapsed #app-sidebar {
   border-radius: 4px;
 }
 
+/* 글꼴 : Noto Sans KR 하나 ( 11-25 ) — 파일은 src/resources/css/fonts.css · Tailwind sans 도 같은 값
+   외부 부품이 따로 정한 글꼴도 덮는다 : TUI 그리드( Arial · 돋움 ) · 날짜 선택( 시스템 글꼴 · 메뉴는 body 로 띄움 ) · 알림창 */
+:root {
+  --app-font: 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+html, body, button, input, select, textarea, .swal2-popup {
+  font-family: var(--app-font);
+}
+.tui-grid-container, .tui-grid-container * {
+  font-family: var(--app-font) !important;
+}
+:root:root {
+  --dp-font-family: var(--app-font);
+}
+
 /* Core Base Styles */
 @layer components {
   html, body {
@@ -41,8 +56,8 @@ html.sidebar-collapsed #app-sidebar {
     outline: none;
   }
 
-  .font-inter {
-    font-family: 'Inter,sans-serif';
+  .font-inter {   /* 예전 이름 — 글꼴은 하나로 ( 11-25 ) */
+    font-family: var(--app-font);
   }
 
   .toggle-switch {
@@ -118,7 +133,7 @@ html.sidebar-collapsed #app-sidebar {
   /* 공용 인풋 : base-select 와 동일한 톤( 보더·포커스링·색 ). size 로 높이/여백 조절 */
   .base-input {
     width: 100%;
-    height: 36px;
+    height: 30px;   /* 11-25 : 기본 36 → 32 ( 작은 크기 sm 30 → 28 · 버튼 · 선택 · 날짜도 같이 ) */
     padding: 0 12px;
 
     border: 1px solid theme('colors.gray.300');
@@ -149,12 +164,12 @@ html.sidebar-collapsed #app-sidebar {
 
   /* size 변형 : 높이·여백·폰트 ( md 가 기본값과 동일 ) */
   .base-input.sm {
-    height: 30px;
+    height: 28px;
     padding: 0 10px;
     font-size: 13px;
   }
   .base-input.md {
-    height: 36px;
+    height: 30px;
     padding: 0 12px;
     font-size: 13px;
   }
@@ -174,7 +189,7 @@ html.sidebar-collapsed #app-sidebar {
   }
 
   /* 여러 줄 입력( textarea ) : 고정 높이 대신 rows 로 높이 결정 + 위아래 여백으로 커서 위치 맞춤
-     ( 기본 .base-input 은 한 줄 기준이라 height 36px · 상하 padding 0 → 커서가 위로 붙음 ) */
+     ( 기본 .base-input 은 한 줄 기준이라 height 30px · 상하 padding 0 → 커서가 위로 붙음 ) */
   textarea.base-input {
     height: auto;
     min-height: calc(2 * 1.5em + 16px + 2px);   /* 최소 2줄 = 줄높이 × 2 + 상하 padding + border */
@@ -183,7 +198,7 @@ html.sidebar-collapsed #app-sidebar {
   }
 
   .base-select {
-    height: 36px;
+    height: 30px;
     padding: 0 36px 0 12px;
 
     border: 1px solid theme('colors.gray.300');
@@ -205,7 +220,7 @@ html.sidebar-collapsed #app-sidebar {
 
   /* size 변형 : .base-input 과 같은 높이 · 글자 ( 오른쪽 여백은 화살표 자리 ) */
   .base-select.sm {
-    height: 30px;
+    height: 28px;
     padding: 0 28px 0 10px;
     font-size: 13px;
     background-position: right 9px center;
@@ -225,8 +240,8 @@ html.sidebar-collapsed #app-sidebar {
       box-shadow: 0 0 0 2px theme('colors.gray.500 / 12%');
   }
   .base-btn {
-    height: 36px;
-    padding: 0 14px;
+    height: 30px;
+    padding: 0 12px;
 
     border: 1px solid theme('colors.gray.300');
     border-radius: 6px;

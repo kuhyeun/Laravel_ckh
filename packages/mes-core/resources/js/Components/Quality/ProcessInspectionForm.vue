@@ -62,7 +62,7 @@
                 <div v-if="stageForm.stage" class="px-3 py-3 border-t bg-blue-50/40 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
                     <FormField :label="`${STAGE_NAMES[stageForm.stage]} 판정`" required class="col-span-2">
                         <div class="flex gap-2">
-                            <button v-for="r in RESULTS" :key="r.value" type="button" class="flex-1 h-9 rounded border text-sm font-semibold"
+                            <button v-for="r in RESULTS" :key="r.value" type="button" class="flex-1 h-8 rounded border text-sm font-semibold"
                                 :class="stageForm.result === r.value ? r.on : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50'" @click="stageForm.result = r.value">{{ r.label }}</button>
                         </div>
                     </FormField>

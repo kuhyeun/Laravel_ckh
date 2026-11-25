@@ -31,7 +31,7 @@
             <div>
                 <label class="block text-gray-500 font-medium mb-1">권한 템플릿</label>
                 <BaseSelect v-if="Number(form.user_level) > 1" v-model="form.permission_template_idx" :options="templateOptions" class="w-full" size="md" />
-                <p v-else class="h-9 flex items-center text-xs text-gray-400">관리자는 템플릿 없이 메뉴관리의 레벨 권한을 씁니다.</p>
+                <p v-else class="h-8 flex items-center text-xs text-gray-400">관리자는 템플릿 없이 메뉴관리의 레벨 권한을 씁니다.</p>
                 <p v-if="templateChanged" class="text-xs text-amber-600 mt-0.5">템플릿을 바꾸면 이 사용자의 개인 지정 권한은 초기화됩니다.</p>
                 <p v-if="errors.permission_template_idx" class="text-xs text-red-500 mt-0.5">{{ errors.permission_template_idx[0] }}</p>
             </div>

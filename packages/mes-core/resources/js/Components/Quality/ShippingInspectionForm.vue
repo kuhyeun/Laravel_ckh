@@ -40,7 +40,7 @@
                 <FormField label="판정" required class="col-span-2">
                     <div class="flex gap-2">
                         <button v-for="r in RESULTS" :key="r.value" type="button" :disabled="!canWrite"
-                            class="flex-1 h-9 rounded border text-sm font-semibold disabled:opacity-50"
+                            class="flex-1 h-8 rounded border text-sm font-semibold disabled:opacity-50"
                             :class="form.result === r.value ? r.on : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50'"
                             @click="form.result = r.value">{{ r.label }}</button>
                     </div>

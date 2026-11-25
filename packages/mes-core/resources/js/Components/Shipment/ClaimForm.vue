@@ -95,7 +95,7 @@
                                 </td>
                                 <td class="px-1 py-1"><BaseSelect v-model="l.claim_type_code" :options="typeOptions" size="md" class="w-full" :disabled="!canWrite" /></td>
                                 <td class="px-1 py-1"><BaseInput v-model="l.content" size="md" class="w-full" maxlength="500" :disabled="!canWrite" /></td>
-                                <td v-if="canWrite" class="px-1 py-1 leading-9 text-center"><button type="button" class="inline-flex items-center h-9 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="lines.splice(i, 1)">✕</button></td>
+                                <td v-if="canWrite" class="px-1 py-1 leading-8 text-center"><button type="button" class="inline-flex items-center h-8 align-top px-1.5 text-gray-400 hover:text-red-500" title="줄 삭제" @click="lines.splice(i, 1)">✕</button></td>
                             </tr>
                         </tbody>
                     </table>
@@ -112,9 +112,9 @@
                     </tr></thead>
                     <tbody>
                         <tr v-for="(l, i) in lines" :key="l.shipment_line_idx" class="border-t align-top">
-                            <td class="px-2 py-1 leading-9"><p class="truncate" :title="itemLabel(l)">{{ itemLabel(l) }}</p></td>
-                            <td class="px-2 text-right py-1 leading-9">{{ fmtQty(l.shipped_qty, l.spec_unit) }}</td>
-                            <td class="px-2 text-right text-gray-500 py-1 leading-9">{{ l.other_claimed ? fmtNum(l.other_claimed) : '' }}</td>
+                            <td class="px-2 py-1 leading-8"><p class="truncate" :title="itemLabel(l)">{{ itemLabel(l) }}</p></td>
+                            <td class="px-2 text-right py-1 leading-8">{{ fmtQty(l.shipped_qty, l.spec_unit) }}</td>
+                            <td class="px-2 text-right text-gray-500 py-1 leading-8">{{ l.other_claimed ? fmtNum(l.other_claimed) : '' }}</td>
                             <td class="px-1 py-1">
                                 <BaseInput v-model="l.qty" type="number" min="0" size="md" class="w-full text-right" :disabled="!canWrite" />
                                 <p v-if="errors[`lines.${idxOf(l)}.qty`]" class="text-[11px] text-red-500 mt-0.5">{{ errors[`lines.${idxOf(l)}.qty`][0] }}</p>

@@ -16,7 +16,7 @@
                 </div>
             </FormField>
             <FormField label="계산 기준">
-                <div class="inline-flex items-center p-0.5 rounded-full bg-gray-200/80 h-9">
+                <div class="inline-flex items-center p-0.5 rounded-full bg-gray-200/80 h-8">
                     <button v-for="b in BASES" :key="b.value" type="button"
                         class="px-4 py-1.5 rounded-full text-xs transition-colors"
                         :class="basis === b.value ? 'bg-white text-gray-900 font-semibold shadow-sm' : 'text-gray-500 hover:text-gray-700'"
@@ -29,10 +29,10 @@
                     <span class="text-gray-500">일</span>
                 </div>
             </FormField>
-            <div class="h-9 flex items-center">
+            <div class="h-8 flex items-center">
                 <BaseCheckbox v-model="subtract" label="이미 생산한 수량 빼기" />
             </div>
-            <div class="h-9 flex items-center">
+            <div class="h-8 flex items-center">
                 <BaseCheckbox v-model="overdue" :label="basis === 'PLAN' ? '시작일 지난 계획도' : '납기 지난 줄도'" />
             </div>
             <BaseButton variant="primary" :disabled="loading" @click="run">{{ loading ? '계산 중…' : '계산' }}</BaseButton>

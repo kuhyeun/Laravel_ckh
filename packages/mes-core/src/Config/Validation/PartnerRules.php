@@ -21,7 +21,10 @@ class PartnerRules {
         'biz_no'       => '사업자번호',
         'ceo_name'     => '대표자',
         'address'      => '주소',
-        'tel'          => '전화번호',
+        'tel'          => '거래처 전화번호',
+        'ceo_tel'      => '대표자 전화번호',
+        'fax'          => 'FAX',
+        'email'        => '이메일',
         'is_use'       => '사용 여부',
         'remark'       => '비고',
     ];
@@ -37,6 +40,9 @@ class PartnerRules {
             'ceo_name'     => 'nullable|string|max:50',
             'address'      => 'nullable|string|max:200',
             'tel'          => 'nullable|string|max:30',
+            'ceo_tel'      => 'nullable|string|max:30',
+            'fax'          => 'nullable|string|max:30',
+            'email'        => 'nullable|email|max:100',
             'is_use'       => 'required|in:Y,N',
             'remark'       => 'nullable|string|max:2000',
         ];

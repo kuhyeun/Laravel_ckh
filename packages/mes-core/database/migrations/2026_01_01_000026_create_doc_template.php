@@ -9,8 +9,9 @@ use Illuminate\Support\Facades\Schema;
 //   design ( JSON ) : { margin_mm,
 //                       head : { height_mm, cols, rows, col_w[], row_h[], border, cells[] }      ← 격자 ( 라벨 양식과 같은 방식 )
 //                       table: { rows_per_page, row_h_mm, head_h_mm, size, sum, columns: [ { field, label, width, align } ] }   ← 품목 표
-//                       foot : { height_mm, … 격자 } }
-//     칸 type = FIELD( 데이터 항목 ) · TEXT( 고정 글자 ) · IMAGE( 로고 · 직인 ) — 화면 docDesign.js · 그리기 DocSheet
+//                       foot : { height_mm, … 격자 },
+//                       stamps: [ { id, src, x_mm, y_mm, w_mm, h_mm } ] }   ← 도장 ( 11-25 · 장 위에 떠 있는 그림 — Support/StampDesign )
+//     칸 type = FIELD( 데이터 항목 ) · TEXT( 고정 글자 ) — 화면 docDesign.js · 그리기 DocSheet ( 예전 IMAGE 칸은 도장으로 바뀌었다 · 11-25 )
 return new class extends Migration {
 
     public function up(): void {

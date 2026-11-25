@@ -7,10 +7,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use MesCore\Basic\Services\PolicyService;
+use MesCore\Config\Services\SiteConfigService;
 use MesCore\Label\Models\BarcodeLabel;
 use MesCore\Label\Models\LabelTemplate;
 use MesCore\Shipment\Models\ShipmentLine;
 use MesCore\Stock\Models\Lot;
+use MesCore\Support\StampDesign;
 
 // 바코드 라벨 발행 · 인쇄 · 폐기 ( LBL-02 · LBL-03 ) — 1D 바코드( Code128 )만
 //   바코드 번호 : LOT = LOT 번호 / 출하 줄 = 출하번호-줄번호( 2자리 ) 또는 고객 지정 번호
@@ -204,14 +206,23 @@ class LabelService {
         ])->whereIn('label_idx', $labelIdxs)->where('status', 'ISSUED')->orderBy('label_idx')->get();
 
         $codeType = $this->codeType();
+        // 도장( 11-25 )이 자사 직인 · 로고를 쓰는 양식만 그림( data URI )을 붙인다 — 한 번만 읽는다
+        $site = null;
+        $imagesOf = function (?array $design) use (&$site) {
+            $uses = collect($design['stamps'] ?? [])->pluck('src')->contains(fn ($s) => in_array($s, StampDesign::SITE, true));
+            if (!$uses) return null;
+            $svc = app(SiteConfigService::class);
+            return $site ??= ['seal' => $svc->imageDataUri('seal'), 'logo' => $svc->imageDataUri('logo')];
+        };
 
-        return $labels->map(function (BarcodeLabel $b) use ($codeType, $override) {
+        return $labels->map(function (BarcodeLabel $b) use ($codeType, $override, $imagesOf) {
             $tpl  = $override && $override->target === ($b->target === BarcodeLabel::TARGET_LOT ? 'LOT' : 'SHIPMENT') ? $override : $b->template;
             $base = [
                 'label_idx'   => $b->label_idx,
                 'target'      => $b->target,
                 'layout'      => $tpl->layout,
                 'design'      => $tpl->design,           // 격자 배치 ( 없으면 고정 배치 · 11-18 )
+                'images'      => $imagesOf($tpl->design), // 도장의 자사 직인 · 로고 ( 11-25 · 안 쓰면 null )
                 'code_type'   => $codeType,              // 고정 배치가 그리는 코드
                 'width_mm'    => $tpl->width_mm,
                 'height_mm'   => $tpl->height_mm,

@@ -6,7 +6,7 @@
      - 주소에 ?kw= 가 있으면( 알림에서 온 화면 ) 그 값을 검색어로, 기간은 비우고 조회
      - 조회하지 않는다 — search · reset 을 쏘기만. 조회는 화면이
      - 슬롯 : default( 화면별 칸 — 상태 · 고객사 … ) — 검색 조건 · 검색어 앞에 놓인다
-     - 높이는 모두 36px( md · 버튼과 같다 ) — 화면별 칸도 size 를 주지 않는다 ( 2026-10-30 )
+     - 높이는 모두 32px( md · 버튼과 같다 · 11-25 전 36px ) — 화면별 칸도 size 를 주지 않는다 ( 2026-10-30 )
      - 오른쪽 순서 : [ 화면별 칸 ] [ 검색 조건 ▾ ] [ 검색어 ] [ 조회 ] [ 초기화 ] ( 2026-10-30 · 스타일 가이드 §3 )
      - fields : 검색 조건 [{ value, label }] — 맨 앞 "통합검색"( '' )은 자동. v-model 의 search_field 로 ( 서버 SearchesKeyword )
        비우면 조건 칸이 없다 ( 통합검색만 )
@@ -20,7 +20,7 @@
             <span class="text-gray-400">~</span>
             <BaseDatePicker v-model="model.to" class="w-36" />
             <div class="flex items-center gap-0.5">
-                <button v-for="q in QUICK" :key="q.key" type="button" class="h-9 px-2.5 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50" @click="quick(q.key)">{{ q.label }}</button>
+                <button v-for="q in QUICK" :key="q.key" type="button" class="h-8 px-2.5 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50" @click="quick(q.key)">{{ q.label }}</button>
             </div>
             <span v-if="!stacked" class="w-px h-5 bg-gray-200 mx-1"></span>
             <!-- 줄 바꿈 : 줄 사이 = 이 칸 높이 8px 하나만 ( 세로 gap 을 끄고 — 켜 두면 빈 줄 위아래로 두 번 들어가 넓어진다 ) -->

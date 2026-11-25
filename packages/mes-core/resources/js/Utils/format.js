@@ -35,3 +35,28 @@ export const runTimeText = (start, end) => {
     if (!end) return start;
     return `${start} ~ ${start.slice(0, 10) === end.slice(0, 10) ? end.slice(11) : end}`;
 };
+
+// 금액 → 한글 읽기 ( 11-25 · 문서 양식 「합계금액 ( 한글 )」 ) — 11970000 → '천백구십칠만' · 123456789 → '일억이천삼백사십오만육천칠백팔십구'
+//   천 · 백 · 십 앞의 「일」은 뺀다 ( 천백 · 십만 ) · 맨 앞 1만은 '만' · 억 · 조는 '일억' 그대로 · 0 은 '영' · 소수는 버린다
+export function koreanAmount(v) {
+    const num = Number(v);
+    if (v === null || v === undefined || v === '' || !Number.isFinite(num)) return '';
+    let n = Math.floor(Math.abs(num));
+    if (!n) return '영';
+    const DIGIT = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'];
+    const SMALL = ['', '십', '백', '천'];
+    const BIG   = ['', '만', '억', '조', '경'];
+    const parts = [];
+    for (let u = 0; n > 0; u++, n = Math.floor(n / 10000)) {
+        const g = n % 10000;
+        if (!g) continue;
+        let t = '';
+        String(g).padStart(4, '0').split('').map(Number).forEach((d, i) => {
+            const pos = 3 - i;   // 3 = 천 · 0 = 일
+            if (d) t += (d === 1 && pos > 0 ? '' : DIGIT[d]) + SMALL[pos];
+        });
+        if (u === 1 && t === '일' && n < 10000) t = '';   // 맨 앞 1만만 '만' ( 10000 → 만 · 15000 → 만오천 ) — 억 뒤는 '이십억일만'
+        parts.unshift(t + BIG[u]);
+    }
+    return (num < 0 ? '마이너스 ' : '') + parts.join('');
+}

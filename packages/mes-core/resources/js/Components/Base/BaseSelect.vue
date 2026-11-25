@@ -25,6 +25,6 @@ const props = defineProps({
 
 defineEmits(['update:modelValue']);
 
-// size : core.css 의 .base-select.sm / .lg 에 맡긴다 ( BaseInput 과 같은 높이 — sm 30px · md 36px · lg 42px )
+// size : core.css 의 .base-select.sm / .lg 에 맡긴다 ( BaseInput 과 같은 높이 — sm 28px · md 32px · lg 42px )
 const sizeClass = computed(() => ({ sm: 'sm', lg: 'lg' }[props.size] ?? ''));
 </script>
