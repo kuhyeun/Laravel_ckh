@@ -27,7 +27,7 @@
             </div>
             <div>
                 <label class="lbl">검사자 <span class="text-red-500">*</span></label>
-                <BaseSelect v-model="form.inspector_idx" :options="inspectorOptions" placeholder="검사자 선택" class="w-full" :disabled="!canWrite" />
+                <UserSelect v-model="form.inspector_idx" :users="inspectors" placeholder="검사자 선택" class="w-full" :disabled="!canWrite" />
             </div>
             <div>
                 <label class="lbl">검사일시 <span class="text-red-500">*</span></label>
@@ -52,10 +52,10 @@
         </div>
         <p v-else class="mt-4 text-gray-500">{{ receipt.status === 'CANCELED' ? '취소된 입고입니다.' : '검사 없이 입고 완료된 건입니다.' }}</p>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
             <BaseButton v-if="canWrite && receipt.status === 'WAIT'" size="sm" variant="primary" :disabled="saving || !sumOk" @click="save">{{ saving ? '처리 중…' : '검사완료' }}</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -64,10 +64,12 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import UserSelect from '@core/Components/Common/UserSelect.vue';
 import DefectRows from '@core/Components/Quality/DefectRows.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
+import { useFormErrors } from '@core/Composables/useFormErrors';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 
 const props = defineProps({
@@ -83,7 +85,6 @@ const emit = defineEmits(['close']);
 const { options } = useCommonCode(['DEFECT_TYPE']);
 
 const form = reactive({ pass_qty: String(props.receipt.receipt_qty), fail_qty: '0', defects: [], inspector_idx: props.me ?? '', inspected_at: props.now, remark: '' });
-const inspectorOptions = computed(() => props.inspectors.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 const num   = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
 const sum   = computed(() => num(form.pass_qty) + num(form.fail_qty));
 const sumOk = computed(() => Math.abs(sum.value - num(props.receipt.receipt_qty)) < 0.000001);
@@ -96,8 +97,7 @@ function onDefects(t) {
 
 const inspection = ref(null);
 const saving   = ref(false);
-const errors   = ref({});
-const errorMsg = ref('');
+const { errors, errorMsg, clear, handle } = useFormErrors(['pass_qty', 'inspected_at', 'defect_type_code', 'reason', 'defects']);
 
 onMounted(async () => {
     if (props.receipt.status === 'WAIT') return;
@@ -110,7 +110,7 @@ onMounted(async () => {
 });
 
 async function save() {
-    saving.value = true; errors.value = {}; errorMsg.value = '';
+    saving.value = true; clear();
     try {
         await window.axios.post(route('production.subcon.inspection.save', props.receipt.subcon_receipt_idx), {
             pass_qty: form.pass_qty === '' ? null : form.pass_qty,
@@ -123,13 +123,7 @@ async function save() {
         props.onDone?.(`${props.receipt.receipt_no} 검사완료 — 합격 ${fmtNum(form.pass_qty)} 입고했습니다.`);
         emit('close');
     } catch (e) {
-        if (e.response?.status === 422) {
-            errors.value = e.response.data.errors || {};
-            const shown = ['pass_qty', 'inspected_at', 'defect_type_code', 'reason'];
-            errorMsg.value = Object.entries(errors.value).filter(([k]) => !shown.includes(k) && !k.startsWith('defects')).flatMap(([, v]) => v).join('\n');
-        } else {
-            errorMsg.value = e.response?.status === 403 ? '권한이 없습니다.' : '검사완료하지 못했습니다.';
-        }
+        handle(e, '검사완료하지 못했습니다.');
     } finally {
         saving.value = false;
     }

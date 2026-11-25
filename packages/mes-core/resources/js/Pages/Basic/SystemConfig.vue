@@ -12,7 +12,6 @@
     <div class="config-setting-wrap flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <!-- 검색 바 ( 상단 고정 헤더 ) -->
         <div class="flex items-center gap-3 pb-3 border-b shrink-0">
-            <span class="text-sm text-gray-500 whitespace-nowrap">{{ counterText }}</span>
             <div class="relative">
                 <input
                     ref="searchInput"
@@ -27,6 +26,7 @@
             <BaseButton variant="primary" :disabled="saving || !canWrite || !dirtyCount" @click="saveConfig">
                 저장<span v-if="dirtyCount"> ( {{ dirtyCount }} )</span>
             </BaseButton>
+            <span class="text-sm text-gray-500 whitespace-nowrap">{{ counterText }}</span>
         </div>
 
         <!-- 설정 조합 경고 ( 서버 계산, 막지 않음 ) -->

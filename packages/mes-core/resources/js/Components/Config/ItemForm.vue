@@ -30,38 +30,26 @@
 
         <!-- 탭 1 · 기본 -->
         <div v-show="tab === 'basic'" class="grid grid-cols-2 gap-x-4 gap-y-3 pt-4">
-            <div>
-                <!-- 새 품목은 비우면 자동 ( 자재 MT · 반제품 SM · 제품 PD + 일련번호 · 11-12 ) -->
-                <label class="block text-gray-500 font-medium mb-1">품번 <span v-if="isEdit" class="text-red-400">*</span><span v-else class="ml-1 text-xs font-normal text-gray-400">비우면 자동</span></label>
+            <!-- 새 품목은 비우면 자동 ( 자재 MT · 반제품 SM · 제품 PD + 일련번호 · 11-12 ) -->
+            <FormField label="품번" :required="isEdit" :hint="isEdit ? '' : '비우면 자동'" :error="errors.item_code">
                 <BaseInput v-model="form.item_code" class="w-full" :placeholder="isEdit ? '예: PN-A' : `비우면 자동 ( 예: ${autoCodeHint} )`" :disabled="!canWrite" />
-                <p v-if="errors.item_code" class="text-xs text-red-500 mt-0.5">{{ errors.item_code[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">품명 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="품명" required :error="errors.item_name">
                 <BaseInput v-model="form.item_name" class="w-full" :disabled="!canWrite" />
-                <p v-if="errors.item_name" class="text-xs text-red-500 mt-0.5">{{ errors.item_name[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">대분류 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="대분류" required :error="errors.item_type">
                 <BaseSelect v-model="form.item_type" :options="typeOptions" class="w-full" :disabled="!canWrite" @update:model-value="onTypeChange" />
-                <p v-if="errors.item_type" class="text-xs text-red-500 mt-0.5">{{ errors.item_type[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">소분류 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="소분류" required :error="errors.item_kind">
                 <BaseSelect v-model="form.item_kind" :options="kindOptions" class="w-full" :disabled="!canWrite" />
-                <p v-if="errors.item_kind" class="text-xs text-red-500 mt-0.5">{{ errors.item_kind[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">단위 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="단위" required :error="errors.spec_unit">
                 <UnitSelect v-model="form.spec_unit" :disabled="!canWrite" empty-hint />
-                <p v-if="errors.spec_unit" class="text-xs text-red-500 mt-0.5">{{ errors.spec_unit[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">규격</label>
+            </FormField>
+            <FormField label="규격" :error="errors.spec">
                 <!-- 코드관리 규격에서 찾기 · 새 규격도 그대로 ( 저장하면 규격 코드에 추가 ) -->
                 <SpecPicker v-model="form.spec" :can-create="canWrite" :disabled="!canWrite" />
-                <p v-if="errors.spec" class="text-xs text-red-500 mt-0.5">{{ errors.spec[0] }}</p>
-            </div>
+            </FormField>
 
             <!-- 재질 일단 보류 -->
             <!-- <div>
@@ -111,15 +99,13 @@
                 <p class="text-xs text-gray-400 mt-0.5">{{ procureHint }}</p>
                 <p v-if="errors.procure_type" class="text-xs text-red-500 mt-0.5">{{ errors.procure_type[0] }}</p>
             </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">판매 여부</label>
+            <FormField label="판매 여부" :error="errors.is_sale">
                 <div class="h-9 flex items-center">
                     <BaseCheckbox variant="switch" v-model="form.is_sale" true-value="Y" false-value="N" :disabled="!canWrite">
                         {{ form.is_sale === 'Y' ? '판매함' : '판매 안 함' }}
                     </BaseCheckbox>
                 </div>
-                <p v-if="errors.is_sale" class="text-xs text-red-500 mt-0.5">{{ errors.is_sale[0] }}</p>
-            </div>
+            </FormField>
 
             <div class="flex items-center gap-6 col-span-2 pt-1">
                 <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
@@ -130,20 +116,17 @@
                 </BaseCheckbox>
             </div>
             <p v-if="errors.serial_use" class="col-span-2 text-xs text-red-500 -mt-2">{{ errors.serial_use[0] }}</p>
-            <div class="col-span-2">
-                <label class="block text-gray-500 font-medium mb-1">비고</label>
+            <FormField label="비고" class="col-span-2">
                 <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
-            </div>
+            </FormField>
         </div>
 
         <!-- 탭 · 공정 ( 제품만 ) -->
         <div v-if="isProduct" v-show="tab === 'routing'" class="pt-4">
             <div class="flex items-end gap-4 mb-3">
-                <div class="w-80 shrink-0">
-                    <label class="block text-gray-500 font-medium mb-1">라우팅 틀</label>
+                <FormField label="라우팅 틀" :error="errors.routing_idx" class="w-80 shrink-0">
                     <BaseSelect :model-value="form.routing_idx" :options="routingOptions" class="w-full" :disabled="!canWrite" @update:model-value="onTemplateChange" />
-                    <p v-if="errors.routing_idx" class="text-xs text-red-500 mt-0.5">{{ errors.routing_idx[0] }}</p>
-                </div>
+                </FormField>
                 <p class="pb-1.5 text-xs text-gray-400 leading-relaxed">
                     틀의 공정을 불러와 이 품목에 맞게 고칩니다. 저장하면 <b class="font-semibold text-gray-500">이 품목 전용 공정</b>으로 저장되고,<br />
                     공정 라우팅 관리에서 틀을 고쳐도 이 품목은 바뀌지 않습니다.
@@ -207,15 +190,13 @@
         <!-- 탭 3 · 단가 -->
         <div v-show="tab === 'price'" class="pt-4">
             <div class="grid grid-cols-3 gap-x-4 gap-y-3">
-                <div v-for="f in PRICE_FIELDS" :key="f.key">
-                    <label class="block text-gray-500 font-medium mb-1">{{ f.label }}</label>
+                <FormField v-for="f in PRICE_FIELDS" :key="f.key" :label="f.label" :error="errors[f.key]">
                     <BaseInput
                         v-model="form[f.key]" type="number" min="0" class="w-full text-right"
                         :empty-value="0"
                         :disabled="!canWrite"
                     />
-                    <p v-if="errors[f.key]" class="text-xs text-red-500 mt-0.5">{{ errors[f.key][0] }}</p>
-                </div>
+                </FormField>
             </div>
             <p class="mt-3 text-xs text-gray-400">전표 라인의 기본값입니다. 전표에서 고친 값은 라인에 저장되며, 여기를 바꿔도 기존 전표는 그대로입니다.</p>
         </div>
@@ -238,6 +219,11 @@
                             거래처에 입고검사 설정이 있으면 거래처를 먼저 따릅니다. 거래처에 없을 때 이 값을, 이 값도 없으면 시스템 설정( 입고검사 사용 )을 따릅니다.
                         </p>
                     </PolicyOverrideField>
+                    <!-- 입고검사 사용 = N 이면 칸이 없다 ( depends_on ) → 빈 자리 대신 이유 안내 ( 11-23 ) -->
+                    <div v-else-if="(policyKeysByType[form.item_type] ?? []).includes('quality.incoming_inspection')">
+                        <div class="mb-1 text-gray-500 font-medium">입고검사</div>
+                        <p class="text-xs text-gray-500 leading-5">현재는 해당 설정이 꺼져 있어 모든 입고가 검사 없이 재고에 잡힙니다.</p>
+                    </div>
                     <PolicyOverrideField
                         v-if="showPolicy('quality.shipping_inspection')"
                         v-model="policies['quality.shipping_inspection']"
@@ -316,12 +302,12 @@
         </div>
 
         <!-- 액션 -->
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ canWrite ? '취소' : '닫기' }}</BaseButton>
             <BaseButton v-if="canWrite" variant="primary" size="sm" :disabled="saving" @click="save">
                 {{ isEdit ? '수정' : '등록' }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -332,6 +318,8 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { ITEM_TYPES, ITEM_KINDS } from '@core/Components/Config/itemCodes';
 import PolicyOverrideField from '@core/Components/Config/PolicyOverrideField.vue';
@@ -393,7 +381,7 @@ const STOCK_FIELDS = [
 
 const PRICE_FIELDS = [
     { key: 'std_sale_price',   label: '판매단가' },
-    { key: 'std_buy_price',    label: '발주단가' },
+    { key: 'std_buy_price',    label: '구매단가' },
     { key: 'std_subcon_price', label: '외주단가' },
 ];
 

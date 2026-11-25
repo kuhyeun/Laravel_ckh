@@ -105,6 +105,7 @@ async function openPreview(ids) {
             modalTitle: `현품표 ( ${ids.length} 품목 )`,
             labels: data.labels ?? [],
             onPrinted: () => load(),
+            onClosed: () => load(),   // 닫으면 목록 새로 ( 닫기 · X · ESC · 11-24 )
         }, { size: 'xl' });
         if ((data.labels ?? []).length) load();   // 새로 발행했으면 라벨 수 갱신
     } catch (e) {

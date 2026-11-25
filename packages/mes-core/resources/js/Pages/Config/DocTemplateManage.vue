@@ -2,7 +2,8 @@
      - 좌 : 양식 목록 ( 문서 종류별 · 기본 양식 표시 ) / 가운데 : 종이 미리 보기( 예시 문서 · 인쇄와 같은 부품 DocSheet ) / 우 : 고른 영역의 설정
      - 양식 = 머리 영역( 격자 ) + 품목 표( 열 목록 ) + 아래 영역( 격자 ) — 종이에서 영역을 누르거나 오른쪽 위 단추로 고른다
        머리 · 아래 : 칸을 눌러 고르고( Shift + 클릭 = 여러 칸 ) [합치기] · [나누기] — 칸마다 항목 · 글자 · 그림( 로고 / 직인 )과 글자 모양
-       품목 표    : 열을 더하고 빼고 순서를 바꾼다 ( 머리글 · 너비 · 정렬 ) · 한 장 줄 수 · 줄 높이 · 합계 줄
+       품목 표    : 열을 더하고 빼고 순서를 바꾼다 ( 머리글 · 너비 · 정렬 · 줄바꿈 ) · 한 장 줄 수 · 줄 높이 · 합계 줄
+                    줄바꿈( 11-24 ) : 칸 폭을 넘으면 아랫줄로 → 그 행만 높아지고 한 장에 들어가는 줄이 줄어든다 · 넘치면 다음 장 ( 새 열 · 새 양식은 품명 · 규격 · 비고가 켜진 채 )
      - 기본 양식으로 켠 양식이 그 문서의 인쇄에 쓰인다. 기본 양식이 없으면 발주서 = 예전 고정 배치 · 출하지시서 = 처음 배치
      - [초기화] = 고치기 전( 양식을 연 때 · 마지막 저장 )으로 되돌린다 ( 확인창 ) -->
 <template>
@@ -108,6 +109,9 @@
                                         <BaseInput v-model="c.label" size="sm" class="flex-1 min-w-0" placeholder="머리글" maxlength="30" :disabled="!canWrite" />
                                         <BaseInput v-model="c.width" type="number" min="0.2" size="sm" class="w-16 text-right" title="너비 비율" :disabled="!canWrite" />
                                         <BaseSelect v-model="c.align" :options="ALIGNS_OPT" size="sm" class="w-20" :disabled="!canWrite" />
+                                        <label class="shrink-0 inline-flex items-center gap-0.5 text-[11px] text-gray-600 cursor-pointer" title="칸 폭을 넘으면 아랫줄로 ( 그 행만 높아지고, 넘치면 다음 장으로 )">
+                                            <input type="checkbox" class="accent-blue-600" v-model="c.wrap" :disabled="!canWrite" /> 줄바꿈
+                                        </label>
                                     </div>
                                 </div>
                                 <p class="text-[11px] text-gray-400">너비는 비율입니다 ( 열끼리 견줘 나눕니다 ) · 「빈 칸」 열은 손으로 적는 확인란 등에 씁니다</p>
@@ -200,7 +204,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, watch, nextTick, onMounted } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import AppLayout from '@core/Layouts/AppLayout.vue';
@@ -209,7 +213,8 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import DocSheet from '@core/Components/Doc/DocSheet.vue';
-import { DOC_TYPES, FIELDS, COLUMNS, SAMPLE, PAGE, MAX_COLS, MAX_ROWS, docTypeLabel, columnDef, starterDesign, paginate, neededHeight } from '@core/Components/Doc/docDesign';
+import { DOC_TYPES, FIELDS, COLUMNS, SAMPLE, PAGE, MAX_COLS, MAX_ROWS, docTypeLabel, columnDef, starterDesign, paginate, neededHeight, defaultWrap } from '@core/Components/Doc/docDesign';
+import { measureLineHeights } from '@core/Components/Doc/measureLines';
 import { useGridEdit } from '@core/Components/Doc/useGridEdit';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
@@ -269,7 +274,12 @@ async function resetForm() {
 // ---- 종이 ( 예시 문서 ) ----
 const pageSize   = computed(() => PAGE[form.orientation] ?? PAGE.P);
 const zoom       = computed(() => form.orientation === 'L' ? 0.62 : 0.8);
-const samplePage = computed(() => paginate(form.doc_type, form.design, SAMPLE[form.doc_type], { writer: page.props.auth?.user?.user_name ?? '', today: '2026-11-18' })[0]);
+// 예시 문서 첫 장 — 줄바꿈 열이 있으면 줄 높이를 재서 ( 11-24 · 인쇄와 같은 셈 )
+const sampleHeights = ref(null);
+watch(() => [form.doc_type, form.design, form.orientation], () => nextTick(() => {
+    sampleHeights.value = form.design?.table ? measureLineHeights(form.doc_type, form.design, SAMPLE[form.doc_type]?.lines ?? [], form.orientation) : null;
+}), { deep: true, immediate: true });
+const samplePage = computed(() => paginate(form.doc_type, form.design, SAMPLE[form.doc_type], { writer: page.props.auth?.user?.user_name ?? '', today: '2026-11-18' }, sampleHeights.value)[0]);
 const need       = computed(() => neededHeight({ ...form.design, margin_mm: Number(form.design.margin_mm) || 0 }));
 const overflow   = computed(() => need.value > pageSize.value.h + 0.01);
 
@@ -318,11 +328,12 @@ function setColumnField(c, key) {
     if (!c.label || c.label === before?.head) c.label = key === 'blank' ? '' : d.head;   // 머리글을 고친 적이 없으면 같이 바꾼다
     c.field = key;
     c.align = d.align;
+    c.wrap  = defaultWrap(key);   // 품명 · 규격 · 비고 = 줄바꿈 ( 11-24 )
 }
 function addColumn() {
     const used = new Set(tbl.value.columns.map(c => c.field));
     const d = COLUMNS[form.doc_type].find(c => !used.has(c.key)) ?? columnDef(form.doc_type, 'blank');
-    tbl.value.columns.push({ field: d.key, label: d.key === 'blank' ? '' : d.head, width: 1, align: d.align });
+    tbl.value.columns.push({ field: d.key, label: d.key === 'blank' ? '' : d.head, width: 1, align: d.align, wrap: defaultWrap(d.key) });
 }
 function moveColumn(i, step) {
     const list = tbl.value.columns;

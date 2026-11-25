@@ -197,7 +197,7 @@ class StockProcessController extends Controller {
             'wo_no'           => fn ($q, $kw) => $q->whereHas('workOrder', fn ($r) => $r->where('wo_no', 'like', $kw)),
             'item_code'       => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
             'item_name'       => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
-            'lot_no'          => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'lot_no'          => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
             'external_lot_no' => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('external_lot_no', 'like', $kw)),
         ]);
 

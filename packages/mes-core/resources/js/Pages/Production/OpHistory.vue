@@ -1,13 +1,15 @@
 <!-- 생산실적현황 ( 4003 · PRD-08 ) / 생산관리 > 생산실적현황 — docs/screens/50-생산.md "생산실적현황" · 스타일 가이드 적용
      - 조회만 ( 입력 · 취소는 공정실적관리 ) — 이력 행 클릭 → 그 품목 줄의 실적 상세 모달( OpHistoryDetail — 공정별 · 실적 전체 · 자재 · 입고 )
      - 검색 : 기간( 작업 일시 · 등록 일시 · 착수 예정 ) + 검색어( 줄 번호 · 품번 · 품명 · LOT ) + 공정 · 작업자 · 설비 + 취소 포함
-     - 탭 : 실적 이력( 서버 페이징 · 엑셀 ) / 집계( 품목 · 공정 · 작업자 · 설비 · 일자 — 행 클릭 → 그 값으로 이력 ) -->
+     - 탭 : 실적 이력( 서버 페이징 · 엑셀 ) / 집계( 품목 · 공정 · 작업자 · 설비 · 일자 — 행 클릭 → 그 값으로 이력 )
+            / 일정( 11-23 · 작업지시서별 품목 줄 간트 — 지시서별( 왼쪽 목록에서 하나 ) · 전체( 위아래로 쌓기 ) · 공정까지 보기 · 줄 클릭 → 실적 상세 ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
 
         <!-- 검색바 -->
         <SearchBar
             v-model="search"
+            stacked
             :date-bases="DATE_BASES"
             :fields="SEARCH_FIELDS"
             :loading="loading"
@@ -54,6 +56,49 @@
             </div>
         </div>
 
+        <!-- 일정 ( 간트 ) -->
+        <div v-show="tab === 'schedule'" class="flex-1 min-w-0 min-h-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex items-center flex-wrap gap-x-3 gap-y-1 px-3 py-2 bg-gray-50/70 shrink-0">
+                <span class="text-sm font-semibold text-gray-600">일정 · <span class="text-xs text-gray-400">지시서 {{ schedule.total.toLocaleString() }} 건{{ schedule.total > schedule.sheets.length ? ` ( 최근 ${schedule.sheets.length} 건만 )` : '' }}</span></span>
+                <div class="inline-flex rounded border border-gray-300 overflow-hidden text-xs">
+                    <button v-for="m in VIEW_MODES" :key="m.value" type="button" class="px-2.5 py-1 transition-colors"
+                        :class="viewMode === m.value ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="viewMode = m.value">{{ m.label }}</button>
+                </div>
+                <BaseCheckbox v-model="showOps" variant="checkbox">공정까지 보기</BaseCheckbox>
+                <div class="flex-1"></div>
+                <span class="flex items-center gap-2 text-[11px] text-gray-500">
+                    <span class="inline-flex items-center gap-1"><span class="w-5 h-2.5 rounded-sm border border-blue-300 bg-blue-50 relative overflow-hidden"><span class="absolute inset-y-0 left-0 w-1/2 bg-blue-400"></span></span>계획 · 진척( 생산 입고 ÷ 지시 )</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-5 h-1 rounded-full bg-gray-700/70"></span>실제</span>
+                    <span class="inline-flex items-center gap-1"><span class="text-gray-500">◆</span>공정 납기</span>
+                    <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-red-400"></span>지연</span>
+                    <span class="text-gray-400">· 기간 = 지시서 일정이 겹치는 것( 비면 오늘 ±30 일 ) · 줄을 누르면 실적 상세</span>
+                </span>
+            </div>
+            <div class="relative flex-1 min-h-0 flex">
+                <!-- 지시서별 : 왼쪽 목록 -->
+                <div v-if="viewMode === 'sheet'" class="w-64 shrink-0 border-r border-gray-200 overflow-y-auto">
+                    <button v-for="s in schedule.sheets" :key="s.sheet_idx" type="button" class="w-full text-left px-3 py-2 border-b border-gray-100 text-xs transition-colors"
+                        :class="s.sheet_idx === selectedSheet ? 'bg-blue-50' : 'hover:bg-gray-50'" @click="selectedSheet = s.sheet_idx">
+                        <div class="flex items-center gap-2">
+                            <span class="font-semibold text-gray-800">{{ s.sheet_no }}</span>
+                            <span class="ml-auto px-1.5 rounded text-[11px]" :class="sheetState(s).badge">{{ sheetState(s).label }}</span>
+                        </div>
+                        <div class="mt-0.5 flex items-center gap-2 text-gray-500">
+                            <span>{{ s.start_date }} ~ {{ s.due_date ?? '' }}</span>
+                            <span class="ml-auto">줄 {{ s.lines.length }} · {{ sheetPct(s) }}%</span>
+                        </div>
+                    </button>
+                    <p v-if="!schedule.sheets.length && !loading" class="py-6 text-center text-xs text-gray-400">조건에 맞는 작업지시서가 없습니다.</p>
+                </div>
+                <!-- 간트 -->
+                <div class="flex-1 min-w-0 overflow-auto">
+                    <ScheduleGantt v-if="ganttSheets.length" :sheets="ganttSheets" :from="ganttRange.from" :to="ganttRange.to" :show-ops="showOps" @open="openLine" />
+                    <p v-else-if="!loading" class="py-10 text-center text-xs text-gray-400">{{ schedule.sheets.length ? '왼쪽에서 작업지시서를 고르세요.' : '조건에 맞는 작업지시서가 없습니다.' }}</p>
+                </div>
+                <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-white/60 text-xs text-gray-500">불러오는 중…</div>
+            </div>
+        </div>
+
         <!-- 집계 -->
         <div v-show="tab === 'summary'" class="flex-1 min-w-0 min-h-0 flex flex-col border border-gray-200 overflow-hidden">
             <div class="flex items-center gap-3 px-3 py-2 bg-gray-50/70 shrink-0">
@@ -92,6 +137,7 @@ import ExcelExportButton from '@core/Components/Common/ExcelExportButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import OpHistoryDetail from '@core/Components/Production/OpHistoryDetail.vue';
+import ScheduleGantt from '@core/Components/Production/ScheduleGantt.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
@@ -109,7 +155,7 @@ const DATE_BASES = [
     { value: 'created', label: '등록 일시' },
     { value: 'start',   label: '착수 예정' },
 ];
-const TABS = [{ key: 'list', label: '실적 이력' }, { key: 'summary', label: '집계' }];
+const TABS = [{ key: 'list', label: '실적 이력' }, { key: 'summary', label: '집계' }, { key: 'schedule', label: '일정' }];
 const GROUPS = [
     { value: 'item',      label: '품목별' },
     { value: 'process',   label: '공정별' },
@@ -269,10 +315,71 @@ function drillDown(row) {
     changeTab('list');
 }
 
+// ---- 일정 ( 간트 · 11-23 ) ----
+const VIEW_MODES = [{ value: 'sheet', label: '지시서별' }, { value: 'all', label: '전체' }];
+const viewMode      = ref('sheet');
+const showOps       = ref(false);
+const schedule      = reactive({ sheets: [], total: 0, from: '', to: '' });   // from · to = 조회한 기간 ( 서버가 돌려준 값 — 비우면 오늘 ±30 일 )
+const selectedSheet = ref(null);
+const ganttSheets = computed(() => viewMode.value === 'all' ? schedule.sheets : schedule.sheets.filter(s => s.sheet_idx === selectedSheet.value));
+// 축 : 위 검색바에서 고른( 조회한 ) 기간 전체 — 그 밖으로 나간 계획 · 실제 일자가 있으면 거기까지 넓힌다 ( 11-23 )
+//   기간을 못 받았으면 전처럼 보이는 지시서의 일자 전체 + 앞뒤 하루 ( 오늘이 가까우면 오늘까지 )
+const addDays = (s, n) => { const d = new Date(`${s}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+//   30 일이 안 되면 모자란 날을 앞 · 뒤에 반씩 더해 30 일로 ( 홀수면 뒤에 하루 더 — 11-23 · 하루 칸 = 보이는 너비 ÷ 30 )
+const GANTT_MIN_DAYS = 30;
+const dayDiff = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+function padTo30(r) {
+    if (!r.from || !r.to) return r;
+    const short = GANTT_MIN_DAYS - (dayDiff(r.from, r.to) + 1);
+    if (short <= 0) return r;
+    const before = Math.floor(short / 2);
+    return { from: addDays(r.from, -before), to: addDays(r.to, short - before) };
+}
+const ganttRange = computed(() => padTo30(rawRange.value));
+const rawRange = computed(() => {
+    const ds = ganttSheets.value.flatMap(s => [s.start_date, s.due_date, ...s.lines.flatMap(l => [l.start_date, l.due_date, l.act_start, l.act_end])]).filter(Boolean).sort();
+    if (schedule.from && schedule.to) {
+        return { from: ds.length && ds[0] < schedule.from ? ds[0] : schedule.from, to: ds.length && ds[ds.length - 1] > schedule.to ? ds[ds.length - 1] : schedule.to };
+    }
+    if (!ds.length) return { from: '', to: '' };
+    let from = addDays(ds[0], -1), to = addDays(ds[ds.length - 1], 1);
+    const now = new Date(), today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (today > to && today <= addDays(to, 14)) to = today;
+    return { from, to };
+});
+const sheetPct = (s) => {
+    const t = s.lines.reduce((a, l) => a + l.target_qty, 0);
+    return t > 0 ? Math.round(s.lines.reduce((a, l) => a + Math.min(l.received_qty, l.target_qty), 0) / t * 100) : 0;
+};
+const sheetState = (s) => {
+    const today = new Date().toISOString().slice(0, 10);
+    if (s.status !== 'DONE' && s.due_date && s.due_date < today) return { label: '지연', badge: 'bg-red-50 text-red-600' };
+    return { DONE: { label: '완료', badge: 'bg-green-50 text-green-700' }, RUN: { label: '진행', badge: 'bg-blue-50 text-blue-700' } }[s.status] ?? { label: '대기', badge: 'bg-gray-100 text-gray-600' };
+};
+async function loadSchedule() {
+    loading.value = true;
+    try {
+        const { data } = await window.axios.get(route('production.opHistory.schedule'), { params: params() });
+        schedule.sheets = data.sheets ?? [];
+        schedule.total  = data.total ?? 0;
+        schedule.from   = data.from ?? '';
+        schedule.to     = data.to ?? '';
+        if (!schedule.sheets.some(s => s.sheet_idx === selectedSheet.value)) selectedSheet.value = schedule.sheets[0]?.sheet_idx ?? null;
+    } catch (e) {
+        showFlash(failMsg(e), true);
+    } finally {
+        loading.value = false;
+    }
+}
+// 간트 품목 줄 → 그 줄의 실적 상세
+const openLine = (l) => openDetail({ wo_no: l.wo_no, work_order_idx: l.work_order_idx, run_idx: null });
+
 // ---- 조회 ----
 function runSearch() {
     paging.page = 1;
-    tab.value === 'list' ? load() : loadSummary();
+    if (tab.value === 'list') load();
+    else if (tab.value === 'summary') loadSummary();
+    else loadSchedule();
 }
 function changeTab(key) {
     tab.value = key;

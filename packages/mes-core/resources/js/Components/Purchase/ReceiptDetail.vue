@@ -26,14 +26,14 @@
                         <col v-if="canCheck" class="w-8">
                         <col class="w-7">
                         <col>
+                        <col class="w-48">
                         <col class="w-32">
-                        <col class="w-24">
-                        <col class="w-24">
-                        <col class="w-28">
+                        <col class="w-32">
+                        <col class="w-20">
                         <col class="w-20">
                         <col class="w-28">
                         <col class="w-16">
-                        <col class="w-20">
+                        <!-- <col class="w-20"> -->
                         <col class="w-16">
                         <col class="w-20">
                     </colgroup>
@@ -49,7 +49,7 @@
                             <th class="px-2 py-1.5">창고</th>
                             <th class="px-2 py-1.5 text-left">발주번호</th>
                             <th class="px-2 py-1.5">검사</th>
-                            <th class="px-2 py-1.5 text-right">재고 반영</th>
+                            <!-- <th class="px-2 py-1.5 text-right">재고 반영</th> -->
                             <th class="px-2 py-1.5">상태</th>
                             <th class="px-2 py-1.5"></th>
                         </tr>
@@ -68,9 +68,9 @@
                             <td class="px-2 py-1.5 text-center truncate" :title="l.warehouse_name">{{ l.warehouse_name }}</td>
                             <td class="px-2 py-1.5">{{ l.order_no || '( 직접 )' }}</td>
                             <td class="px-2 py-1.5 text-center">{{ inspModeLabel(l.insp_mode) }}</td>
-                            <td class="px-2 py-1.5 text-right">
+                            <!-- <td class="px-2 py-1.5 text-right">
                                 <template v-if="l.line_status === 'DONE'">{{ fmtNum(l.pass_qty) }}<span v-if="l.fail_qty > 0" class="text-red-500 font-semibold"> ( {{ fmtNum(l.fail_qty) }} )</span></template>
-                            </td>
+                            </td> -->
                             <td class="px-2 py-1.5 text-center font-semibold" :style="{ color: receiptStatusColor(l.line_status) }">{{ receiptStatusLabel(l.line_status) }}</td>
                             <td class="px-2 py-1.5 text-center">
                                 <button v-if="l.has_inspection && l.line_status !== 'CANCELED'" type="button" class="text-blue-700 hover:underline" @click="openInspection(l)">
@@ -84,16 +84,17 @@
             <p class="text-xs text-gray-400 mt-1">입고는 고치지 않습니다. 잘못 넣었으면 줄을 취소하고 다시 입고하세요. 이미 출고 · 이동된 LOT 은 취소할 수 없습니다.</p>
         </template>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
-            <BaseButton v-if="canWrite && rc" size="sm" variant="danger" :disabled="!checked.length || saving" @click="cancelChecked">
-                선택 줄 취소{{ checked.length ? ` ( ${checked.length} )` : '' }}
-            </BaseButton>
-            <BaseButton v-if="label.can_lot && rc" size="sm" variant="secondary" class="mr-auto" :disabled="!checkedLots.length" @click="openLabel">
-                라벨 발행{{ checkedLots.length ? ` ( ${checkedLots.length} )` : '' }}
-            </BaseButton>
-            <span v-else class="mr-auto"></span>
+        <ModalFooter>
+            <template #left>
+                <BaseButton v-if="canWrite && rc" size="sm" variant="danger" :disabled="!checked.length || saving" @click="cancelChecked">
+                    선택 줄 취소{{ checked.length ? ` ( ${checked.length} )` : '' }}
+                </BaseButton>
+                <BaseButton v-if="label.can_lot && rc" size="sm" variant="secondary" :disabled="!checkedLots.length" @click="openLabel">
+                    라벨 발행{{ checkedLots.length ? ` ( ${checkedLots.length} )` : '' }}
+                </BaseButton>
+            </template>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -101,6 +102,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import IncomingInspectionForm from '@core/Components/Quality/IncomingInspectionForm.vue';
 import LabelIssueForm from '@core/Components/Label/LabelIssueForm.vue';
 import { useLabelAccess } from '@core/Composables/useLabelAccess';

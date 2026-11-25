@@ -57,7 +57,7 @@
                     <template v-for="(l, i) in lines" :key="keyOf(l)">
                         <tr class="border-t align-top">
                             <td class="px-1.5 py-1">
-                                <ItemPicker placeholder="자재 선택" v-model="l.child_item_idx" :remote="MATERIAL_ONLY" :exclude="[itemIdx]" :can-create="canCreate" :disabled="ro"
+                                <ItemPicker placeholder="자재 선택" v-model="l.child_item_idx" :remote="MATERIAL_ONLY" :exclude="[itemIdx]" :can-create="canCreate" :disabled="ro" :note-of="keptNote"
                                     :current="{ item_code: l.child_item_code, item_name: l.child_item_name, spec: l._item_spec }" @select="it => applyItem(l, it)" />
                                 <span v-if="l.child_procure_type === 'SUPPLIED'" class="inline-block mt-0.5 text-[11px] px-1 rounded bg-purple-50 text-purple-700" title="고객이 주는 자재입니다 ( 품목관리의 조달 구분 ) — 발주 대상에서 빠집니다">사급</span>
                                 <p v-if="err(i, 'child_item_idx')" class="text-[11px] text-red-500">{{ err(i, 'child_item_idx') }}</p>
@@ -112,7 +112,7 @@
                                         <tr v-for="(sub, j) in l.substitutes" :key="keyOf(sub)" class="align-top">
                                             <td class="text-gray-300 py-1 leading-9">└</td>
                                             <td class="pr-1.5 py-1">
-                                                <ItemPicker v-model="sub.child_item_idx" :remote="MATERIAL_ONLY" :exclude="[itemIdx, l.child_item_idx]" placeholder="대체 자재 선택" :can-create="canCreate" :disabled="ro"
+                                                <ItemPicker v-model="sub.child_item_idx" :remote="MATERIAL_ONLY" :exclude="[itemIdx, l.child_item_idx]" placeholder="대체 자재 선택" :can-create="canCreate" :disabled="ro" :note-of="keptNote"
                                                     :current="{ item_code: sub.child_item_code, item_name: sub.child_item_name, spec: sub._item_spec }" @select="it => applyItem(sub, it)" />
                                                 <p v-if="subErr(i, j, 'child_item_idx')" class="text-[11px] text-red-500">{{ subErr(i, j, 'child_item_idx') }}</p>
                                                 <p v-else-if="!ro && itemBomLoaded && sub.child_item_idx && !itemBomIds.has(Number(sub.child_item_idx))" class="text-[11px] text-blue-600">품목 BOM 에도 대체 자재로 추가됩니다.</p>
@@ -142,10 +142,10 @@
             </table>
         </div>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ ro ? '닫기' : '취소' }}</BaseButton>
             <BaseButton v-if="!ro" variant="primary" size="sm" :disabled="busy" @click="apply">적용</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -156,12 +156,14 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import SpecPicker from '@core/Components/Config/SpecPicker.vue';
 import { specKey, withSpec } from '@core/Utils/format';
 import { showAlert } from '@core/Utils/message';
 import { quickMaterial } from '@core/Components/Config/quickMaterial';
 import { rkOf, linkRouting } from '@core/Components/Order/orderMaterial';
 import QtyModeInput from '@core/Components/Config/QtyModeInput.vue';
+import { itemKindLabel, itemTypeLabel } from '@core/Components/Config/itemCodes';
 
 const props = defineProps({
     initial:     { type: Array,    default: () => [] },   // 지금 줄 자재 ( 복사해서 고친다 — [취소] 하면 그대로 )
@@ -214,7 +216,19 @@ const routingOptions = computed(() => [
 // ---- 품목 BOM ( 지금 활성 ) — 품목 BOM 에 없는 자재가 어디로 등록되는지 보여 주려고 ----
 const itemBomLines  = ref([]);   // [{ idx: 품목 BOM 줄 IDX, child_item_idx, label, subs: [자재 IDX] }]
 const itemBomLoaded = ref(false);
+const itemBomTried  = ref(!props.itemIdx);   // 불러오기를 마쳤는가 ( 실패 포함 · 품목이 없으면 처음부터 마침 )
 const itemBomIds    = computed(() => new Set(itemBomLines.value.flatMap(l => [l.child_item_idx, ...l.subs])));
+// 자재가 아닌 값( 반제품 등 )이라도 품목 BOM · 이 수주에 원래 있던 값이면 그대로 쓸 수 있다 ( 서버 materialOnlyErrors 와 같은 규칙 · 11-24 )
+//   → "현재 선택 불가" 대신 출처를 보여 준다 ( 새로 고를 때는 여전히 자재만 )
+const initialIds = new Set(props.initial.flatMap(l => [l.child_item_idx, ...(l.substitutes ?? []).map(s => s.child_item_idx)]).map(Number));
+function keptNote(m) {
+    if (m.item_type === 'MATERIAL' || m.is_use !== 'Y') return null;   // 미사용 등은 기본 문구
+    if (!itemBomTried.value) return '';   // 품목 BOM 을 불러오는 중 : 출처를 아직 모른다 → 문구 없이 ( 「기존 수주 자재」 로 깜빡이지 않게 )
+    const kind = itemKindLabel(m.item_kind) || itemTypeLabel(m.item_type);
+    if (itemBomIds.value.has(Number(m.item_idx))) return `${kind} · 품목 BOM`;
+    if (initialIds.has(Number(m.item_idx)))       return `${kind} · 기존 수주 자재`;
+    return null;
+}
 async function loadItemBom() {
     if (!props.itemIdx) return;
     try {
@@ -226,6 +240,7 @@ async function loadItemBom() {
         }));
         itemBomLoaded.value = true;
     } catch (e) { /* 못 불러오면 안내만 안 보인다 — 서버는 그대로 등록 */ }
+    finally { itemBomTried.value = true; }
 }
 onMounted(loadItemBom);
 // 자재 줄 → 품목 BOM 등록 안내 ( null = 품목 BOM 에 이미 있음 · 아직 모름 ) / { text } / { select: true } ( 줄이 둘 이상 — 고른다 )

@@ -15,10 +15,10 @@ use MesCore\Quality\Models\Inspection;
  * 공정검사 ( 6002 · QUA-02 ) — docs/screens/70-품질.md §3
  *
  *   11-18 : 검사는 공정검사 화면에서만 한다 ( 공정실적에서는 하지 않는다 ) · 두 가지가 한 목록에 나온다
- *   검사 공정 = 라우팅의 검사 공정( process_type INSPECTION ) — 한 가지뿐 ( 전의 일반 검사 )
- *              앞 공정이 모두 끝난 뒤 검사 수량( = 기준 = 앞 공정 수량 ) → 합격 + 불합격 = 검사 수량 → [검사 완료]
- *              완료 = OpResultService::completeOp( _pass_qty ) — 공정 수량 = 합격 → 뒤 공정 기준 · 제품 입고는 합격분만 ( 결정 3 )
- *              취소 = [검사 취소]( = 공정 완료 취소 · 종합 기록 · 불량은 취소 표시 — OpResultService::reopenOp )
+ *   검사 공정 = 라우팅의 검사 공정( process_type INSPECTION ) — 회차 검사 ( 11-23 · docs/공정검사-회차-설계.md )
+ *              앞 공정 실적이 쌓이는 대로 나눠 검사 : 검사 가능 = 앞 공정 실적 − 검사한 수량 · 회차 = 합격 + 불합격( 실적별 LOT 지시는 LOT 마다 )
+ *              회차 저장 = complete() → OpResultService::recordInspectionRound ( 공정 수량 = 합격 합계 · 마지막 공정이면 합격분 입고 · 자동 완료 )
+ *              회차 취소 = cancelRound() · [검사 완료]( 남기고 끝냄 — 미달 사유 ) = finish() · [완료 취소] = OpResultService::cancelComplete( 회차는 그대로 )
  *   초 · 중 · 종 = 생산 공정( 생산 · 설비생산 )의 옵션 — 그 공정을 시작할 때 · 도중 · 끝난 뒤의 판정 기록( 합격 / 불합격 · 불량 수량 )
  *              생산을 막지 않는다( 실적 · 완료와 무관 ) · 불량 수량은 실적에서 빼지 않고 불량 이력으로만 · 작업지시가 대기 · 진행인 동안 기록 · 취소
  *   불량 = 발생 공정( work_order_op ) · 품목 = 만드는 제품 · LOT = 지시 LOT
@@ -41,13 +41,15 @@ class ProcessInspectionService {
         return [$wo, $ops];
     }
 
-    // 지금 검사 완료( 일반 · IFL 종합 )를 할 수 없는 이유
-    //   $latest : 미리 읽어 둔 stageLatest() ( 목록이 한꺼번에 읽어 넘긴다 — 없으면 여기서 읽는다 )
+    // 지금 검사 회차를 넣을 수 없는 이유 ( 11-23 — 앞 공정이 진행 중이어도 실적이 있으면 검사한다 )
     public function completeBlock(WorkOrder $wo, Collection $ops, WorkOrderOp $op, ?array $latest = null): ?string {
         if (!in_array($wo->status, ['WAIT', 'RUN'], true)) return '대기 · 진행 중인 품목 줄만 검사합니다.';
         if ($op->status === 'DONE') return null;
-        $open = $ops->filter(fn (WorkOrderOp $o) => $o->seq < $op->seq && $o->status !== 'DONE')->first();
-        if ($open) return "앞 공정( {$this->results->opName($open)} )이 끝난 뒤에 검사 완료합니다.";
+        if ($why = $this->results->workBlock($ops, $op)) return $why;
+        if ($this->results->inspectAvailable($wo, $ops, $op) <= self::EPS) {
+            $prev = $ops->filter(fn (WorkOrderOp $o) => $o->seq < $op->seq && ($o->isQtyOp() || $o->isInspectionOp()))->last();
+            return $prev ? "검사할 수량이 없습니다. ( 앞 공정 {$this->results->opName($prev)} 실적 {$this->num((float) $prev->qty)} · 검사 {$this->num($this->results->inspectedQty($op))} )" : '검사할 수량이 없습니다.';
+        }
         return null;
     }
 
@@ -59,8 +61,9 @@ class ProcessInspectionService {
     }
 
     /**
-     * 일반 검사 완료 / IFL 종합 완료
-     * @param array{pass_qty:?string, fail_qty:?string, defect_type_code:?string, reason:?string, inspector_idx:int, inspected_at:string, remark:?string, warehouse_idx:?int} $data
+     * 검사 회차 저장 ( 11-23 — 전의 한 번에 검사 완료 )
+     *   지시 LOT 지시 : pass_qty + fail_qty = 이번 검사 수량 ( ≤ 검사 가능 )
+     *   실적별 LOT 지시 : lots = [ { lot_idx, qty, fail_qty } ] — 앞 공정 실적 LOT 마다( 남은 수량까지 ) · 합격 = 검사 − 불합격
      * @return string[] 경고
      */
     public function complete(WorkOrderOp $op, array $data): array {
@@ -70,17 +73,49 @@ class ProcessInspectionService {
             [$wo, $ops] = $this->context($op);
             $this->assertInspection($op);
             if ($op->status === 'DONE') {
-                throw ValidationException::withMessages(['op' => ['이미 검사 완료한 공정입니다.']]);
+                throw ValidationException::withMessages(['op' => ['이미 검사를 완료한 공정입니다. 더 검사하려면 [완료 취소] 를 먼저 하세요.']]);
             }
             if ($why = $this->completeBlock($wo, $ops, $op)) {
                 throw ValidationException::withMessages(['op' => [$why]]);
             }
-            $base = (float) $this->results->baseQty($wo, $ops, $op);
+            $avail = $this->results->inspectAvailable($wo, $ops, $op);
 
-            $pass = (float) ($data['pass_qty'] ?? 0);
-            $fail = (float) ($data['fail_qty'] ?? 0);
-            if (abs(($pass + $fail) - $base) > self::EPS) {
-                throw ValidationException::withMessages(['pass_qty' => ["합격과 불합격을 더하면 검사 수량( {$this->num($base)} )이 되어야 합니다."]]);
+            if ($wo->isRunLot()) {
+                $cands = collect($this->results->inspectionLotCandidates($wo, $ops, $op))->keyBy('lot_idx');
+                $lots  = [];
+                foreach (array_values($data['lots'] ?? []) as $i => $l) {
+                    $q = (float) ($l['qty'] ?? 0);
+                    $f = (float) ($l['fail_qty'] ?? 0);
+                    if ($q <= self::EPS && $f <= self::EPS) continue;
+                    $c = $cands->get((int) ($l['lot_idx'] ?? 0));
+                    if (!$c) {
+                        throw ValidationException::withMessages(["lots.{$i}.lot_idx" => ['검사할 수 없는 LOT 입니다. 새로고침하세요.']]);
+                    }
+                    if ($q > $c['left'] + self::EPS) {
+                        throw ValidationException::withMessages(["lots.{$i}.qty" => ["{$c['lot_no']} : 남은 수량( {$this->num($c['left'])} )보다 많이 검사할 수 없습니다."]]);
+                    }
+                    if ($f < 0 || $f > $q + self::EPS) {
+                        throw ValidationException::withMessages(["lots.{$i}.fail_qty" => ["{$c['lot_no']} : 불합격은 0 ~ 검사 수량( {$this->num($q)} ) 이어야 합니다."]]);
+                    }
+                    $lots[] = ['lot_idx' => (int) $c['lot_idx'], 'qty' => $q, 'fail_qty' => $f];
+                }
+                if (!$lots) {
+                    throw ValidationException::withMessages(['lots' => ['검사할 LOT 와 수량을 넣으세요.']]);
+                }
+                $qty  = array_sum(array_column($lots, 'qty'));
+                $fail = array_sum(array_column($lots, 'fail_qty'));
+                $pass = $qty - $fail;
+            } else {
+                $pass = (float) ($data['pass_qty'] ?? 0);
+                $fail = (float) ($data['fail_qty'] ?? 0);
+                $qty  = $pass + $fail;
+                if ($pass < 0 || $qty <= self::EPS) {
+                    throw ValidationException::withMessages(['pass_qty' => ['이번에 검사한 수량( 합격 + 불합격 )을 넣으세요.']]);
+                }
+                $lots = [['lot_idx' => $wo->lot_idx ? (int) $wo->lot_idx : null, 'qty' => $qty, 'fail_qty' => $fail]];
+            }
+            if ($qty > $avail + self::EPS) {
+                throw ValidationException::withMessages(['pass_qty' => ["이번 검사 수량( {$this->num($qty)} )이 검사할 수 있는 수량( {$this->num($avail)} )보다 많습니다."]]);
             }
             $this->defects->validateRows($fail, $data);   // 불량 여러 줄 ( 11-12 )
 
@@ -91,10 +126,29 @@ class ProcessInspectionService {
                 'inspected_at' => $at, 'inspector_idx' => $data['inspector_idx'], 'remark' => $data['remark'] ?? null,
                 'inspection_spec_idx' => $data['inspection_spec_idx'] ?? null,   // 보고 검사한 기준서 ( 11-18 )
             ]);
-            $this->defects->recordRows($inspection, $this->defectBase($wo, $op, $at), $fail, $data);
+            app(InspectionReportService::class)->record($inspection, $data['measure'] ?? null);   // 성적서 ( 11-23 — 설정이 켜졌을 때만 · 측정값 필수 )
+            // 불량 LOT : 불합격이 한 LOT 에서만 나왔으면 그 LOT ( 실적별 LOT ) · 아니면 지시 LOT
+            $failLots = array_values(array_filter($lots, fn ($l) => $l['fail_qty'] > self::EPS && $l['lot_idx']));
+            $base     = $this->defectBase($wo, $op, $at);
+            if (count($failLots) === 1) $base['lot_idx'] = (int) $failLots[0]['lot_idx'];
+            $this->defects->recordRows($inspection, $base, $fail, $data);
 
-            return $this->results->completeOp($op, ['_pass_qty' => $pass, 'warehouse_idx' => $data['warehouse_idx'] ?? null]);
+            return $this->results->recordInspectionRound($op, $inspection, $lots, isset($data['warehouse_idx']) ? (int) $data['warehouse_idx'] : null, $at);
         });
+    }
+
+    // [검사 완료] — 남은 수량을 검사하지 않고 끝낸다( 미달 사유 ) · 남은 게 없으면 그냥 완료 ( 11-23 )
+    public function finish(WorkOrderOp $op, array $data): array {
+        $this->assertInspection($op);
+        return $this->results->completeOp($op, ['short_reason' => $data['short_reason'] ?? null, 'warehouse_idx' => $data['warehouse_idx'] ?? null]);
+    }
+
+    // 회차 취소 ( 11-23 )
+    public function cancelRound(Inspection $inspection): void {
+        if ($inspection->ref_type !== self::REF_TYPE || $inspection->insp_type !== 'PROCESS') {
+            throw ValidationException::withMessages(['inspection' => ['검사 공정의 회차가 아닙니다.']]);
+        }
+        $this->results->cancelInspectionRound($inspection);
     }
 
     /**
@@ -127,6 +181,7 @@ class ProcessInspectionService {
                 'inspection_spec_idx' => $data['inspection_spec_idx'] ?? null,   // 보고 검사한 기준서 ( 11-18 )
                 'remark'    => trim(($data['result'] === 'FAIL' && filled($data['reason'] ?? null) ? $data['reason'] . ' ' : '') . ($data['remark'] ?? '')) ?: null,
             ]);
+            app(InspectionReportService::class)->record($inspection, $data['measure'] ?? null);   // 성적서 ( 11-23 — 설정이 켜졌을 때만 · 측정값 필수 )
             $this->defects->record($inspection, $this->defectRow($wo, $op, $fail, $data, $at));
             return $inspection;
         });
@@ -170,7 +225,7 @@ class ProcessInspectionService {
 
     // 이 공정의 검사 기록 전부 ( 취소 포함 · 시간 순 ) — 창의 이력
     public function history(WorkOrderOp $op): Collection {
-        return Inspection::with(['defects', 'inspector:account_idx,user_id,user_name'])
+        return Inspection::with(['defects', 'inspector:account_idx,user_id,user_name', 'lots.lot:lot_idx,lot_no,lot_title'])
             ->where('ref_type', self::REF_TYPE)->where('ref_idx', $op->work_order_op_idx)
             ->orderBy('inspected_at')->orderBy('inspection_idx')->get();
     }

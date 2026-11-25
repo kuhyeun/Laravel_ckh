@@ -2,9 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 use MesCore\Production\Controllers\MaterialIssueController;
+use MesCore\Production\Controllers\SubconMaterialController;
 use MesCore\Production\Controllers\OpHistoryController;
 use MesCore\Production\Controllers\WipController;
 use MesCore\Production\Controllers\SubconController;
+use MesCore\Production\Controllers\SubconOrderController;
 use MesCore\Production\Controllers\OpResultController;
 use MesCore\Production\Controllers\ProductionPlanController;
 use MesCore\Production\Controllers\ProductionScheduleController;
@@ -56,6 +58,9 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::get('/routingOps/{routingIdx}', [WorkOrderController::class, 'routingOps'])->whereNumber('routingIdx')->name('routingOps');
             Route::get('/itemDefaults', [WorkOrderController::class, 'itemDefaults'])->name('itemDefaults');
             Route::get('/soLines', [WorkOrderController::class, 'soLines'])->name('soLines');
+            Route::get('/planSheet', [WorkOrderController::class, 'planSheet'])->name('planSheet');   // 생산계획표 ( 11-19 )
+            Route::get('/planSheetData', [WorkOrderController::class, 'planSheetData'])->name('planSheetData');   // 생산계획표 팀 · 담당자 · 설비 ( 11-20 )
+            Route::get('/planSheetJobs', [WorkOrderController::class, 'planSheetJobs'])->name('planSheetJobs');   // 생산계획표 작업 ( 11-20 )
         });
 
         Route::middleware($write)->group(function() {
@@ -143,6 +148,19 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::post('/save/{receiptIdx}', [SubconController::class, 'inspect'])->whereNumber('receiptIdx')->middleware($auth('SubconInspection', 'can_write'))->name('save');
         });
 
+        // 외주 발주 ( 400505 · 11-23 · docs/외주발주-설계.md ) — 발주서에서 [출고] 는 외주 출고 권한으로 ( 저장 주소 subcon.issue.save )
+        Route::prefix('order')->name('order.')->group(function() use ($auth) {
+            Route::middleware($auth('SubconOrder', 'can_read'))->group(function() {
+                Route::get('/formData', [SubconOrderController::class, 'formData'])->name('formData');
+                Route::get('/list', [SubconOrderController::class, 'list'])->name('list');
+                Route::get('/show/{orderIdx}', [SubconOrderController::class, 'show'])->whereNumber('orderIdx')->name('show');
+                Route::get('/candidates', [SubconController::class, 'candidates'])->name('candidates');   // 줄 후보 = 외주 출고 대상과 같은 목록
+                Route::get('/sheets', [SubconOrderController::class, 'sheets'])->name('sheets');
+            });
+            Route::post('/save', [SubconOrderController::class, 'save'])->middleware($auth('SubconOrder', 'can_write'))->name('save');
+            Route::post('/cancel', [SubconOrderController::class, 'cancel'])->middleware($auth('SubconOrder', 'can_delete'))->name('cancel');
+        });
+
         Route::prefix('history')->name('history.')->middleware($auth('SubconHistory', 'can_read'))->group(function() {
             Route::get('/formData', [SubconController::class, 'formData'])->name('formData');
             Route::get('/list', [SubconController::class, 'history'])->name('list');
@@ -159,6 +177,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
     Route::prefix('op-history')->name('opHistory.')->middleware(MenuAuth::class . ':Production/OpHistory,can_read')->group(function() {
         Route::get('/list', [OpHistoryController::class, 'list'])->name('list');
         Route::get('/summary', [OpHistoryController::class, 'summary'])->name('summary');
+        Route::get('/schedule', [OpHistoryController::class, 'schedule'])->name('schedule');   // 일정 ( 간트 · 11-23 )
         Route::get('/detail/{woIdx}', [OpHistoryController::class, 'detail'])->whereNumber('woIdx')->name('detail');
         Route::get('/formData', [OpHistoryController::class, 'formData'])->name('formData');
     });
@@ -170,8 +189,16 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::get('/plan/{woIdx}', [MaterialIssueController::class, 'plan'])->whereNumber('woIdx')->name('plan');
             Route::get('/history/{woIdx}', [MaterialIssueController::class, 'history'])->whereNumber('woIdx')->name('history');
             Route::get('/returnPlan/{woIdx}', [MaterialIssueController::class, 'returnPlan'])->whereNumber('woIdx')->name('returnPlan');
+            // [외주] 탭 : 외주 건( 발주 줄 · 발주 없는 외주 출고 )으로 자재 출고 ( 11-23 · docs/외주발주-설계.md )
+            Route::get('/subconCases', [SubconMaterialController::class, 'cases'])->name('subconCases');
+            Route::get('/subconPlan', [SubconMaterialController::class, 'plan'])->name('subconPlan');
         });
         Route::middleware(MenuAuth::class . ':Production/MaterialIssue,can_write')->group(function() {
+            Route::post('/subconAdd', [SubconMaterialController::class, 'add'])->name('subconAdd');
+            Route::post('/subconSave', [SubconMaterialController::class, 'save'])->name('subconSave');
+            Route::post('/subconQuick', [SubconMaterialController::class, 'quick'])->name('subconQuick');
+            Route::post('/subconRemove', [SubconMaterialController::class, 'remove'])->name('subconRemove');   // 출고 전 추가 자재 줄 지우기   // 재고관리 LOT 창 [출고 → 외주]
+            Route::post('/subconCancel', [SubconMaterialController::class, 'cancel'])->name('subconCancel');
             Route::post('/save', [MaterialIssueController::class, 'save'])->name('save');
             Route::post('/extraAdd', [MaterialIssueController::class, 'extraAdd'])->name('extraAdd');           // BOM 외 자재 줄 ( 11-13 )
             Route::post('/extraRemove', [MaterialIssueController::class, 'extraRemove'])->name('extraRemove');

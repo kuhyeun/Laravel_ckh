@@ -5,6 +5,7 @@ use MesCore\Quality\Controllers\IncomingInspectionController;
 use MesCore\Quality\Controllers\ShippingInspectionController;
 use MesCore\Quality\Controllers\ProcessInspectionController;
 use MesCore\Quality\Controllers\DefectHistoryController;
+use MesCore\Quality\Controllers\InspectionReportController;
 use MesCore\Auth\Middleware\MenuAuth;
 use MesCore\Auth\Middleware\UserAuth;
 
@@ -36,10 +37,18 @@ Route::prefix('quality')->name('quality.')->middleware([UserAuth::class])->group
         Route::post('/complete/{opIdx}', [ProcessInspectionController::class, 'complete'])->whereNumber('opIdx')->name('complete');
         Route::post('/stage/{opIdx}', [ProcessInspectionController::class, 'stage'])->whereNumber('opIdx')->name('stage');
         Route::post('/cancelStage/{inspectionIdx}', [ProcessInspectionController::class, 'cancelStage'])->whereNumber('inspectionIdx')->name('cancelStage');
-        Route::post('/cancel/{opIdx}', [ProcessInspectionController::class, 'cancel'])->whereNumber('opIdx')->name('cancel');
+        Route::post('/cancel/{opIdx}', [ProcessInspectionController::class, 'cancel'])->whereNumber('opIdx')->name('cancel');   // 완료 취소 ( 회차는 그대로 )
+        Route::post('/finish/{opIdx}', [ProcessInspectionController::class, 'finish'])->whereNumber('opIdx')->name('finish');   // [검사 완료] ( 11-23 )
+        Route::post('/cancelRound/{inspectionIdx}', [ProcessInspectionController::class, 'cancelRound'])->whereNumber('inspectionIdx')->name('cancelRound');   // 회차 취소 ( 11-23 )
         // 검사기준서 보기 · 인쇄 ( 11-18 — 기준서관리 권한 없이 공정검사 권한으로 )
         Route::get('/specs', [ProcessInspectionController::class, 'specs'])->name('specs');
-        Route::get('/specSheets', [\MesCore\Config\Controllers\InspectionSpecController::class, 'sheets'])->middleware(MenuAuth::class . ':Quality/ProcessInspection,can_read')->name('specSheets');
+        Route::get('/specSheets', [ProcessInspectionController::class, 'specSheets'])->name('specSheets');   // 공정검사 · 공정실적 어느 쪽 권한으로도 ( 11-19 )
+    });
+
+    // 검사성적서 보기 · 인쇄 ( 11-23 — 권한은 컨트롤러가 검사 종류의 화면으로 )
+    Route::prefix('report')->name('report.')->group(function() {
+        Route::get('/show/{inspectionIdx}', [InspectionReportController::class, 'show'])->whereNumber('inspectionIdx')->name('show');
+        Route::get('/sheets', [InspectionReportController::class, 'sheets'])->name('sheets');
     });
 
     // 품목별 불량이력 ( Quality/DefectHistory — 조회만 )

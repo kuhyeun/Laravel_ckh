@@ -9,9 +9,10 @@
      - 높이는 모두 36px( md · 버튼과 같다 ) — 화면별 칸도 size 를 주지 않는다 ( 2026-10-30 )
      - 오른쪽 순서 : [ 화면별 칸 ] [ 검색 조건 ▾ ] [ 검색어 ] [ 조회 ] [ 초기화 ] ( 2026-10-30 · 스타일 가이드 §3 )
      - fields : 검색 조건 [{ value, label }] — 맨 앞 "통합검색"( '' )은 자동. v-model 의 search_field 로 ( 서버 SearchesKeyword )
-       비우면 조건 칸이 없다 ( 통합검색만 ) -->
+       비우면 조건 칸이 없다 ( 통합검색만 )
+     - stacked ( 11-23 ) : 기간은 윗줄, 화면별 칸 · 검색 조건 · 검색어 · [조회] [초기화] 는 아랫줄 — 칸이 많아 [초기화] 만 혼자 내려가던 화면용 -->
 <template>
-    <div class="flex flex-wrap items-center gap-2 px-3 py-2 mb-3 border border-gray-200 bg-gray-50/70 shrink-0">
+    <div class="flex flex-wrap items-center gap-x-2 px-3 py-2 mb-3 border border-gray-200 bg-gray-50/70 shrink-0" :class="stacked ? 'gap-y-0' : 'gap-y-2'">
         <template v-if="dateBases.length">
             <BaseSelect v-if="dateBases.length > 1" v-model="model.date_basis" :options="dateBases" class="w-32" />
             <span v-else class="text-xs text-gray-500">{{ dateBases[0].label }}</span>
@@ -21,7 +22,9 @@
             <div class="flex items-center gap-0.5">
                 <button v-for="q in QUICK" :key="q.key" type="button" class="h-9 px-2.5 text-xs rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50" @click="quick(q.key)">{{ q.label }}</button>
             </div>
-            <span class="w-px h-5 bg-gray-200 mx-1"></span>
+            <span v-if="!stacked" class="w-px h-5 bg-gray-200 mx-1"></span>
+            <!-- 줄 바꿈 : 줄 사이 = 이 칸 높이 8px 하나만 ( 세로 gap 을 끄고 — 켜 두면 빈 줄 위아래로 두 번 들어가 넓어진다 ) -->
+            <div v-else class="basis-full h-2"></div>
         </template>
 
         <slot />
@@ -61,6 +64,8 @@ const props = defineProps({
     fields:      { type: Array,   default: () => [] },   // 검색 조건 [{ value, label }] ( 통합검색은 자동 )
     loading:     { type: Boolean, default: false },
     autoSearch:  { type: Boolean, default: true },
+    stacked:     { type: Boolean, default: false },   // 기간 윗줄 · 나머지 아랫줄 ( 11-23 )
+    urlKeyword:  { type: Boolean, default: true },    // 주소 ?kw= 를 검색어로 ( 창 안의 검색바는 끈다 — 지금 화면의 검색어라서 )
     blank:       { type: Function, default: null },   // 초기화 때 화면별 칸의 값 ( 기간 · 검색어 말고 )
 });
 const emit  = defineEmits(['search', 'reset']);
@@ -141,7 +146,7 @@ function keywordFromUrl() {
 }
 
 onMounted(async () => {
-    const kw = keywordFromUrl();
+    const kw = props.urlKeyword ? keywordFromUrl() : '';
     if (kw) {
         model.value.keyword = kw;
         model.value.search_field = '';

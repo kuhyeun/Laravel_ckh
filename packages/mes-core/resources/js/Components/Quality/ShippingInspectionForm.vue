@@ -2,7 +2,8 @@
      - 검사대기 : [합격] / [불합격] 판정. 불합격이면 불량 수량( 기본 = 출하 수량 ) · 유형 · 상세 → 불량 기록 ( 재고는 그대로 )
      - 판정 뒤 : 결과 + [검사 취소] ( 출하 전만 ). 불합격 줄은 출하 창에서 수량 · LOT 을 고쳐 저장하면 다시 검사대기
      - 검사자 기본값 = 로그인 사용자 · 첨부( 성적서 )는 출하 줄에 붙는다
-     - 판정 · 취소 권한은 서버가 출고검사 쓰기로 본다 ( can_write 를 서버가 같이 준다 ) -->
+     - 판정 · 취소 권한은 서버가 출고검사 쓰기로 본다 ( can_write 를 서버가 같이 준다 )
+     - [성적서] 탭 ( 11-23 · 설정 '출하검사 성적서 관리' 가 켜졌을 때 ) : 기준서 항목마다 측정값( 필수 ) → 판정과 같이 저장 · 판정 뒤 보기 · [인쇄] -->
 <template>
     <div class="mt-3 text-sm">
         <p v-if="loading" class="py-8 text-center text-gray-400">불러오는 중…</p>
@@ -26,13 +27,6 @@
                 </div>
             </div>
 
-            <!-- 검사기준서 ( 보여 주기만 — 항목별 기록은 다음 단계 ) -->
-            <p v-if="spec" class="mt-2 text-xs text-gray-500">
-                출고 검사기준서 :
-                <template v-if="spec">{{ spec.inspection_spec_name }} · 항목 {{ spec.item_count }}개 <span class="text-gray-400">( {{ spec.items.join(', ') }} )</span></template>
-                <template v-else><span class="text-gray-400">등록된 기준서가 없습니다</span></template>
-            </p>
-
             <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
             <p v-if="blocked" class="mt-3 text-xs text-amber-700">⚠ {{ blocked }}</p>
 
@@ -42,38 +36,31 @@
             <div v-show="tab === 'insp'">
             <!-- 검사대기 → 판정 -->
             <div v-if="waiting && !blocked" class="mt-3 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
-                <div class="col-span-2">
-                    <label class="block text-gray-500 font-medium mb-1">판정 <span class="text-red-500">*</span></label>
+                <FormField label="판정" required class="col-span-2">
                     <div class="flex gap-2">
                         <button v-for="r in RESULTS" :key="r.value" type="button" :disabled="!canWrite"
                             class="flex-1 h-9 rounded border text-sm font-semibold disabled:opacity-50"
                             :class="form.result === r.value ? r.on : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50'"
                             @click="form.result = r.value">{{ r.label }}</button>
                     </div>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">검사자 <span class="text-red-500">*</span></label>
-                    <BaseSelect v-model="form.inspector_idx" :options="inspectorOptions" placeholder="검사자 선택" class="w-full" :disabled="!canWrite" />
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">검사일시 <span class="text-red-500">*</span></label>
+                </FormField>
+                <FormField label="검사자" required>
+                    <UserSelect v-model="form.inspector_idx" :users="inspectors" placeholder="검사자 선택" class="w-full" :disabled="!canWrite" />
+                </FormField>
+                <FormField label="검사일시" required :error="errors.inspected_at">
                     <BaseDatePicker v-model="form.inspected_at" mode="datetime" class="w-full" :disabled="!canWrite" />
-                    <p v-if="errors.inspected_at" class="text-xs text-red-500 mt-0.5">{{ errors.inspected_at[0] }}</p>
-                </div>
-                <div v-if="form.result === 'FAIL'">
-                    <label class="block text-gray-500 font-medium mb-1">불량 수량 <span class="text-red-500">*</span></label>
+                </FormField>
+                <FormField v-if="form.result === 'FAIL'" label="불량 수량" required :error="errors.fail_qty">
                     <BaseInput :model-value="form.fail_qty" class="w-full text-right" disabled title="아래 불량 내역 합계" />
-                    <p v-if="errors.fail_qty" class="text-xs text-red-500 mt-0.5">{{ errors.fail_qty[0] }}</p>
-                    <p v-else class="text-[11px] text-gray-400 mt-0.5">출하 {{ fmtNum(line.qty) }} 중 · 아래 불량 내역 합계</p>
-                </div>
+                    <template #help><p v-if="!errors.fail_qty" class="text-[11px] text-gray-400 mt-0.5">출하 {{ fmtNum(line.qty) }} 중 · 아래 불량 내역 합계</p></template>
+                </FormField>
                 <!-- 불량 내역 ( 11-12 — 불합격일 때 · 처음엔 줄 없이 · [+ 줄] 의 수량 합 = 불량 수량 ) -->
                 <div v-if="form.result === 'FAIL'" class="col-span-4">
                     <DefectRows v-model="form.defects" :type-options="options('DEFECT_TYPE')" :errors="errors" :disabled="!canWrite" placeholder="예: 포장 파손 3박스" @total="t => form.fail_qty = String(t)" />
                 </div>
-                <div class="col-span-4">
-                    <label class="block text-gray-500 font-medium mb-1">비고</label>
+                <FormField label="비고" class="col-span-4">
                     <BaseInput v-model="form.remark" class="w-full" :disabled="!canWrite" />
-                </div>
+                </FormField>
                 <p class="col-span-4 text-xs text-gray-400">
                     불합격이면 이 출하는 나갈 수 없습니다. 출하 창에서 수량이나 LOT 을 고쳐 저장하면 다시 검사대기가 됩니다. 재고는 바뀌지 않습니다 ( 폐기는 재고조정 ).
                 </p>
@@ -88,6 +75,12 @@
 
             </div>
 
+            <!-- 성적서 ( 11-23 ) : 검사대기 = 입력 / 판정 뒤 = 저장된 측정값 · 인쇄 -->
+            <div v-if="hasReport" v-show="tab === 'report'" class="mt-3">
+                <InspectionReportSheet v-if="waiting" :specs="specs" :state="rep" :editable="canWrite && !blocked" />
+                <InspectionReportSheet v-else :saved="inspection?.measures ?? []" :saved-spec-name="inspection?.spec_name ?? ''" :inspection-idx="inspection?.mode === 'SHEET' ? inspection.inspection_idx : null" />
+            </div>
+
             <!-- 첨부 ( 성적서 — 출하 줄 ) -->
             <div v-show="tab === 'files'" class="mt-3">
                 <p class="mb-1.5 text-xs text-gray-500">성적서 — 출하 줄에 붙습니다</p>
@@ -98,13 +91,15 @@
         <p v-else class="py-8 text-center text-red-500">{{ errorMsg || '출하 줄을 찾을 수 없습니다.' }}</p>
 
         <!-- 액션 -->
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
-            <BaseButton v-if="canWrite && inspection && line?.shipment_status === 'WAIT'" size="sm" variant="danger" class="mr-auto" :disabled="saving" @click="cancelInspection">검사 취소</BaseButton>
+        <ModalFooter>
+            <template v-if="canWrite && inspection && line?.shipment_status === 'WAIT'" #left>
+                <BaseButton size="sm" variant="danger" :disabled="saving" @click="cancelInspection">검사 취소</BaseButton>
+            </template>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
             <BaseButton v-if="canWrite && waiting && !blocked" size="sm" variant="primary" :disabled="saving || !form.result" @click="complete">
                 {{ saving ? '처리 중…' : '검사완료' }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -113,11 +108,16 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import UserSelect from '@core/Components/Common/UserSelect.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
+import { useFormErrors } from '@core/Composables/useFormErrors';
 import DefectRows from '@core/Components/Quality/DefectRows.vue';
 import InspectionTabs from '@core/Components/Quality/InspectionTabs.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
+import InspectionReportSheet from '@core/Components/Quality/InspectionReportSheet.vue';
+import { measurePayload, blankValues } from '@core/Components/Quality/reportCodes';
 import { showAlert } from '@core/Utils/message';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { fmtNum, fmtQty } from '@core/Utils/format';
@@ -135,11 +135,14 @@ const RESULTS = [
 
 const loading    = ref(true);
 const saving     = ref(false);
-const errorMsg   = ref('');
-const errors     = ref({});
+// 저장 실패 : 칸 아래에 보이는 칸( 불량 수량 · 검사일시 · 불량 내역 )의 오류는 칸에서, 나머지는 위에 모아서
+const { errors, errorMsg, clear: clearErrors, handle } = useFormErrors(['fail_qty', 'inspected_at', 'defect_type_code', 'reason', 'defects']);
 const line       = ref(null);
-const spec       = ref(null);
 const inspection = ref(null);
+// 성적서 ( 11-23 ) — report : 설정이 켜졌나 · specs : 고를 기준서( 출하 기본 먼저 ) · rep : 넣는 값
+const report = ref(false);
+const specs  = ref([]);
+const rep    = reactive({ spec_idx: '', values: {} });
 const blocked    = ref(null);
 const canWrite   = ref(false);
 const inspectors = ref([]);
@@ -147,14 +150,15 @@ const inspectors = ref([]);
 const form = reactive({ result: '', fail_qty: '', defects: [], inspector_idx: '', inspected_at: '', remark: '' });
 const { options } = useCommonCode(['DEFECT_TYPE']);
 
-const inspectorOptions = computed(() => inspectors.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 const waiting = computed(() => line.value?.inspect_status === 'WAIT' && line.value?.shipment_status === 'WAIT');
+const hasReport = computed(() => (report.value && waiting.value) || (inspection.value?.measures?.length ?? 0) > 0);
 
 // 탭 : 검사( 판정 · 불량 내역 ) · 첨부 — 첨부 개수 · 오류 점
 const tab       = ref('insp');
 const fileCount = ref(0);
 const tabs = computed(() => [
-    { key: 'insp', label: '검사', error: Object.keys(errors.value).length > 0 },
+    { key: 'insp', label: '검사', error: Object.keys(errors.value).some(k => k !== 'measure') },
+    ...(hasReport.value ? [{ key: 'report', label: '성적서', error: !!errors.value.measure }] : []),
     { key: 'files', label: '첨부', count: fileCount.value || '' },
 ]);
 
@@ -164,8 +168,11 @@ async function load() {
     try {
         const { data } = await window.axios.get(route('quality.shipping.show', props.lineIdx));
         line.value       = data.line;
-        spec.value       = data.spec;
         inspection.value = data.inspection;
+        report.value     = data.report === true;
+        specs.value      = data.specs ?? [];
+        rep.spec_idx     = specs.value[0]?.inspection_spec_idx ?? '';
+        rep.values       = blankValues(specs.value[0]);
         blocked.value    = data.blocked;
         canWrite.value   = data.can_write === true;
         inspectors.value = data.inspectors ?? [];
@@ -182,9 +189,8 @@ async function load() {
 }
 
 async function complete() {
-    saving.value   = true;
-    errors.value   = {};
-    errorMsg.value = '';
+    saving.value = true;
+    clearErrors();
     try {
         const { data } = await window.axios.post(route('quality.shipping.complete', props.lineIdx), {
             result:           form.result,
@@ -193,6 +199,7 @@ async function complete() {
             inspector_idx:    Number(form.inspector_idx),
             inspected_at:     form.inspected_at,
             remark:           form.remark || null,
+            measure:          report.value ? measurePayload(rep) : null,
         });
         props.onDone?.('완료', data.result);
         emit('close');
@@ -220,17 +227,8 @@ async function cancelInspection() {
 }
 
 function handleError(e, fallback) {
-    const status = e.response?.status;
-    if (status === 422) {
-        errors.value = e.response.data.errors || {};
-        const shown = ['fail_qty', 'inspected_at', 'defect_type_code', 'reason'];
-        const other = Object.entries(errors.value).filter(([k]) => !shown.includes(k) && !k.startsWith('defects')).flatMap(([, v]) => v);
-        if (other.length) errorMsg.value = other.join('\n');
-        tab.value = 'insp';   // 틀린 칸이 있는 검사 탭으로
-    } else if (status === 403) {
-        errorMsg.value = '권한이 없습니다.';
-    } else {
-        errorMsg.value = e.response?.data?.message || fallback;
+    if (handle(e, fallback) === 422) {
+        tab.value = errors.value.measure && Object.keys(errors.value).length === 1 ? 'report' : 'insp';   // 틀린 칸이 있는 탭으로
     }
 }
 

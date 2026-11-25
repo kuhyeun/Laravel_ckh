@@ -1,5 +1,6 @@
 // 문서 양식 ( A4 — 발주서 · 출하지시서 · 11-18 ) — 편집 화면( Config/DocTemplateManage ) · 그리기( DocSheet ) · 인쇄( DocPages ) 가 같이 쓴다
-//   design : { margin_mm, head : 격자, table : { rows_per_page, row_h_mm, head_h_mm, size, sum, columns: [ { field, label, width, align } ] }, foot : 격자 }
+//   design : { margin_mm, head : 격자, table : { rows_per_page, row_h_mm, head_h_mm, size, sum, columns: [ { field, label, width, align, wrap } ] }, foot : 격자 }
+//   열 wrap ( 11-24 ) : 칸 폭을 넘으면 아랫줄로 · 그 행만 높아진다 → 장은 줄 수가 아니라 높이로 나눈다( paginate · measureLines )
 //   격자   : { height_mm, cols, rows, col_w[], row_h[], border, cells: [ { r, c, rs, cs, type, field, text, image, size, bold, align, wrap, bg } ] }
 //            type = FIELD( 항목 ) · TEXT( 글자 ) · IMAGE( logo · seal ) · null( 빈 칸 )
 //   항목 · 열 키는 서버 DocTemplateController::FIELDS · COLUMNS 와 같게
@@ -13,6 +14,8 @@ export const DOC_TYPES = [
     { value: 'PURCHASE_ORDER', label: '발주서' },
     { value: 'SHIPMENT_ORDER', label: '출하지시서' },
     { value: 'INSPECTION_SPEC', label: '검사기준서' },   // 기준정보관리 > 검사기준서관리 [인쇄] ( 11-18 )
+    { value: 'INSPECTION_REPORT', label: '검사성적서' },
+    { value: 'SUBCON_ORDER', label: '외주 발주서' },   // 생산관리 > 외주관리 > 외주 발주 [인쇄] ( 11-23 )   // 입고 · 공정 · 출하 검사 창 [성적서] [인쇄] ( 11-23 — 저장된 측정값 )
 ];
 export const docTypeLabel = (v) => DOC_TYPES.find(t => t.value === v)?.label ?? v;
 
@@ -44,6 +47,23 @@ export const FIELDS = {
         { key: 'spec_name', label: '기준서 이름' }, { key: 'remark', label: '비고' }, { key: 'item_count', label: '검사 항목 수' },
         ...OURS, ...PRINT,
     ],
+    // 외주 발주서 ( 11-23 ) : 수신 = 외주처
+    SUBCON_ORDER: [
+        { key: 'order_no', label: '발주번호' }, { key: 'order_date', label: '발주일' }, { key: 'due_date', label: '납기' }, { key: 'manager_name', label: '담당' },
+        { key: 'total', label: '합계금액' }, { key: 'total_qty', label: '수량 합계' }, { key: 'remark', label: '비고' },
+        { key: 'partner_name', label: '외주처 · 상호' }, { key: 'partner_biz_no', label: '외주처 · 등록번호' }, { key: 'partner_ceo', label: '외주처 · 대표자' },
+        { key: 'partner_address', label: '외주처 · 주소' }, { key: 'partner_tel', label: '외주처 · 전화' }, { key: 'partner_contact', label: '외주처 · 담당자' },
+        ...OURS, ...PRINT,
+    ],
+    // 검사성적서 ( 11-23 ) : 저장된 검사 기록 — 문서 번호 = 입고번호 / 작업지시 · 공정 / 출하번호 · 거래처 = 구매처 / 고객사 ( 공정은 빈 칸 )
+    INSPECTION_REPORT: [
+        { key: 'insp_type_name', label: '검사 종류' }, { key: 'doc_no', label: '문서 번호' }, { key: 'spec_name', label: '기준서 이름' },
+        { key: 'item_code', label: '품번' }, { key: 'item_name', label: '품명' }, { key: 'item_spec', label: '규격' }, { key: 'name_spec', label: '품명 / 규격' },
+        { key: 'lot_no', label: 'LOT' }, { key: 'partner_name', label: '거래처' },
+        { key: 'insp_qty', label: '검사 수량' }, { key: 'pass_qty', label: '합격 수량' }, { key: 'fail_qty', label: '불합격 수량' }, { key: 'result_name', label: '종합 판정' },
+        { key: 'inspected_at', label: '검사 일시' }, { key: 'inspector_name', label: '검사자' }, { key: 'remark', label: '비고' },
+        ...OURS, ...PRINT,
+    ],
 };
 
 // 품목 표의 열 ( head = 처음 머리글 · align = 처음 정렬 · sum = 합계 줄에 더하는 열 )
@@ -63,6 +83,20 @@ export const COLUMNS = {
         C('standard_value', '규격', 'center'), C('lower_limit', '하한', 'right'), C('upper_limit', '상한', 'right'), C('limit', '허용 범위 ( 하한 ~ 상한 )', 'center'),
         C('unit', '단위', 'center'), C('criteria', '판정 기준 ( 정성 )'), C('criteria_all', '기준 ( 규격 · 범위 또는 판정 기준 )'), C('blank', '빈 칸 ( 측정값 · 판정 )'),
     ],
+    // 외주 발주서 ( 11-23 ) : 작업지시의 외주 공정 줄
+    SUBCON_ORDER: [
+        C('no', 'No.', 'center'), C('wo_no', '작업지시'), C('item_code', '품번'), C('item_name', '품명'), C('item_spec', '규격'), C('name_spec', '품명 / 규격'),
+        C('process_name', '외주 공정'), C('unit', '단위', 'center'), C('qty', '수량', 'right', true), C('unit_price', '단가', 'right'), C('amount', '금액', 'right', true),
+        C('due_date', '납기', 'center'), C('remark', '비고'), C('blank', '빈 칸 ( 손으로 적는 칸 )'),
+    ],
+    // 검사성적서 ( 11-23 ) : 기준서 열 + 시료 1 ~ 10 · 측정값( 합침 ) · 판정
+    INSPECTION_REPORT: [
+        C('no', 'No.', 'center'), C('inspection_item_name', '검사 항목'), C('nature', '성격', 'center'), C('method', '검사 방법'),
+        C('standard_value', '규격', 'center'), C('lower_limit', '하한', 'right'), C('upper_limit', '상한', 'right'), C('limit', '허용 범위 ( 하한 ~ 상한 )', 'center'),
+        C('unit', '단위', 'center'), C('criteria', '판정 기준 ( 정성 )'), C('criteria_all', '기준 ( 규격 · 범위 또는 판정 기준 )'),
+        ...Array.from({ length: 10 }, (_, k) => C(`x${k + 1}`, `시료 ${k + 1}`, 'center')),
+        C('measured_all', '측정값 ( 합침 — 20.02 / 19.98 )', 'center'), C('judge', '판정 ( OK / NG )', 'center'), C('blank', '빈 칸'),
+    ],
 };
 export const columnDef = (type, key) => COLUMNS[type]?.find(c => c.key === key);
 
@@ -79,6 +113,18 @@ export function fieldValues(type, doc, ctx = {}) {
     };
     if (type === 'INSPECTION_SPEC') {
         return { ...base, spec_name: doc.spec_name, item_count: doc.item_count ?? (doc.lines?.length ?? 0) };
+    }
+    if (type === 'INSPECTION_REPORT') {
+        const unit = doc.spec_unit ? ` ${doc.spec_unit}` : '';
+        return { ...base, insp_type_name: doc.insp_type_name, doc_no: doc.doc_no, spec_name: doc.spec_name,
+            item_code: doc.item_code, item_name: doc.item_name, item_spec: doc.item_spec, name_spec: withSpec(doc.item_name, doc.item_spec),
+            lot_no: doc.lot_no, partner_name: doc.partner_name,
+            insp_qty: `${fmtNum(doc.insp_qty)}${unit}`, pass_qty: `${fmtNum(doc.pass_qty)}${unit}`, fail_qty: `${fmtNum(doc.fail_qty)}${unit}`,
+            result_name: doc.result_name, inspected_at: doc.inspected_at, inspector_name: doc.inspector_name };
+    }
+    if (type === 'SUBCON_ORDER') {
+        return { ...base, order_no: doc.order_no, order_date: doc.order_date, due_date: doc.due_date ?? '', manager_name: doc.manager_name ?? '',
+            total: `₩ ${won(doc.total)}`, total_qty: fmtNum(doc.total_qty) };
     }
     if (type === 'SHIPMENT_ORDER') {
         return { ...base, shipment_no: doc.shipment_no, plan_date: doc.plan_date, shipped_at: doc.shipped_at, status_label: doc.status_label,
@@ -98,10 +144,15 @@ export function lineValue(type, l, key) {
         case 'blank':      return '';
         // 검사기준서
         case 'limit':        return l.lower_limit === null && l.upper_limit === null ? '' : `${l.lower_limit ?? ''} ~ ${l.upper_limit ?? ''}`;
+        // 검사성적서 ( 11-23 ) — 시료 n · 합침 · 판정
+        case 'measured_all': return (l.measured ?? []).join(' / ');
+        case 'judge':        return l.judge ?? '';
         case 'criteria_all': return l.nature === '정량'
             ? [l.standard_value, (l.lower_limit !== null || l.upper_limit !== null) ? `( ${l.lower_limit ?? ''} ~ ${l.upper_limit ?? ''} )` : '', l.unit].filter(Boolean).join(' ')
             : (l.criteria ?? '');
-        default:           return l[key] ?? '';
+        default:
+            if (/^x\d+$/.test(key)) return l.measured?.[Number(key.slice(1)) - 1] ?? '';
+            return l[key] ?? '';
     }
 }
 // 합계 줄의 글자 ( 더하는 열만 )
@@ -111,14 +162,43 @@ export function sumValue(type, lines, key) {
     return key === 'qty' ? fmtNum(total) : won(total);
 }
 
-// 한 장에 rows_per_page 줄씩 — 빈 줄은 null 로 채워 칸을 그린다 · 합계는 문서 전체
-export function paginate(type, design, doc, ctx) {
-    const n = Math.max(1, design.table.rows_per_page);
-    const chunks = [];
-    for (let i = 0; i < Math.max(1, doc.lines.length); i += n) chunks.push(doc.lines.slice(i, i + n));
+// 장 나누기 — 빈 줄은 null 로 채워 칸을 그린다 · 합계는 문서 전체
+//   heights 없음 : 한 장에 rows_per_page 줄씩 ( 줄 높이 고정 )
+//   heights 있음( 줄바꿈 열 · 11-24 ) : 표 영역 높이( 줄 높이 × rows_per_page ) 안에 들어가는 만큼 → 넘으면 다음 장( 같은 양식 )
+//     줄마다 높이 = max( 줄 높이, 잰 높이 ) · 한 줄이 표 영역보다 높으면 표 영역 높이로 자른다
+//     남는 자리는 빈 줄( 줄 높이 )로 · 그래도 남는 자투리는 마지막 줄에 더한다 → 표 영역 높이가 늘 같다( 아래 영역 · 용지 넘침 없음 )
+//     page.heights = 줄마다 높이( mm )
+export function paginate(type, design, doc, ctx, heights = null) {
+    const t = design.table;
+    const n = Math.max(1, Number(t.rows_per_page) || 1);
     const fields = fieldValues(type, doc, ctx);
-    return chunks.map((c, k) => ({ doc, fields, no: k + 1, of: chunks.length, rows: [...c, ...Array(n - c.length).fill(null)] }));
+    if (!heights) {
+        const chunks = [];
+        for (let i = 0; i < Math.max(1, doc.lines.length); i += n) chunks.push(doc.lines.slice(i, i + n));
+        return chunks.map((c, k) => ({ doc, fields, no: k + 1, of: chunks.length, rows: [...c, ...Array(n - c.length).fill(null)], heights: null }));
+    }
+    const rowH = Math.max(1, Number(t.row_h_mm) || 7);
+    const budget = rowH * n;
+    const EPS = 0.05;
+    const pages = [];
+    let cur = { rows: [], heights: [], used: 0 };
+    doc.lines.forEach((l, i) => {
+        const h = Math.min(budget, Math.max(rowH, Number(heights[i]) || rowH));
+        if (cur.rows.length && cur.used + h > budget + EPS) { pages.push(cur); cur = { rows: [], heights: [], used: 0 }; }
+        cur.rows.push(l); cur.heights.push(h); cur.used += h;
+    });
+    pages.push(cur);
+    for (const p of pages) {
+        const blanks = Math.max(0, Math.floor((budget - p.used) / rowH + EPS));
+        for (let k = 0; k < blanks; k++) { p.rows.push(null); p.heights.push(rowH); p.used += rowH; }
+        const rest = budget - p.used;
+        if (rest > 0.01 && p.heights.length) p.heights[p.heights.length - 1] += rest;
+    }
+    return pages.map((p, k) => ({ doc, fields, no: k + 1, of: pages.length, rows: p.rows, heights: p.heights.map(h => +h.toFixed(2)) }));
 }
+// 새 열의 줄바꿈 기본값 ( 11-24 ) — 품명 · 규격 · 품명/규격 · 비고
+export const WRAP_DEFAULT = ['name_spec', 'item_name', 'item_spec', 'remark'];
+export const defaultWrap = (key) => WRAP_DEFAULT.includes(key);
 
 // 종이에 필요한 높이 ( mm ) — 편집 화면의 넘침 경고
 export function neededHeight(d) {
@@ -130,9 +210,56 @@ export function neededHeight(d) {
 const cell = (r, c, cs, rs, more) => ({ r, c, rs, cs, type: null, field: null, text: null, image: null, size: 9, bold: false, align: 'left', wrap: false, bg: false, ...more });
 const cap  = (r, c, text, more = {}) => cell(r, c, 1, 1, { type: 'TEXT', text, align: 'center', bold: true, bg: true, ...more });
 const val  = (r, c, field, cs = 1, more = {}) => cell(r, c, cs, 1, { type: 'FIELD', field, ...more });
-const col  = (type, field, width, more = {}) => { const d = columnDef(type, field); return { field, label: d.head, width, align: d.align, ...more }; };
+const col  = (type, field, width, more = {}) => { const d = columnDef(type, field); return { field, label: d.head, width, align: d.align, wrap: defaultWrap(field), ...more }; };
 
 export function starterDesign(type) {
+    if (type === 'SUBCON_ORDER') {
+        const T = 'SUBCON_ORDER';
+        return {
+            margin_mm: 8,
+            head: { height_mm: 70, cols: 4, rows: 7, col_w: [0.7, 1.7, 0.7, 1.5], row_h: [2.2, 1, 1, 1, 1, 1, 1.3], border: 'Y', cells: [
+                cell(0, 0, 4, 1, { type: 'TEXT', text: '외 주 발 주 서', size: 20, bold: true, align: 'center' }),
+                cap(1, 0, '발주번호'), val(1, 1, 'order_no', 1, { bold: true }), cap(1, 2, '상 호'), val(1, 3, 'our_name'),
+                cap(2, 0, '발 주 일'), val(2, 1, 'order_date'), cap(2, 2, '등록번호'), val(2, 3, 'our_biz_no'),
+                cap(3, 0, '수 신'), val(3, 1, 'partner_name', 1, { bold: true }), cap(3, 2, '대 표 자'), val(3, 3, 'our_ceo'),
+                cap(4, 0, '납 기'), val(4, 1, 'due_date'), cap(4, 2, '주 소'), val(4, 3, 'our_address', 1, { size: 8, wrap: true }),
+                cap(5, 0, '담 당'), val(5, 1, 'manager_name'), cap(5, 2, '전 화'), val(5, 3, 'our_tel'),
+                cap(6, 0, '합계금액'), val(6, 1, 'total', 3, { size: 12, bold: true, align: 'right' }),
+            ] },
+            table: { rows_per_page: 18, row_h_mm: 7.5, head_h_mm: 7, size: 9, sum: 'Y', columns: [
+                col(T, 'no', 0.5), col(T, 'wo_no', 1.6), col(T, 'name_spec', 2.2), col(T, 'process_name', 1), col(T, 'unit', 0.5),
+                col(T, 'qty', 0.8), col(T, 'unit_price', 0.9), col(T, 'amount', 1), col(T, 'due_date', 1),
+            ] },
+            foot: { height_mm: 34, cols: 2, rows: 2, col_w: [0.5, 5], row_h: [4, 1], border: 'Y', cells: [
+                cap(0, 0, '비 고'), val(0, 1, 'remark', 1, { wrap: true }),
+                cell(1, 0, 2, 1, { type: 'FIELD', field: 'page_no', size: 8, align: 'right' }),
+            ] },
+        };
+    }
+    if (type === 'INSPECTION_REPORT') {
+        const T = 'INSPECTION_REPORT';
+        return {
+            margin_mm: 8,
+            // 머리 : 제목 · 검사 종류 · 문서 번호 · 품목 · LOT · 거래처 · 검사 일시 · 검사자
+            head: { height_mm: 56, cols: 4, rows: 5, col_w: [0.7, 1.7, 0.7, 1.5], row_h: [2.2, 1, 1, 1, 1], border: 'Y', cells: [
+                cell(0, 0, 4, 1, { type: 'TEXT', text: '검 사 성 적 서', size: 20, bold: true, align: 'center' }),
+                cap(1, 0, '검사 종류'), val(1, 1, 'insp_type_name', 1, { bold: true }), cap(1, 2, '문서 번호'), val(1, 3, 'doc_no'),
+                cap(2, 0, '품 목'), val(2, 1, 'name_spec', 1, { wrap: true }), cap(2, 2, '품 번'), val(2, 3, 'item_code'),
+                cap(3, 0, 'LOT'), val(3, 1, 'lot_no', 1, { wrap: true }), cap(3, 2, '거 래 처'), val(3, 3, 'partner_name'),
+                cap(4, 0, '검사 일시'), val(4, 1, 'inspected_at'), cap(4, 2, '검 사 자'), val(4, 3, 'inspector_name'),
+            ] },
+            table: { rows_per_page: 18, row_h_mm: 8, head_h_mm: 7, size: 8, sum: 'N', columns: [
+                col(T, 'no', 0.4), col(T, 'inspection_item_name', 1.5), col(T, 'method', 1), col(T, 'criteria_all', 2.2, { label: '기준' }),
+                col(T, 'x1', 0.75, { label: '1' }), col(T, 'x2', 0.75, { label: '2' }), col(T, 'x3', 0.75, { label: '3' }),
+                col(T, 'x4', 0.75, { label: '4' }), col(T, 'x5', 0.75, { label: '5' }), col(T, 'judge', 0.6, { label: '판정' }),
+            ] },
+            foot: { height_mm: 34, cols: 4, rows: 3, col_w: [0.7, 1.7, 0.7, 1.5], row_h: [1, 1, 1.6], border: 'Y', cells: [
+                cap(0, 0, '검사 수량'), val(0, 1, 'insp_qty'), cap(0, 2, '종합 판정'), val(0, 3, 'result_name', 1, { bold: true, size: 11 }),
+                cap(1, 0, '합 격'), val(1, 1, 'pass_qty'), cap(1, 2, '불 합 격'), val(1, 3, 'fail_qty'),
+                cap(2, 0, '비 고'), val(2, 1, 'remark', 1, { wrap: true }), cap(2, 2, '확 인'),
+            ] },
+        };
+    }
     if (type === 'INSPECTION_SPEC') {
         const T = 'INSPECTION_SPEC';
         return {
@@ -211,6 +338,24 @@ const SPEC_SAMPLE = {
 };
 export const SAMPLE = {
     INSPECTION_SPEC: SPEC_SAMPLE,
+    SUBCON_ORDER: {
+        order_no: 'SCO-261123-001', order_date: '2026-11-23', due_date: '2026-11-30', manager_name: '이생산', remark: '도금 두께 8㎛ 이상', total: 640000, total_qty: 320,
+        supplier: OUR, receiver: { name: '예시 도금', biz_no: '333-44-55555', ceo_name: '박외주', address: '경기도 안산시 예시로 9', tel: '031-555-6666', contact: '김담당' },
+        lines: [
+            { no: 1, wo_no: 'WO-261117-001-02', item_code: 'PLT-210', item_name: '도금 플레이트', item_spec: '120 × 80', unit: 'EA', process_name: '도금', qty: 300, unit_price: 2000, amount: 600000, due_date: '2026-11-28', remark: '' },
+            { no: 2, wo_no: 'WO-261120-005-01', item_code: 'PNL-330', item_name: '전면 패널', item_spec: '400 × 300', unit: 'EA', process_name: '도금', qty: 20, unit_price: 2000, amount: 40000, due_date: '2026-11-30', remark: '' },
+        ],
+    },
+    INSPECTION_REPORT: {
+        insp_type_name: '공정검사', doc_no: 'WO-261120-001-01 · 030 검사', spec_name: '공정검사', item_code: 'PD-01', item_name: '완제품 예시', item_spec: '100 × 50 × 10', spec_unit: 'EA',
+        lot_no: 'PD-01_2611_002', partner_name: '', insp_qty: 100, pass_qty: 98, fail_qty: 2, result_name: '부분 합격', inspected_at: '2026-11-23 14:30', inspector_name: '김검사',
+        remark: '외경 1개 상한 초과', supplier: OUR, receiver: {},
+        lines: [
+            { no: 1, inspection_item_name: '외경', nature: '정량', method: '버니어 캘리퍼스', standard_value: '20.00', lower_limit: '19.95', upper_limit: '20.05', unit: 'mm', criteria: null, measured: ['20.01', '19.98', '20.07'], judge: 'NG' },
+            { no: 2, inspection_item_name: '길이', nature: '정량', method: '줄자', standard_value: '3000', lower_limit: '2998', upper_limit: '3002', unit: 'mm', criteria: null, measured: ['3000', '2999', '3001'], judge: 'OK' },
+            { no: 3, inspection_item_name: '외관', nature: '정성', method: '육안', standard_value: null, lower_limit: null, upper_limit: null, unit: null, criteria: '흠 · 찍힘 · 녹이 없을 것', measured: ['OK', 'OK', 'OK'], judge: 'OK' },
+        ],
+    },
     PURCHASE_ORDER: {
         order_no: 'PO-261118-001', order_date: '2026-11-18', order_name: '11월 3주 원자재', due_date: '2026-11-25', remark: '비고란 예시 텍스트 입니다', total: 1870000,
         supplier: OUR, receiver: { name: '예시 공급처', biz_no: '222-33-44444', ceo_name: '김공급', address: '인천시 남동구 예시대로 45', tel: '032-111-2222', contact: '박담당' },

@@ -33,7 +33,7 @@
             </tr>
             <tr class="h-info">
                 <td class="lbl">수 신</td>
-                <td class="val strong">{{ page.doc.receiver.name }} <span class="honor">귀하</span></td>
+                <td class="val strong">{{ page.doc.receiver.name }}</td>
                 <td class="lbl">주 소</td>
                 <td colspan="3" class="val small">{{ page.doc.supplier.address }}</td>
             </tr>

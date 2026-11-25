@@ -26,3 +26,25 @@ export const planBarStyle = (v) => {
     const st = PLAN_STATUSES.find(s => s.value === v);
     return { background: st?.bar ?? STATUS_COLOR.idle, color: st?.barText ?? COLORS.white };
 };
+
+// ---- 작업지시서 막대 ( 생산계획 달력 · 달력 배치 모달에 같이 — 11-23 ) ----
+//   계획( 꽉 찬 색 )과 구분 : 흰 바탕 · 상태색 테두리 · 왼쪽 굵은 띠 · 글자 앞 '지시' / 보기만 ( 끌기 · 체크 없음 )
+//   상태 = 지시서 상태 · 기한( due_date )이 지났는데 완료가 아니면 지연
+export const SHEET_STATES = [
+    { value: 'WAIT', label: '대기', line: COLORS.gray500,  text: COLORS.gray700 },
+    { value: 'RUN',  label: '진행', line: COLORS.blue500,  text: COLORS.blue800 },
+    { value: 'DONE', label: '완료', line: COLORS.green600, text: COLORS.green700 },
+    { value: 'LATE', label: '지연', line: COLORS.red600,   text: COLORS.red700 },
+];
+export const sheetState = (s, today) => (s.status !== 'DONE' && s.due_date && s.due_date < today) ? 'LATE' : s.status;
+export const sheetBarStyle = (s, today) => {
+    const st = SHEET_STATES.find(x => x.value === sheetState(s, today)) ?? SHEET_STATES[0];
+    return { background: COLORS.white, color: st.text, border: `1px solid ${st.line}`, borderLeft: `4px solid ${st.line}` };
+};
+const lineItems = (s) => s.lines.length > 1 ? `${s.lines[0].item_name} 외 ${s.lines.length - 1}` : (s.lines[0]?.item_name ?? '');
+export const sheetBarText  = (s) => `지시 ${s.sheet_no} · ${lineItems(s)} · ${s.progress}%`;
+export const sheetBarTitle = (s, today, fmt) => {
+    const st = SHEET_STATES.find(x => x.value === sheetState(s, today));
+    const rows = s.lines.map(l => `${l.wo_no} ${l.item_code} ${l.item_name} · 지시 ${fmt(l.target_qty)} · 입고 ${fmt(l.received_qty)}${l.spec_unit ? ' ' + l.spec_unit : ''}`);
+    return [`작업지시서 ${s.sheet_no} · ${st?.label ?? s.status} · 진척 ${s.progress}%`, `${s.start_date} ~ ${s.due_date ?? '기한 없음'}`, ...rows].join('\n');
+};

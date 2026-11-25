@@ -28,6 +28,7 @@ class InspectionSpecItem extends Model {
         'upper_limit',
         'unit_code',
         'criteria',
+        'sample_count',
         'create_account_idx',
         'update_account_idx',
     ];
@@ -36,6 +37,7 @@ class InspectionSpecItem extends Model {
         return [
             'lower_limit'    => 'float',
             'upper_limit'    => 'float',
+            'sample_count'   => 'integer',
         ];
     }
 

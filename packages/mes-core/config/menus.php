@@ -137,9 +137,9 @@ return [
                 'menu_route_name' => 'config.notification',
                 'url_path' => '/config/notification',
                 'page_component' => 'Config/NotificationManage',
-                'menu_level' => 99,
-                // 내 알림 보기 · 읽음 표시 ( 공통 API common.notifications.* ) · 상단 종에서도 같은 알림
-                'read_only' => 'Y',
+                'menu_level' => 1,
+                // 사용자별 알림 받기 설정 ( 11-23 — config.notification.* ) · 내 알림 목록은 상단 종 [전체 보기]
+                'level_perms' => [ 1 => [ 'can_write' => 'Y' ] ],
             ],
             [
                 // 라벨 양식 ( 11-18 ) — 격자로 칸을 나눠 라벨 배치를 만든다 ( 바코드 · QR ) · 데이터는 label.template.*
@@ -383,7 +383,7 @@ return [
                 'menu_route_name' => '',
                 'url_path' => '/stock/status',
                 'page_component' => 'Stock/StockStatus',
-                'page_options' => '{"warehouse_filter": false}',
+                'page_options' => '{"warehouse_filter": false, "item_tabs": true}',   // item_tabs : 품목 합계 → 품목 LOT 탭 ( 11-23 )
                 'menu_level' => 99,
             ],
             [
@@ -394,6 +394,7 @@ return [
                 'menu_route_name' => '',
                 'url_path' => '/stock/by-warehouse',
                 'page_component' => 'Stock/StockStatus',
+                'page_options' => '{"item_tabs": true}',   // 품목 × 창고 합계 → 품목 LOT 탭 ( 11-23 )
                 'read_only' => 'Y',
                 'menu_level' => 99,
             ],
@@ -498,6 +499,17 @@ return [
                 'menu_level' => 99,
                 'children' => [
                     [
+                        // 외주 발주 ( 11-23 · docs/외주발주-설계.md ) — 외주 출고 앞의 선택 단계
+                        'menu_code' => '400505',
+                        'menu_name' => '외주 발주',
+                        'menu_icon' => null,
+                        'module_code' => 'Production',
+                        'menu_route_name' => '',
+                        'url_path' => '/subcon/order',
+                        'page_component' => 'Production/SubconOrder',
+                        'menu_level' => 99,
+                    ],
+                    [
                         'menu_code' => '400501',
                         'menu_name' => '외주 출고',
                         'menu_icon' => null,
@@ -580,7 +592,7 @@ return [
                 'menu_route_name' => '',
                 'url_path' => '/product/stock',
                 'page_component' => 'Product/ProductStock',
-                'page_options' => '{"warehouse_filter": false}',
+                'page_options' => '{"warehouse_filter": false, "item_tabs": true}',   // 품목 탭 ( 11-23 )
                 'menu_level' => 99,
             ],
             [
@@ -591,6 +603,7 @@ return [
                 'menu_route_name' => '',
                 'url_path' => '/product/stock-by-warehouse',
                 'page_component' => 'Product/ProductStock',
+                'page_options' => '{"item_tabs": true}',   // 품목 × 창고 합계 → 품목 LOT 탭 ( 11-23 )
                 'read_only' => 'Y',
                 'menu_level' => 99,
             ],

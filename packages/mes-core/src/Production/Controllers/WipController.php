@@ -103,20 +103,20 @@ class WipController extends Controller {
         }
         $runLots = $rows->where('kind', 'MAKE')->pluck('run_lot_idx')->filter()->unique();
         if ($runLots->isNotEmpty()) {
-            $out['run'] = DB::table('lot')->whereIn('lot_idx', $runLots)->pluck('lot_no', 'lot_idx')->all();
+            $out['run'] = DB::table('lot')->whereIn('lot_idx', $runLots)->selectRaw(\MesCore\Stock\Models\Lot::showSql('lot') . ' as n, lot_idx')->pluck('n', 'lot_idx')->all();   // 표시 번호 ( 11-24 )
         }
         $feedRuns = $rows->where('kind', 'FEED')->whereNull('subcon_issue_idx')->pluck('run_idx')->filter()->unique();
         if ($feedRuns->isNotEmpty()) {
             $out['feed'] = DB::table('work_order_run_input as x')->join('lot as l', 'l.lot_idx', '=', 'x.lot_idx')
                 ->whereIn('x.run_idx', $feedRuns)->where('x.input_type', 'RUN')->where('x.is_canceled', 'N')
-                ->orderBy('x.run_input_idx')->get(['x.run_idx', 'l.lot_no'])
+                ->orderBy('x.run_input_idx')->get(['x.run_idx', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no')])
                 ->groupBy('run_idx')->map(fn ($g) => $g->pluck('lot_no')->unique()->implode(', '))->all();
         }
         $issues = $rows->pluck('subcon_issue_idx')->filter()->unique();
         if ($issues->isNotEmpty()) {
             $out['sub'] = DB::table('subcon_issue_lot as x')->join('lot as l', 'l.lot_idx', '=', 'x.lot_idx')
                 ->whereIn('x.subcon_issue_idx', $issues)->where('x.input_type', 'RUN')
-                ->get(['x.subcon_issue_idx', 'l.lot_no'])
+                ->get(['x.subcon_issue_idx', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no')])
                 ->groupBy('subcon_issue_idx')->map(fn ($g) => $g->pluck('lot_no')->unique()->implode(', '))->all();
         }
         return $out;

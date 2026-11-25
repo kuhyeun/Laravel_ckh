@@ -74,6 +74,7 @@ const props = defineProps({
     canCreate:   { type: Boolean, default: false },      // [+ 새 자재 등록] ( 품목관리 쓰기 권한 )
     current:     { type: Object,  default: null },       // 선택지에 없는 지금 값( 미사용 등 ) 표시용 { item_code, item_name, spec }
     currentNote: { type: String,  default: '현재 선택 불가' },   // 그 값 뒤에 붙는 말
+    noteOf:      { type: Function, default: null },      // ( 불러온 품목 ) → 그 값 뒤에 붙는 말 · null 이면 currentNote ( 11-24 : 품목 BOM 에서 온 반제품 등 )
     showType:    { type: Boolean, default: false },      // 대분류 배지 ( 자재 · 제품이 섞인 선택지 )
     size:        { type: String,  default: 'md' },
     remote:      { type: Object,  default: null },       // 서버 모드 { types: ['PRODUCT'], use: 'PURCHASE' | 'RECEIPT' | 'SALE'( 조달 구분 · 판매 여부 ), extra: ['std_sale_price'], includeInactive }
@@ -158,8 +159,9 @@ const selected = computed(() => {
         ?? (props.current ? { ...props.current, item_idx: props.modelValue } : { item_idx: props.modelValue, item_name: `#${props.modelValue}` });
 });
 // 고른 값 표시 : "품명 [품번] · 규격" — 고를 수 없는 값이면 ( 현재 선택 불가 )
+const note = computed(() => unavailable.value ? ((inOptions.value && props.noteOf?.(inOptions.value)) ?? props.currentNote) : '');
 const selectedText = computed(() => selected.value
-    ? itemSpecLabel(selected.value) + (unavailable.value && props.currentNote ? ` ( ${props.currentNote} )` : '')
+    ? itemSpecLabel(selected.value) + (note.value ? ` ( ${note.value} )` : '')
     : '');
 
 // 찾기 : 낱말마다 품번 · 품명 · 규격( 정리한 값 포함 ) 중 하나에

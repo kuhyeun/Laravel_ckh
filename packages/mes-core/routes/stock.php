@@ -20,6 +20,10 @@ Route::prefix('stock')->name('stock.')->middleware([UserAuth::class])->group(fun
         Route::get('/warehouses', [StockController::class, 'warehouses'])->name('warehouses');
     });
 
+    // LOT 표시 번호 ( 11-24 · docs/LOT표시번호-설계.md ) — 재고관리 · 제품재고 · 물품표 · 현품표 권한으로 ( 컨트롤러가 검사 )
+    Route::get('/lot/{lotIdx}', [\MesCore\Stock\Controllers\LotTitleController::class, 'show'])->whereNumber('lotIdx')->name('lot.show');
+    Route::post('/lot/title', [\MesCore\Stock\Controllers\LotTitleController::class, 'save'])->name('lot.title');
+
     // 잔고 한 행 ( 이동 · 조정 창 ) — 재고현황 · 창고이동 · 재고조정 어느 쪽 권한으로도 ( 컨트롤러가 검사 )
     Route::get('/balance/{balanceIdx}', [StockController::class, 'balance'])->whereNumber('balanceIdx')->name('balance');
 

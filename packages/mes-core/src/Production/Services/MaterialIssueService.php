@@ -37,6 +37,9 @@ use MesCore\Stock\Services\StockService;
  *                       원 자재( 출고한 것 )의 수량은 건드리지 않는다 — 통째로 소모된 것 · 잔재 수량은 사람이 넣는다( 견주지 않음 )
  *   leftoverCancel()  : 잔재 입고 취소 = 역분개. 그 잔재 LOT · 창고에 재고가 남아 있을 때
  *
+ *   외주 건 자재 출고 ( 11-23 · docs/외주발주-설계.md ) : issue() 에 subcon_order_line_idx / subcon_issue_idx 가 오면 전표( stock_txn )에 남긴다 ( SubconMaterialService )
+ *     addExtra( …, opIdx, force ) : 외주 공정에 붙는 자재 줄 — 정책( BOM 외 출고 )과 상관없이 ( 사급 자재 등 )
+ *
  *   계산 경고는 막지 않는다 ( W_* ). 한 LOT 의 잔고보다 많이 내는 것만 막는다 ( 그 조각이 없다 — §17-5 )
  *
  *   대체 자재 ( docs/대체자재-수주자재-설계.md §5.4 ) : 지시 자재의 대체 행( substitute_of_idx )도 같은 기계로 출고 · 보유 · 사용처리 · 반납
@@ -242,11 +245,11 @@ class MaterialIssueService {
      * 작업지시에 BOM 외 자재 줄을 더한다 ( 자재출고 창의 [+ 자재 추가] ) — 소요 없음 · 출고는 다른 줄과 같이
      *   자재 대분류의 사용 중 품목 · 그 지시에 이미 있는 자재( 주 · 대체 · BOM 외 )는 다시 더하지 않는다 · 대기 · 진행 지시만
      */
-    public function addExtra(WorkOrder $wo, int $itemIdx, ?string $reason = null): WorkOrderMaterial {
-        if (!$this->extraAllowed()) {
+    public function addExtra(WorkOrder $wo, int $itemIdx, ?string $reason = null, ?int $opIdx = null, bool $force = false): WorkOrderMaterial {
+        if (!$force && !$this->extraAllowed()) {
             throw ValidationException::withMessages(['item_idx' => ['BOM 외 자재 출고를 쓰지 않는 설정입니다. ( 시스템설정 )']]);
         }
-        return DB::transaction(function () use ($wo, $itemIdx, $reason) {
+        return DB::transaction(function () use ($wo, $itemIdx, $reason, $opIdx) {
             $wo = WorkOrder::whereKey($wo->work_order_idx)->lockForUpdate()->first();
             $this->assertOpen($wo);
             $item = \MesCore\Config\Models\Item::find($itemIdx);
@@ -264,6 +267,7 @@ class MaterialIssueService {
                 'required_qty'   => '0',
                 'is_extra'       => 'Y',
                 'extra_reason'   => $reason !== null && trim($reason) !== '' ? mb_substr(trim($reason), 0, 200) : null,
+                'work_order_op_idx' => $opIdx,   // 외주 공정 자재 ( 11-23 ) — 없으면 첫 공정
             ]);
         });
     }
@@ -372,6 +376,8 @@ class MaterialIssueService {
                 'recorded_at' => now(),
                 'status'      => 'DONE',
                 'remark'      => $data['remark'] ?? null,
+                'subcon_order_line_idx' => $data['subcon_order_line_idx'] ?? null,   // 외주 건 ( 11-23 )
+                'subcon_issue_idx'      => $data['subcon_issue_idx'] ?? null,
             ]);
 
             $n = 0;
@@ -509,7 +515,7 @@ class MaterialIssueService {
             ->leftJoin('lot as l', 'l.lot_idx', '=', 's.lot_idx')
             ->where('s.work_order_idx', $wo->work_order_idx)->where('s.issued_qty', '>', 0)
             ->orderBy('i.item_code')->orderBy('l.lot_no')
-            ->get(['s.item_idx', 's.lot_idx', 's.issued_qty', 's.consumed_qty', 's.returned_qty', 's.qty', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'l.lot_no', 'l.spec_value']);
+            ->get(['s.item_idx', 's.lot_idx', 's.issued_qty', 's.consumed_qty', 's.returned_qty', 's.qty', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'l.spec_value']);
 
         // ( 품목, LOT ) 마다 마지막으로 낸 창고 — 한 번에 ( 전에는 LOT 마다 한 쿼리 )
         $lastWh = [];
@@ -1072,6 +1078,11 @@ class MaterialIssueService {
     }
 
     /** 후보 LOT : 잔고 > 0 · 사용 중 창고 · 재고에 잡힌 LOT. 선입선출( 잔재 우선 정책이면 잔재 먼저 ) */
+    // 출고할 수 있는 재고( 품목별 ) — 외주 건 자재 출고가 같이 쓴다 ( 11-23 )
+    public function lotCandidates(Collection $itemIdxs): Collection {
+        return $this->candidates($itemIdxs);
+    }
+
     private function candidates(Collection $itemIdxs): Collection {
         if ($itemIdxs->isEmpty()) {
             return collect();
@@ -1085,7 +1096,7 @@ class MaterialIssueService {
             ->where(fn ($q) => $q->where('b.lot_idx', 0)->orWhereNotNull('l.in_at'))
             ->when($remnantFirst, fn ($q) => $q->orderByRaw('l.parent_lot_idx IS NULL'))
             ->orderBy('l.in_at')->orderBy('l.lot_no')->orderBy('b.stock_balance_idx')
-            ->get(['b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty', 'w.warehouse_name', 'l.lot_no', 'l.spec_value', 'l.in_at', 'l.parent_lot_idx'])
+            ->get(['b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty', 'w.warehouse_name', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'l.spec_value', 'l.in_at', 'l.parent_lot_idx'])
             ->map(fn ($r) => [
                 'stock_balance_idx' => $r->stock_balance_idx,
                 'item_idx'          => $r->item_idx,

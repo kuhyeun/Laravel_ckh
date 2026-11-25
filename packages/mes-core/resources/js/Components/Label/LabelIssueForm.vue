@@ -57,11 +57,11 @@
             <p v-if="errorMsg" class="mt-2 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
         </template>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
-            <span class="text-xs text-gray-500 mr-auto">{{ picked.length }} 건 · {{ sheetCount }} 장</span>
+        <ModalFooter>
+            <template #left><span class="text-xs text-gray-500">{{ picked.length }} 건 · {{ sheetCount }} 장</span></template>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
             <BaseButton size="sm" variant="primary" :disabled="loading || saving || !picked.length || !templateIdx" @click="issue">발행 · 미리보기</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -71,6 +71,7 @@ import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import LabelPreview from '@core/Components/Label/LabelPreview.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { qtyText } from '@core/Components/Stock/stockCodes';

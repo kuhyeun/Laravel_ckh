@@ -2,6 +2,8 @@
      - 선택 단계 : 수주 → 생산계획 → 작업지시 ( 수주에서 바로 지시도 그대로 ) · 계획 하나 = 품목 하나 · 수주 줄 여럿
      - 월 달력( 그 달 1일 ~ 마지막 날이 든 주 — 4 ~ 6주 ) : 계획 = 시작일 ~ 완료 예정일 막대 ( 상태 색 ) · 막대를 끌어 날짜 옮기기( 기간 유지 ) · 막대 누르면 수정 · 빈 날짜 누르면 그 날로 등록
        막대 왼쪽 체크 → [작업지시] ( 계획마다 줄 하나인 작업지시서 — 남은 계획 수량 · 그 계획의 수주 줄들 ) · [삭제]
+     - 작업지시서 막대 ( 11-23 ) : 같은 달의 지시서( 취소 제외 · 작업지시 조회 권한이 있을 때 ) — 흰 바탕 · 상태색 테두리 · '지시' ( planCodes sheetBar* )
+       보기만( 끌기 · 체크 없음 ) · 누르면 그 작업지시서 창 · [ 계획 ] [ 작업지시 ] 체크로 따로 켜고 끈다
      - [목록] : 같은 기간 · 같은 거르기를 표로 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
@@ -23,7 +25,12 @@
             <span class="w-32 text-center text-base font-semibold">{{ monthLabel }}</span>
             <BaseButton variant="secondary" @click="shiftMonth(1)">▶</BaseButton>
             <BaseButton variant="secondary" @click="goToday">오늘</BaseButton>
-            <span class="text-xs text-gray-400">{{ plans.length.toLocaleString() }} 건</span>
+            <span class="text-xs text-gray-400">계획 {{ plans.length.toLocaleString() }} 건<template v-if="sheets"> · 작업지시서 {{ sheets.length.toLocaleString() }} 건</template></span>
+            <template v-if="sheets && view === 'calendar'">
+                <span class="w-px h-5 bg-gray-200 mx-1"></span>
+                <BaseCheckbox v-model="showPlans" variant="checkbox">계획</BaseCheckbox>
+                <BaseCheckbox v-model="showSheets" variant="checkbox">작업지시</BaseCheckbox>
+            </template>
             <div class="flex-1"></div>
             <div class="inline-flex rounded border border-gray-300 overflow-hidden">
                 <button v-for="v in VIEWS" :key="v.key" type="button" class="px-3 h-9 text-sm" :class="view === v.key ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'" @click="view = v.key">{{ v.label }}</button>
@@ -32,10 +39,11 @@
 
         <!-- 달력 ( 공통 MonthCalendar — CMP-15 ) -->
         <MonthCalendar v-if="view === 'calendar'" class="flex-1 min-h-0 border border-gray-200"
-            :month="month" :items="plans" item-key="production_plan_idx" :loading="loading"
-            :bar-style="p => planBarStyle(p.display_status)" :bar-text="barText" :bar-title="barTitle"
-            :movable="movable" :selectable="selectable" :checked="checked" :day-clickable="canWrite"
-            @item-click="p => openForm(p)" @day-click="d => openForm(null, d)" @move="onMove" @toggle="toggleCheck" />
+            :month="month" :items="calItems" item-key="_key" :loading="loading"
+            :bar-style="p => p._sheet ? sheetBarStyle(p, today) : planBarStyle(p.display_status)"
+            :bar-text="p => p._sheet ? sheetBarText(p) : barText(p)" :bar-title="p => p._sheet ? sheetBarTitle(p, today, fmtNum) : barTitle(p)"
+            :movable="p => !p._sheet && movable(p)" :selectable="p => !p._sheet && selectable(p)" :checked="checked" :day-clickable="canWrite"
+            @item-click="p => p._sheet ? openSheet(p) : openForm(p)" @day-click="d => openForm(null, d)" @move="onMove" @toggle="toggleCheck" />
 
         <!-- 목록 -->
         <div v-else class="flex-1 min-h-0 overflow-auto border border-gray-200">
@@ -80,7 +88,11 @@
 
         <!-- 범례 -->
         <div class="flex items-center gap-3 pt-1.5 text-[11px] text-gray-500 shrink-0">
-            <span v-for="s in PLAN_STATUSES" :key="s.value" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm" :style="{ background: s.bar }"></span>{{ s.label }}</span>
+            <span v-for="s in PLAN_STATUSES" :key="s.value" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm" :style="{ background: s.bar }"></span>{{ sheets ? '계획 · ' : '' }}{{ s.label }}</span>
+            <template v-if="sheets">
+                <span class="w-px h-3 bg-gray-300"></span>
+                <span v-for="s in SHEET_STATES" :key="s.value" class="inline-flex items-center gap-1"><span class="w-3 h-3 rounded-sm bg-white" :style="{ border: `1px solid ${s.line}`, borderLeft: `4px solid ${s.line}` }"></span>작업지시 · {{ s.label }}</span>
+            </template>
             <span v-if="canWrite" class="ml-2 text-gray-400">막대를 끌어 날짜를 옮깁니다 ( 기간은 그대로 ) · 빈 날짜를 누르면 그 날로 등록</span>
         </div>
     </div>
@@ -95,14 +107,15 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import SearchBar from '@core/Components/Common/SearchBar.vue';
 import MonthCalendar from '@core/Components/Common/MonthCalendar.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import ProductionPlanForm from '@core/Components/Production/ProductionPlanForm.vue';
 import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
-import { PLAN_STATUSES, PLAN_STATUS_FILTER, planStatusLabel, planStatusColor, planBarStyle } from '@core/Components/Production/planCodes';
+import { PLAN_STATUSES, PLAN_STATUS_FILTER, planStatusLabel, planStatusColor, planBarStyle, SHEET_STATES, sheetBarStyle, sheetBarText, sheetBarTitle } from '@core/Components/Production/planCodes';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
 import { withSpec, fmtNum } from '@core/Utils/format';
-import { monthRange, monthLabel as labelOf, shiftMonth as shiftOf, thisMonth } from '@core/Utils/calendar';
+import { monthRange, monthLabel as labelOf, shiftMonth as shiftOf, thisMonth, todayYmd } from '@core/Utils/calendar';
 
 defineOptions({ layout: AppLayout });
 
@@ -136,6 +149,15 @@ function goToday() { month.value = thisMonth(); load(); }
 
 // ---- 불러오기 ----
 const plans   = ref([]);
+const sheets  = ref(null);   // 작업지시서 ( 작업지시 조회 권한이 없으면 null — 달력에 계획만 )
+const showPlans  = ref(true);
+const showSheets = ref(true);
+const today   = todayYmd();
+// 달력 막대 : 계획( _key = 계획 번호 — 체크 Set 과 같은 값 ) + 지시서( _key = 's' + 지시서 )
+const calItems = computed(() => [
+    ...(showPlans.value ? plans.value : []),
+    ...(showSheets.value ? (sheets.value ?? []) : []),
+]);
 const loading = ref(false);
 const busy    = ref(false);
 async function load() {
@@ -144,7 +166,8 @@ async function load() {
         const { data } = await window.axios.get(route('production.plan.list'), { params: {
             from: range.value.from, to: range.value.to, keyword: search.keyword.trim() || undefined, search_field: search.search_field || undefined, status: search.status || undefined,
         } });
-        plans.value = data.plans ?? [];
+        plans.value  = (data.plans ?? []).map(p => ({ ...p, _key: p.production_plan_idx }));
+        sheets.value = Array.isArray(data.sheets) ? data.sheets.map(s => ({ ...s, _key: `s${s.sheet_idx}`, _sheet: true })) : null;
         canDirect.value = data.can_direct === true;
         [...checked].forEach(id => { if (!plans.value.some(p => p.production_plan_idx === id)) checked.delete(id); });
     } catch (e) {
@@ -226,6 +249,17 @@ function openWorkOrder() {
             showFlash(`작업지시서 ${sheet.sheet_no} 를 만들었습니다.`);
         },
         modalTitle: `작업지시서 등록 [ 생산계획 ${rows.length}건 ]`,
+    }, { size: 'xl', closeOnClickOutside: false });
+}
+
+// 지시서 막대 → 그 작업지시서 ( 고칠 수 있으면 고치고 저장 뒤 달력 다시 )
+function openSheet(s) {
+    modalStore.open(WorkOrderForm, {
+        order: { sheet_idx: s.sheet_idx },
+        canWrite: canDirect.value,
+        canDelete: false,
+        onSaved: () => load(),
+        modalTitle: `작업지시서 [ ${s.sheet_no} ]`,
     }, { size: 'xl', closeOnClickOutside: false });
 }
 

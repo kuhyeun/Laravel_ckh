@@ -18,29 +18,22 @@
 
             <!-- 머리 -->
             <div class="grid grid-cols-3 gap-x-4 gap-y-3">
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">구매처 <span class="text-red-500">*</span></label>
+                <FormField label="구매처" required :error="errors.partner_idx">
                     <PartnerSelect v-model="form.partner_idx" :options="partners" class="w-full" placeholder="구매처 선택" @update:model-value="onPartnerChange" />
-                    <p v-if="errors.partner_idx" class="text-xs text-red-500 mt-0.5">{{ errors.partner_idx[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">입고일시 <span class="text-red-500">*</span></label>
+                </FormField>
+                <FormField label="입고일시" required :error="errors.occurred_at">
                     <BaseDatePicker v-model="form.occurred_at" mode="datetime" class="w-full" />
-                    <p v-if="errors.occurred_at" class="text-xs text-red-500 mt-0.5">{{ errors.occurred_at[0] }}</p>
-                </div>
-                <div v-if="lot.enabled && lot.source === 'INTERNAL' && lot.rules.length">
-                    <label class="block text-gray-500 font-medium mb-1">LOT 규칙</label>
+                </FormField>
+                <FormField v-if="lot.enabled && lot.source === 'INTERNAL' && lot.rules.length" label="LOT 규칙" :error="errors.lot_rule_idx">
                     <BaseSelect v-if="lot.rules.length > 1" v-model="form.lot_rule_idx" :options="ruleOptions" class="w-full" />
                     <p v-else class="h-9 flex items-center text-gray-700">{{ lot.rules[0].lot_rule_name }}</p>
                     <label v-if="selectedRule?.partner_mode === 'ASK'" class="inline-flex items-center gap-1.5 mt-1 text-xs cursor-pointer">
                         <input type="checkbox" class="accent-blue-600" v-model="form.with_partner" /> LOT 번호에 거래처 넣기
                     </label>
-                    <p v-if="errors.lot_rule_idx" class="text-xs text-red-500 mt-0.5">{{ errors.lot_rule_idx[0] }}</p>
-                </div>
-                <div v-else-if="lot.enabled && lot.source === 'EXTERNAL'">
-                    <label class="block text-gray-500 font-medium mb-1">LOT 번호</label>
+                </FormField>
+                <FormField v-else-if="lot.enabled && lot.source === 'EXTERNAL'" label="LOT 번호">
                     <p class="h-9 flex items-center text-xs text-gray-500">공급처 LOT 을 그대로 씁니다 ( 줄마다 입력 )</p>
-                </div>
+                </FormField>
             </div>
 
             <!-- 줄 -->
@@ -169,18 +162,17 @@
                 <p class="text-xs text-gray-400 mt-1">무검사 품목은 저장하면 바로 재고에 잡힙니다. 검사 품목은 검사대기로 남고, 검사완료한 합격분만 재고에 잡힙니다. 저장하면 줄마다 LOT 번호가 매겨집니다.</p>
             </section>
 
-            <div class="mt-3">
-                <label class="block text-gray-500 font-medium mb-1">비고</label>
+            <FormField label="비고" class="mt-3">
                 <BaseInput v-model="form.remark" class="w-full" />
-            </div>
+            </FormField>
         </template>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">취소</BaseButton>
             <BaseButton variant="primary" size="sm" :disabled="saving || loading || !form.lines.length || lotRuleMissing" @click="save">
                 {{ saving ? '저장 중…' : '입고 등록' }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -198,6 +190,8 @@ import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 const RECEIPT_REMOTE = { use: 'RECEIPT' };
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { fmtNum } from '@core/Utils/format';
 
 const props = defineProps({

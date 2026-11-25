@@ -177,7 +177,7 @@
                                 <span v-else class="text-gray-300">—</span>
                                 <p v-if="errors[`ops.${i}.equipment_idx`]" class="err">{{ errors[`ops.${i}.equipment_idx`][0] }}</p>
                             </td>
-                            <td class="px-1.5 py-1"><BaseSelect v-model="o.worker_idx" :options="workerOptions" size="md" class="w-full" :disabled="!runEditable" /></td>
+                            <td class="px-1.5 py-1"><UserSelect v-model="o.worker_idx" :users="ctx.workers" empty-label="—" placeholder="" size="md" class="w-full" :disabled="!runEditable" /></td>
                             <td class="px-1.5 py-1"><BaseDatePicker v-model="o.due_date" size="md" class="w-full" :disabled="!runEditable" /></td>
                             <td class="px-2 py-1 text-center">
                                 <template v-if="isIfl(procOf(o))">
@@ -258,6 +258,7 @@ import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import UserSelect from '@core/Components/Common/UserSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import { showAlert } from '@core/Utils/message';
@@ -312,7 +313,6 @@ const routingOptions = computed(() => {
 });
 const ruleOptions    = computed(() => props.ctx.lot.rules.map(r => ({ value: r.lot_rule_idx, label: `${r.lot_rule_name} ( ${r.rule_type === 'PRODUCE_END' ? '종료일' : '생산일'} )` })));
 const processOptions = computed(() => props.ctx.processes.map(p => ({ value: p.process_idx, label: `${p.process_name} [${p.process_code}]` })));
-const workerOptions  = computed(() => [{ value: '', label: '—' }, ...props.ctx.workers.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id }))]);
 
 const procOf = (o) => props.ctx.processes.find(p => Number(p.process_idx) === Number(o.process_idx));
 const equipOptions = (o) => [{ value: '', label: '( 미지정 )' }, ...(procOf(o)?.equipments ?? []).map(e => ({ value: e.equipment_idx, label: e.equipment_name + (e.is_default === 'Y' ? ' · 기본' : '') }))];

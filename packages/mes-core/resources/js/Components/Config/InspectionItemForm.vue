@@ -8,13 +8,10 @@
         <div v-if="errorMsg" class="mb-3 text-xs text-red-500">{{ errorMsg }}</div>
 
         <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">항목명 <span class="text-red-400">*</span></label>
+            <FormField label="항목명" required :error="errors.inspection_item_name">
                 <BaseInput v-model="form.inspection_item_name" class="w-full" placeholder="예: 외경" :disabled="!canWrite" />
-                <p v-if="errors.inspection_item_name" class="text-xs text-red-500 mt-0.5">{{ errors.inspection_item_name[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">성격 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="성격" required :error="errors.is_quantitative">
                 <div class="flex items-center gap-5 h-9">
                     <label v-for="t in NATURE_OPTIONS" :key="t.value" class="inline-flex items-center gap-1.5" :class="!canWrite ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
                         <input type="radio" class="accent-blue-600" :value="t.value" v-model="form.is_quantitative" :disabled="!canWrite" />
@@ -22,20 +19,15 @@
                         <span class="ml-0.5 text-xs text-gray-400">{{ t.hint }}</span>
                     </label>
                 </div>
-                <p v-if="errors.is_quantitative" class="text-xs text-red-500 mt-0.5">{{ errors.is_quantitative[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">검사 방법</label>
+            </FormField>
+            <FormField label="검사 방법" :error="errors.method">
                 <BaseInput v-model="form.method" class="w-full" placeholder="예: 캘리퍼 · 육안" :disabled="!canWrite" />
-                <p v-if="errors.method" class="text-xs text-red-500 mt-0.5">{{ errors.method[0] }}</p>
-            </div>
+            </FormField>
 
             <!-- 정량 : 단위 -->
-            <div v-if="isQuantitative">
-                <label class="block text-gray-500 font-medium mb-1">단위 <span class="text-red-400">*</span></label>
+            <FormField v-if="isQuantitative" label="단위" required :error="errors.unit_code">
                 <UnitSelect v-model="form.unit_code" :disabled="!canWrite" empty-hint />
-                <p v-if="errors.unit_code" class="text-xs text-red-500 mt-0.5">{{ errors.unit_code[0] }}</p>
-            </div>
+            </FormField>
 
             <!-- 정성 : 판정 기준 -->
             <div v-else class="col-span-2">
@@ -59,18 +51,17 @@
                     이 항목을 쓰는 검사기준서가 {{ specCount }}건 있습니다. 미사용이어도 기존 기준서는 그대로이고, 새 기준서에서 고를 수만 없습니다.
                 </p>
             </div>
-            <div class="col-span-2">
-                <label class="block text-gray-500 font-medium mb-1">비고</label>
+            <FormField label="비고" class="col-span-2">
                 <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
-            </div>
+            </FormField>
         </div>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ canWrite ? '취소' : '닫기' }}</BaseButton>
             <BaseButton v-if="canWrite" variant="primary" size="sm" :disabled="saving" @click="save">
                 {{ isEdit ? '수정' : '등록' }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -80,6 +71,8 @@ import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import UnitSelect from '@core/Components/Common/UnitSelect.vue';
 

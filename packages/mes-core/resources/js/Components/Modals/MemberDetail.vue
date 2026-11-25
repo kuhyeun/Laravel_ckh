@@ -7,41 +7,27 @@
 
         <!-- 속성 2열 그리드 -->
         <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">아이디 <span class="text-red-400">*</span></label>
+            <FormField label="아이디" required :error="errors.user_id">
                 <BaseInput v-model="form.user_id" class="w-full" size="md" placeholder="로그인 아이디" />
-                <p v-if="errors.user_id" class="text-xs text-red-500 mt-0.5">{{ errors.user_id[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">이름 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="이름" required :error="errors.user_name">
                 <BaseInput v-model="form.user_name" class="w-full" size="md" placeholder="사용자 이름" />
-                <p v-if="errors.user_name" class="text-xs text-red-500 mt-0.5">{{ errors.user_name[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">비밀번호 <span v-if="!isEdit" class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="비밀번호" :required="!isEdit" :error="errors.user_pw">
                 <BaseInput v-model="form.user_pw" type="password" class="w-full" size="md" :placeholder="isEdit ? '변경 시에만 입력' : '8자 이상'" />
-                <p v-if="errors.user_pw" class="text-xs text-red-500 mt-0.5">{{ errors.user_pw[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">권한 레벨 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="권한 레벨" required :error="errors.user_level">
                 <BaseSelect v-model="form.user_level" :options="levelOptions" class="w-full" size="md" />
-                <p v-if="errors.user_level" class="text-xs text-red-500 mt-0.5">{{ errors.user_level[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">사번</label>
+            </FormField>
+            <FormField label="사번" :error="errors.emp_no">
                 <BaseInput v-model="form.emp_no" class="w-full" size="md" maxlength="30" />
-                <p v-if="errors.emp_no" class="text-xs text-red-500 mt-0.5">{{ errors.emp_no[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">부서</label>
+            </FormField>
+            <FormField label="부서" :error="errors.dept_code">
                 <BaseSelect v-model="form.dept_code" :options="codeSelect('DEPT')" class="w-full" size="md" />
-                <p v-if="errors.dept_code" class="text-xs text-red-500 mt-0.5">{{ errors.dept_code[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">직급</label>
+            </FormField>
+            <FormField label="직급" :error="errors.position_code">
                 <BaseSelect v-model="form.position_code" :options="codeSelect('POSITION')" class="w-full" size="md" />
-                <p v-if="errors.position_code" class="text-xs text-red-500 mt-0.5">{{ errors.position_code[0] }}</p>
-            </div>
+            </FormField>
             <div>
                 <label class="block text-gray-500 font-medium mb-1">권한 템플릿</label>
                 <BaseSelect v-if="Number(form.user_level) > 1" v-model="form.permission_template_idx" :options="templateOptions" class="w-full" size="md" />
@@ -74,6 +60,7 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import FormField from '@core/Components/Common/FormField.vue';
 import { showAlert } from '@core/Utils/message.js';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 

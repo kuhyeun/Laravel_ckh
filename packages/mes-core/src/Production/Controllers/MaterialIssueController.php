@@ -40,7 +40,7 @@ class MaterialIssueController extends Controller {
         $has = fn ($q) => $q->where(fn ($w) => $w->where('issued_qty', '>', 0)->orWhereHas('substitutes', fn ($r) => $r->where('issued_qty', '>', 0)));
 
         $query = WorkOrder::query()
-            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no'])
+            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no,lot_title'])
             ->withCount(['materials', 'materials as issued_count' => $has,
                 'materials as extra_count' => fn ($q) => $q->where('is_extra', 'Y')->where('issued_qty', '>', 0)])
             ->whereIn('status', filter_var($v['include_done'] ?? false, FILTER_VALIDATE_BOOLEAN) ? ['WAIT', 'RUN', 'DONE'] : ['WAIT', 'RUN'])   // 완료 포함 = 남은 자재 반납
@@ -56,7 +56,7 @@ class MaterialIssueController extends Controller {
             'wo_no'     => fn ($q, $kw) => $q->where('wo_no', 'like', $kw),
             'item_code' => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
             'item_name' => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
-            'lot_no'    => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'lot_no'    => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
         ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'orders', fn (WorkOrder $w) => [

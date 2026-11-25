@@ -75,7 +75,7 @@ const tab = ref('targets');
 const grid = ref(null);
 
 const partners = ref([]);
-const ctx = reactive({ now: '' });
+const ctx = reactive({ now: '', canMaterial: true });
 
 const qty = (name, header, width = 100) => ({ header, name, width, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) });
 const base = [
@@ -152,7 +152,7 @@ function onRow(row) {
     if (!(row.available_qty > 0)) { showFlash(row.base_qty <= 0 ? '앞 공정 실적이 없어 출고할 수 없습니다.' : '출고할 수 있는 수량이 남지 않았습니다.', true); return; }
     modalStore.open(SubconIssueForm, {
         modalTitle: `외주 출고 [ ${row.wo_no} · ${row.process_name} ]`,
-        target: row, partners: partners.value, now: ctx.now,
+        target: row, partners: partners.value, now: ctx.now, canMaterial: ctx.canMaterial,
         // 출고 직후 : 그 행 수량을 바로 줄이고( 화면 즉시 반영 ) 서버에서 다시 읽는다
         onDone: (msg, qty) => {
             showFlash(msg);
@@ -182,7 +182,7 @@ async function cancelChecked() {
 onMounted(async () => {
     try {
         const { data } = await window.axios.get(route('production.subcon.issue.formData'));
-        partners.value = data.partners ?? []; ctx.now = data.now;
+        partners.value = data.partners ?? []; ctx.now = data.now; ctx.canMaterial = data.can_material !== false;
     } catch (e) {
         showFlash('선택지를 불러오지 못했습니다.', true);
     }

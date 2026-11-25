@@ -51,16 +51,33 @@ class PurchaseOrderService {
         $keep  = [];
 
         // 출처 수주 줄 ( 수주 자재에서 ) : 그 수주 줄의 수주 자재( 주 자재 )여야 한다 · 같은 ( 수주 줄 · 자재 )는 한 줄만
+        //   줄마다 출처 여러 개( 11-24 · sources [ { sales_order_line_idx, qty } ] ) — 예전 sales_order_line_idx 하나는 sources 하나로( 몫 = 줄 수량 )
+        foreach ($lines as $i => $row) {
+            $srcs = [];
+            foreach (($row['sources'] ?? []) as $s) {
+                $srcs[(int) $s['sales_order_line_idx']] = ['sales_order_line_idx' => (int) $s['sales_order_line_idx'], 'qty' => isset($s['qty']) && $s['qty'] !== '' ? (float) $s['qty'] : null];
+            }
+            if (!$srcs && !empty($row['sales_order_line_idx'])) {
+                $srcs[(int) $row['sales_order_line_idx']] = ['sales_order_line_idx' => (int) $row['sales_order_line_idx'], 'qty' => null];
+            }
+            // 몫이 없으면 : 출처 하나 = 줄 수량
+            if (count($srcs) === 1) {
+                $k = array_key_first($srcs);
+                $srcs[$k]['qty'] ??= (float) $row['qty'];
+            }
+            $lines[$i]['_sources'] = array_values($srcs);
+        }
         $pairs = [];
         foreach ($lines as $row) {
-            if (!empty($row['sales_order_line_idx'])) {
-                $pairs[] = [(int) $row['sales_order_line_idx'], (int) $row['item_idx']];
+            foreach ($row['_sources'] as $s) {
+                $pairs[] = [$s['sales_order_line_idx'], (int) $row['item_idx']];
             }
         }
         $demand = collect($this->demand->rows(null, $order->exists ? $order->purchase_order_idx : null, true, $pairs))
             ->keyBy(fn ($d) => $d['sales_order_line_idx'] . ':' . $d['item_idx']);
         $oldSource = $order->exists
-            ? PurchaseOrderLineSource::whereIn('purchase_order_line_idx', $existing->keys())->pluck('sales_order_line_idx', 'purchase_order_line_idx')
+            ? PurchaseOrderLineSource::whereIn('purchase_order_line_idx', $existing->keys())->get(['purchase_order_line_idx', 'sales_order_line_idx'])
+                ->groupBy('purchase_order_line_idx')->map(fn ($g) => $g->pluck('sales_order_line_idx')->map(fn ($x) => (int) $x)->all())
             : collect();
         $seenPair = [];
         foreach ($lines as $i => $row) {
@@ -91,22 +108,28 @@ class PurchaseOrderService {
 
             $label = $item ? $item->item_code : '#' . ($i + 1);
 
-            if (!empty($row['sales_order_line_idx'])) {
-                $key  = (int) $row['sales_order_line_idx'] . ':' . (int) $row['item_idx'];
+            $remainSum = 0.0;
+            foreach ($row['_sources'] as $s) {
+                $key  = $s['sales_order_line_idx'] . ':' . (int) $row['item_idx'];
                 $d    = $demand->get($key);
-                $kept = $old && (int) ($oldSource[$old->purchase_order_line_idx] ?? 0) === (int) $row['sales_order_line_idx'] && $sameItem;
+                $kept = $old && in_array($s['sales_order_line_idx'], $oldSource[$old->purchase_order_line_idx] ?? [], true) && $sameItem;
                 if (!$d && $kept) {
                     // 이미 저장된 줄 그대로 ( 11-10 반제품 전개 전에 반제품으로 담은 줄 등 — 지금 소요에는 없지만 막지 않는다 )
                 } elseif (!$d) {
                     $errors["lines.{$i}.item_idx"] = ['이 수주 줄의 자재가 아닙니다. 수주 자재에서 다시 담으세요.'];
                 } elseif (isset($seenPair[$key])) {
-                    $errors["lines.{$i}.item_idx"] = ['같은 수주 줄 · 자재가 두 번 들어 있습니다. 한 줄로 합치세요.'];
+                    $errors["lines.{$i}.item_idx"] = ["같은 수주 줄 · 자재( {$d['order_no']} #{$d['line_no']} )가 두 번 들어 있습니다. 한 줄로 합치세요."];
                 } elseif (!$kept && ($d['order_status'] ?? 'CONFIRMED') !== 'CONFIRMED') {
                     $errors["lines.{$i}.item_idx"] = ['확정 상태 수주의 자재만 담을 수 있습니다.'];
-                } elseif ((float) $row['qty'] > $d['remain_qty'] + 1e-9) {
+                } elseif (count($row['_sources']) === 1 && (float) $row['qty'] > $d['remain_qty'] + 1e-9) {
                     $warnings[] = "{$label} : {$d['order_no']} #{$d['line_no']} 의 남은 소요( " . $this->num($d['remain_qty']) . ' )보다 많이 발주합니다.';   // W_PO_OVER_DEMAND
                 }
+                $remainSum += (float) ($d['remain_qty'] ?? 0);
                 $seenPair[$key] = true;
+            }
+            // 합쳐서 담은 줄 : 발주 수량이 묶은 수주들의 남은 소요 합보다 많으면 알림 ( 재고로 메운 몫은 줄어 있는 게 맞다 )
+            if (count($row['_sources']) > 1 && (float) $row['qty'] > $remainSum + 1e-9) {
+                $warnings[] = "{$label} : 묶은 수주 " . count($row['_sources']) . "건의 남은 소요 합( " . $this->num($remainSum) . ' )보다 많이 발주합니다.';
             }
             if ($row['due_date'] < $data['order_date']) {
                 $warnings[] = "{$label} : 입고 예정일이 발주일보다 앞입니다.";   // W_DUE_BEFORE_ORDER
@@ -173,16 +196,15 @@ class PurchaseOrderService {
                     'remark'     => $row['remark'] ?? null,
                 ])->save();
 
-                // 출처 수주 줄 ( 지금은 하나 — 수량 = 발주 줄 수량 )
-                if (!empty($row['sales_order_line_idx'])) {
-                    PurchaseOrderLineSource::where('purchase_order_line_idx', $line->purchase_order_line_idx)
-                        ->where('sales_order_line_idx', '!=', $row['sales_order_line_idx'])->delete();
+                // 출처 수주 줄 ( 여러 개 · 11-24 ) — 몫 = 그 수주의 「처리한」 소요 ( 합쳐서 담은 줄은 남은 소요 그대로 — 재고로 메운 몫 포함 · 다시 발주 대상으로 안 뜨게 )
+                $sols = array_column($row['_sources'], 'sales_order_line_idx');
+                PurchaseOrderLineSource::where('purchase_order_line_idx', $line->purchase_order_line_idx)
+                    ->whereNotIn('sales_order_line_idx', $sols ?: [0])->delete();
+                foreach ($row['_sources'] as $s) {
                     PurchaseOrderLineSource::updateOrCreate(
-                        ['purchase_order_line_idx' => $line->purchase_order_line_idx, 'sales_order_line_idx' => $row['sales_order_line_idx']],
-                        ['qty' => (string) $row['qty']]
+                        ['purchase_order_line_idx' => $line->purchase_order_line_idx, 'sales_order_line_idx' => $s['sales_order_line_idx']],
+                        ['qty' => (string) ($s['qty'] ?? $row['qty'])]
                     );
-                } else {
-                    PurchaseOrderLineSource::where('purchase_order_line_idx', $line->purchase_order_line_idx)->delete();
                 }
 
                 $total += $amount;

@@ -101,11 +101,11 @@
             </div>
         </template>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
+        <ModalFooter>
             <div class="flex-1"></div>
             <BaseButton v-if="opResultUrl && line" variant="secondary" @click="goOpResult">공정실적관리로 이동 →</BaseButton>
             <BaseButton variant="primary" @click="$emit('close')">닫기</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -115,6 +115,7 @@ import { ref, reactive, onMounted, h } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import { failMsg } from '@core/Composables/useFlash';
 import { fmtNum, fmtQty, dash, runTimeText } from '@core/Utils/format';

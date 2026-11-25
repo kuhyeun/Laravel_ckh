@@ -23,6 +23,7 @@ Route::prefix('purchase')->name('purchase.')->middleware([UserAuth::class])->gro
             Route::get('/show/{orderIdx}', [PurchaseOrderController::class, 'show'])->whereNumber('orderIdx')->name('show');
             Route::get('/formData', [PurchaseOrderController::class, 'formData'])->name('formData');
             Route::get('/sheets', [PurchaseOrderController::class, 'sheets'])->name('sheets');   // [미리보기 · 인쇄]
+            Route::get('/calc', [PurchaseOrderController::class, 'calc'])->name('calc');   // [계산] 탭 ( 11-20 )
             Route::get('/orderMaterials', [PurchaseOrderController::class, 'orderMaterials'])->name('orderMaterials');   // [+ 수주 자재에서]
         });
 
@@ -63,5 +64,6 @@ Route::prefix('purchase')->name('purchase.')->middleware([UserAuth::class])->gro
             Route::get('/formData', [\MesCore\Purchase\Controllers\MaterialTagController::class, 'formData'])->name('formData');
         });
         Route::post('/sheets', [\MesCore\Purchase\Controllers\MaterialTagController::class, 'sheets'])->middleware(MenuAuth::class . ':Purchase/MaterialTag,can_write')->name('sheets');
+        Route::post('/reissue', [\MesCore\Purchase\Controllers\MaterialTagController::class, 'reissue'])->middleware(MenuAuth::class . ':Purchase/MaterialTag,can_write')->name('reissue');   // 새로 발행 ( 지금 표시 번호 · 11-24 )
     });
 });

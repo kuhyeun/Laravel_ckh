@@ -1,5 +1,6 @@
 <!-- 문서 양식으로 그린 문서들 — 화면 미리보기 + 인쇄용 사본 ( 11-18 )
      - 문서마다 design.table.rows_per_page 줄씩 장을 나눈다 ( 머리 · 아래 영역은 장마다 )
+       줄바꿈 열이 있으면( 11-24 ) 줄 높이를 재서( measureLines ) 표 영역에 들어가는 만큼씩 — 넘치면 다음 장
      - 인쇄 : 사본을 body 바로 아래에 두고 html.doc-printing 이 붙어 있는 동안 그것만 보인다 · 용지 = A4 방향 그대로 · 여백 0 ( 여백은 장 안쪽 )
      - 쓰는 곳 : DocPreview( 출하지시서 ) · PurchaseOrderPreview( 발주서에 기본 양식이 있을 때 ) -->
 <template>
@@ -14,10 +15,11 @@
 </template>
 
 <script setup>
-import { computed, watchEffect, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, watchEffect, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { usePage } from '@inertiajs/vue3';
 import DocSheet from '@core/Components/Doc/DocSheet.vue';
 import { paginate } from '@core/Components/Doc/docDesign';
+import { measureLineHeights } from '@core/Components/Doc/measureLines';
 
 const props = defineProps({
     docType:     { type: String, required: true },
@@ -30,7 +32,12 @@ const props = defineProps({
 const pad   = (n) => String(n).padStart(2, '0');
 const now   = new Date();
 const ctx   = { writer: usePage().props.auth?.user?.user_name ?? '', today: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}` };
-const pages = computed(() => props.docs.flatMap(doc => paginate(props.docType, props.design, doc, ctx)));
+// 줄 높이 ( 줄바꿈 열이 있을 때 · 문서마다 ) — 양식 · 문서가 바뀌면 다시 · 글꼴이 늦게 오면 한 번 더
+const heights = ref([]);
+const measure = () => { heights.value = props.docs.map(doc => measureLineHeights(props.docType, props.design, doc.lines, props.orientation)); };
+watch(() => [props.docs, props.design, props.orientation], () => nextTick(measure), { immediate: true, deep: true });
+onMounted(() => document.fonts?.ready?.then(measure));
+const pages = computed(() => props.docs.flatMap((doc, i) => paginate(props.docType, props.design, doc, ctx, heights.value[i] ?? null)));
 defineExpose({ pages });
 
 // 용지 : 다른 미리보기의 @page 규칙보다 뒤에 오도록 head 끝에 둔다

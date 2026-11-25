@@ -14,6 +14,8 @@ use MesCore\Order\Models\SalesOrderLine;
 use MesCore\Order\Services\SalesOrderService;
 use MesCore\Production\Models\ProductionPlan;
 use MesCore\Production\Models\ProductionPlanSource;
+use MesCore\Production\Models\WorkOrderSheet;
+use MesCore\Production\Services\OpResultService;
 use MesCore\Production\Services\ProductionPlanService;
 
 // 생산계획관리 ( Production/ProductionPlan ) — 월 달력 · 목록 · 등록 · 끌어 옮기기 · 작업지시 ( docs/생산계획-설계.md )
@@ -60,8 +62,11 @@ class ProductionPlanController extends Controller {
         } elseif (($v['status'] ?? '') === 'OPEN') {
             $out = $out->whereIn('display_status', ['PLANNED', 'PARTIAL']);
         }
+        // 같은 기간의 작업지시서 ( 달력에 같이 — 11-23 · 작업지시 조회 권한이 있을 때만 · 없으면 null )
+        $canSeeWo = $permissions->canPageForMe('Production/WorkOrderManage', 'can_read');
         return response()->json([
             'plans'      => $out->values(),
+            'sheets'     => $canSeeWo ? $this->sheetsIn($v['from'], $v['to'], $v['keyword'] ?? null) : null,
             // [작업지시] 를 열 수 있는지 ( 작업지시 쓰기 권한 — 저장은 그 화면 권한으로 검사 )
             'can_direct' => $permissions->canPageForMe('Production/WorkOrderManage', 'can_write'),
         ]);
@@ -230,6 +235,56 @@ class ProductionPlanController extends Controller {
             'spec_unit'            => $l->item?->spec_unit,
             'line_locked'          => $l->directedQty() > 0,
         ];
+    }
+
+    // 기간에 걸친 작업지시서 ( 취소 제외 · 착수 예정일 ~ 생산 기한 — 기한이 없으면 착수일 하루 )
+    //   검색어는 계획과 같은 조건 키로 그 지시서의 품목 줄을 찾는다 · 진척 = 생산 입고 ÷ 지시 수량 ( 생산실적현황 일정 탭과 같은 기준 )
+    private function sheetsIn(string $from, string $to, ?string $keyword): array {
+        $query = WorkOrderSheet::query()
+            ->with(['lines' => fn ($q) => $q->where('status', '!=', 'CANCELED')->orderBy('line_no')->with('item:item_idx,item_code,item_name,spec_unit')])
+            ->where('status', '!=', 'CANCELED')->whereNotNull('start_date')
+            ->where('start_date', '<=', $to)->whereRaw('COALESCE(due_date, start_date) >= ?', [$from]);
+        $lines = fn ($q, \Closure $fn) => $q->whereHas('lines', fn ($l) => $l->where('status', '!=', 'CANCELED')->where($fn));
+        $this->applyKeyword($query, $keyword, [
+            'plan_no'   => fn ($q, $kw) => $lines($q, fn ($l) => $l->whereHas('plan', fn ($p) => $p->where('plan_no', 'like', $kw))),
+            'order_no'  => fn ($q, $kw) => $lines($q, fn ($l) => $l->whereHas('sources.salesOrderLine.order', fn ($o) => $o->where('order_no', 'like', $kw))),
+            'partner'   => fn ($q, $kw) => $lines($q, fn ($l) => $l->whereHas('sources.salesOrderLine.order.partner', fn ($o) => $o->where('partner_name', 'like', $kw))),
+            'item_code' => fn ($q, $kw) => $lines($q, fn ($l) => $l->whereHas('item', fn ($i) => $i->where('item_code', 'like', $kw))),
+            'item_name' => fn ($q, $kw) => $lines($q, fn ($l) => $l->whereHas('item', fn ($i) => $i->where('item_name', 'like', $kw))),
+        ]);
+        $sheets = $query->orderBy('start_date')->orderBy('sheet_no')->limit(self::LIMIT)->get()->filter(fn ($s) => $s->lines->isNotEmpty());
+
+        $woIds    = $sheets->flatMap(fn ($s) => $s->lines->pluck('work_order_idx'))->all();
+        $received = $woIds ? DB::table('stock_txn_line as l')->join('stock_txn as x', 'x.stock_txn_idx', '=', 'l.stock_txn_idx')
+            ->where('x.txn_type', OpResultService::TXN_TYPE)->where('l.line_status', 'DONE')->whereIn('l.work_order_idx', $woIds)
+            ->groupBy('l.work_order_idx')->selectRaw('l.work_order_idx, SUM(l.qty) as n')->pluck('n', 'work_order_idx') : collect();
+
+        return $sheets->map(function (WorkOrderSheet $s) use ($received) {
+            $rows = $s->lines->map(fn ($w) => [
+                'wo_no'        => $w->wo_no,
+                'item_code'    => $w->item?->item_code,
+                'item_name'    => $w->item?->item_name,
+                'spec_unit'    => $w->item?->spec_unit,
+                'status'       => $w->status,
+                'target_qty'   => (float) $w->target_qty,
+                'received_qty' => (float) ($received[$w->work_order_idx] ?? 0),
+            ])->values();
+            $target = $rows->sum('target_qty');
+            $done   = $rows->sum(fn ($r) => min($r['received_qty'], $r['target_qty']));
+            $start  = $s->start_date->toDateString();
+            $due    = $s->due_date?->toDateString();
+            return [
+                'sheet_idx'  => $s->sheet_idx,
+                'sheet_no'   => $s->sheet_no,
+                'status'     => $s->status,
+                'start_date' => $start,
+                'end_date'   => $due && $due >= $start ? $due : $start,   // 달력 막대 끝 ( 계획과 같은 키 )
+                'due_date'   => $due,
+                'progress'   => $target > 0 ? round($done / $target * 100) : 0,
+                'plan_idxs'  => $s->lines->pluck('production_plan_idx')->filter()->unique()->values(),
+                'lines'      => $rows,
+            ];
+        })->values()->all();
     }
 
     private function rows($plans) {

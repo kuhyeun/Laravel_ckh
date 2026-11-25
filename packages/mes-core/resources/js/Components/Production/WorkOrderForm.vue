@@ -44,7 +44,7 @@
                 </div>
                 <div>
                     <label class="lbl">담당</label>
-                    <BaseSelect v-model="sheet.manager_idx" :options="managerOptions" class="w-full" :disabled="!sheetEditable" />
+                    <UserSelect v-model="sheet.manager_idx" :users="ctx.workers" empty-label="—" placeholder="" class="w-full" :disabled="!sheetEditable" />
                 </div>
                 <!-- 달력에서 배치 ( 11-12 ) : 생산계획 달력 위에 이 지시서를 올려 보고 날짜를 정한다 → 착수 예정일 · 생산 기한 칸에 -->
                 <div>
@@ -128,14 +128,14 @@
             </div>
         </template>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
+        <ModalFooter>
             <div class="flex-1"></div>
             <BaseButton v-if="canDelete && current?.work_order_idx && current.status === 'WAIT'" variant="danger" size="sm" :disabled="busy" @click="cancelLine">줄 취소</BaseButton>
             <BaseButton v-if="canDelete && sheet.sheet_idx && ['WAIT'].includes(sheet.status)" variant="danger" size="sm" :disabled="busy" @click="cancelSheet">지시서 취소</BaseButton>
             <BaseButton v-if="sheetEditable" variant="primary" size="sm" :disabled="saving || loading || lotRuleMissing" @click="save">
                 {{ saving ? '저장 중…' : (isEdit ? '수정' : '등록') }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -144,8 +144,9 @@ import { ref, reactive, computed, watch, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import { router } from '@inertiajs/vue3';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
-import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import UserSelect from '@core/Components/Common/UserSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import WorkOrderLinePanel from '@core/Components/Production/WorkOrderLinePanel.vue';
 import WorkOrderCalendar from '@core/Components/Production/WorkOrderCalendar.vue';
 import { useModalStore } from '@core/Stores/modalStore';
@@ -175,7 +176,6 @@ const sheetEditable = computed(() => props.canWrite && ['WAIT', 'RUN'].includes(
 
 // ---- 선택지 ( 줄 패널과 함께 ) ----
 const ctx = reactive({ routings: [], processes: [], workers: [], lot: { enabled: true, rules: [] }, issueUrl: null });
-const managerOptions = computed(() => [{ value: '', label: '—' }, ...ctx.workers.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id }))]);
 const lotRuleMissing = computed(() => ctx.lot.enabled && !ctx.lot.rules.length && !lines.value.some(l => l.lot_no));
 
 const num = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
@@ -190,7 +190,7 @@ function openCalendar() {
     const named = lines.value.filter(l => l.item_idx);
     modalStore.open(WorkOrderCalendar, {
         modalTitle: `작업지시 일정 배치${sheet.sheet_no ? ` [ ${sheet.sheet_no} ]` : ''}`,
-        startDate: sheet.start_date || '', dueDate: sheet.due_date || '', sheetNo: sheet.sheet_no || '',
+        startDate: sheet.start_date || '', dueDate: sheet.due_date || '', sheetNo: sheet.sheet_no || '', sheetIdx: sheet.sheet_idx ?? null,
         title: named.length ? named.map(l => `${itemLabel(l)} ${fmt(l.target_qty)}`).join(' · ') : '품목 없음',
         planIdxs: [...new Set(lines.value.map(l => l.production_plan_idx).filter(Boolean))],
         editable: sheetEditable.value,

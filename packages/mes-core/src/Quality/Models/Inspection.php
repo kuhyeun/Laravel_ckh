@@ -40,6 +40,16 @@ class Inspection extends Model {
         return $this->belongsTo(User::class, 'inspector_idx', 'account_idx');
     }
 
+    // 공정검사 회차 × LOT ( 11-23 · docs/공정검사-회차-설계.md )
+    public function lots() {
+        return $this->hasMany(InspectionLot::class, 'inspection_idx', 'inspection_idx')->orderBy('inspection_lot_idx');
+    }
+
+    // 성적서 측정 기록 ( 11-23 — mode = SHEET 일 때 )
+    public function measures() {
+        return $this->hasMany(InspectionMeasure::class, 'inspection_idx', 'inspection_idx')->orderBy('seq');
+    }
+
     public function defects() {
         return $this->hasMany(Defect::class, 'inspection_idx', 'inspection_idx');
     }

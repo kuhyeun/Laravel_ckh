@@ -1,11 +1,12 @@
 <!-- 공정검사 창 ( 6002 · QUA-02 ) — 품질관리 > 공정검사에서 연다 ( 11-18 : 공정실적에서는 검사하지 않는다 ). docs/screens/70-품질.md §3
-     - 검사 공정 : 앞 공정이 모두 끝난 뒤 합격 + 불합격 = 검사 수량( 앞 공정 수량 ) → [검사 완료] — 공정 수량 = 합격 ( 뒤 공정 · 제품 입고는 합격분만 )
+     - 검사 공정 : 회차 검사 ( 11-23 · docs/공정검사-회차-설계.md ) — 앞 공정 실적이 쌓이는 대로 나눠 검사 ( 검사 가능 = 앞 공정 실적 − 검사한 수량 )
+                   회차 = 합격 + 불합격( 실적별 LOT 지시는 LOT 마다 ) → [회차 저장] · 공정 수량 = 합격 합계 · 마지막 공정이면 회차마다 합격분 입고
+                   앞 공정 완료 + 남은 검사 0 이면 자동 완료 · 남기고 끝내려면 [검사 완료]( 미달 사유 ) · 회차별 [취소] · [완료 취소]( 회차는 그대로 )
      - 초 · 중 · 종 : 초중종을 켠 생산 공정 — 켜진 단계마다 [판정 기록]( 합격 / 불합격 · 불량 수량 ) 만. 검사 완료는 없다
                      생산을 막지 않고 불량 수량도 실적에서 빼지 않는다( 불량 이력으로만 ) · 작업지시가 대기 · 진행인 동안 기록 · 취소
-     - 탭 ( 11-18 ) : [검사] 판정 · 수량 / [검사기준서] 고른 기준서의 항목 · [인쇄] / [성적서] 첨부 ( 기준서와 별개 — 지시 공정에 붙는다 · 검사 전후 언제든 )
-     - 검사기준서 : 기본 기준서가 먼저 골라져 있고 다른 기준서로 바꿔 볼 수 있다 ( 기록에 그 기준서를 남긴다 )
-     - 완료 뒤 : 결과 + [검사 취소]( = 공정 완료 취소 — 뒤 공정이 시작 전 ) / 이력( 취소 포함 )
-     - 마지막 남은 공정이면 완료 때 줄을 끝내고 남은 합격분을 제품 입고 → 창고를 고른다
+     - 탭 ( 11-23 ) : [검사] 판정 · 수량 / [성적서] 기준서 항목의 측정값( 설정 '공정검사 성적서 관리' 가 켜졌을 때만 ) / [첨부] 파일 ( 지시 공정에 붙는다 · 검사 전후 언제든 )
+     - 성적서 : 공정 기본 기준서가 먼저 골라져 있고 바꿀 수 있다 · 다음 저장( 초 · 중 · 종 판정 기록 또는 검사 완료 )에 같이 들어간다( 필수 ) · 이력의 [성적서] = 그때 기록 보기 · 인쇄
+
      - 권한은 서버가 준다 ( can_write · can_cancel ) -->
 <template>
     <div class="mt-3 text-sm">
@@ -18,24 +19,27 @@
                 <div><span class="text-xs text-gray-500">공정</span><p>{{ op.op_name }} <span class="text-xs text-gray-400">( {{ op.kind }} )</span></p></div>
                 <div><span class="text-xs text-gray-500">LOT</span><p>{{ op.lot_no || '—' }}</p></div>
                 <div class="col-span-2"><span class="text-xs text-gray-500">품목</span><p>{{ op.item_code }} {{ op.item_name }}</p></div>
-                <div><span class="text-xs text-gray-500">{{ op.is_inspection ? '검사 수량 ( 앞 공정 )' : '이 공정 실적' }}</span><p class="font-semibold">{{ fmtQty(op.base_qty, op.spec_unit) }}</p></div>
+                <div><span class="text-xs text-gray-500">{{ op.is_inspection ? `앞 공정 실적${round?.prev_op ? ` ( ${round.prev_op} )` : ''}` : '이 공정 실적' }}</span><p class="font-semibold">{{ fmtQty(op.base_qty, op.spec_unit) }}</p></div>
             </div>
-
-            <p class="mt-2 text-xs text-gray-500">
-                검사기준서 : <b class="font-medium text-gray-700">{{ curSpec ? curSpec.inspection_spec_name : '없음' }}</b>
-                <button v-if="specs.length" type="button" class="ml-1 text-blue-700 hover:underline" @click="tab = 'spec'">항목 보기 · 바꾸기</button>
-            </p>
+            <!-- 회차 검사 요약 ( 11-23 ) -->
+            <div v-if="round" class="mt-2 flex items-center gap-3 flex-wrap px-3 py-2 rounded border text-sm" :class="op.status === 'DONE' ? 'border-green-200 bg-green-50' : 'border-blue-200 bg-blue-50/60'">
+                <span>검사 <b>{{ fmtNum(round.inspected) }}</b> <span class="text-xs text-gray-500">( 합격 {{ fmtNum(round.passed) }} · 불합격 {{ fmtNum(round.inspected - round.passed) }} · {{ activeRounds.length }}회차 )</span></span>
+                <span v-if="op.status !== 'DONE'">검사 가능 <b class="text-blue-700">{{ fmtNum(round.available) }}</b></span>
+                <span v-if="op.status === 'DONE'" class="font-semibold text-green-700">검사 완료<template v-if="round.short_qty"> <span class="font-normal text-amber-700">· 검사 안 하고 남김 {{ fmtNum(round.short_qty) }}</span></template></span>
+                <span v-else-if="!round.prev_done" class="text-xs text-gray-500">앞 공정이 진행 중 — 실적이 쌓이는 대로 나눠 검사합니다</span>
+            </div>
 
             <InspectionTabs v-model="tab" :tabs="tabs" class="mt-3" />
 
-            <!-- 검사기준서 ( 11-18 ) : 고른 기준서가 검사 기록에 남는다 -->
-            <div v-show="tab === 'spec'" class="mt-3">
-                <InspectionSpecView v-model="specIdx" :specs="specs" />
+            <!-- 성적서 ( 11-23 ) : 다음 저장( 판정 기록 · 검사 완료 )에 같이 들어간다 -->
+            <div v-if="report" v-show="tab === 'report'" class="mt-3">
+                <p class="mb-2 text-xs text-gray-500">여기 넣은 측정값은 다음 저장( {{ op.is_ifl ? '초 · 중 · 종 [판정 기록]' : '' }}{{ op.is_ifl && op.is_inspection ? ' 또는 ' : '' }}{{ op.is_inspection ? '[검사 완료]' : '' }} )에 같이 기록됩니다 · 지난 기록은 검사 탭 이력의 [성적서]</p>
+                <InspectionReportSheet :specs="specs" :state="rep" :editable="canWrite" />
             </div>
 
-            <!-- 성적서 ( 11-18 ) : 기준서와 별개 — 지시 공정에 붙는다 · 검사 전후 언제든 -->
+            <!-- 첨부 ( 11-18 ) : 지시 공정에 붙는다 · 검사 전후 언제든 -->
             <div v-show="tab === 'files'" class="mt-3">
-                <p class="mb-1.5 text-xs text-gray-500">성적서 · 측정 기록 등 — 이 공정에 붙습니다 ( 검사 전에도 올릴 수 있습니다 )</p>
+                <p class="mb-1.5 text-xs text-gray-500">성적서 · 측정 기록 파일 등 — 이 공정에 붙습니다 ( 검사 전에도 올릴 수 있습니다 )</p>
                 <AttachFiles ref-type="work_order_op" :ref-id="op.work_order_op_idx" category="CERT" :readonly="!canWrite" @change="n => fileCount = n" />
             </div>
 
@@ -55,35 +59,29 @@
                 </div>
                 <!-- 단계 기록 입력 -->
                 <div v-if="stageForm.stage" class="px-3 py-3 border-t bg-blue-50/40 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
-                    <div class="col-span-2">
-                        <label class="block text-gray-500 font-medium mb-1">{{ STAGE_NAMES[stageForm.stage] }} 판정 <span class="text-red-500">*</span></label>
+                    <FormField :label="`${STAGE_NAMES[stageForm.stage]} 판정`" required class="col-span-2">
                         <div class="flex gap-2">
                             <button v-for="r in RESULTS" :key="r.value" type="button" class="flex-1 h-9 rounded border text-sm font-semibold"
                                 :class="stageForm.result === r.value ? r.on : 'border-gray-300 bg-white text-gray-500 hover:bg-gray-50'" @click="stageForm.result = r.value">{{ r.label }}</button>
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-gray-500 font-medium mb-1">검사자 <span class="text-red-500">*</span></label>
-                        <BaseSelect v-model="stageForm.inspector_idx" :options="inspectorOptions" placeholder="검사자 선택" class="w-full" />
-                    </div>
-                    <div>
-                        <label class="block text-gray-500 font-medium mb-1">검사일시 <span class="text-red-500">*</span></label>
+                    </FormField>
+                    <FormField label="검사자" required>
+                        <UserSelect v-model="stageForm.inspector_idx" :users="inspectors" placeholder="검사자 선택" class="w-full" />
+                    </FormField>
+                    <FormField label="검사일시" required>
                         <BaseDatePicker v-model="stageForm.inspected_at" mode="datetime" class="w-full" />
-                    </div>
+                    </FormField>
                     <template v-if="stageForm.result === 'FAIL'">
-                        <div>
-                            <label class="block text-gray-500 font-medium mb-1">불량 수량</label>
+                        <FormField label="불량 수량">
                             <BaseInput v-model="stageForm.fail_qty" type="number" min="0" class="w-full text-right" placeholder="0" />
-                            <p class="text-[11px] text-gray-400 mt-0.5">0 이면 판정만 남깁니다</p>
-                        </div>
-                        <div>
-                            <label class="block text-gray-500 font-medium mb-1">불량 유형 <span v-if="num(stageForm.fail_qty) > 0" class="text-red-500">*</span></label>
+                            <template #help><p class="text-[11px] text-gray-400 mt-0.5">0 이면 판정만 남깁니다</p></template>
+                        </FormField>
+                        <FormField label="불량 유형" :required="num(stageForm.fail_qty) > 0">
                             <BaseSelect v-model="stageForm.defect_type_code" :options="options('DEFECT_TYPE')" class="w-full" placeholder="유형 선택" />
-                        </div>
-                        <div class="col-span-2">
-                            <label class="block text-gray-500 font-medium mb-1">상세</label>
+                        </FormField>
+                        <FormField label="상세" class="col-span-2">
                             <BaseInput v-model="stageForm.reason" class="w-full" maxlength="200" placeholder="예: 버 발생 · 치수 0.2 초과" />
-                        </div>
+                        </FormField>
                     </template>
                     <div class="col-span-4 flex items-center gap-2">
                         <BaseInput v-model="stageForm.remark" class="flex-1" placeholder="비고" />
@@ -95,64 +93,112 @@
 
             <p v-if="open && block" class="mt-3 text-xs text-amber-700">⚠ {{ block }}</p>
 
-            <!-- 검사 완료 ( 검사 공정만 — 합격 · 불합격 수량 ) -->
+            <!-- 검사 회차 입력 ( 검사 공정 · 11-23 ) -->
             <div v-if="op.is_inspection && open && !block && canWrite" class="mt-4 grid grid-cols-[repeat(3,minmax(0,1fr))_13rem] gap-x-4 gap-y-3">
-                <template v-if="!op.is_ifl">
-                    <div>
-                        <label class="block text-gray-500 font-medium mb-1">합격 <span class="text-red-500">*</span></label>
+                <p class="col-span-4 -mb-1 text-xs font-semibold text-blue-700">{{ activeRounds.length + 1 }}회차 검사</p>
+                <!-- 실적별 LOT : 앞 공정 실적 LOT 마다 검사 · 불합격 -->
+                <div v-if="round.run_lot" class="col-span-4">
+                    <table class="w-full table-fixed text-xs border rounded">
+                        <colgroup><col><col class="w-24"><col class="w-28"><col class="w-28"><col class="w-20"></colgroup>
+                        <thead class="bg-gray-50 text-gray-500"><tr><th class="px-2 py-1.5 text-left">앞 공정 실적 LOT</th><th class="px-2 py-1.5 text-right">남은</th><th class="px-2 py-1.5 text-right">이번 검사</th><th class="px-2 py-1.5 text-right">불합격</th><th class="px-2 py-1.5 text-right">합격</th></tr></thead>
+                        <tbody>
+                            <tr v-for="(l, i) in lotForm" :key="l.lot_idx" class="border-t">
+                                <td class="px-2 py-1 truncate" :title="l.lot_no">{{ l.lot_no }} <span class="text-gray-400">{{ l.worked_at }}</span></td>
+                                <td class="px-2 py-1 text-right text-gray-500">{{ fmtNum(l.left) }} <button type="button" class="ml-1 text-blue-700 hover:underline" @click="l.qty = String(l.left)">전부</button></td>
+                                <td class="px-1.5 py-1"><BaseInput v-model="l.qty" type="number" min="0" size="sm" class="w-full text-right" /><p v-if="errors[`lots.${i}.qty`]" class="text-[11px] text-red-500">{{ errors[`lots.${i}.qty`][0] }}</p></td>
+                                <td class="px-1.5 py-1"><BaseInput v-model="l.fail_qty" type="number" min="0" size="sm" class="w-full text-right" /><p v-if="errors[`lots.${i}.fail_qty`]" class="text-[11px] text-red-500">{{ errors[`lots.${i}.fail_qty`][0] }}</p></td>
+                                <td class="px-2 py-1 text-right font-semibold">{{ fmtNum(Math.max(0, num(l.qty) - num(l.fail_qty))) }}</td>
+                            </tr>
+                            <tr class="border-t bg-gray-50/70 font-semibold"><td class="px-2 py-1">합계</td><td></td><td class="px-2 py-1 text-right">{{ fmtNum(roundQty) }}</td><td class="px-2 py-1 text-right">{{ fmtNum(roundFail) }}</td><td class="px-2 py-1 text-right">{{ fmtNum(roundQty - roundFail) }}</td></tr>
+                        </tbody>
+                    </table>
+                    <p v-if="errors.lots" class="text-xs text-red-500 mt-0.5">{{ errors.lots[0] }}</p>
+                </div>
+                <template v-else>
+                    <FormField label="합격" required :error="errors.pass_qty">
                         <BaseInput v-model="form.pass_qty" type="number" min="0" class="w-full text-right" />
-                        <p v-if="errors.pass_qty" class="text-xs text-red-500 mt-0.5">{{ errors.pass_qty[0] }}</p>
-                    </div>
-                    <div>
-                        <label class="block text-gray-500 font-medium mb-1">불합격</label>
+                    </FormField>
+                    <FormField label="불합격">
                         <BaseInput :model-value="form.fail_qty" class="w-full text-right" disabled title="아래 불량 내역 합계" />
-                        <p class="text-[11px] mt-0.5" :class="sumOk ? 'text-gray-400' : 'text-red-500'">합 {{ fmtNum(sum) }} / 검사 {{ fmtNum(op.base_qty) }}</p>
-                    </div>
+                        <template #help><p class="text-[11px] mt-0.5" :class="roundOk ? 'text-gray-400' : 'text-red-500'">이번 검사 {{ fmtNum(roundQty) }} / 검사 가능 {{ fmtNum(round.available) }}</p></template>
+                    </FormField>
                 </template>
-                <div v-else class="col-span-2 text-sm">
-                    <span class="text-xs text-gray-500">합격 수량</span>
-                    <p class="font-semibold">{{ fmtNum(iflPass) }} <span class="text-xs font-normal text-gray-400">= 검사 {{ fmtNum(op.base_qty) }} − 단계 불량 {{ fmtNum(stageFail) }}</span></p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">검사자 <span class="text-red-500">*</span></label>
-                    <BaseSelect v-model="form.inspector_idx" :options="inspectorOptions" placeholder="검사자 선택" class="w-full" />
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">검사일시 <span class="text-red-500">*</span></label>
+                <FormField label="검사자" required>
+                    <UserSelect v-model="form.inspector_idx" :users="inspectors" placeholder="검사자 선택" class="w-full" />
+                </FormField>
+                <FormField label="검사일시" required :error="errors.inspected_at">
                     <BaseDatePicker v-model="form.inspected_at" mode="datetime" class="w-full" />
-                    <p v-if="errors.inspected_at" class="text-xs text-red-500 mt-0.5">{{ errors.inspected_at[0] }}</p>
-                </div>
+                </FormField>
                 <!-- 불량 내역 ( 11-12 — 처음엔 줄 없이 · [+ 줄] 의 수량 합 = 불합격 ) -->
-                <div v-if="!op.is_ifl" class="col-span-4">
+                <div class="col-span-4">
                     <DefectRows v-model="form.defects" :type-options="options('DEFECT_TYPE')" :errors="errors" placeholder="예: 버 발생 3개" @total="onDefects" />
+                    <p v-if="round.run_lot && roundFail > 0 && Math.abs(defectTotal - roundFail) > 0.000001" class="text-[11px] text-red-500 mt-0.5">불량 내역 합계( {{ fmtNum(defectTotal) }} )가 LOT 불합격 합계( {{ fmtNum(roundFail) }} )와 다릅니다 — 맞춰 주세요.</p>
                 </div>
-                <div v-if="op.needs_warehouse">
-                    <label class="block text-gray-500 font-medium mb-1">입고 창고 <span class="text-red-500">*</span></label>
+                <FormField v-if="op.needs_warehouse" label="입고 창고" required :error="errors.warehouse_idx">
                     <WarehouseSelect v-model="form.warehouse_idx" :options="warehouses" class="w-full" placeholder="창고" />
-                </div>
-                <div :class="op.needs_warehouse ? 'col-span-3' : 'col-span-4'">
-                    <label class="block text-gray-500 font-medium mb-1">비고</label>
+                </FormField>
+                <FormField label="비고" :class="op.needs_warehouse ? 'col-span-3' : 'col-span-4'">
                     <BaseInput v-model="form.remark" class="w-full" />
-                </div>
+                </FormField>
                 <p class="col-span-4 text-xs text-gray-400">
-                    합격 수량이 이 공정의 수량이 됩니다 — 뒤 공정과 제품 입고는 합격분만 이어집니다.
-                    <template v-if="op.needs_warehouse"> <span class="text-blue-700">마지막 공정이라 완료하면 줄을 끝내고 남은 합격분을 제품 입고합니다.</span></template>
+                    합격 합계가 이 공정의 수량이 됩니다 — 뒤 공정과 제품 입고는 합격분만 이어집니다.
+                    <template v-if="op.needs_warehouse"> <span class="text-blue-700">마지막 공정이라 저장하면 이번 합격분을 바로 제품 입고합니다.</span></template>
                 </p>
             </div>
 
-            <!-- 완료 뒤 -->
-            <div v-if="!open && summary" class="mt-4 px-3 py-2.5 rounded border" :class="summary.fail_qty > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'">
-                <p class="font-medium">검사 완료 — 합격 {{ fmtNum(summary.pass_qty) }} · 불합격 {{ fmtNum(summary.fail_qty) }}</p>
-                <p class="text-xs text-gray-600 mt-0.5">검사자 {{ summary.inspector_name }} · {{ summary.inspected_at }}<template v-if="summary.defect_type || summary.reason"> · 불량 : {{ [summary.defect_type, summary.reason].filter(Boolean).join(' — ') }}</template></p>
+            <!-- 검사 완료 ( 남기고 끝냄 — 미달 사유 · 11-23 ) -->
+            <div v-if="finishing" class="mt-4 px-3 py-3 rounded border border-amber-200 bg-amber-50/60 flex items-end gap-3 flex-wrap">
+                <p class="w-full text-xs text-amber-800">{{ round.available > 0 ? `검사하지 않은 ${fmtNum(round.available)} 이 남습니다. 미달 사유를 고르면 검사 공정을 끝냅니다.` : '검사 공정을 완료합니다.' }}</p>
+                <FormField v-if="round.available > 0" label="미달 사유" required>
+                    <BaseSelect v-model="finishForm.short_reason" :options="options('SHORT_REASON')" placeholder="사유 선택" class="w-48" />
+                </FormField>
+                <FormField v-if="round.finish_needs_warehouse" label="입고 창고" required>
+                    <WarehouseSelect v-model="finishForm.warehouse_idx" :options="warehouses" class="w-44" placeholder="창고" />
+                </FormField>
+                <div class="ml-auto flex gap-1">
+                    <BaseButton size="sm" variant="secondary" @click="finishing = false">닫기</BaseButton>
+                    <BaseButton size="sm" variant="primary" :disabled="saving || (round.available > 0 && !finishForm.short_reason)" @click="finish">검사 완료</BaseButton>
+                </div>
             </div>
 
-            <!-- 이력 -->
-            <div v-if="history.length" class="mt-4">
+            <!-- 회차 이력 ( 검사 공정 · 11-23 ) -->
+            <div v-if="op.is_inspection && rounds.length" class="mt-4">
+                <div class="mb-1.5 text-xs font-semibold text-gray-500">검사 회차 ( 취소 포함 )</div>
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[760px] table-fixed text-xs border rounded">
+                        <colgroup><col class="w-12"><col class="w-32"><col class="w-16"><col class="w-16"><col class="w-16"><col><col class="w-20"><col class="w-24"></colgroup>
+                        <thead class="bg-gray-50 text-gray-500">
+                            <tr><th class="px-2 py-1">회차</th><th class="px-2 py-1">일시</th><th class="px-2 py-1 text-right">검사</th><th class="px-2 py-1 text-right">합격</th><th class="px-2 py-1 text-right">불합격</th><th class="px-2 py-1 text-left">LOT · 불량</th><th class="px-2 py-1">검사자</th><th></th></tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="r in rounds" :key="r.inspection_idx" class="border-t align-top" :class="r.is_canceled ? 'text-gray-400 line-through' : ''">
+                                <td class="px-2 py-1 text-center">{{ r.no }}</td>
+                                <td class="px-2 py-1 text-center whitespace-nowrap">{{ r.inspected_at }}</td>
+                                <td class="px-2 py-1 text-right">{{ fmtNum(r.qty) }}</td>
+                                <td class="px-2 py-1 text-right font-semibold" :class="r.is_canceled ? '' : 'text-green-700'">{{ fmtNum(r.pass_qty) }}</td>
+                                <td class="px-2 py-1 text-right" :class="r.fail_qty > 0 && !r.is_canceled ? 'text-red-600 font-semibold' : ''">{{ r.fail_qty ? fmtNum(r.fail_qty) : '' }}</td>
+                                <td class="px-2 py-1">
+                                    <span v-for="(l, k) in r.lots.filter(x => x.lot_no)" :key="k" class="mr-2 whitespace-nowrap">{{ l.lot_no }} {{ fmtNum(l.qty) }}<template v-if="l.fail_qty"> ( 불 {{ fmtNum(l.fail_qty) }} )</template><span v-if="l.received" class="ml-0.5 px-1 rounded bg-blue-50 text-blue-700 no-underline">입고</span></span>
+                                    <span v-if="r.defect_type || r.reason" class="text-gray-500">{{ [r.defect_type, r.reason].filter(Boolean).join(' — ') }}</span>
+                                </td>
+                                <td class="px-2 py-1 text-center truncate" :title="r.inspector_name">{{ r.inspector_name }}</td>
+                                <td class="px-2 py-1 text-right whitespace-nowrap">
+                                    <button v-if="r.has_report" type="button" class="mr-2 text-blue-700 hover:underline" @click="openReport({ ...r, stage_name: `${r.no}회차` })">성적서</button>
+                                    <button v-if="canCancel && !r.is_canceled && op.status !== 'DONE' && ['WAIT', 'RUN'].includes(op.wo_status)" type="button" class="text-red-600 hover:underline" @click="cancelRound(r)">취소</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 이력 ( 초 · 중 · 종 ) -->
+            <div v-if="op.is_ifl && history.length" class="mt-4">
                 <div class="mb-1.5 text-xs font-semibold text-gray-500">검사 이력 ( 취소 포함 )</div>
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[736px] table-fixed text-xs border rounded">
                         <colgroup>
-                            <col class="w-20"><col class="w-16"><col class="w-20"><col class="w-20"><col><col class="w-20"><col class="w-36"><col class="w-12">
+                            <col class="w-20"><col class="w-16"><col class="w-20"><col class="w-20"><col><col class="w-20"><col class="w-36"><col class="w-24">
                         </colgroup>
                         <thead class="bg-gray-50 text-gray-500">
                             <tr><th class="px-2 py-1 text-left">구분</th><th class="px-2 py-1">판정</th><th class="px-2 py-1 text-right">합격</th><th class="px-2 py-1 text-right">불량</th><th class="px-2 py-1 text-left">유형 · 상세</th><th class="px-2 py-1">검사자</th><th class="px-2 py-1">일시</th><th></th></tr>
@@ -166,7 +212,8 @@
                                 <td class="px-2 py-1">{{ [h.defect_type, h.reason || (h.stage ? h.remark : '')].filter(Boolean).join(' — ') }}</td>
                                 <td class="px-2 py-1 text-center truncate" :title="h.inspector_name">{{ h.inspector_name }}</td>
                                 <td class="px-2 py-1 text-center whitespace-nowrap">{{ h.inspected_at }}</td>
-                                <td class="px-2 py-1 text-right">
+                                <td class="px-2 py-1 text-right whitespace-nowrap">
+                                    <button v-if="h.has_report" type="button" class="mr-2 text-blue-700 hover:underline" @click="openReport(h)">성적서</button>
                                     <button v-if="canWrite && stageOpen && h.stage && !h.is_canceled" type="button" class="text-red-600 hover:underline" @click="cancelStage(h)">취소</button>
                                 </td>
                             </tr>
@@ -180,14 +227,17 @@
         <p v-else class="py-8 text-center text-red-500">{{ errorMsg || '검사 공정을 찾을 수 없습니다.' }}</p>
 
         <!-- 액션 -->
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
-            <BaseButton v-if="canCancel && op && op.is_inspection && op.status === 'DONE' && op.wo_status !== 'DONE'" size="sm" variant="danger" class="mr-auto" :disabled="saving" @click="cancelInspection">검사 취소</BaseButton>
-            <span v-else-if="op && op.is_inspection && op.status === 'DONE' && op.wo_status === 'DONE'" class="mr-auto text-xs text-gray-400">품목 줄이 완료됐습니다 — 취소하려면 공정실적에서 줄 완료를 먼저 취소하세요</span>
+        <ModalFooter>
+            <template #left>
+                <BaseButton v-if="canCancel && op && op.is_inspection && op.status === 'DONE' && op.wo_status !== 'DONE'" size="sm" variant="danger" :disabled="saving" @click="cancelInspection">완료 취소</BaseButton>
+                <span v-else-if="op && op.is_inspection && op.status === 'DONE' && op.wo_status === 'DONE'" class="text-xs text-gray-400">품목 줄이 완료됐습니다 — 되돌리려면 공정실적에서 줄 완료를 먼저 취소하세요</span>
+                <BaseButton v-else-if="op && op.is_inspection && canWrite && open && round?.prev_done && !finishing" size="sm" variant="secondary" :disabled="saving" title="남은 수량을 검사하지 않고 검사 공정을 끝냅니다 ( 남은 게 없으면 저장할 때 자동으로 완료됩니다 )" @click="openFinish">검사 완료</BaseButton>
+            </template>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
-            <BaseButton v-if="op && op.is_inspection && canWrite && open && !block" size="sm" variant="primary" :disabled="saving || !sumOk" @click="complete">
-                {{ saving ? '처리 중…' : '검사 완료' }}
+            <BaseButton v-if="op && op.is_inspection && canWrite && open && !block" size="sm" variant="primary" :disabled="saving || !roundOk" @click="complete">
+                {{ saving ? '처리 중…' : `${activeRounds.length + 1}회차 저장` }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -204,8 +254,14 @@ import { useCommonCode } from '@core/Composables/useCommonCode';
 import { fmtNum, fmtQty } from '@core/Utils/format';
 import { STATUS_COLOR } from '@core/Utils/colors';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import UserSelect from '@core/Components/Common/UserSelect.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
+import { useFormErrors } from '@core/Composables/useFormErrors';
 import InspectionTabs from '@core/Components/Quality/InspectionTabs.vue';
-import InspectionSpecView from '@core/Components/Quality/InspectionSpecView.vue';
+import InspectionReportSheet from '@core/Components/Quality/InspectionReportSheet.vue';
+import { measurePayload, blankValues } from '@core/Components/Quality/reportCodes';
+import { useModalStore } from '@core/Stores/modalStore';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 
 const props = defineProps({
@@ -224,24 +280,38 @@ const resultColor  = (r) => ({ PASS: STATUS_COLOR.done, FAIL: STATUS_COLOR.bad, 
 
 const loading    = ref(true);
 const saving     = ref(false);
-const errorMsg   = ref('');
-const errors     = ref({});
+// 저장 실패 : 칸 아래에 보이는 칸( 합격 · 검사일시 · 창고 · 불량 내역 · LOT 줄 )의 오류는 칸에서, 나머지는 위에 모아서
+const { errors, errorMsg, clear: clearErrors, handle } = useFormErrors(['pass_qty', 'inspected_at', 'warehouse_idx', 'defect_type_code', 'reason', 'defects', 'lots']);
 const op         = ref(null);
-// 검사기준서 ( 11-18 ) — 서버가 사용 중 기준서를 기본 기준서 먼저 준다 · 고른 것을 기록에 남긴다
-const specs       = ref([]);
-const specIdx     = ref('');
-const curSpec     = computed(() => specs.value.find(s => Number(s.inspection_spec_idx) === Number(specIdx.value)) ?? null);
+// 성적서 ( 11-23 ) — report : 설정이 켜졌나 · specs : 고를 기준서( 공정 기본 먼저 ) · rep : 넣는 값 ( 다음 저장에 같이 )
+const report = ref(false);
+const specs  = ref([]);
+const rep    = reactive({ spec_idx: '', values: {} });
+function resetRep() {
+    rep.spec_idx = specs.value[0]?.inspection_spec_idx ?? '';
+    rep.values   = blankValues(specs.value[0]);
+}
+const modalStore = useModalStore();
+const openReport = (h) => modalStore.open(InspectionReportSheet, { modalTitle: `검사성적서 [ ${h.stage_name} · ${h.inspected_at} ]`, loadIdx: h.inspection_idx, modal: true }, { size: 'xl' });
 
-// 탭 ( 11-18 ) : 검사 · 검사기준서 · 성적서
+// 탭 ( 11-23 ) : 검사 · 성적서( 설정이 켜졌을 때 ) · 첨부
 const tab       = ref('insp');
 const fileCount = ref(0);
 const tabs = computed(() => [
-    { key: 'insp',  label: '검사', error: Object.keys(errors.value).length > 0 },
-    { key: 'spec',  label: '검사기준서', count: curSpec.value?.lines.length || '' },
-    { key: 'files', label: '성적서', count: fileCount.value || '' },
+    { key: 'insp',  label: '검사', error: Object.keys(errors.value).some(k => k !== 'measure') },
+    ...(report.value ? [{ key: 'report', label: '성적서', error: !!errors.value.measure }] : []),
+    { key: 'files', label: '첨부', count: fileCount.value || '' },
 ]);
 const stages     = ref([]);
 const history    = ref([]);
+// 회차 검사 ( 11-23 ) — round : 요약 · LOT 후보 / rounds : 회차 이력 / lotForm : 이번 회차 LOT 별 입력
+const round      = ref(null);
+const rounds     = ref([]);
+const lotForm    = ref([]);
+const activeRounds = computed(() => rounds.value.filter(r => !r.is_canceled));
+const finishing  = ref(false);
+const finishForm = reactive({ short_reason: '', warehouse_idx: '' });
+const defectTotal = ref(0);
 const block      = ref(null);
 const canWrite   = ref(false);
 const canCancel  = ref(false);
@@ -250,23 +320,23 @@ const warehouses = ref([]);
 
 const form      = reactive({ pass_qty: '', fail_qty: '0', defects: [], inspector_idx: '', inspected_at: '', remark: '', warehouse_idx: '' });
 const stageForm = reactive({ stage: '', result: '', fail_qty: '', defect_type_code: '', reason: '', inspector_idx: '', inspected_at: '', remark: '' });
-const { options } = useCommonCode(['DEFECT_TYPE']);
+const { options } = useCommonCode(['DEFECT_TYPE', 'SHORT_REASON']);
 
-const inspectorOptions = computed(() => inspectors.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 const open    = computed(() => op.value && op.value.status !== 'DONE' && ['WAIT', 'RUN'].includes(op.value.wo_status));
 const stageOpen = computed(() => op.value && ['WAIT', 'RUN'].includes(op.value.wo_status));   // 초 · 중 · 종 : 공정이 끝난 뒤에도 기록 · 취소
-const summary = computed(() => [...history.value].reverse().find(h => !h.stage && !h.is_canceled) ?? null);
-
 const num   = (v) => (v === '' || v === null || v === undefined || isNaN(Number(v))) ? 0 : Number(v);
-const sum   = computed(() => num(form.pass_qty) + num(form.fail_qty));
-const sumOk = computed(() => op.value && Math.abs(sum.value - num(op.value.base_qty)) < 0.000001);
-const stageFail = computed(() => history.value.filter(h => h.stage && !h.is_canceled).reduce((s, h) => s + num(h.fail_qty), 0));
-const iflPass   = computed(() => Math.max(0, num(op.value?.base_qty) - stageFail.value));
+// 이번 회차 수량 : 실적별 LOT = LOT 합 / 아니면 합격 + 불합격 ( 불합격 = 불량 내역 합 )
+const roundQty  = computed(() => round.value?.run_lot ? lotForm.value.reduce((s, l) => s + num(l.qty), 0) : num(form.pass_qty) + num(form.fail_qty));
+const roundFail = computed(() => round.value?.run_lot ? lotForm.value.reduce((s, l) => s + num(l.fail_qty), 0) : num(form.fail_qty));
+const roundOk   = computed(() => !!round.value && roundQty.value > 0.000001 && roundQty.value <= num(round.value.available) + 0.000001
+    && (!round.value.run_lot || roundFail.value <= 0.000001 || Math.abs(defectTotal.value - roundFail.value) < 0.000001));   // 실적별 LOT : 불량 내역 합 = LOT 불합격 합
 
-// 불합격 = 불량 내역 합계 → 합격 = 검사 − 불합격 ( 11-12 )
+// 불합격 = 불량 내역 합계 → 합격 = 검사 가능 − 불합격 ( 11-12 · 지시 LOT 지시 ) / 실적별 LOT 는 LOT 별 불합격이 기준
 function onDefects(t) {
+    defectTotal.value = t;
+    if (round.value?.run_lot) return;
     form.fail_qty = String(t);
-    const rest = +(num(op.value?.base_qty) - t).toFixed(6);
+    const rest = +(num(round.value?.available) - t).toFixed(6);
     if (rest >= 0) form.pass_qty = String(rest);
 }
 
@@ -277,10 +347,15 @@ async function load() {
     try {
         const { data } = await window.axios.get(route('quality.process.show', props.opIdx));
         op.value         = data.op;
+        report.value     = data.report === true;
         specs.value      = data.specs ?? [];
-        if (!curSpec.value) specIdx.value = specs.value[0]?.inspection_spec_idx ?? '';   // 처음 = 기본 기준서
+        resetRep();   // 처음 = 공정 기본 기준서 · 빈 측정값 ( 저장 뒤 다시 읽을 때도 비운다 )
         stages.value     = data.stages ?? [];
         history.value    = data.history ?? [];
+        round.value      = data.round ?? null;
+        rounds.value     = data.rounds ?? [];
+        lotForm.value    = (data.round?.lots ?? []).map(l => ({ ...l, qty: '', fail_qty: '' }));
+        finishing.value  = false;
         block.value      = data.block;
         canWrite.value   = data.can_write === true;
         canCancel.value  = data.can_cancel === true;
@@ -288,7 +363,7 @@ async function load() {
         warehouses.value = data.warehouses ?? [];
         me = data.me; now = data.now;
         Object.assign(form, {
-            pass_qty: String(data.op.base_qty), fail_qty: '0', defects: [], remark: '',
+            pass_qty: String(data.round?.available ?? data.op.base_qty), fail_qty: '0', defects: [], remark: '',
             inspector_idx: me ?? '', inspected_at: now, warehouse_idx: form.warehouse_idx || (warehouses.value[0]?.warehouse_idx ?? ''),
         });
         stageForm.stage = '';
@@ -305,19 +380,12 @@ function openStage(stage) {
 }
 
 async function run(fn, fallback) {
-    saving.value = true; errors.value = {}; errorMsg.value = '';
+    saving.value = true;
+    clearErrors();
     try {
         return await fn();
     } catch (e) {
-        const status = e.response?.status;
-        if (status === 422) {
-            errors.value = e.response.data.errors || {};
-            const shown = ['pass_qty', 'inspected_at', 'defect_type_code', 'reason'];
-            const other = Object.entries(errors.value).filter(([k]) => !shown.includes(k) && !k.startsWith('defects')).flatMap(([, v]) => v);
-            if (other.length) errorMsg.value = other.join('\n');
-        } else {
-            errorMsg.value = status === 403 ? '권한이 없습니다.' : (e.response?.data?.message || fallback);
-        }
+        if (handle(e, fallback) === 422 && errors.value.measure && Object.keys(errors.value).length === 1) tab.value = 'report';
         return null;
     } finally {
         saving.value = false;
@@ -326,18 +394,43 @@ async function run(fn, fallback) {
 
 async function complete() {
     const res = await run(() => window.axios.post(route('quality.process.complete', props.opIdx), {
-        pass_qty:         op.value.is_ifl ? null : form.pass_qty,
-        fail_qty:         op.value.is_ifl ? null : (form.fail_qty === '' ? 0 : form.fail_qty),
-        defects: num(form.fail_qty) > 0 ? form.defects.map(r => ({ defect_type_code: r.defect_type_code || null, qty: r.qty === '' ? null : r.qty, reason: r.reason || null })) : [],
+        pass_qty:         round.value?.run_lot ? null : form.pass_qty,
+        fail_qty:         round.value?.run_lot ? null : (form.fail_qty === '' ? 0 : form.fail_qty),
+        lots:             round.value?.run_lot ? lotForm.value.filter(l => num(l.qty) > 0).map(l => ({ lot_idx: l.lot_idx, qty: l.qty, fail_qty: l.fail_qty === '' ? 0 : l.fail_qty })) : [],
+        defects: roundFail.value > 0 ? form.defects.map(r => ({ defect_type_code: r.defect_type_code || null, qty: r.qty === '' ? null : r.qty, reason: r.reason || null })) : [],
         inspector_idx:    Number(form.inspector_idx),
         inspected_at:     form.inspected_at,
         remark:           form.remark || null,
         warehouse_idx:    op.value.needs_warehouse && form.warehouse_idx ? Number(form.warehouse_idx) : null,
-        inspection_spec_idx: specIdx.value ? Number(specIdx.value) : null,
-    }), '검사 완료하지 못했습니다.');
+        measure:          report.value ? measurePayload(rep) : null,
+    }), '검사 회차를 저장하지 못했습니다.');
+    if (!res) return;
+    const no = activeRounds.value.length + 1;
+    props.onDone?.(res.data.line_status === 'DONE' ? `${op.value.wo_no} ${no}회차 검사 — 줄을 완료했습니다.` : `${op.value.op_name} ${no}회차 검사( ${fmtNum(roundQty.value)} )를 저장했습니다.`, res.data.warnings ?? []);
+    await load();   // 창은 열어 둔다 — 다음 회차 · 이력 확인
+}
+
+// [검사 완료] — 남은 수량이 있으면 미달 사유 ( 11-23 )
+function openFinish() {
+    Object.assign(finishForm, { short_reason: '', warehouse_idx: warehouses.value[0]?.warehouse_idx ?? '' });
+    finishing.value = true;
+}
+async function finish() {
+    const res = await run(() => window.axios.post(route('quality.process.finish', props.opIdx), {
+        short_reason:  finishForm.short_reason || null,
+        warehouse_idx: round.value?.finish_needs_warehouse && finishForm.warehouse_idx ? Number(finishForm.warehouse_idx) : null,
+    }), '검사 공정을 완료하지 못했습니다.');
     if (!res) return;
     props.onDone?.(res.data.line_status === 'DONE' ? `${op.value.wo_no} 검사 완료 — 줄을 완료했습니다.` : `${op.value.op_name} 검사를 완료했습니다.`, res.data.warnings ?? []);
-    emit('close');
+    await load();
+}
+
+// 회차 취소 ( 11-23 )
+async function cancelRound(r) {
+    const x = await showAlert('회차 취소', `${r.no}회차 검사( ${fmtNum(r.qty)} · 합격 ${fmtNum(r.pass_qty)} )를 취소합니다.\n합격분이 공정 수량에서 빠지고, 입고했으면 입고도 되돌립니다. 불량 기록은 취소로 남습니다.`, 'warning', 'confirm');
+    if (!x.isConfirmed) return;
+    const res = await run(() => window.axios.post(route('quality.process.cancelRound', r.inspection_idx)), '회차를 취소하지 못했습니다.');
+    if (res) { props.onDone?.(`${r.no}회차 검사를 취소했습니다.`); await load(); }
 }
 
 async function saveStage() {
@@ -350,7 +443,7 @@ async function saveStage() {
         inspector_idx:    Number(stageForm.inspector_idx),
         inspected_at:     stageForm.inspected_at,
         remark:           stageForm.remark || null,
-        inspection_spec_idx: specIdx.value ? Number(specIdx.value) : null,
+        measure:          report.value ? measurePayload(rep) : null,
     }), '판정을 기록하지 못했습니다.');
     if (!res) return;
     props.onDone?.(`${STAGE_NAMES[stageForm.stage]} ${stageForm.result === 'PASS' ? '합격' : '불합격'}을 기록했습니다.`);
@@ -365,10 +458,10 @@ async function cancelStage(h) {
 }
 
 async function cancelInspection() {
-    const r = await showAlert('검사 취소', `${op.value.op_name} 의 검사 완료를 취소하고 다시 검사대기로 돌립니다.\n뒤 공정이 이미 시작됐으면 취소할 수 없습니다. 불량 기록은 취소로 남습니다.`, 'warning', 'confirm');
+    const r = await showAlert('완료 취소', `${op.value.op_name} 의 검사 완료를 취소하고 다시 진행으로 돌립니다. ( 검사 회차는 그대로 남습니다 )\n뒤 공정이 이미 시작됐으면 취소할 수 없습니다.`, 'warning', 'confirm');
     if (!r.isConfirmed) return;
-    const res = await run(() => window.axios.post(route('quality.process.cancel', props.opIdx)), '검사를 취소하지 못했습니다.');
-    if (res) { props.onDone?.(`${op.value.op_name} 검사를 취소했습니다.`); await load(); }
+    const res = await run(() => window.axios.post(route('quality.process.cancel', props.opIdx)), '완료를 취소하지 못했습니다.');
+    if (res) { props.onDone?.(`${op.value.op_name} 검사 완료를 취소했습니다.`); await load(); }
 }
 
 onMounted(load);

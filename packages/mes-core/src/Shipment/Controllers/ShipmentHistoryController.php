@@ -53,7 +53,7 @@ class ShipmentHistoryController extends Controller {
             ->select([
                 'p.shipment_pick_idx', 'p.qty', 's.shipment_idx', 's.shipment_no', 's.plan_date', 's.shipped_at', 's.status',
                 'pt.partner_name', 'sl.line_no', 'sl.unit_price', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit',
-                'l.lot_no', 'w.warehouse_name', 'so.order_no', 'sol.line_no as so_line_no', 'so.customer_po_no',
+                \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'w.warehouse_name', 'so.order_no', 'sol.line_no as so_line_no', 'so.customer_po_no',
             ])
             ->orderByDesc(DB::raw($basis === 'shipped' ? 'COALESCE(s.shipped_at, s.plan_date)' : 's.plan_date'))->orderByDesc('p.shipment_pick_idx');
 
@@ -67,7 +67,7 @@ class ShipmentHistoryController extends Controller {
             'partner_name'   => fn ($q, $kw) => $q->where('pt.partner_name', 'like', $kw),
             'item_code'      => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
             'item_name'      => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
-            'lot_no'         => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
+            'lot_no'         => fn ($q, $kw) => \MesCore\Stock\Models\Lot::whereNoLike($q, $kw, 'l'),
             'order_no'       => fn ($q, $kw) => $q->where('so.order_no', 'like', $kw),
             'customer_po_no' => fn ($q, $kw) => $q->where('so.customer_po_no', 'like', $kw),
         ]);

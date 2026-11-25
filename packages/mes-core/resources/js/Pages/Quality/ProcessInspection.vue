@@ -22,8 +22,8 @@
             <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                 <span class="text-sm font-semibold text-gray-600">검사 공정 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건</span></span>
                 <div class="flex items-center gap-1.5">
-                    <!-- 검사기준서 보기 · 인쇄 ( 11-18 ) -->
-                    <BaseButton size="sm" variant="secondary" @click="openSpecs">검사기준서</BaseButton>
+                    <!-- 검사기준서 보기 · 인쇄 ( 11-18 ) — 공정검사 성적서 관리가 켜졌을 때만 ( 11-23 ) -->
+                    <BaseButton v-if="report" size="sm" variant="secondary" @click="openSpecs">검사기준서</BaseButton>
                     <GridSettingButton :grid="mainGrid" />
                     <ExcelExportButton :rows="exportRows" :columns="columns" :grid="mainGrid" filename="공정검사목록" />
                 </div>
@@ -98,12 +98,16 @@ const columns = [
     { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
     { header: 'LOT', name: 'lot_no', width: 150, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'base_qty', width: 100, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => row.base_qty === null ? '' : fmtQty(row.base_qty, row.spec_unit) },
+    // 회차 검사 ( 11-23 ) : 검사 가능 = 앞 공정 실적 − 검사한 수량 · 합격 · 불합격 = 회차 합계
+    { header: '검사 가능', name: 'available', width: 85, align: 'right', className: 'cursor-pointer',
+      formatter: ({ row, value }) => row.is_stage || !value ? '' : `<span style="color:${COLORS.blue700};font-weight:600">${fmtNum(value)}</span>` },
+    { header: '회차', name: 'round_count', width: 55, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? `${value}` : '' },
     { header: '합격', name: 'pass_qty', width: 80, align: 'right', className: 'cursor-pointer', formatter: ({ value }) => value === null ? '' : fmtNum(value) },
     { header: '불합격', name: 'fail_qty', width: 80, align: 'right', className: 'cursor-pointer',
       formatter: ({ value }) => value ? `<span style="color:${COLORS.red600}">${fmtNum(value)}</span>` : '' },
-    { header: '상태', name: 'status', width: 70, align: 'center', className: 'cursor-pointer',
-      formatter: ({ row, value }) => `<span style="color:${woStatusColor(value)};font-weight:600">${value === 'DONE' ? '검사 완료' : (row.is_stage ? (value === 'RUN' ? '검사 중' : '미검사') : woStatusLabel(value))}</span>` },
-    { header: '검사일시', name: 'inspected_at', width: 125, align: 'center', className: 'cursor-pointer' },
+    { header: '상태', name: 'status', width: 80, align: 'center', className: 'cursor-pointer',
+      formatter: ({ row, value }) => `<span style="color:${woStatusColor(value)};font-weight:600">${value === 'DONE' ? '검사 완료' : (row.is_stage ? (value === 'RUN' ? '검사 중' : '미검사') : (row.available > 0 ? '검사대기' : (value === 'RUN' ? '검사 중' : woStatusLabel(value))))}</span>` },
+    { header: '마지막 검사', name: 'inspected_at', width: 125, align: 'center', className: 'cursor-pointer' },
     { header: '검사자', name: 'inspector_name', width: 80, align: 'center', className: 'cursor-pointer', escapeHTML: true },
     { header: '성적서', name: 'file_count', width: 70, align: 'center', className: 'cursor-pointer', formatter: ({ value }) => value ? `${value}건` : '' },
     { header: '판정 · 막힌 이유', name: 'block', minWidth: 200, className: 'cursor-pointer', escapeHTML: true,
@@ -111,6 +115,7 @@ const columns = [
 ];
 
 const rows    = ref([]);
+const report  = ref(false);   // 공정검사 성적서 관리 ( 11-23 — 목록과 같이 온다 )
 const loading = ref(false);
 const paging  = reactive({ page: 1, perPage: 50, total: 0 });
 const sort    = reactive({ key: '', dir: '' });
@@ -127,6 +132,7 @@ async function load() {
         const { data } = await window.axios.get(route('quality.process.list'), { params: listParams({ page: paging.page, perPage: paging.perPage }) });
         rows.value   = data.rows ?? [];
         paging.total = data.total ?? 0;
+        report.value = data.report === true;
         paging.page  = data.page ?? 1;
     } catch (e) {
         showFlash(failMsg(e), true);

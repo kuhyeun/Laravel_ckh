@@ -135,12 +135,14 @@ return [
         // 켜면 입고는 검사대기로 ( 거래처 · 품목에서 '검사 안 함' 으로 뺄 수 있다 ) / 끄면 입고검사 정책( 품목 · 거래처 )을 모두 무시하고 무검사 — 입고하면 바로 재고 ( 품목 · 거래처 화면의 입고검사 칸도 숨김 · 덮어쓴 값은 남겨 둠 )
         'incoming_use'   => [ 'name' => '입고검사 사용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL',
                               'remark' => '켜면 입고한 자재는 입고검사를 거쳐야 재고에 잡힙니다 ( 거래처 · 품목 화면에서 검사 안 함으로 뺄 수 있습니다 ). 끄면 모든 입고가 검사 없이 바로 재고에 잡힙니다' ],
-        'mode.incoming'  => [ 'name' => '입고검사 완료 방식', 'value' => 'SIMPLE', 'category' => 'RULE', 'type' => 'ENUM', 'visible' => false,
-                              'options' => [ 'SIMPLE' => '검사완료 버튼', 'SHEET' => '검사시트 작성' ] ],
-        'mode.process'   => [ 'name' => '공정검사 완료 방식', 'value' => 'SIMPLE', 'category' => 'RULE', 'type' => 'ENUM', 'visible' => false,
-                              'options' => [ 'SIMPLE' => '검사완료 버튼', 'SHEET' => '검사시트 작성' ] ],
-        'mode.shipping'  => [ 'name' => '출하검사 완료 방식', 'value' => 'SIMPLE', 'category' => 'RULE', 'type' => 'ENUM', 'visible' => false,
-                              'options' => [ 'SIMPLE' => '검사완료 버튼', 'SHEET' => '검사시트 작성' ] ],
+        // 성적서 관리 ( 11-23 · docs/검사성적서-설계.md — 전의 숨은 mode.* ) : 켜면 그 검사 창에 [성적서] 탭 — 기준서 항목에 측정값을 넣어야 검사를 저장 · 인쇄 = 검사성적서
+        //   끄면 판정 · 수량만 ( 기준서 탭 · 공정검사관리 [검사기준서] 버튼 없음 ) · 성적서 파일 첨부는 설정과 관계없이
+        'report.incoming' => [ 'name' => '입고검사 성적서 관리', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
+                               'remark' => '켜면 입고검사 때 검사기준서 항목마다 측정값을 넣고( 필수 ) 검사성적서로 인쇄합니다. 끄면 합격 · 불합격 수량만 넣습니다' ],
+        'report.process'  => [ 'name' => '공정검사 성적서 관리', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
+                               'remark' => '켜면 공정검사( 검사 완료 · 초 · 중 · 종 판정 ) 때 검사기준서 항목마다 측정값을 넣고( 필수 ) 검사성적서로 인쇄합니다. 끄면 판정 · 수량만 넣습니다' ],
+        'report.shipping' => [ 'name' => '출하검사 성적서 관리', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
+                               'remark' => '켜면 출하검사 때 검사기준서 항목마다 측정값을 넣고( 필수 ) 검사성적서로 인쇄합니다. 끄면 합격 · 불합격 판정만 넣습니다' ],
         // 입고검사를 하는가 ( 11-13 — 무검사 · 샘플링 · 전수를 한다 / 안 한다 로 · 샘플링과 전수는 동작이 같았다 )
         //   우선순위 : 거래처에 값이 있으면 거래처( 그 거래처에서 사는 자재는 모두 그렇게 ) → 없으면 품목 → 없으면 시스템 설정
         //   시스템 설정 = '입고검사 사용'( incoming_use ) 하나 — 켜면 기본이 검사함( 이 값의 기본값 FULL ) · 이 칸은 설정 화면에 없다 ( visible false )
@@ -174,6 +176,9 @@ return [
                                     'options' => [ 'MANUAL' => '수동 ( 실적 입력 때 고름 )', 'AUTO' => '자동 ( 입고일 선입선출 )' ],
                                     'remark' => '수동 : 공정 실적을 넣을 때 투입 LOT( 자재 LOT · 앞 공정 실적 LOT )를 고른다. 자동 : 고르지 않아도 먼저 들어온 LOT 부터( 자재 = 입고일 · 앞 공정 = 작업 일시 ) 자동으로 연결한다',
                                     'depends_on' => [ 'production.op_lot_tracking', 'Y' ] ],
+        // 생산계획표 ( 11-19 ) — 작업지시관리의 [생산계획표] 단추 ( 설비별 · 날짜별 계획을 A4 가로로 보고 인쇄 )
+        'plan_sheet'           => [ 'name' => '생산계획표 사용', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
+                                    'remark' => '켜면 작업지시관리에 [생산계획표] 단추가 생깁니다. 설비별 · 날짜별 작업 계획( 도번 · 수량 · 작업자 )을 A4 가로로 보고 인쇄합니다' ],
         'scan_qty_presets'     => [ 'name' => '수량 바코드 값', 'value' => '5,10,50,100,150,200', 'category' => 'RULE', 'type' => 'STRING', 'visible' => false ],
         'equipment_manual_qty' => [ 'name' => '설비 실적 수동 입력 허용', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL', 'editable_by' => 'SYSTEM_ADMIN', 'visible' => false ],
     ],
@@ -197,8 +202,8 @@ return [
 
     // ---- B-6. 화면 기본값 ---- ( QR 로그인 auth.* 는 두지 않음 · 11-02 )
     'ui' => [
-        'search_range_from_days' => [ 'name' => '기본 검색 시작일 ( 오늘 + N일 )', 'value' => '-10', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
-        'search_range_to_days'   => [ 'name' => '기본 검색 종료일 ( 오늘 + N일 )', 'value' => '10', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
+        'search_range_from_days' => [ 'name' => '기본 검색 시작일 ( 오늘 + N일 )', 'value' => '-14', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
+        'search_range_to_days'   => [ 'name' => '기본 검색 종료일 ( 오늘 + N일 )', 'value' => '15', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
     ],
 
     // ---- B-7. 회사 정보 · 거래명세서 ( 10-29 — docs/screens/60-출하.md §9 ) ----

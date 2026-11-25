@@ -25,6 +25,36 @@ class LotService {
 
     public function __construct(private PolicyService $policy) {}
 
+    /**
+     * 표시 LOT 번호 바꾸기 ( 11-24 · docs/LOT표시번호-설계.md ) — 비우거나 원번호와 같으면 원번호로 ( lot_title = NULL )
+     *   다른 LOT 의 원번호 · 표시 번호와 겹치면 막는다 ( 스캔 · 검색이 한 LOT 으로만 )
+     *   이미 발행한 라벨은 그대로 ( 바코드 = 발행 당시 번호 ) — 새 번호 바코드는 [새로 발행]
+     */
+    public function rename(int $lotIdx, ?string $title): Lot {
+        return DB::transaction(function () use ($lotIdx, $title) {
+            $lot = Lot::whereKey($lotIdx)->lockForUpdate()->first();
+            if (!$lot) {
+                throw ValidationException::withMessages(['lot_idx' => ['LOT 을 찾을 수 없습니다.']]);
+            }
+            $title = $title !== null ? trim($title) : '';
+            $orig  = $lot->original_no;
+            if ($title === '' || $title === $orig) {
+                $title = null;
+            } else {
+                if (mb_strlen($title) > 60) {
+                    throw ValidationException::withMessages(['lot_title' => ['LOT 번호는 60자까지입니다.']]);
+                }
+                $dup = Lot::where('lot_idx', '!=', $lotIdx)->where(fn ($q) => $q->where('lot_no', $title)->orWhere('lot_title', $title))->first(['lot_idx', 'lot_no', 'lot_title']);
+                if ($dup) {
+                    throw ValidationException::withMessages(['lot_title' => ["「{$title}」 은 다른 LOT( {$dup->original_no} )에서 쓰고 있습니다."]]);
+                }
+            }
+            $lot->lot_title = $title;
+            $lot->save();
+            return $lot->fresh();
+        });
+    }
+
     public function enabled(): bool {
         return $this->policy->isEnabled('feature.lot');
     }

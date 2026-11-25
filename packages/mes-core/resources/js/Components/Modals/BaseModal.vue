@@ -24,7 +24,6 @@
                         v-bind="modal.props"
                         @close="modalStore.close(modal.id)"
                     />
-                    <!-- 디버깅 : 이 모달의 본체 파일 ( 시스템 계정만 ) -->
                     <div class="flex justify-end mt-2 -mb-3 -mr-3"><DevSourceTag :name="sourceName(modal.component)" /></div>
                 </div>
             </div>

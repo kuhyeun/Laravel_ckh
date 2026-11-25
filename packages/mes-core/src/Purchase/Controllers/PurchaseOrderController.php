@@ -53,6 +53,21 @@ class PurchaseOrderController extends Controller {
         return response()->json(['rows' => $this->demand->rows($v['keyword'] ?? null, $v['purchase_order_idx'] ?? null, !empty($v['include_done']))]);
     }
 
+    // [계산] 탭 ( 11-20 ) : 기간 안에 발주해야 할 수주 · 생산계획의 자재 → 필요 · 재고 · 입고 대기 · 안전재고 · 발주 수량 ( PurchaseCalcService )
+    public function calc(Request $request) {
+        $v = $request->validate([
+            'days'               => 'required|integer|min:0|max:365',
+            'basis'              => 'required|in:ORDER,PLAN',
+            'lead'               => 'required|integer|min:0|max:365',
+            'subtract_produced'  => 'nullable|boolean',
+            'include_overdue'    => 'nullable|boolean',   // 납기 · 시작일이 지난 줄도 ( 11-23 )
+            'purchase_order_idx' => 'nullable|integer',   // 고치는 발주 — 입고 대기에서 뺀다 ( 화면이 이미 담은 줄 )
+        ]);
+        return response()->json((new \MesCore\Purchase\Services\PurchaseCalcService)->calc(
+            (int) $v['days'], $v['basis'], (int) $v['lead'], !empty($v['subtract_produced']), $v['purchase_order_idx'] ?? null, !empty($v['include_overdue']),
+        ));
+    }
+
     // 목록 : 기간( 발주일 / 입고 예정일 ) + 검색어( 발주번호 · 발주명 · 품번 · 품명 ) + 구매처 + 상태
     public function list(Request $request) {
         $v = $request->validate([
@@ -142,7 +157,11 @@ class PurchaseOrderController extends Controller {
             'lines.*.unit_price'              => 'nullable|numeric|min:0|max:9999999999999',
             'lines.*.due_date'                => 'required|date_format:Y-m-d',
             'lines.*.remark'                  => 'nullable|string|max:200',
-            'lines.*.sales_order_line_idx'    => 'nullable|integer',   // 출처 수주 줄 ( 수주 자재에서 )
+            'lines.*.sales_order_line_idx'    => 'nullable|integer',   // 출처 수주 줄 ( 수주 자재에서 · 하나 — 예전 방식 )
+            // 출처 여러 개 ( 11-24 · [합쳐서 담기] — 자재 한 줄 = 수주 여러 줄 · qty = 그 수주의 몫 )
+            'lines.*.sources'                          => 'nullable|array|max:200',
+            'lines.*.sources.*.sales_order_line_idx'   => 'required|integer',
+            'lines.*.sources.*.qty'                    => 'nullable|numeric|min:0|max:999999999999',
         ], [
             'lines.required' => '품목을 하나 이상 넣으세요.',
             'lines.min'      => '품목을 하나 이상 넣으세요.',
@@ -335,13 +354,16 @@ class PurchaseOrderController extends Controller {
         ];
     }
 
-    // 줄 출처 ( 수주 자재에서 내린 줄 — 지금은 하나 ) : 화면 표시 "SO-… #n · 제품"
+    // 줄 출처 ( 수주 자재에서 내린 줄 ) : 여러 개( 11-24 · 합쳐서 담은 줄 ) — [ { sales_order_line_idx, qty( 그 수주의 몫 ), label "SO-… #n · 제품" } ]
     private function sourceOf(PurchaseOrderLine $l): array {
-        $src = $l->relationLoaded('sources') ? $l->sources->first() : $l->sources()->with('salesOrderLine.order', 'salesOrderLine.item')->first();
-        $sol = $src?->salesOrderLine;
+        $srcs = ($l->relationLoaded('sources') ? $l->sources : $l->sources()->with('salesOrderLine.order', 'salesOrderLine.item')->get())
+            ->sortBy('purchase_order_line_source_idx')->values();
         return [
-            'sales_order_line_idx' => $sol?->sales_order_line_idx,
-            'source_label'         => $sol ? "{$sol->order?->order_no} #{$sol->line_no} · {$sol->item?->item_code} {$sol->item?->item_name}" : null,
+            'sources' => $srcs->map(fn ($s) => [
+                'sales_order_line_idx' => (int) $s->sales_order_line_idx,
+                'qty'                  => (float) $s->qty,
+                'label'                => $s->salesOrderLine ? "{$s->salesOrderLine->order?->order_no} #{$s->salesOrderLine->line_no} · {$s->salesOrderLine->item?->item_code} {$s->salesOrderLine->item?->item_name}" : "#{$s->sales_order_line_idx}",
+            ])->all(),
         ];
     }
 }

@@ -47,7 +47,7 @@ class ShipmentController extends Controller {
 
         $col   = self::DATE_COLUMNS[$v['date_basis'] ?? 'plan'];
         $query = Shipment::query()
-            ->with(['partner:partner_idx,partner_name', 'site:site_idx,site_name', 'lines.item:item_idx,item_code,item_name,spec,material,spec_unit', 'lines.salesOrderLine.order:sales_order_idx,order_no', 'lines.picks.lot:lot_idx,lot_no'])
+            ->with(['partner:partner_idx,partner_name', 'site:site_idx,site_name', 'lines.item:item_idx,item_code,item_name,spec,material,spec_unit', 'lines.salesOrderLine.order:sales_order_idx,order_no', 'lines.picks.lot:lot_idx,lot_no,lot_title'])
             ->orderByDesc('plan_date')->orderByDesc('shipment_idx');
 
         $status = $v['status'] ?? '';   // 없으면 전체 ( 화면 기본값은 blankFilters 가 늘 보낸다 — 스타일 가이드 §3 )

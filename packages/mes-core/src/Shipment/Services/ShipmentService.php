@@ -98,7 +98,7 @@ class ShipmentService {
             ->where('b.item_idx', $itemIdx)->where('b.qty', '>', 0)->where('w.is_use', 'Y')
             ->where(fn ($q) => $q->where('b.lot_idx', 0)->orWhereNotNull('l.in_at'))
             ->orderBy('l.in_at')->orderBy('l.lot_no')->orderBy('b.stock_balance_idx')
-            ->get(['b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty', 'w.warehouse_name', 'l.lot_no', 'l.in_at'])
+            ->get(['b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty', 'w.warehouse_name', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'l.in_at'])
             ->map(function ($r) use ($reserved) {
                 $res = $reserved["{$r->item_idx}:{$r->lot_idx}:{$r->warehouse_idx}"] ?? 0.0;
                 return [
@@ -314,7 +314,7 @@ class ShipmentService {
         });
         // 알림 : 승인할 수 있는 사람( 출하관리 삭제 권한 — 승인 · 반려 주소의 권한 )에게 ( 11-13 )
         $notes = app(\MesCore\Support\NotificationService::class);
-        $notes->send('APPROVAL_REQUEST', $notes->usersWithPage(self::PAGE, 'can_delete'), $this->noteMsg($s, '출하 결재 요청', "{$this->actorName()} 님이 결재를 요청했습니다."));
+        $notes->send('SHIP_APPROVAL_REQUEST', $notes->usersWithPage(self::PAGE, 'can_delete'), $this->noteMsg($s, '출하 결재 요청', "{$this->actorName()} 님이 결재를 요청했습니다."));
     }
 
     public function approve(Shipment $s): void {
@@ -325,7 +325,7 @@ class ShipmentService {
             $s->fill(['approval_status' => 'APPROVED', 'approved_by' => Auth::id(), 'approved_at' => now()]);
         });
         // 알림 : 요청한 사람에게
-        app(\MesCore\Support\NotificationService::class)->send('APPROVAL_APPROVED', [(int) $s->approval_requested_by], $this->noteMsg($s, '출하 결재 승인', "{$this->actorName()} 님이 승인했습니다."));
+        app(\MesCore\Support\NotificationService::class)->send('SHIP_APPROVAL_APPROVED', [(int) $s->approval_requested_by], $this->noteMsg($s, '출하 결재 승인', "{$this->actorName()} 님이 승인했습니다."));
     }
 
     public function reject(Shipment $s, string $reason): void {
@@ -335,7 +335,7 @@ class ShipmentService {
             }
             $s->fill(['approval_status' => 'REJECTED', 'approved_by' => Auth::id(), 'approved_at' => now(), 'reject_reason' => $reason]);
         });
-        app(\MesCore\Support\NotificationService::class)->send('APPROVAL_REJECTED', [(int) $s->approval_requested_by], $this->noteMsg($s, '출하 결재 반려', "{$this->actorName()} 님이 반려했습니다. 사유 : {$reason}"));
+        app(\MesCore\Support\NotificationService::class)->send('SHIP_APPROVAL_REJECTED', [(int) $s->approval_requested_by], $this->noteMsg($s, '출하 결재 반려', "{$this->actorName()} 님이 반려했습니다. 사유 : {$reason}"));
     }
 
     // 알림 내용 ( 출하 결재 ) — 누르면 출하관리 · 검색어 = 출하번호

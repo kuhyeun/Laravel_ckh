@@ -7,6 +7,7 @@ use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\InspectionSpec;
+use MesCore\Quality\Services\InspectionReportService;
 use MesCore\Config\Models\Partner;
 use MesCore\Menu\Services\MenuPermissionService;
 use MesCore\Purchase\Services\ReceiptService;
@@ -65,7 +66,7 @@ class IncomingInspectionController extends Controller {
             'txn_no'          => fn ($q, $kw) => $q->where('stock_txn.txn_no', 'like', $kw),
             'item_code'       => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
             'item_name'       => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
-            'lot_no'          => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'lot_no'          => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
             'external_lot_no' => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('external_lot_no', 'like', $kw)),
             'heat_no'         => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('heat_no', 'like', $kw)),
         ]);
@@ -92,14 +93,11 @@ class IncomingInspectionController extends Controller {
         ]);
     }
 
-    // 검사완료 창 : 줄 · LOT · 기준서 요약 · 지금 검사 기록
-    public function show(int $lineIdx) {
+    // 검사완료 창 : 줄 · LOT · 지금 검사 기록 · 성적서( 설정이 켜졌을 때 — 기준서 · 측정값 · 11-23 )
+    public function show(int $lineIdx, InspectionReportService $reports) {
         $this->requireScreen('can_read');
         $line = $this->findLine($lineIdx);
 
-        $spec = InspectionSpec::withCount('lines')
-            ->where('item_idx', $line->item_idx)->where('insp_type', 'INCOMING')->where('is_use', 'Y')
-            ->first(['inspection_spec_idx', 'inspection_spec_name']);
         $inspection = $this->inspections->activeInspection($line);
 
         return response()->json([
@@ -122,12 +120,9 @@ class IncomingInspectionController extends Controller {
                 'insp_mode'          => $line->insp_mode,
                 'line_status'        => $line->line_status,
             ],
-            'spec' => $spec ? [
-                'inspection_spec_idx'  => $spec->inspection_spec_idx,
-                'inspection_spec_name' => $spec->inspection_spec_name,
-                'item_count'           => $spec->lines_count,
-                'items'                => $spec->lines()->orderBy('seq')->limit(20)->pluck('inspection_item_name'),
-            ] : null,
+            // 성적서 ( 11-23 ) : 설정이 켜졌으면 고를 기준서( 이 검사 종류의 기본 먼저 ) · 저장된 측정값
+            'report'     => $reports->enabled('INCOMING'),
+            'specs'      => $reports->enabled('INCOMING') ? InspectionSpec::options('INCOMING') : [],
             'inspection' => $inspection ? [
                 'inspection_idx' => $inspection->inspection_idx,
                 'result'         => $inspection->result,
@@ -137,6 +132,7 @@ class IncomingInspectionController extends Controller {
                 'inspector_name' => $inspection->inspector?->user_name ?: $inspection->inspector?->user_id,
                 ...app(\MesCore\Quality\Services\DefectService::class)->summary($inspection->defects),   // defect_type · reason ( 불량 여러 줄 요약 )
                 'remark'         => $inspection->remark,
+                ...$this->reportOf($inspection, $reports),
             ] : null,
             'inspectors' => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
             'now'        => now()->format('Y-m-d\TH:i'),
@@ -160,6 +156,7 @@ class IncomingInspectionController extends Controller {
             'inspector_idx' => ['required', 'integer', User::pickableRule()],
             'inspected_at'  => 'required|date_format:Y-m-d\TH:i',
             'remark'        => 'nullable|string|max:2000',
+            ...InspectionReportService::rules(),   // 성적서 측정값 ( 11-23 )
         ], [], [
             'pass_qty' => '합격', 'fail_qty' => '불합격', 'defect_type_code' => '불량 유형', 'reason' => '불량 상세', 'inspector_idx' => '검사자', 'inspected_at' => '검사일시',
         ]);
@@ -183,6 +180,12 @@ class IncomingInspectionController extends Controller {
     }
 
     // ---- 내부 ----
+
+    // 저장된 성적서 ( 측정값을 넣은 검사만 )
+    private function reportOf(\MesCore\Quality\Models\Inspection $i, InspectionReportService $reports): array {
+        return ['inspection_idx' => $i->inspection_idx, 'mode' => $i->mode, 'spec_name' => $i->inspection_spec_idx ? InspectionSpec::whereKey($i->inspection_spec_idx)->value('inspection_spec_name') : null,
+            'measures' => $i->mode === 'SHEET' ? $reports->rows($i) : []];
+    }
 
     private function findLine(int $lineIdx): StockTxnLine {
         $line = StockTxnLine::with(['txn.partner', 'item', 'lot', 'warehouse'])->find($lineIdx);

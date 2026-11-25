@@ -14,7 +14,7 @@ use MesCore\Stock\Models\StockTxnLine;
  *
  *   검사완료 : 합격 + 불합격 = 입고 수량. 합격분만 입고완료( 원장 + ), 불합격분은 불량 기록 ( 재고에 안 잡힘 )
  *   검사취소 : 합격분 되돌림( 역분개 ) → 다시 검사대기. 이미 출고 · 이동됐으면 막음
- *   Phase 1 은 SIMPLE 만 ( quality.mode.incoming )
+ *   성적서 ( 11-23 ) : quality.report.incoming 이 켜졌으면 기준서 측정값을 같이 저장 ( InspectionReportService — mode = SHEET )
  */
 class IncomingInspectionService {
     use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
@@ -61,6 +61,7 @@ class IncomingInspectionService {
                 'inspector_idx' => $data['inspector_idx'],
                 'remark'        => $data['remark'] ?? null,
             ]);
+            app(InspectionReportService::class)->record($inspection, $data['measure'] ?? null);   // 성적서 ( 11-23 — 설정이 켜졌을 때만 · 측정값 필수 )
 
             $this->defects->recordRows($inspection, [
                 'item_idx'         => $line->item_idx,

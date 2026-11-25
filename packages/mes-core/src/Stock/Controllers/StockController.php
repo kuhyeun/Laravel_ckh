@@ -29,17 +29,22 @@ class StockController extends Controller {
     private const HISTORY_PER_PAGE     = 50;    // LOT 이력 한 페이지 줄 수 ( 최근 것부터 )
     private const HISTORY_PER_PAGE_MAX = 200;
 
-    // 목록 : 품목 × LOT × 창고 ( group=item 이면 품목 × 창고 합계 )
+    // 목록 : 품목 × LOT × 창고 ( group=item 이면 품목 × 창고 합계 · item_all 이면 품목 합계( 전 창고 ) — 재고관리 품목 탭 · 11-23 )
+    //   item_idx : 그 품목만 ( 재고관리의 품목 LOT 탭 )
+    //   합계 보기에서 LOT · 공급처 LOT · Heat No 로 찾으면 그 LOT 이 있는 품목 ( 합계는 그 품목 전체 )
     public function list(Request $request) {
         $v = $request->validate([
             'keyword'       => 'nullable|string|max:100',
             'warehouse_idx' => 'nullable|integer',
             'item_type'     => 'nullable|in:MATERIAL,PRODUCT',
             'with_zero'     => 'nullable|in:0,1',
-            'group'         => 'nullable|in:lot,item',
+            'group'         => 'nullable|in:lot,item,item_all',
             'no_label'      => 'nullable|in:0,1',
+            'item_idx'      => 'nullable|integer',
+            'exact_warehouse_idx' => 'nullable|integer',   // 그 창고만 ( 하위 창고 빼고 — 창고별 재고관리의 품목 LOT 탭 )
         ]);
-        $byItem   = ($v['group'] ?? 'lot') === 'item';
+        $allWh    = ($v['group'] ?? 'lot') === 'item_all';
+        $byItem   = in_array($v['group'] ?? 'lot', ['item', 'item_all'], true);
         $itemType = $this->itemScope($request) ?? ($v['item_type'] ?? null);   // 범위가 있으면 화면 값은 무시
 
         $query = StockBalance::query()
@@ -47,7 +52,20 @@ class StockController extends Controller {
             ->join('item as i', 'i.item_idx', '=', 'b.item_idx')
             ->join('warehouse as w', 'w.warehouse_idx', '=', 'b.warehouse_idx');
 
-        if ($byItem) {
+        if ($allWh) {
+            // 품목 하나 = 한 줄 ( 전 창고 ) — 창고 · LOT 수는 재고가 있는 것만 센다
+            //   품목 기준( 품목 ← 잔고 ) : 무재고 포함이면 입고된 적 없는 품목도 ( 사용 중 품목 · 미사용이어도 잔고 줄이 있으면 ) · 11-23
+            $query = StockBalance::query()->from('item as i')
+                ->leftJoin('stock_balance as b', 'b.item_idx', '=', 'i.item_idx')
+                ->leftJoin('warehouse as w', 'w.warehouse_idx', '=', 'b.warehouse_idx')
+                ->where(fn ($q) => $q->where('i.is_use', 'Y')->orWhereNotNull('b.stock_balance_idx'));
+            $query->selectRaw('i.item_idx, NULL AS warehouse_idx, i.item_code, i.item_name, i.spec AS item_spec, i.material AS item_material, i.item_type, i.spec_unit, COALESCE(SUM(b.qty), 0) AS qty,'
+                    . ' SUM(CASE WHEN b.qty <> 0 THEN 1 ELSE 0 END) AS lot_count, COUNT(DISTINCT CASE WHEN b.qty <> 0 THEN b.warehouse_idx END) AS wh_count,'
+                    . ' MIN(CASE WHEN b.qty <> 0 THEN w.warehouse_name END) AS warehouse_name')
+                ->groupBy('i.item_idx', 'i.item_code', 'i.item_name', 'i.spec', 'i.material', 'i.item_type', 'i.spec_unit')
+                ->orderBy('i.item_code');
+            if (($v['with_zero'] ?? '0') !== '1') $query->havingRaw('COALESCE(SUM(b.qty), 0) <> 0');
+        } elseif ($byItem) {
             $query->selectRaw('b.item_idx, b.warehouse_idx, i.item_code, i.item_name, i.spec AS item_spec, i.material AS item_material, i.item_type, i.spec_unit, w.warehouse_name, SUM(b.qty) AS qty, COUNT(*) AS lot_count')
                 ->groupBy('b.item_idx', 'b.warehouse_idx', 'i.item_code', 'i.item_name', 'i.spec', 'i.material', 'i.item_type', 'i.spec_unit', 'w.warehouse_name')
                 ->orderBy('i.item_code');
@@ -57,7 +75,7 @@ class StockController extends Controller {
                 ->leftJoin('partner as p', 'p.partner_idx', '=', 'l.partner_idx')
                 ->select('b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty',
                     'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.item_type', 'i.spec_unit', 'w.warehouse_name',
-                    'l.lot_no', 'l.external_lot_no', 'l.heat_no', 'l.spec_value', 'l.in_at', 'p.partner_name')
+                    \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'l.external_lot_no', 'l.heat_no', 'l.spec_value', 'l.in_at', 'p.partner_name')
                 // 이 LOT 에 발행된 라벨 장수 ( 폐기 제외 ) — 원문 "해당 LOT 에 발행된 바코드가 있는지 표시"
                 ->selectSub(fn ($q) => $q->from('barcode_label as bl')->selectRaw('COALESCE(SUM(bl.label_count), 0)')
                     ->whereColumn('bl.lot_idx', 'b.lot_idx')->where('bl.status', 'ISSUED'), 'label_count')
@@ -71,23 +89,32 @@ class StockController extends Controller {
 
         if (!empty($v['warehouse_idx'])) $query->whereIn('b.warehouse_idx', $this->withDescendants((int) $v['warehouse_idx']));
         if (!empty($itemType))           $query->where('i.item_type', $itemType);
-        // 품목별이면 LOT 조건이 없다 ( 화면도 LOT 조건을 뺀다 )
+        if (!empty($v['item_idx']))      $query->where('i.item_idx', (int) $v['item_idx']);
+        if (!empty($v['exact_warehouse_idx'])) $query->where('b.warehouse_idx', (int) $v['exact_warehouse_idx']);
+        // 합계에서 LOT 조건 = 그 LOT 이 있는 품목( 품목 × 창고 합계면 그 창고에 ) — 합계 수량은 그 품목 전체
+        $hasLot = fn (string $col) => fn ($q, $kw) => $allWh
+            ? $q->whereIn('i.item_idx', fn ($s) => $s->from('stock_balance as b2')
+                ->join('lot as l2', 'l2.lot_idx', '=', 'b2.lot_idx')->where("l2.{$col}", 'like', $kw)->select('b2.item_idx'))
+            : $q->whereExists(fn ($s) => $s->from('stock_balance as b2')->join('lot as l2', 'l2.lot_idx', '=', 'b2.lot_idx')
+                ->whereColumn('b2.item_idx', 'b.item_idx')->whereColumn('b2.warehouse_idx', 'b.warehouse_idx')->where("l2.{$col}", 'like', $kw));
         $this->applyKeyword($query, $v['keyword'] ?? null, [
             'item_code' => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
             'item_name' => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
             'spec'      => fn ($q, $kw) => $q->where('i.spec', 'like', $kw),
             'material'  => fn ($q, $kw) => $q->where('i.material', 'like', $kw),
-        ] + ($byItem ? [] : [
-            'lot_no'          => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
+        ] + ($byItem ? [
+            'lot_no' => $hasLot('lot_no'), 'external_lot_no' => $hasLot('external_lot_no'), 'heat_no' => $hasLot('heat_no'),
+        ] : []) + ($byItem ? [] : [
+            'lot_no'          => fn ($q, $kw) => \MesCore\Stock\Models\Lot::whereNoLike($q, $kw, 'l'),
             'external_lot_no' => fn ($q, $kw) => $q->where('l.external_lot_no', 'like', $kw),
             'heat_no'         => fn ($q, $kw) => $q->where('l.heat_no', 'like', $kw),
         ]));
 
         // 품목별 합계는 정렬 허용 열이 다르다 ( 그룹 결과의 별칭 )
-        $sortable = $byItem ? ['item_code', 'qty', 'warehouse_name'] : self::SORTABLE;
+        $sortable = $allWh ? ['item_code', 'qty'] : ($byItem ? ['item_code', 'qty', 'warehouse_name'] : self::SORTABLE);
 
         return $this->listResponse($request, $query, $sortable, 'balances', fn ($r) => [
-            'key'            => $byItem ? "{$r->item_idx}-{$r->warehouse_idx}" : $r->stock_balance_idx,
+            'key'            => $allWh ? "{$r->item_idx}" : ($byItem ? "{$r->item_idx}-{$r->warehouse_idx}" : $r->stock_balance_idx),
             'item_idx'       => $r->item_idx,
             'lot_idx'        => $r->lot_idx ?? null,
             'warehouse_idx'  => $r->warehouse_idx,
@@ -106,6 +133,7 @@ class StockController extends Controller {
             'partner_name'   => $r->partner_name ?? null,
             'qty'            => (float) $r->qty,
             'lot_count'      => isset($r->lot_count) ? (int) $r->lot_count : null,
+            'wh_count'       => isset($r->wh_count) ? (int) $r->wh_count : null,   // 품목 합계( 전 창고 )
             'label_count'    => isset($r->label_count) ? (int) $r->label_count : null,
         ]);
     }
@@ -189,7 +217,7 @@ class StockController extends Controller {
             ->leftJoin('lot as l', 'l.lot_idx', '=', 'b.lot_idx')
             ->where('b.stock_balance_idx', $balanceIdx)
             ->first(['b.stock_balance_idx', 'b.item_idx', 'b.lot_idx', 'b.warehouse_idx', 'b.qty',
-                     'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'w.warehouse_name', 'l.lot_no', 'l.external_lot_no', 'l.heat_no', 'l.spec_value']);
+                     'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'w.warehouse_name', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'l.external_lot_no', 'l.heat_no', 'l.spec_value']);
         if (!$b) {
             abort(404, '재고를 찾을 수 없습니다.');
         }

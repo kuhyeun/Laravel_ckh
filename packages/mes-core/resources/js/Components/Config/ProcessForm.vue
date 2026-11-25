@@ -15,26 +15,20 @@
         <template v-else>
             <!-- 기본 -->
             <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">공정코드 <span class="text-red-400">*</span></label>
+                <FormField label="공정코드" required :error="errors.process_code">
                     <BaseInput v-model="form.process_code" class="w-full" placeholder="예: OP-020" :disabled="readonly" />
-                    <p v-if="errors.process_code" class="text-xs text-red-500 mt-0.5">{{ errors.process_code[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">공정명 <span class="text-red-400">*</span></label>
+                </FormField>
+                <FormField label="공정명" required :error="errors.process_name">
                     <BaseInput v-model="form.process_name" class="w-full" :disabled="readonly" />
-                    <p v-if="errors.process_name" class="text-xs text-red-500 mt-0.5">{{ errors.process_name[0] }}</p>
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-gray-500 font-medium mb-1">공정 구분 <span class="text-red-400">*</span></label>
+                </FormField>
+                <FormField label="공정 구분" required :error="errors.process_type" class="col-span-2">
                     <div class="flex items-center gap-5 h-9">
                         <label v-for="t in PROCESS_TYPES" :key="t.value" class="inline-flex items-center gap-1.5" :class="readonly ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'">
                             <input type="radio" class="accent-blue-600" :value="t.value" v-model="form.process_type" :disabled="readonly" />
                             <span>{{ t.label }}</span>
                         </label>
                     </div>
-                    <p v-if="errors.process_type" class="text-xs text-red-500 mt-0.5">{{ errors.process_type[0] }}</p>
-                </div>
+                </FormField>
                 <div>
                     <label class="block text-gray-500 font-medium mb-1">
                         구분 코드 <span class="text-xs text-gray-400">( 라우트시트 인쇄 · 영문 대문자 1~3자 )</span>
@@ -121,19 +115,18 @@
                 </div>
             </div>
 
-            <div class="mt-4">
-                <label class="block text-gray-500 font-medium mb-1">비고</label>
+            <FormField label="비고" class="mt-4">
                 <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="readonly ? 'resize-none': 'resize-y'" :disabled="readonly"></textarea>
-            </div>
+            </FormField>
         </template>
 
         <!-- 액션 -->
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ readonly ? '닫기' : '취소' }}</BaseButton>
             <BaseButton v-if="!readonly" variant="primary" size="sm" :disabled="saving || loading" @click="save">
                 {{ isEdit ? '수정' : '등록' }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -144,6 +137,8 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { PROCESS_TYPES, INSPECTION_KINDS } from '@core/Components/Config/processCodes';
 
 const props = defineProps({

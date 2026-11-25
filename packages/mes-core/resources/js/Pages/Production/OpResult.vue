@@ -22,8 +22,7 @@
         </SearchBar>
 
         <div class="flex-1 min-h-0 flex gap-3">
-            <!-- 품목 줄 -->
-            <div class="flex-[1] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[3] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-2 bg-gray-50/70 shrink-0">
                     <span class="text-sm font-semibold text-gray-600">품목 줄 · <span class="text-xs text-gray-400">{{ paging.total.toLocaleString() }} 건</span></span>
                     <div class="flex items-center gap-1.5">
@@ -51,7 +50,7 @@
             </div>
 
             <!-- 공정 -->
-            <div class="flex-[2] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
+            <div class="flex-[5] min-w-0 flex flex-col border border-gray-200 overflow-hidden">
                 <div v-if="!line" class="flex-1 flex items-center justify-center text-sm text-gray-400">
                     {{ detailLoading ? '불러오는 중…' : '왼쪽에서 품목 줄을 고르세요.' }}
                 </div>
@@ -94,7 +93,7 @@
                                     <col class="w-12"><col>
                                     <col class="w-24">
                                     <col class="w-16"><col class="w-16">
-                                    <col class="w-14"><col class="w-64">
+                                    <col class="w-14"><col class="w-80">
                                 </colgroup>
                                 <thead class="bg-gray-50 text-gray-500 text-xs">
                                     <tr>
@@ -109,33 +108,40 @@
                                         :class="selectedOp?.work_order_op_idx === o.work_order_op_idx ? 'bg-blue-50' : 'hover:bg-gray-50'"
                                         @click="pickOp(o)">
                                         <td class="px-2 py-1.5 text-center text-gray-500">{{ String(o.seq).padStart(3, '0') }}</td>
-                                        <td class="px-2 py-1.5 truncate" :title="o.ifl?.length ? `${o.name} — 초 · 중 · 종 검사 : ${o.ifl.map(s => `${s.name} ${s.label}`).join(' · ')} ( 판정은 품질관리 > 공정검사에서 )` : o.name">{{ o.name }} <span class="text-xs text-gray-400">{{ o.is_qty ? '' : (o.is_inspection && line.quality_on ? '( 검사 )' : '( 완료만 )') }}</span>
-                                            <!-- 초 · 중 · 종 ( 11-18 ) : 이 공정에 켜진 검사와 지금 판정 — 보기만 ( 입력은 공정검사 ) -->
-                                            <span v-for="s in o.ifl ?? []" :key="s.stage" class="shrink-0 whitespace-nowrap ml-1 px-1 rounded text-[11px]" :class="IFL_CLASS[s.result] ?? 'bg-gray-100 text-gray-500'">{{ s.short }}</span>
+                                        <td class="px-2 py-1.5 truncate" :title="o.ifl?.length ? `${o.name} — 초 · 중 · 종 검사 : ${o.ifl.map(s => `${s.name} ${s.label}`).join(' · ')} ( 판정 기록은 오른쪽 [검사] )` : o.name">{{ o.name }} <span class="text-xs text-gray-400">{{ o.is_qty ? '' : (o.is_inspection && line.quality_on ? '( 검사 )' : '( 완료만 )') }}</span>
+                                            <!-- 초 · 중 · 종 ( 11-18 ) : 이 공정에 켜진 검사와 지금 판정 — 표시만 ( 11-23 · 판정 기록은 오른쪽 [검사] ) -->
+                                            <span v-if="o.ifl?.length" class="ml-1 inline-flex items-center gap-0.5 align-middle" :title="`초 · 중 · 종 판정 — ${o.ifl.map(s => `${s.name} ${s.label}`).join(' · ')}`">
+                                                <span v-for="s in o.ifl" :key="s.stage" class="shrink-0 whitespace-nowrap px-1 rounded text-[11px]" :class="IFL_CLASS[s.result] ?? 'bg-gray-100 text-gray-500'">{{ s.short }}</span>
+                                            </span>
                                         </td>
                                         <td class="px-2 py-1.5 text-center text-gray-500 tabular-nums">{{ o.due_date ?? '' }}</td>
                                         <td class="px-2 py-1.5 text-right text-gray-500">{{ o.base_qty === null ? '—' : fmtNum(o.base_qty) }}</td>
-                                        <td class="px-2 py-1.5 text-right font-semibold">{{ o.is_qty || (o.is_inspection && o.status === 'DONE') ? fmtNum(o.qty) : '—' }}</td>
+                                        <td class="px-2 py-1.5 text-right font-semibold">{{ o.is_qty || (o.is_inspection && (o.status !== 'WAIT' || o.qty > 0)) ? fmtNum(o.qty) : '—' }}</td>
                                         <td class="px-2 py-1.5 text-center font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</td>
                                         <td class="px-2 py-1 text-left whitespace-nowrap" @click.stop>
-                                            <!-- 검사 공정 : 검사 창 ( 완료 뒤에도 기록을 본다 · 취소도 그 창에서 ) -->
-                                            <!-- 원자재출고 공정 : [출고]( 줄이 끝나기 전 ) · [반납]( 출고된 자재가 있으면 — 완료한 뒤에도 ) → 모달 ( 11-12 — 아래 자재 칸의 단추는 없앰 ) -->
-                                            <template v-if="canWrite && o.is_rm_out && (line.materials.length || line.extra_allowed)">
-                                                <BaseButton v-if="line.status !== 'DONE'" size="sm" variant="secondary" @click="openIssue('issue')">출고</BaseButton>
-                                                <BaseButton v-if="hasIssued" size="sm" variant="secondary" class="ml-1 mr-1" @click="openIssue('return')">반납</BaseButton>
-                                            </template>
-                                            <!-- 검사 공정 ( 11-18 ) : 여기서 검사하지 않는다 — 품질관리 > 공정검사 -->
-                                            <span v-if="o.is_inspection && line.quality_on" class="text-xs text-gray-400" title="검사는 품질관리 > 공정검사에서 합니다">{{ o.status === 'DONE' ? '검사 완료' : '공정검사에서 검사' }}</span>
-                                            <template v-else-if="canWrite && o.status !== 'DONE' && line.status !== 'DONE'">
-                                                <!-- 외주 공정 : 실적은 외주 입고로만 → 그 창을 모달로 ( 외주 출고 · 입고 메뉴 권한이 있을 때만 ) -->
-                                                <template v-if="o.is_subcon">
-                                                    <BaseButton v-if="subconUrls.issue" size="sm" variant="secondary" :disabled="busy" @click="openSubconIssue(o)">외주 출고</BaseButton>
-                                                    <BaseButton v-if="subconUrls.receipt" size="sm" variant="secondary" class="ml-1" :disabled="busy" @click="openSubconReceipt(o)">외주 입고</BaseButton>
-                                                    <span v-if="!subconUrls.issue && !subconUrls.receipt" class="text-xs text-gray-400" title="외주관리 > 외주 출고 · 입고로 처리합니다">외주관리에서 처리</span>
+                                            <!-- 단추 사이 간격은 gap 으로 ( 11-19 — ml-1 은 앞 단추가 없을 때도 빈칸이 생겼다 ) -->
+                                            <div class="flex items-center gap-1">
+                                                <!-- 검사 공정 : 검사 창 ( 완료 뒤에도 기록을 본다 · 취소도 그 창에서 ) -->
+                                                <!-- 원자재출고 공정 : [출고]( 줄이 끝나기 전 ) · [반납]( 출고된 자재가 있으면 — 완료한 뒤에도 ) → 모달 ( 11-12 — 아래 자재 칸의 단추는 없앰 ) -->
+                                                <template v-if="canWrite && o.is_rm_out && (line.materials.length || line.extra_allowed)">
+                                                    <BaseButton v-if="line.status !== 'DONE'" size="sm" variant="secondary" @click="openIssue('issue')">출고</BaseButton>
+                                                    <BaseButton v-if="hasIssued" size="sm" variant="secondary" @click="openIssue('return')">반납</BaseButton>
                                                 </template>
-                                                <BaseButton size="sm" variant="primary" class="ml-1" :disabled="!o.is_qty && !!o.block" @click="openPanel(o, 'done')">{{ o.is_qty ? '공정 완료' : '완료' }}</BaseButton>
-                                            </template>
-                                            <BaseButton v-if="canDelete && o.status === 'DONE' && line.status !== 'DONE' && !(o.is_inspection && line.quality_on)" size="sm" variant="secondary" :disabled="busy" @click="cancelComplete(o)">완료 취소</BaseButton>
+                                                <!-- 초 · 중 · 종을 켠 생산 공정 ( 11-23 ) : [검사] = 공정검사 창( 단계 판정 기록 · 성적서 ) — 공정 완료와 별개 · 완료 뒤에도 -->
+                                                <BaseButton v-if="o.ifl?.length" size="sm" variant="secondary" :title="`초 · 중 · 종 판정 기록 — ${o.ifl.map(s => `${s.name} ${s.label}`).join(' · ')}`" @click="openInspection(o)">검사</BaseButton>
+                                                <!-- 검사 공정 ( 11-19 ) : [검사] = 공정검사 창 ( 공정검사관리와 같은 창 — 판정 · 수량 · 기준서 · 성적서 ) · 완료 뒤에도 기록 · 취소를 본다 -->
+                                                <BaseButton v-if="o.is_inspection && line.quality_on" size="sm" :variant="o.status === 'DONE' ? 'secondary' : 'primary'" @click="openInspection(o)">검사</BaseButton>
+                                                <template v-else-if="canWrite && o.status !== 'DONE' && line.status !== 'DONE'">
+                                                    <!-- 외주 공정 : 실적은 외주 입고로만 → 그 창을 모달로 ( 외주 출고 · 입고 메뉴 권한이 있을 때만 ) -->
+                                                    <template v-if="o.is_subcon">
+                                                        <BaseButton v-if="subconUrls.issue" size="sm" variant="secondary" :disabled="busy" @click="openSubconIssue(o)">외주 출고</BaseButton>
+                                                        <BaseButton v-if="subconUrls.receipt" size="sm" variant="secondary" :disabled="busy" @click="openSubconReceipt(o)">외주 입고</BaseButton>
+                                                        <span v-if="!subconUrls.issue && !subconUrls.receipt" class="text-xs text-gray-400" title="외주관리 > 외주 출고 · 입고로 처리합니다">외주관리에서 처리</span>
+                                                    </template>
+                                                    <BaseButton size="sm" variant="primary" :disabled="!o.is_qty && !!o.block" @click="confirmComplete(o)">{{ o.is_qty ? '공정 완료' : '완료' }}</BaseButton>
+                                                </template>
+                                                <BaseButton v-if="canDelete && o.status === 'DONE' && line.status !== 'DONE' && !(o.is_inspection && line.quality_on)" size="sm" variant="secondary" :disabled="busy" @click="cancelComplete(o)">완료 취소</BaseButton>
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -154,92 +160,23 @@
                                 <span v-else-if="selectedOp.block" class="text-xs font-normal text-gray-500">· {{ selectedOp.block }}</span>
                             </div>
 
-                            <!-- 실적 입력 -->
-                            <div v-if="panel === 'run'" class="px-3 py-3 border-b bg-blue-50/40 flex items-end gap-3 flex-wrap">
-                                <p class="w-full -mb-1 text-xs font-semibold text-blue-700">새 실적 입력</p>
-                                <!-- 순서 : 시작 · 종료 · 설비 · 작업자 · 수량 · ( 입고 창고 ) · 비고 ( 11-05 · 시작 / 종료 11-12 ) -->
-                                <div>
-                                    <label class="lbl">시작 시간</label>
-                                    <BaseDatePicker v-model="runForm.started_at" mode="datetime" class="w-48" />
-                                </div>
-                                <div>
-                                    <label class="lbl">종료 시간 <span class="text-red-500">*</span></label>
-                                    <BaseDatePicker v-model="runForm.worked_at" mode="datetime" class="w-48" />
-                                </div>
-                                <div>
-                                    <label class="lbl">설비</label>
-                                    <BaseSelect v-model="runForm.equipment_idx" :options="equipOptions" class="w-44" />
-                                </div>
-                                <div>
-                                    <label class="lbl">작업자 <span class="text-red-500">*</span></label>
-                                    <BaseSelect v-model="runForm.operator_idx" :options="userOptions" placeholder="작업자 선택" class="w-36" />
-                                </div>
-                                <div>
-                                    <label class="lbl">수량 <span class="text-red-500">*</span></label>
-                                    <BaseInput v-model="runForm.qty" type="number" min="0" class="w-28 text-right" />
-                                </div>
-                                <div v-if="selectedOp.receives_on_run">
-                                    <label class="lbl">입고 창고 <span class="text-red-500">*</span></label>
-                                    <WarehouseSelect v-model="runForm.warehouse_idx" :options="warehouses" class="w-44" placeholder="창고" />
-                                </div>
-                                <div>
-                                    <label class="lbl">비고</label>
-                                    <BaseInput v-model="runForm.remark" class="w-80" maxlength="200" />
-                                </div>
-                                <div class="ml-auto flex gap-1">
-                                    <BaseButton size="sm" variant="secondary" :disabled="busy" @click="resetRunForm(selectedOp)">지우기</BaseButton>
-                                    <BaseButton size="sm" variant="primary" :disabled="busy" @click="addRun">저장</BaseButton>
-                                </div>
-                                <p class="w-full text-xs text-gray-500">
-                                    <template v-if="selectedOp.is_first_qty">지시 수량 {{ fmtNum(selectedOp.base_qty) }} · 지금 {{ fmtNum(selectedOp.qty) }}</template>
-                                    <template v-else>앞 공정 실적 {{ fmtNum(selectedOp.base_qty) }} 까지 · 더 넣을 수 있는 수량 <b>{{ fmtNum(Math.max(0, selectedOp.base_qty - selectedOp.qty)) }}</b></template>
-                                    <template v-if="selectedOp.receives_on_run"> · <span class="text-blue-700">마지막 공정이라 저장하면 이 수량만큼 바로 제품을 입고합니다</span></template>
-                                </p>
-                                <!-- 투입 LOT ( 공정 LOT 추적 지시 · 실적LOT-설계 §5 ) — 후보가 있으면 필수 -->
-                                <!-- 투입 LOT : 수동 = 고른다 / 자동( 설정 'LOT 투입 방식' · 11-12 ) = 저장할 때 먼저 들어온 LOT 부터 실적 수량만큼 자동 연결 -->
-                                <p v-if="runLot && line.lot_input_auto" class="w-full pt-2 border-t border-blue-100 text-xs text-blue-700">
-                                    투입 LOT 는 자동으로 연결됩니다 — 먼저 들어온 LOT 부터( 자재 = 입고일순으로 지금 쓰고 있을 LOT · 앞 공정 = 작업 일시순으로 실적 수량만큼 ). 저장한 뒤 아래 실적 줄에서 확인 · [+ 연결] 로 더하거나 해제할 수 있습니다.
-                                </p>
-                                <RunInputPicker v-else-if="runLot" ref="runPicker" class="w-full pt-2 border-t border-blue-100"
-                                    :op-idx="selectedOp.work_order_op_idx" v-model="runForm.inputs" required />
-                            </div>
-
-                            <!-- 완료 -->
-                            <div v-if="panel === 'done'" class="px-3 py-3 border-b bg-blue-50/40 flex items-end gap-3 flex-wrap">
-                                <p class="w-full text-sm">
-                                    <template v-if="selectedOp.is_qty">실적 {{ fmtNum(selectedOp.qty) }} / 기준 {{ fmtNum(selectedOp.base_qty) }} 으로 완료합니다.</template>
-                                    <template v-else>{{ selectedOp.name }} 을 완료합니다.</template>
-                                    <span v-if="selectedOp.is_rm_out" class="ml-1 text-gray-500">덜 나간 자재가 있으면 한 번 더 묻습니다.</span>
-                                    <span v-if="needReason" class="ml-1 text-amber-700">{{ fmtNum(selectedOp.base_qty - selectedOp.qty) }} 미달 — 사유를 고르세요.</span>
-                                    <span v-if="selectedOp.needs_warehouse" class="ml-1 text-blue-700">마지막 공정이라 남은 수량을 제품 입고하고 줄을 완료합니다.</span>
-                                    <span v-else-if="selectedOp.is_last_open" class="ml-1 text-blue-700">마지막 공정이라 줄을 완료합니다. ( 입고는 실적 때 했습니다 )</span>
-                                </p>
-                                <div v-if="needReason">
-                                    <label class="lbl">미달 사유 <span class="text-red-500">*</span></label>
-                                    <BaseSelect v-model="doneForm.short_reason" :options="reasonOptions" class="w-40" placeholder="사유" />
-                                </div>
-                                <div v-if="selectedOp.needs_warehouse">
-                                    <label class="lbl">입고 창고 <span class="text-red-500">*</span></label>
-                                    <WarehouseSelect v-model="doneForm.warehouse_idx" :options="warehouses" class="w-44" placeholder="창고" />
-                                </div>
-                                <div class="flex gap-1">
-                                    <BaseButton size="sm" variant="secondary" @click="closeDone">닫기</BaseButton>
-                                    <BaseButton size="sm" variant="primary" :disabled="busy" @click="complete()">완료</BaseButton>
-                                </div>
-                            </div>
-
-                            <!-- 실적 줄 -->
-                            <div v-if="selectedOp.is_qty" class="overflow-x-auto">
-                                <table class="w-full min-w-[840px] table-fixed text-xs">
+                            <!-- 실적 줄 — 11-23 : 열을 줄여 가로 스크롤 없이 ( 실적 LOT 이 남는 폭 · 비고는 [비고] 단추 → 작은 창 )
+                                 11-23 : 실적 입력 위로 · 높이는 최대 약 10 줄( 넘으면 안에서 스크롤 · 머리 고정 ) — 실적이 많아도 입력 칸이 밀려 내려가지 않게 -->
+                            <div v-if="selectedOp.is_qty" class="overflow-auto max-h-[22rem] border-b">
+                                <table class="w-full table-fixed text-xs" :class="runLot ? 'min-w-[680px]' : 'min-w-[540px]'">
                                     <colgroup>
-                                        <col class="w-56"><col v-if="runLot" class="w-56"><col class="w-40"><col class="w-48"><col class="w-28"><col><col class="w-14">
+                                        <col class="w-40"><col v-if="runLot"><col :class="runLot ? 'w-[6.5rem]' : ''"><col class="w-[8rem]"><col class="w-[4rem]"><col class="w-[5.5rem]">
                                     </colgroup>
-                                    <thead class="text-gray-500"><tr><th class="px-3 py-1.5 text-left">작업 시간</th><th v-if="runLot" class="px-2 py-1.5 text-left">실적 LOT</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">수량</th><th class="px-2 py-1.5 text-left">비고</th><th></th></tr></thead>
+                                    <thead class="text-gray-500 bg-white sticky top-0 z-[1] shadow-[0_1px_0_0_theme('colors.gray.200')]"><tr><th class="px-3 py-1.5 text-left">작업 시간</th><th v-if="runLot" class="px-2 py-1.5 text-left">실적 LOT</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">수량</th><th></th></tr></thead>
                                     <tbody>
-                                        <tr v-if="!selectedOp.runs.length"><td :colspan="runLot ? 7 : 6" class="px-3 py-3 text-center text-gray-400">실적이 없습니다.</td></tr>
+                                        <tr v-if="!selectedOp.runs.length"><td :colspan="runLot ? 6 : 5" class="px-3 py-3 text-center text-gray-400">실적이 없습니다.</td></tr>
                                         <template v-for="r in selectedOp.runs" :key="r.run_idx">
                                         <tr class="border-t">
-                                            <td class="px-3 py-1.5 whitespace-nowrap">{{ runTimeText(r.started_at, r.worked_at) }}</td>
+                                            <!-- 11-24 : 시작 / ~ 종료 두 줄 ( 한 줄이면 칸을 넘어 실적 LOT 과 겹친다 ) -->
+                                            <td class="px-3 py-1.5 align-top whitespace-nowrap overflow-hidden" :title="runTimeText(r.started_at, r.worked_at)">
+                                                <p>{{ r.started_at || r.worked_at }}</p>
+                                                <p v-if="r.started_at && r.worked_at" class="text-gray-500">~ {{ r.started_at.slice(0, 10) === r.worked_at.slice(0, 10) ? r.worked_at.slice(11) : r.worked_at }}</p>
+                                            </td>
                                             <td v-if="runLot" class="px-2 py-1.5 align-top">
                                                 <div class="flex items-center gap-1">
                                                     <span class="truncate font-medium text-gray-700" :title="r.lot_no ?? ''">{{ r.lot_no ?? '—' }}</span>
@@ -256,26 +193,85 @@
                                                 </div>
                                             </td>
                                             <td class="px-2 py-1.5 truncate" :title="r.equipment_name ?? ''">{{ r.equipment_name ?? '—' }}</td>
-                                            <td class="px-2 py-1.5">{{ r.operator }} <span v-if="r.is_proxy" class="text-gray-400">( 입력 : {{ r.creator }} )</span></td>
-                                            <td class="px-2 py-1.5 text-right font-semibold">{{ fmtNum(r.qty) }}<span v-if="r.received" class="shrink-0 whitespace-nowrap ml-1 px-1 rounded bg-blue-50 text-blue-700 font-normal">입고</span></td>
-                                            <td class="px-2 py-1.5 text-gray-500 truncate" :title="r.remark">{{ r.remark }}</td>
-                                            <td class="px-2 py-1 text-right"><button v-if="canDelete && selectedOp.status !== 'DONE'" type="button" class="text-gray-400 hover:text-red-500" :disabled="busy" @click="cancelRun(r)">취소</button></td>
-                                        </tr>
-                                        <tr v-if="runLot && addingRun === r.run_idx" class="bg-blue-50/40">
-                                            <td :colspan="7" class="px-3 py-2">
-                                                <p class="mb-1 text-xs text-gray-600"><b>{{ r.lot_no }}</b> 에 투입 LOT 더하기 ( 나중에 출고한 자재 · 빠뜨린 앞 공정 LOT )</p>
-                                                <!-- 이미 이 실적에 연결된 LOT 는 후보에서 뺀다 ( 11-12 · 서버도 막는다 ) -->
-                                                <RunInputPicker :op-idx="selectedOp.work_order_op_idx" v-model="addInputs" :exclude="r.inputs.map(x => `${x.input_type}:${x.lot_idx}`)" />
-                                                <div class="mt-1.5 flex justify-end gap-1">
-                                                    <BaseButton size="sm" variant="secondary" :disabled="busy" @click="addingRun = null">닫기</BaseButton>
-                                                    <BaseButton size="sm" variant="primary" :disabled="busy || !addInputs.length" @click="saveAddInputs(r)">연결 추가</BaseButton>
-                                                </div>
+                                            <td class="px-2 py-1.5">
+                                                <p class="truncate" :title="r.operator">{{ r.operator }}</p>
+                                                <p v-if="r.is_proxy" class="truncate text-[11px] text-gray-400" :title="`입력 : ${r.creator}`">입력 : {{ r.creator }}</p>
+                                            </td>
+                                            <td class="px-2 py-1.5 text-right font-semibold whitespace-nowrap">{{ fmtNum(r.qty) }}<span v-if="r.received" class="ml-1 px-1 rounded bg-blue-50 text-blue-700 font-normal">입고</span></td>
+                                            <td class="px-2 py-1 text-right whitespace-nowrap">
+                                                <button v-if="r.remark" type="button" class="text-gray-500 hover:text-blue-600" :title="r.remark" @click="showRemark(r)">비고</button>
+                                                <button v-if="canDelete && selectedOp.status !== 'DONE'" type="button" class="ml-2 text-gray-400 hover:text-red-500" :disabled="busy" @click="cancelRun(r)">취소</button>
                                             </td>
                                         </tr>
                                         </template>
                                     </tbody>
                                 </table>
                             </div>
+
+                            <!-- 실적 입력 -->
+                            <div v-if="panel === 'run'" class="px-3 py-3 bg-blue-50/40 flex items-end gap-3 flex-wrap">
+                                <p class="w-full -mb-1 text-xs font-semibold text-blue-700">새 실적 입력</p>
+                                <!-- 순서 : 시작 · 종료 · 설비 · 작업자 · 수량 · ( 입고 창고 ) · 비고 ( 11-05 · 시작 / 종료 11-12 ) -->
+                                <div>
+                                    <label class="lbl">시작 시간</label>
+                                    <BaseDatePicker v-model="runForm.started_at" mode="datetime" class="w-48" />
+                                </div>
+                                <div>
+                                    <label class="lbl">종료 시간 <span class="text-red-500">*</span></label>
+                                    <BaseDatePicker v-model="runForm.worked_at" mode="datetime" class="w-48" />
+                                </div>
+                                <div>
+                                    <label class="lbl">설비</label>
+                                    <BaseSelect v-model="runForm.equipment_idx" :options="equipOptions" class="w-44" />
+                                </div>
+                                <div>
+                                    <label class="lbl">작업자 <span class="text-red-500">*</span></label>
+                                    <UserSelect v-model="runForm.operator_idx" :users="users" placeholder="작업자 선택" class="w-36" />
+                                </div>
+                                <div>
+                                    <label class="lbl">수량 <span class="text-red-500">*</span></label>
+                                    <BaseInput v-model="runForm.qty" type="number" min="0" class="w-28 text-right" />
+                                </div>
+                                <div v-if="selectedOp.receives_on_run">
+                                    <label class="lbl">입고 창고 <span class="text-red-500">*</span></label>
+                                    <WarehouseSelect v-model="runForm.warehouse_idx" :options="warehouses" class="w-44" placeholder="창고" />
+                                </div>
+                                <div>
+                                    <label class="lbl">비고</label>
+                                    <BaseInput v-model="runForm.remark" class="w-96" maxlength="200" />
+                                </div>
+                                <!-- 투입 LOT ( 11-23 ) : 단추 → 창( 찾기 · 고르기 ) · 뱃지 = 고른 LOT 수 ( 다 골랐으면 초록 · 덜 골랐으면 주황 ) -->
+                                <div v-if="runLot && !line.lot_input_auto">
+                                    <label class="lbl">투입 LOT <span v-if="inputSummary.hasAny" class="text-red-500">*</span></label>
+                                    <button type="button" class="h-9 px-3 inline-flex items-center gap-2 rounded border border-gray-300 bg-white hover:bg-gray-50 text-sm text-gray-700"
+                                        :title="inputSummary.hasAny ? `고름 ${runForm.inputs.length}${inputSummary.missing ? ` · 자재 ${inputSummary.missing}종 안 고름` : ''}` : '고를 투입 LOT 가 없습니다'"
+                                        @click="openRunInputs">
+                                        투입 LOT 선택
+                                        <span class="min-w-[1.25rem] h-5 px-1.5 inline-flex items-center justify-center rounded-full text-[11px] font-semibold"
+                                            :class="!runForm.inputs.length ? 'bg-gray-200 text-gray-600' : inputSummary.missing ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'">{{ runForm.inputs.length }}</span>
+                                    </button>
+                                    <RunInputPicker ref="runPicker" class="hidden" :op-idx="selectedOp.work_order_op_idx" v-model="runForm.inputs" required auto-pick />
+                                </div>
+                                <div class="ml-auto flex gap-1">
+                                    <BaseButton variant="secondary" :disabled="busy" @click="resetRunForm(selectedOp)">지우기</BaseButton>
+                                    <BaseButton variant="primary" :disabled="busy" @click="addRun">저장</BaseButton>
+                                </div>
+                                <!-- 초 · 중 · 종 불량 ( 11-23 ) : 판정 기록은 실적에서 빼지 않는다 → 실적은 양품 수량으로 -->
+                                <p v-if="selectedOp.ifl_fail > 0" class="w-full px-2.5 py-1.5 rounded border border-amber-200 bg-amber-50 text-xs text-amber-800">
+                                    ⚠ 이 공정에 초 · 중 · 종 검사 불량 <b>{{ fmtNum(selectedOp.ifl_fail) }}</b>개가 기록돼 있습니다. 판정 기록은 실적에서 빠지지 않으니, 실적 수량은 <b>불량을 뺀 양품 수량</b>으로 넣으세요.
+                                </p>
+                                <p class="w-full text-xs text-gray-500">
+                                    <template v-if="selectedOp.is_first_qty">지시 수량 {{ fmtNum(selectedOp.base_qty) }} · 실적 {{ fmtNum(selectedOp.qty) }}</template>
+                                    <template v-else>앞 공정 실적 {{ fmtNum(selectedOp.base_qty) }} 까지 · 더 넣을 수 있는 수량 <b>{{ fmtNum(Math.max(0, selectedOp.base_qty - selectedOp.qty)) }}</b></template>
+                                    <template v-if="selectedOp.receives_on_run"> · <span class="text-blue-700">마지막 공정이라 저장하면 이 수량만큼 바로 제품을 입고합니다</span></template>
+                                </p>
+                                <!-- 투입 LOT ( 공정 LOT 추적 지시 · 실적LOT-설계 §5 ) — 후보가 있으면 필수 · 11-23 : 비고 옆 [투입 LOT 선택] 단추 → 창 ( LOT 하나뿐인 자재는 골라 둔다 ) -->
+                                <!-- 투입 LOT : 수동 = 고른다 / 자동( 설정 'LOT 투입 방식' · 11-12 ) = 저장할 때 먼저 들어온 LOT 부터 실적 수량만큼 자동 연결 -->
+                                <p v-if="runLot && line.lot_input_auto" class="w-full pt-2 border-t border-blue-100 text-xs text-blue-700">
+                                    투입 LOT 는 자동으로 연결됩니다 — 먼저 들어온 LOT 부터( 자재 = 입고일순으로 지금 쓰고 있을 LOT · 앞 공정 = 작업 일시순으로 실적 수량만큼 ). 저장한 뒤 아래 실적 줄에서 확인 · [+ 연결] 로 더하거나 해제할 수 있습니다.
+                                </p>
+                            </div>
+
                         </section>
 
                         <!-- 자재 — 원자재출고 공정을 골랐을 때만 ( 11-12 · 원자재출고 공정이 없는 줄은 위 공정 머리줄의 [출고] · [반납] 으로 ) -->
@@ -320,7 +316,9 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import UserSelect from '@core/Components/Common/UserSelect.vue';
 import { showAlert } from '@core/Utils/message';
+import Swal from 'sweetalert2';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
 import SubconIssueForm from '@core/Components/Production/SubconIssueForm.vue';
@@ -332,6 +330,7 @@ import { useToast } from '@core/Composables/useToast';
 import { useLatest } from '@core/Composables/useLatest';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
 import RunInputPicker from '@core/Components/Production/RunInputPicker.vue';
+import RunInputPickModal from '@core/Components/Production/RunInputPickModal.vue';
 import { fmtNum, runTimeText } from '@core/Utils/format';
 
 defineOptions({ layout: AppLayout });
@@ -344,6 +343,7 @@ const canWrite  = computed(() => myPerm.value.can_write  === true);
 const canDelete = computed(() => myPerm.value.can_delete === true);
 
 const STATUS_FILTER = [
+    { value: 'ALL',  label: '전체' },   // 11-20 · 대기 · 진행 · 완료 ( 취소 제외 ) — 기본
     { value: 'OPEN', label: '대기 · 진행' },
     { value: 'WAIT', label: '대기' },
     { value: 'RUN',  label: '진행' },
@@ -356,16 +356,18 @@ const SEARCH_FIELDS = [
     { value: 'item_name', label: '품명' },
     { value: 'lot_no',    label: 'LOT' },
 ];
-const blankFilters = () => ({ status: 'OPEN' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
+const blankFilters = () => ({ status: 'ALL' });   // 거르기 기본값 — 처음 값 · [초기화] 같이 ( 스타일 가이드 §3 )
 const search = reactive({ keyword: '', ...blankFilters() });
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
 const columns = [
     { header: '줄 번호', name: 'wo_no', width: 150, sortable: true, className: 'cursor-pointer' },
-    { header: '품목', name: 'item_label', minWidth: 120, className: 'cursor-pointer', escapeHTML: true },
-    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true },
-    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true },
+    // 품목 = 품명 [품번] [규격] ( 11-20 ) · 규격 · 재질 열은 기본 숨김 ( 열 설정에서 켠다 )
+    { header: '품목', name: 'item_label', minWidth: 200, className: 'cursor-pointer', escapeHTML: true,
+      formatter: ({ row }) => row.item_spec ? `${row.item_label} [${row.item_spec}]` : row.item_label },
+    { header: '규격', name: 'item_spec', width: 110, className: 'cursor-pointer', escapeHTML: true, hidden: true },
+    { header: '재질', name: 'item_material', width: 90, className: 'cursor-pointer', escapeHTML: true, hidden: true },
     { header: '수량', name: 'target_qty', width: 70, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => fmtNum(row.target_qty) },
     { header: '공정', name: 'ops_count', width: 50, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => `${row.done_ops_count}/${row.ops_count}` },
     { header: '상태', name: 'status', width: 50, align: 'center', className: 'cursor-pointer',
@@ -381,7 +383,7 @@ const line          = ref(null);
 const activeWo      = ref(null);   // 왼쪽 목록에 칠할 줄 — 누르는 즉시 칠하고, 못 불러오면 뺀다
 const selectedIdx   = ref(null);
 const selectedOp    = computed(() => line.value?.ops.find(o => o.work_order_op_idx === selectedIdx.value) ?? null);
-const panel         = ref('');      // '' | 'run' | 'done'
+const panel         = ref('');      // '' | 'run'
 const runLot        = computed(() => line.value?.lot_mode === 'RUN');   // 실적마다 LOT ( 실적LOT-설계 ) — 실적 줄에 LOT 열
 const detailLoading = ref(false);
 const busy          = ref(false);
@@ -407,7 +409,6 @@ const me         = ref(null);
 const subconUrls = reactive({ issue: null, receipt: null });
 // 지금( − 시간 ) — 'YYYY-MM-DDTHH:mm' ( 실적 기본 : 종료 = 지금 · 시작 = 2시간 전 — 11-11 회의 )
 const localNow = (minusHours = 0) => { const d = new Date(Date.now() - minusHours * 3600000); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
-const userOptions      = computed(() => users.value.map(u => ({ value: u.account_idx, label: u.user_name || u.user_id })));
 const reasonOptions    = computed(() => reasons.value.map(r => ({ value: r.system_code_key, label: r.system_code_name })));
 // 설비 : 이 공정의 후보 먼저 · 그 밖의 사용 중 설비 ( 후보가 아니어도 고를 수 있다 — 11-05 )
 const equipOptions     = computed(() => {
@@ -420,10 +421,9 @@ const equipOptions     = computed(() => {
 
 const runForm  = reactive({ qty: '', equipment_idx: '', operator_idx: '', started_at: '', worked_at: '', remark: '', warehouse_idx: '', inputs: [] });
 const runPicker = ref(null);        // 투입 LOT 고르기 ( 저장 뒤 후보 다시 — 연결 수량이 바뀐다 )
-const addingRun = ref(null);        // [+ 연결] 을 연 실적
-const addInputs = ref([]);
+// [투입 LOT 선택] 뱃지 : 숨은 고르기( 자동 고름 · 후보 )의 요약
+const inputSummary = computed(() => runPicker.value?.summary ?? { picked: 0, missing: 0, groups: 0, hasAny: false });
 const doneForm = reactive({ short_reason: '', warehouse_idx: '' });
-const needReason = computed(() => selectedOp.value?.is_qty && num(selectedOp.value.base_qty) - num(selectedOp.value.qty) > 1e-6);
 
 // 입고 창고는 지난번에 고른 창고 ( 이 브라우저 )
 const WH_KEY = 'mes.opResult.warehouse';
@@ -508,16 +508,15 @@ async function refresh() {
 
 // ---- 실적 입력 칸 ( 11-10 ) ----
 //   [실적 입력] 버튼 없이 : 실적을 쌓는 공정( 수량 공정 · 외주 아님 · 완료 전 · 막힘 없음 · 쓰기 권한 )을 고르면 입력 칸이 바로 열린다
-//   저장하면 칸을 비워 새 실적을 받는다 ( 닫지 않음 ) · [공정 완료] 를 누르면 완료 칸으로 바뀌고 [닫기] 면 입력 칸으로 돌아온다
+//   저장하면 칸을 비워 새 실적을 받는다 ( 닫지 않음 ) · [공정 완료] 는 확인창( confirmComplete · 11-20 )
 const canRun = (o) => !!o && canWrite.value && o.is_qty && !o.is_subcon && o.status !== 'DONE' && line.value?.status !== 'DONE' && !o.block;
 
 function resetRunForm(o) {
     Object.assign(runForm, { qty: '', equipment_idx: o?.equipment_idx ?? '', operator_idx: me.value ?? '', started_at: localNow(2), worked_at: localNow(), remark: '', warehouse_idx: defaultWarehouse(), inputs: [] });
 }
 
-// 고른 공정에 맞춰 칸을 정한다 — opChanged : 다른 공정을 골랐다( 입력 칸을 새로 채운다 ) · 완료 칸은 같은 공정이면 그대로
+// 고른 공정에 맞춰 칸을 정한다 — opChanged : 다른 공정을 골랐다( 입력 칸을 새로 채운다 )
 function syncPanel(opChanged) {
-    if (panel.value === 'done' && !opChanged) return;
     if (canRun(selectedOp.value)) {
         if (opChanged || panel.value !== 'run') resetRunForm(selectedOp.value);
         panel.value = 'run';
@@ -533,39 +532,43 @@ function pickOp(o) {
     syncPanel(changed);
 }
 
-function closeDone() {
-    panel.value = '';
-    syncPanel(false);
-}
-
-function openPanel(o, kind) {
-    selectedIdx.value = o.work_order_op_idx;
-    errorText.value = '';
-    if (kind === 'run') {
-        resetRunForm(o);
-    } else {
-        Object.assign(doneForm, { short_reason: '', warehouse_idx: defaultWarehouse() });
-    }
-    panel.value = kind;
+// 실적 비고 — 작은 창으로 ( 11-23 · 비고 열을 뺐다 )
+function showRemark(r) {
+    showAlert('비고', `${runTimeText(r.started_at, r.worked_at)} · ${fmtNum(r.qty)}\n\n${r.remark}`, 'info');
 }
 
 // ---- 투입 LOT : 나중에 더하기 · 해제 ( 실적LOT-설계 §5 ) ----
+// [+ 연결] : 창에서 고르고 [연결 추가] → 바로 저장 ( 이미 연결된 LOT 는 후보에서 뺀다 · 11-12 )
 function openAddInput(r) {
-    addInputs.value = [];
-    addingRun.value = addingRun.value === r.run_idx ? null : r.run_idx;
+    modalStore.open(RunInputPickModal, {
+        modalTitle: `투입 LOT 더하기 [ ${r.lot_no} ]`,
+        note: '나중에 출고한 자재 · 빠뜨린 앞 공정 LOT 를 이 실적에 더합니다.',
+        opIdx: selectedOp.value.work_order_op_idx, value: [],
+        exclude: r.inputs.map(x => `${x.input_type}:${x.lot_idx}`),
+        needAny: true, applyLabel: '연결 추가',
+        onApply: (inputs) => saveAddInputs(r, inputs),
+    }, { size: 'lg', closeOnClickOutside: false });
 }
-async function saveAddInputs(r) {
+async function saveAddInputs(r, inputs) {
     busy.value = true; errorText.value = '';
     try {
-        const { data } = await window.axios.post(route('production.opResult.addInputs'), { run_idx: r.run_idx, inputs: addInputs.value });
+        const { data } = await window.axios.post(route('production.opResult.addInputs'), { run_idx: r.run_idx, inputs });
         showFlash(okMsg(`${r.lot_no} 에 투입 LOT 를 더했습니다.`, data.warnings));
-        addingRun.value = null;
         await refresh();
+        return true;
     } catch (e) {
-        errorText.value = failMsg(e);
+        return failMsg(e);
     } finally {
         busy.value = false;
     }
+}
+// 새 실적의 [투입 LOT 선택] : 창에서 고르고 [적용] → 입력 칸에 ( 저장은 [저장] 때 )
+function openRunInputs() {
+    modalStore.open(RunInputPickModal, {
+        modalTitle: `투입 LOT 선택 [ ${selectedOp.value.name} ]`,
+        opIdx: selectedOp.value.work_order_op_idx, value: runForm.inputs, required: true,
+        onApply: (inputs) => { runForm.inputs = inputs; return true; },
+    }, { size: 'lg', closeOnClickOutside: false });
 }
 async function cancelInput(x) {
     const ok = await showAlert('연결 해제', `← ${x.lot_no}${x.qty ? ' ' + fmtNum(x.qty) : ''} 연결을 해제합니다.\n기록은 남고 추적에서만 빠집니다.`, 'warning', 'confirm');
@@ -580,6 +583,43 @@ async function cancelInput(x) {
     } finally {
         busy.value = false;
     }
+}
+
+// ---- 공정 완료 확인창 ( 11-20 ) ----
+//   전에는 [완료] → 아래에 완료 칸( 안내 · 미달 사유 · 입고 창고 · [완료] )이 열렸다 — 이제 확인창 하나로
+//   미달이면 사유 Select · 마지막 공정에서 남은 수량을 입고하면 창고 Select 가 확인창 안에 ( 고르지 않으면 [완료]가 막힌다 )
+const escHtml = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const selectHtml = (id, opts, value, placeholder) => `<select id="${id}" class="base-select w-full">`
+    + (placeholder ? `<option value="">${escHtml(placeholder)}</option>` : '')
+    + opts.map(x => `<option value="${escHtml(x.value)}"${String(x.value) === String(value) ? ' selected' : ''}>${escHtml(x.label)}</option>`).join('') + '</select>';
+async function confirmComplete(o) {
+    pickOp(o);   // 그 공정을 고른 상태로 ( 입력 칸도 맞춘다 )
+    errorText.value = '';
+    const short = o.is_qty && num(o.base_qty) - num(o.qty) > 1e-6;
+    const wh    = !!o.needs_warehouse;
+    const notes = [
+        o.is_qty ? `실적 ${fmtNum(o.qty)} / 기준 ${fmtNum(o.base_qty)} 으로 완료합니다.` : `${o.name} 을 완료합니다.`,
+        o.is_rm_out ? '덜 나간 자재가 있으면 한 번 더 묻습니다.' : '',
+        short ? `<b style="color:#b45309">${fmtNum(num(o.base_qty) - num(o.qty))} 미달</b> — 사유를 고르세요.` : '',
+        wh ? '마지막 공정이라 남은 수량을 제품 입고하고 줄을 완료합니다.' : o.is_last_open ? '마지막 공정이라 공정실적등록을 완료합니다.' : '',
+    ].filter(Boolean);
+    const field = (label, html) => `<label style="display:block;text-align:left;font-size:12px;color:#6b7280;margin:12px 0 4px">${label} <span style="color:#ef4444">*</span></label>${html}`;
+    const html = `<div style="font-size:14px;line-height:1.6">${notes.map(t => `<div>${t}</div>`).join('')}</div>`
+        + (short ? field('미달 사유', selectHtml('op-done-reason', reasonOptions.value, '', '사유 선택')) : '')
+        + (wh ? field('입고 창고', selectHtml('op-done-wh', warehouses.value.map(w => ({ value: w.warehouse_idx, label: w.label ?? w.name })), defaultWarehouse(), '창고 선택')) : '');
+    const r = await showAlert(`${o.name} 완료`, '', 'question', 'confirm', {
+        html, confirmButtonText: '완료', focusConfirm: false,
+        preConfirm: () => {
+            const reason = short ? document.getElementById('op-done-reason')?.value ?? '' : '';
+            const whIdx  = wh ? document.getElementById('op-done-wh')?.value ?? '' : '';
+            if (short && !reason) { Swal.showValidationMessage('미달 사유를 고르세요.'); return false; }
+            if (wh && !whIdx)     { Swal.showValidationMessage('입고 창고를 고르세요.'); return false; }
+            return { reason, whIdx };
+        },
+    });
+    if (!r.isConfirmed) return;
+    Object.assign(doneForm, { short_reason: r.value.reason, warehouse_idx: r.value.whIdx === '' ? '' : Number(r.value.whIdx) });
+    await complete();
 }
 
 // ---- 처리 ----
@@ -620,7 +660,6 @@ async function complete(forceIssue = false) {
             force_issue: forceIssue,
         });
         if (o.needs_warehouse && doneForm.warehouse_idx !== '') rememberWarehouse(doneForm.warehouse_idx);
-        panel.value = '';
         showFlash(okMsg(data.line_status === 'DONE' ? `${line.value.wo_no} 를 완료했습니다.${o.needs_warehouse ? ' ( 남은 수량 제품 입고 )' : ''}` : `${o.name} 을 완료했습니다.`, data.warnings));
         await refresh();
     } catch (e) {
@@ -696,7 +735,7 @@ const cancelLineDone = () => confirmAnd('완료 취소', `${line.value.wo_no} �
 const modalStore = useModalStore();
 // 초 · 중 · 종 판정 표시 색 ( 합격 · 불합격 · 미검사 )
 const IFL_CLASS = { PASS: 'bg-green-50 text-green-700', FAIL: 'bg-red-50 text-red-600' };
-// ( 공정실적에서는 검사 창을 열지 않는다 · 11-18 — 아래 함수는 쓰지 않는다 )
+// 검사 공정의 [검사] — 공정검사 창 ( 11-19 · 6002 와 같은 창 · 공정실적 권한으로도 연다 )
 function openInspection(o) {
     modalStore.open(ProcessInspectionForm, {
         opIdx: o.work_order_op_idx,

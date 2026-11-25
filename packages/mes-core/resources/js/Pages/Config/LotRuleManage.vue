@@ -100,7 +100,11 @@
                         <div class="flex items-center gap-2 shrink-0">
                             <span class="text-xs text-gray-500">구분자</span>
                             <BaseSelect v-model="form.separator" :options="SEPARATOR_OPTIONS" size="md" class="w-28" :disabled="!canWrite" />
-                            <BaseSelect v-if="canWrite" v-model="elementPick" :options="addableOptions" size="md" class="w-40" placeholder="+ 요소 추가" @update:model-value="addElement" />
+                            <!-- 11-24 : 고르기 → [추가] ( UI 통일 ) -->
+                            <template v-if="canWrite">
+                                <BaseSelect v-model="elementPick" :options="addableOptions" size="md" class="w-40" placeholder="요소 선택" />
+                                <BaseButton size="sm" variant="secondary" :disabled="!elementPick" @click="addElement(elementPick)">추가</BaseButton>
+                            </template>
                         </div>
                     </div>
                     <p v-if="errors.format_spec" class="mb-2 text-xs text-red-500">{{ errors.format_spec[0] }}</p>
@@ -183,10 +187,9 @@
                         <li v-for="w in liveWarnings" :key="w">⚠ {{ w }}</li>
                     </ul>
 
-                    <div class="mt-4 max-w-2xl">
-                        <label class="block text-gray-500 font-medium mb-1">비고</label>
+                    <FormField label="비고" class="mt-4 max-w-2xl">
                         <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
-                    </div>
+                    </FormField>
                     <p class="mt-3 text-xs text-gray-400">
                         여러 규칙을 등록해 두고 발행할 때 고릅니다 — 생산 LOT 은 작업지시, 입고 LOT 은 입고등록, 출하 LOT 은 출하등록, 시리얼은 실적에서 자동.
                     </p>
@@ -205,6 +208,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import FormField from '@core/Components/Common/FormField.vue';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
 

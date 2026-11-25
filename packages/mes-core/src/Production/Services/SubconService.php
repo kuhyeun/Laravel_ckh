@@ -12,6 +12,7 @@ use MesCore\Config\Models\Partner;
 use MesCore\Production\Models\WorkOrder;
 use MesCore\Production\Models\WorkOrderOp;
 use MesCore\Production\Models\WorkOrderOpRun;
+use MesCore\Production\Models\WorkOrderRunInput;
 use MesCore\Quality\Models\Inspection;
 use MesCore\Quality\Services\DefectService;
 
@@ -21,6 +22,7 @@ use MesCore\Quality\Services\DefectService;
  *   외주 출고 : 대기 · 진행 중 작업지시의 외주 공정( 공정 구분 SUBCON )만
  *     출고 가능 = 기준 − 이미 출고 ( 기준 = 앞 수량 공정 실적 · 앞 공정이 없으면 지시 수량 ) — 기준이 0 이면 출고 불가
  *     외주처( 거래처 외주처 구분 ) · 외주 금액( 총 비용 · 입력 그대로 · 기록만 ) · 재공 : 앞 공정 −
+ *     외주 발주서에서 나간 출고( subcon_order_line_idx · 11-23 ) : 외주처 · 공정이 발주와 같아야 · 금액 = 출고 수량 × 발주 단가 · 발주 남은 수량 초과는 경고만
  *   외주 입고 : 출고 건마다 남은 수량( 출고 − 입고 )까지 · 여러 번
  *     정책 quality.subcon_inspection = Y → 검사대기 → 외주관리 > 품질검사에서 합격 · 불합격 → 완료 / N → 바로 완료
  *     완료 = 합격분이 외주 공정 실적 ( OpResultService::addRun — 마지막 공정이면 제품 입고 · 재공 + ) · 불합격은 불량 기록만
@@ -41,6 +43,7 @@ class SubconService {
         private DefectService $defects,
         private PolicyService $policy,
         private RunInputService $inputs,
+        private SubconMaterialService $caseMaterials,   // 외주 건 자재 LOT → 입고 LOT 연결 ( 11-24 )
     ) {}
 
     public function inspectionOn(): bool {
@@ -70,6 +73,24 @@ class SubconService {
                 throw ValidationException::withMessages(['partner_idx' => ['사용 중인 외주처를 고르세요.']]);
             }
             $qty = (float) $d['qty'];
+            // 외주 발주서에서 출고 ( 11-23 ) — 외주처 · 공정이 발주와 같아야 · 금액 = 수량 × 발주 단가 · 발주 남은 수량 초과는 경고만
+            $orderLine = null;
+            $orderWarn = [];
+            if (!empty($d['subcon_order_line_idx'])) {
+                $orderLine = DB::table('subcon_order_line as l')->join('subcon_order as o', 'o.subcon_order_idx', '=', 'l.subcon_order_idx')
+                    ->where('l.subcon_order_line_idx', (int) $d['subcon_order_line_idx'])->first(['l.*', 'o.partner_idx', 'o.status as order_status', 'o.order_no']);
+                if (!$orderLine || $orderLine->order_status === 'CANCELED') {
+                    throw ValidationException::withMessages(['subcon_order_line_idx' => ['취소되었거나 없는 외주 발주입니다. 새로고침하세요.']]);
+                }
+                if ((int) $orderLine->work_order_op_idx !== (int) $op->work_order_op_idx || (int) $orderLine->partner_idx !== (int) $d['partner_idx']) {
+                    throw ValidationException::withMessages(['subcon_order_line_idx' => ["{$orderLine->order_no} 의 외주처 · 공정과 다릅니다."]]);
+                }
+                $onLine = (float) DB::table('subcon_issue')->where('subcon_order_line_idx', $orderLine->subcon_order_line_idx)->where('is_canceled', 'N')->sum('qty');
+                if ($onLine + $qty > (float) $orderLine->qty + self::EPS) {
+                    $orderWarn[] = "{$orderLine->order_no} 발주 {$this->num((float) $orderLine->qty)} · 이미 출고 {$this->num($onLine)} — 발주보다 많이 출고했습니다.";
+                }
+                $d['amount'] = round($qty * (float) $orderLine->unit_price, 2);
+            }
             $av  = $this->available($wo, $ops, $op);
             if ($av['base'] <= self::EPS) {
                 throw ValidationException::withMessages(['qty' => ['앞 공정 실적이 없습니다. 앞 공정에서 만든 수량이 있어야 외주 출고할 수 있습니다.']]);   // E_SUBCON_NO_BASE
@@ -77,9 +98,9 @@ class SubconService {
             if ($qty > $av['available'] + self::EPS) {
                 throw ValidationException::withMessages(['qty' => ["출고할 수 있는 수량은 {$this->num($av['available'])} 입니다. ( 기준 {$this->num($av['base'])} − 이미 출고 {$this->num($av['issued'])} )"]]);   // E_SUBCON_OVER
             }
-            // 내보낼 LOT ( RUN 방식 · 후보가 있으면 필수 ) — 3단계와 같은 후보 · 검사 · 경고
+            // 출고 제품 LOT ( RUN 방식 · 앞 공정 실적 LOT · 후보가 있으면 필수 ) — 자재 LOT 는 외주 건 자재 출고로 ( 입고 때 연결 · 11-24 )
             [$lots, $warnings] = $wo->isRunLot()
-                ? $this->inputs->normalize($wo, $ops, $op, $d['inputs'] ?? [], true)
+                ? $this->inputs->normalize($wo, $ops, $op, $d['inputs'] ?? [], true, [WorkOrderRunInput::TYPE_RUN])
                 : [[], []];
 
             $at    = Carbon::parse($d['issued_at']);
@@ -88,6 +109,7 @@ class SubconService {
                 'work_order_idx'     => $wo->work_order_idx,
                 'work_order_op_idx'  => $op->work_order_op_idx,
                 'partner_idx'        => (int) $d['partner_idx'],
+                'subcon_order_line_idx' => $orderLine ? (int) $orderLine->subcon_order_line_idx : null,
                 'qty'                => $this->str($qty),
                 'amount'             => round((float) ($d['amount'] ?? 0), 2),   // 외주 총 비용 ( 계산 없이 입력 그대로 )
                 'issued_at'          => $at,
@@ -102,7 +124,7 @@ class SubconService {
                 ]);
             }
             $issue = DB::table('subcon_issue')->where('subcon_issue_idx', $idx)->first();
-            $issue->warnings = $warnings;
+            $issue->warnings = array_merge($warnings, $orderWarn);
             $this->wip->recordSubconIssue($wo, $ops, $op, $issue);
             return $issue;
         });
@@ -248,6 +270,7 @@ class SubconService {
             ], true);
             $runIdx = $run->run_idx;
             $this->linkIssueLots($run, $issue, $pass);
+            $this->caseMaterials->linkRun($run, $issue);   // 이 외주 건으로 나간 자재 LOT ( 11-24 )
         }
         DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->update([
             'status' => 'DONE', 'pass_qty' => $this->str($pass), 'fail_qty' => $this->str($fail), 'run_idx' => $runIdx, 'done_at' => $at, 'update_account_idx' => Auth::id(),
@@ -273,7 +296,7 @@ class SubconService {
     public function issueLots(array $issueIdxs): array {
         if (!$issueIdxs) return [];
         return DB::table('subcon_issue_lot as s')->join('lot as l', 'l.lot_idx', '=', 's.lot_idx')->whereIn('s.subcon_issue_idx', $issueIdxs)
-            ->orderBy('s.subcon_issue_lot_idx')->get(['s.subcon_issue_idx', 's.input_type', 'l.lot_no', 's.qty'])
+            ->orderBy('s.subcon_issue_lot_idx')->get(['s.subcon_issue_idx', 's.input_type', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 's.qty'])
             ->groupBy('subcon_issue_idx')
             ->map(fn ($g) => $g->map(fn ($r) => ['input_type' => $r->input_type, 'lot_no' => $r->lot_no, 'qty' => (float) $r->qty])->values()->all())
             ->all();

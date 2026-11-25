@@ -15,8 +15,7 @@
         </div>
 
         <!-- 2. 모드 · 파일 -->
-        <div>
-            <label class="block text-gray-500 font-medium mb-1">등록 방식</label>
+        <FormField label="등록 방식">
             <div class="flex flex-col gap-1">
                 <label class="inline-flex items-center gap-1.5 cursor-pointer">
                     <input type="radio" class="accent-blue-600" value="create" v-model="mode" @change="result = null" />
@@ -29,12 +28,11 @@
                     <span class="text-xs text-gray-400">— 있으면 수정 ( 빈 칸은 기존 값 유지 )</span>
                 </label>
             </div>
-        </div>
+        </FormField>
 
-        <div>
-            <label class="block text-gray-500 font-medium mb-1">파일</label>
+        <FormField label="파일">
             <input ref="fileInput" type="file" accept=".xlsx" class="block w-full text-xs file:mr-3 file:px-3 file:py-1.5 file:rounded file:border-0 file:bg-gray-100 hover:file:bg-gray-200 file:cursor-pointer" @change="onFile" />
-        </div>
+        </FormField>
 
         <p v-if="errorMsg" class="text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
 
@@ -70,6 +68,7 @@
 import { ref, computed } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import FormField from '@core/Components/Common/FormField.vue';
 import ExcelImportResult from '@core/Components/Common/ExcelImportResult.vue';
 import { downloadTemplate, readUpload, downloadErrorFile } from '@core/Utils/excelImport';
 import { useModalStore } from '@core/Stores/modalStore';

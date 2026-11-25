@@ -14,6 +14,8 @@ use MesCore\Purchase\Models\PurchaseOrderLine;
  *   발주 1건 = 발주서 1부 ( A4 세로 — 줄이 많으면 장을 나눈다 : 화면 PurchaseOrderPreview )
  *   발주처( 우리 ) = 정책 company.* / 수신( 구매처 ) = 거래처( 상호 · 사업자번호 · 대표자 ) + 첫 사업장( 주소 · 전화 ) + 첫 담당자
  *   금액 = 저장된 줄 금액( 수량 × 단가 ) · 합계 = 발주 합계 ( 부가세 별도 )
+ *   같은 품목 · 같은 단가 · 같은 입고 예정일의 줄은 한 줄로 합친다 ( 11-24 — 발주는 수주마다 줄이 나뉘어도 인쇄는 품목별 )
+ *     수량 · 금액 = 합 · 비고 = 서로 다른 것을 「 / 」 로 · 단가나 입고 예정일이 다르면 따로 · 순서 = 품번 → 입고 예정일
  *   출력 기록은 남기지 않는다 — 발주가 원본, 언제든 다시 출력
  */
 class PurchaseOrderSheetService {
@@ -25,18 +27,27 @@ class PurchaseOrderSheetService {
         $site    = PartnerSite::where('partner_idx', $o->partner_idx)->orderBy('sort_order')->orderBy('site_idx')->first();
         $contact = PartnerContact::where('partner_idx', $o->partner_idx)->orderBy('sort_order')->first();
 
-        $lines = $o->lines->sortBy('line_no')->values()->map(fn (PurchaseOrderLine $l, int $i) => [
-            'no'         => $i + 1,
-            'item_code'  => $l->item?->item_code,
-            'item_name'  => $l->item?->item_name,
-            'item_spec'  => $l->item?->spec,
-            'unit'       => $l->item?->spec_unit,
-            'qty'        => (float) $l->qty,
-            'unit_price' => (float) ($l->unit_price ?? 0),
-            'amount'     => (float) ($l->amount ?? 0),
-            'due_date'   => $l->due_date?->toDateString(),
-            'remark'     => $l->remark,
-        ]);
+        // 순서 = 품번 → 입고 예정일 → 줄 번호 ( 발주 수정 창과 같은 정렬 · 11-24 )
+        $lines = $o->lines->sortBy([fn ($a, $b) => strcmp((string) $a->item?->item_code, (string) $b->item?->item_code),
+                fn ($a, $b) => strcmp((string) $a->due_date?->toDateString(), (string) $b->due_date?->toDateString()),
+                fn ($a, $b) => $a->line_no <=> $b->line_no])->values()
+            ->groupBy(fn (PurchaseOrderLine $l) => $l->item_idx . '|' . number_format((float) ($l->unit_price ?? 0), 6, '.', '') . '|' . $l->due_date?->toDateString())
+            ->values()
+            ->map(function ($g, int $i) {
+                $l = $g->first();
+                return [
+                    'no'         => $i + 1,
+                    'item_code'  => $l->item?->item_code,
+                    'item_name'  => $l->item?->item_name,
+                    'item_spec'  => $l->item?->spec,
+                    'unit'       => $l->item?->spec_unit,
+                    'qty'        => round((float) $g->sum(fn ($x) => (float) $x->qty), 6),
+                    'unit_price' => (float) ($l->unit_price ?? 0),
+                    'amount'     => round((float) $g->sum(fn ($x) => (float) ($x->amount ?? 0)), 2),
+                    'due_date'   => $g->map(fn ($x) => $x->due_date?->toDateString())->filter()->min(),
+                    'remark'     => $g->pluck('remark')->map(fn ($r) => trim((string) $r))->filter()->unique()->implode(' / ') ?: null,
+                ];
+            });
 
         return [
             'purchase_order_idx' => $o->purchase_order_idx,

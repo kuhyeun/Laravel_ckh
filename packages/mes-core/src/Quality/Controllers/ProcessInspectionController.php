@@ -7,6 +7,7 @@ use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\InspectionSpec;
+use MesCore\Quality\Services\InspectionReportService;
 use MesCore\Config\Models\Warehouse;
 use MesCore\Menu\Services\MenuPermissionService;
 use MesCore\Production\Models\WorkOrder;
@@ -65,7 +66,7 @@ class ProcessInspectionController extends Controller {
             ->join('process', 'process.process_idx', '=', 'work_order_op.process_idx')
             ->where(fn ($q) => $q->where('process.process_type', 'INSPECTION')->orWhereRaw($isStageOp))
             ->where('work_order.status', '!=', 'CANCELED')
-            ->with(['process', 'workOrder.item:item_idx,item_code,item_name,spec,material,spec_unit', 'workOrder.lot:lot_idx,lot_no'])
+            ->with(['process', 'workOrder.item:item_idx,item_code,item_name,spec,material,spec_unit', 'workOrder.lot:lot_idx,lot_no,lot_title'])
             ->orderBy('work_order.start_date')->orderBy('work_order.work_order_idx')->orderBy('work_order_op.seq');
 
         match ($status) {
@@ -83,7 +84,7 @@ class ProcessInspectionController extends Controller {
             'wo_no'     => fn ($q, $kw) => $q->where('work_order.wo_no', 'like', $kw),
             'item_code' => fn ($q, $kw) => $q->whereHas('workOrder.item', fn ($r) => $r->where('item_code', 'like', $kw)),
             'item_name' => fn ($q, $kw) => $q->whereHas('workOrder.item', fn ($r) => $r->where('item_name', 'like', $kw)),
-            'lot_no'    => fn ($q, $kw) => $q->whereHas('workOrder.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'lot_no'    => fn ($q, $kw) => $q->whereHas('workOrder.lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
         ]);
 
         // 그 페이지 행에 필요한 것을 한꺼번에 읽어 둔다 ( 전에는 행마다 지시 · 공정 · 검사 기록을 따로 읽어 200 행이면 1,000 쿼리가 넘었다 )
@@ -93,17 +94,19 @@ class ProcessInspectionController extends Controller {
             $opIds = $rows->pluck('work_order_op_idx')->all();
             $wos     = WorkOrder::with(['item', 'lot'])->whereIn('work_order_idx', $woIds)->get()->keyBy('work_order_idx');
             $opsByWo = WorkOrderOp::with('process')->whereIn('work_order_idx', $woIds)->orderBy('seq')->get()->groupBy('work_order_idx');
+            // 회차 합계 ( 11-23 ) : 공정마다 회차 수 · 합격 · 불합격 · 마지막 회차
             $summaries = Inspection::where('ref_type', ProcessInspectionService::REF_TYPE)->whereIn('ref_idx', $opIds)
-                ->where('insp_type', 'PROCESS')->where('is_canceled', 'N')->orderBy('inspection_idx')->get()->keyBy('ref_idx');   // 같은 공정이면 마지막 것이 남는다
+                ->where('insp_type', 'PROCESS')->where('is_canceled', 'N')->orderBy('inspection_idx')->get()->groupBy('ref_idx');
             $latest  = collect($this->inspections->stageLatestMany($rows->filter(fn (WorkOrderOp $o) => $o->isIflOp())->pluck('work_order_op_idx')->all()));
-            $users   = User::whereIn('account_idx', $summaries->pluck('inspector_idx')->filter()->unique())->pluck('user_name', 'account_idx');
+            $users   = User::whereIn('account_idx', $summaries->flatten()->pluck('inspector_idx')->filter()->unique())->pluck('user_name', 'account_idx');
             $files   = \Illuminate\Support\Facades\DB::table('attachment')->where('ref_type', 'work_order_op')->whereIn('ref_idx', $opIds)
                 ->groupBy('ref_idx')->selectRaw('ref_idx, COUNT(*) as n')->pluck('n', 'ref_idx');   // 성적서 · 첨부 수 ( 11-18 )
         };
-        return $this->listResponse($request, $query, self::SORTABLE, 'ops', function (WorkOrderOp $o) use (&$wos, &$opsByWo, &$summaries, &$latest, &$users, &$files) {
+        $res = $this->listResponse($request, $query, self::SORTABLE, 'ops', function (WorkOrderOp $o) use (&$wos, &$opsByWo, &$summaries, &$latest, &$users, &$files) {
             $wo   = $wos[$o->work_order_idx];
             $ops  = $opsByWo[$o->work_order_idx] ?? collect();
-            $done = $o->status === 'DONE' ? ($summaries[$o->work_order_op_idx] ?? null) : null;
+            $rounds = $summaries[$o->work_order_op_idx] ?? collect();
+            $done   = $rounds->last();   // 마지막 회차 ( 일시 · 검사자 )
             if ($o->isIflOp()) {
                 // 초 · 중 · 종 줄 : 단계 판정 요약 · 수량 = 그 공정의 실적 ( 합격 / 불합격 수량은 없다 )
                 $st    = $latest[$o->work_order_op_idx] ?? [];
@@ -138,8 +141,10 @@ class ProcessInspectionController extends Controller {
                 'spec_unit'         => $wo->item?->spec_unit,
                 'lot_no'            => $wo->lot?->lot_no,
                 'base_qty'          => $this->results->baseQty($wo, $ops, $o),
-                'pass_qty'          => $done ? (float) $done->pass_qty : null,
-                'fail_qty'          => $done ? (float) $done->fail_qty : null,
+                'pass_qty'          => $rounds->isNotEmpty() ? (float) $rounds->sum('pass_qty') : null,
+                'fail_qty'          => $rounds->isNotEmpty() ? (float) $rounds->sum('fail_qty') : null,
+                'round_count'       => $rounds->count(),
+                'available'         => $o->status === 'DONE' ? 0 : max(0, (float) $this->results->baseQty($wo, $ops, $o) - (float) $rounds->sum(fn ($r) => (float) $r->pass_qty + (float) $r->fail_qty)),
                 'status'            => $o->status,
                 'inspected_at'      => $done?->inspected_at?->format('Y-m-d H:i'),
                 'inspector_name'    => $done ? ($users[$done->inspector_idx] ?? '') : '',
@@ -147,16 +152,25 @@ class ProcessInspectionController extends Controller {
                 'file_count'        => (int) ($files[$o->work_order_op_idx] ?? 0),
             ];
         }, $prepare);
+        // 성적서 관리 ( 11-23 ) — 켜졌을 때만 화면 위 [검사기준서] 버튼
+        $data = $res->getData(true);
+        $data['report'] = app(InspectionReportService::class)->enabled('PROCESS');
+        return response()->json($data);
     }
 
     // 검사 창
-    public function show(int $opIdx) {
+    public function show(int $opIdx, InspectionReportService $reports) {
         $this->require(self::SCREENS, 'can_read');
         $op = $this->findOp($opIdx);
         [$wo, $ops] = $this->inspections->context($op);
         $userName = fn ($u) => $u ? ($u->user_name ?: $u->user_id) : null;
         $latest   = $op->isIflOp() ? $this->inspections->stageLatest($op) : [];
         $lastOpen = $ops->where('status', '!=', 'DONE')->count() === 1 && $op->status !== 'DONE';
+        // 회차 검사 ( 11-23 ) : 검사 공정이 마지막이면 회차마다 합격분 입고 → 창고 / 11-23 전 검사로 아직 입고할 게 남았으면 [검사 완료] 때 창고
+        $isInsp   = $op->isInspectionOp();
+        $roundWh  = $isInsp && $this->results->receivesOnInspection($ops, $op);
+        $finishWh = $isInsp && $lastOpen && $this->results->receiveLeft($wo, $ops) > 0.000001;
+        $prevOp   = $ops->filter(fn (WorkOrderOp $o) => $o->seq < $op->seq && ($o->isQtyOp() || $o->isInspectionOp()))->last();
 
         return response()->json([
             'op' => [
@@ -177,8 +191,36 @@ class ProcessInspectionController extends Controller {
                 'base_qty'          => $op->isInspectionOp() ? (float) $this->results->baseQty($wo, $ops, $op) : (float) $op->qty,   // 초중종 줄 = 그 공정의 실적
                 'status'            => $op->status,
                 'qty'               => (float) $op->qty,
-                'needs_warehouse'   => $lastOpen,   // 마지막 남은 공정 : 완료하면 줄 완료 · 남은 합격분 제품 입고
+                'needs_warehouse'   => $roundWh,    // 검사 공정이 마지막 : 회차마다 합격분 입고 ( 11-23 )
             ],
+            // 회차 검사 ( 11-23 · docs/공정검사-회차-설계.md ) — 검사 공정만
+            'round' => $isInsp ? [
+                'prev_op'   => $prevOp ? $this->results->opName($prevOp) : null,
+                'base'      => (float) $this->results->baseQty($wo, $ops, $op),
+                'inspected' => $this->results->inspectedQty($op),
+                'passed'    => $this->results->passedQty($op),
+                'available' => $op->status === 'DONE' ? 0.0 : $this->results->inspectAvailable($wo, $ops, $op),
+                'prev_done' => !$ops->contains(fn (WorkOrderOp $o) => $o->seq < $op->seq && $o->status !== 'DONE'),
+                'run_lot'   => $wo->isRunLot(),
+                'lots'      => $wo->isRunLot() && $op->status !== 'DONE' ? $this->results->inspectionLotCandidates($wo, $ops, $op) : [],
+                'finish_needs_warehouse' => $finishWh,
+                'short_qty'    => $op->short_qty !== null ? (float) $op->short_qty : null,
+                'short_reason' => $op->short_reason,
+            ] : null,
+            'rounds' => $isInsp ? $this->inspections->history($op)->where('insp_type', 'PROCESS')->sortBy('inspection_idx')->values()->map(fn (Inspection $i, $k) => [
+                'no'             => $k + 1,
+                'inspection_idx' => $i->inspection_idx,
+                'qty'            => (float) $i->pass_qty + (float) $i->fail_qty,
+                'pass_qty'       => (float) $i->pass_qty,
+                'fail_qty'       => (float) $i->fail_qty,
+                'lots'           => $i->lots->map(fn ($l) => ['lot_no' => $l->lot?->lot_no, 'qty' => (float) $l->qty, 'fail_qty' => (float) $l->fail_qty, 'received' => (bool) $l->stock_txn_line_idx])->values(),
+                ...$this->defects->summary($i->defects),
+                'remark'         => $i->remark,
+                'inspected_at'   => $i->inspected_at?->format('Y-m-d H:i'),
+                'inspector_name' => $userName($i->inspector),
+                'is_canceled'    => $i->is_canceled === 'Y',
+                'has_report'     => $i->mode === 'SHEET',
+            ])->values() : [],
             'stages' => collect($op->isIflOp() ? $op->iflStages() : [])->map(fn ($st) => [
                 'stage'  => $st,
                 'name'   => ProcessInspectionService::STAGE_NAMES[$st],
@@ -198,11 +240,14 @@ class ProcessInspectionController extends Controller {
                 'inspected_at'   => $i->inspected_at?->format('Y-m-d H:i'),
                 'inspector_name' => $userName($i->inspector),
                 'is_canceled'    => $i->is_canceled === 'Y',
+                'has_report'     => $i->mode === 'SHEET',   // 성적서 ( 11-23 — [성적서] 로 보기 · 인쇄 )
             ])->values(),
-            'specs' => InspectionSpec::options(),   // 고를 수 있는 검사기준서 ( 기본 기준서 먼저 · 11-18 )
+            // 성적서 ( 11-23 ) : 설정이 켜졌을 때만 기준서 ( 공정 기본 먼저 ) — 꺼져 있으면 기준서 탭 없음
+            'report' => $reports->enabled('PROCESS'),
+            'specs'  => $reports->enabled('PROCESS') ? InspectionSpec::options('PROCESS') : [],
             'can_write'  => $this->can(self::SCREENS, 'can_write'),
             'can_cancel' => $this->canCancel(),
-            'warehouses' => $lastOpen ? Warehouse::options() : [],
+            'warehouses' => $lastOpen || $roundWh ? Warehouse::options() : [],
             'inspectors' => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
             'now'        => now()->format('Y-m-d\TH:i'),
             'me'         => User::pickableMe(),
@@ -212,7 +257,13 @@ class ProcessInspectionController extends Controller {
     // 검사기준서 ( 화면 위 [검사기준서] 창 · 11-18 ) — 사용 중 기준서 + 항목 ( 기본 기준서 먼저 )
     public function specs() {
         $this->require(['Quality/ProcessInspection'], 'can_read');
-        return response()->json(['specs' => InspectionSpec::options()]);
+        return response()->json(['specs' => InspectionSpec::options('PROCESS')]);
+    }
+
+    // 검사기준서 인쇄 데이터 — 공정검사 · 공정실적( [검사] 창 ) 어느 쪽 권한으로도 ( 11-19 )
+    public function specSheets(Request $request) {
+        $this->require(self::SCREENS, 'can_read');
+        return app(\MesCore\Config\Controllers\InspectionSpecController::class)->sheets($request, app(\MesCore\Config\Services\SiteConfigService::class), app(\MesCore\Basic\Services\PolicyService::class));
     }
 
     public function complete(Request $request, int $opIdx) {
@@ -231,6 +282,12 @@ class ProcessInspectionController extends Controller {
             'remark'           => 'nullable|string|max:2000',
             'warehouse_idx'    => 'nullable|integer',
             'inspection_spec_idx' => 'nullable|integer|exists:inspection_spec,inspection_spec_idx',
+            ...InspectionReportService::rules(),   // 성적서 측정값 ( 11-23 )
+            // 실적별 LOT 지시 : 회차의 LOT 별 검사 · 불합격 ( 11-23 )
+            'lots'             => 'nullable|array|max:200',
+            'lots.*.lot_idx'   => 'required|integer',
+            'lots.*.qty'       => 'nullable|numeric|min:0|max:999999999999',
+            'lots.*.fail_qty'  => 'nullable|numeric|min:0|max:999999999999',
         ], [], $this->labels());
         $op = $this->findOp($opIdx);
         if (!$op->isInspectionOp()) {
@@ -252,6 +309,7 @@ class ProcessInspectionController extends Controller {
             'inspected_at'     => 'required|date_format:Y-m-d\TH:i',
             'remark'           => 'nullable|string|max:2000',
             'inspection_spec_idx' => 'nullable|integer|exists:inspection_spec,inspection_spec_idx',
+            ...InspectionReportService::rules(),   // 성적서 측정값 ( 11-23 )
         ], [], $this->labels());
         $this->inspections->recordStage($this->findOp($opIdx), $data['stage'], $data);
         return response()->json(['message' => 'Success']);
@@ -264,7 +322,27 @@ class ProcessInspectionController extends Controller {
         return response()->json(['message' => 'Success']);
     }
 
-    // 검사 취소 = 공정 완료 취소 ( 줄이 완료됐으면 공정실적에서 줄 완료 취소 먼저 )
+    // [검사 완료] ( 11-23 ) — 남은 수량을 검사하지 않고 끝낼 때 미달 사유 · 남은 게 없으면 그냥 ( 보통은 자동 완료 )
+    public function finish(Request $request, int $opIdx) {
+        $this->require(self::SCREENS, 'can_write');
+        $v  = $request->validate(['short_reason' => 'nullable|string|max:50', 'warehouse_idx' => 'nullable|integer']);
+        $op = $this->findOp($opIdx);
+        if (!$op->isInspectionOp()) {
+            throw ValidationException::withMessages(['op' => ['검사 공정이 아닙니다.']]);
+        }
+        $warnings = $this->inspections->finish($op, $v);
+        return response()->json(['message' => 'Success', 'warnings' => $warnings, 'line_status' => WorkOrder::whereKey($op->work_order_idx)->value('status')]);
+    }
+
+    // 회차 취소 ( 11-23 ) — 공정검사 쓰기 또는 공정실적 삭제 권한
+    public function cancelRound(int $inspectionIdx) {
+        if (!$this->canCancel()) abort(403, 'Permission Denied.');
+        $inspection = Inspection::find($inspectionIdx) ?? abort(404);
+        $this->inspections->cancelRound($inspection);
+        return response()->json(['message' => 'Success']);
+    }
+
+    // 완료 취소 = 검사 공정을 다시 「진행」 ( 회차는 그대로 · 11-23 ) — 줄이 완료됐으면 공정실적에서 줄 완료 취소 먼저
     public function cancel(int $opIdx) {
         if (!$this->canCancel()) abort(403, 'Permission Denied.');
         $op = $this->findOp($opIdx);
@@ -282,7 +360,7 @@ class ProcessInspectionController extends Controller {
 
     // 종합 검사 기록 ( 완료된 검사 공정 )
     private function kindLabel(WorkOrderOp $op): string {
-        return $op->isIflOp() ? '초중종 ( ' . implode(' · ', array_map(fn ($s) => ProcessInspectionService::STAGE_NAMES[$s], $op->iflStages())) . ' )' : '검사';
+        return $op->isIflOp() ? '초중종 : ' . implode(' · ', array_map(fn ($s) => ProcessInspectionService::STAGE_NAMES[$s], $op->iflStages())) : '검사';   // 창 머리에 ( … ) 로 감싸 보인다 — 괄호가 겹치지 않게
     }
 
     private function labels(): array {

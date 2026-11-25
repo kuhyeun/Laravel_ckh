@@ -172,7 +172,7 @@ class SalesProgressService {
         $progress = $this->forLines(collect([$line]))[$line->sales_order_line_idx] ?? [];
 
         $woIdxs = DB::table('work_order_source')->where('sales_order_line_idx', $line->sales_order_line_idx)->pluck('work_order_idx');
-        $wos = WorkOrder::with(['ops.process', 'materials.childItem:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no'])
+        $wos = WorkOrder::with(['ops.process', 'materials.childItem:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no,lot_title'])
             ->whereIn('work_order_idx', $woIdxs)
             ->where('status', '!=', 'CANCELED')
             ->orderBy('wo_no')

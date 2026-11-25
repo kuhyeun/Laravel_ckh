@@ -36,10 +36,10 @@
                 </tbody>
             </table>
         </div>
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <span class="flex-1 text-xs text-gray-400">줄을 누르거나 ↑ ↓ 후 Enter 로 고릅니다.</span>
             <BaseButton size="sm" variant="secondary" @click="emit('close')">닫기</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -47,6 +47,7 @@
 import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 
 const props = defineProps({
     value:   { type: [Number, String], default: '' },

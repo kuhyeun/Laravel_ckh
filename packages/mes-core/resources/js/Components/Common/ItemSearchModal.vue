@@ -40,10 +40,10 @@
             </table>
             <p v-if="loading" class="py-2 text-center text-xs text-gray-400">불러오는 중…</p>
         </div>
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <span class="flex-1 text-xs text-gray-400">줄을 누르거나 ↑ ↓ 후 Enter 로 고릅니다.</span>
             <BaseButton size="sm" variant="secondary" @click="emit('close')">닫기</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -52,6 +52,7 @@ import { ref, computed, watch, onMounted, nextTick } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { specKey } from '@core/Utils/format';
 
 const props = defineProps({

@@ -157,9 +157,9 @@
             </div>
         </template>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -167,6 +167,7 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import RoutingCompare from '@core/Components/Order/RoutingCompare.vue';
 import { fmtNum, fmtQty } from '@core/Utils/format';
 import { STATUS_COLOR } from '@core/Utils/colors';

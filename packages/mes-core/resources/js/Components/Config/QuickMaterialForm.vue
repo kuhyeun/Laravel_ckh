@@ -6,38 +6,28 @@
     <div class="mt-3 text-sm">
         <p class="mb-3 text-xs text-gray-400">품번이 같아도 규격이 다르면 다른 자재로 등록됩니다. ( 공백 · 대소문자 · x / × 는 같게 봅니다 )</p>
         <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">품번 <span class="text-red-400">*</span></label>
+            <FormField label="품번" required :error="err('item_code')">
                 <BaseInput v-model="form.item_code" class="w-full" maxlength="40" />
-                <p v-if="err('item_code')" class="text-xs text-red-500 mt-0.5">{{ err('item_code') }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">품명 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="품명" required :error="err('item_name')">
                 <BaseInput v-model="form.item_name" class="w-full" maxlength="100" />
-                <p v-if="err('item_name')" class="text-xs text-red-500 mt-0.5">{{ err('item_name') }}</p>
-            </div>
-            <div class="col-span-2">
-                <label class="block text-gray-500 font-medium mb-1">규격</label>
+            </FormField>
+            <FormField label="규격" :error="err('spec')" class="col-span-2">
                 <SpecPicker v-model="form.spec" can-create />
-                <p v-if="err('spec')" class="text-xs text-red-500 mt-0.5">{{ err('spec') }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">소분류 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="소분류" required :error="err('item_kind')">
                 <BaseSelect v-model="form.item_kind" :options="ITEM_KINDS.MATERIAL" class="w-full" />
-                <p v-if="err('item_kind')" class="text-xs text-red-500 mt-0.5">{{ err('item_kind') }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">단위 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="단위" required :error="err('spec_unit')">
                 <UnitSelect v-model="form.spec_unit" />
-                <p v-if="err('spec_unit')" class="text-xs text-red-500 mt-0.5">{{ err('spec_unit') }}</p>
-            </div>
+            </FormField>
         </div>
         <p v-if="errorMsg" class="mt-3 text-xs text-red-500">{{ errorMsg }}</p>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">취소</BaseButton>
             <BaseButton variant="primary" size="sm" :disabled="saving" @click="save">등록</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -47,6 +37,8 @@ import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import SpecPicker from '@core/Components/Config/SpecPicker.vue';
 import { ITEM_KINDS } from '@core/Components/Config/itemCodes';
 import { useCommonCode } from '@core/Composables/useCommonCode';

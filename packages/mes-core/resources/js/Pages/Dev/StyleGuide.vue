@@ -134,17 +134,24 @@
                         <BaseButton variant="secondary" @click="openDemoModal('lg')">lg 800</BaseButton>
                         <BaseButton variant="secondary" @click="openDemoModal('xl')">xl 1140</BaseButton>
                     </ShowcaseCard>
-                    <ShowcaseCard title="칸 · 라벨 · 필수 · 오류" :code="code.field">
-                        <div class="w-full grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-                            <div>
-                                <label class="block text-gray-500 font-medium mb-1">품번 <span class="text-red-500">*</span></label>
-                                <BaseInput v-model="fieldDemo" class="w-full" />
-                                <p class="text-xs text-red-500 mt-0.5">이미 있는 품번입니다.</p>
+                    <ShowcaseCard title="칸 · 라벨 · 필수 · 오류 — FormField · UserSelect · ModalFooter · useFormErrors ( 11-23 )" :code="code.field">
+                        <div class="w-full text-sm">
+                            <div class="grid grid-cols-3 gap-x-4 gap-y-3">
+                                <FormField label="품번" required error="이미 있는 품번입니다.">
+                                    <BaseInput v-model="fieldDemo" class="w-full" />
+                                </FormField>
+                                <FormField label="검사자" required>
+                                    <UserSelect v-model="userDemo" :users="DEMO_USERS" placeholder="검사자 선택" class="w-full" />
+                                </FormField>
+                                <FormField label="비고" hint="읽기 전용이면 끈다">
+                                    <BaseInput class="w-full" disabled />
+                                </FormField>
                             </div>
-                            <div>
-                                <label class="block text-gray-500 font-medium mb-1">비고</label>
-                                <BaseInput class="w-full" disabled placeholder="읽기 전용이면 끈다" />
-                            </div>
+                            <ModalFooter>
+                                <template #left><BaseButton size="sm" variant="danger">삭제</BaseButton></template>
+                                <BaseButton size="sm" variant="secondary">닫기</BaseButton>
+                                <BaseButton size="sm" variant="primary">저장</BaseButton>
+                            </ModalFooter>
                         </div>
                     </ShowcaseCard>
                 </div>
@@ -302,6 +309,9 @@ import AppLayout from '@core/Layouts/AppLayout.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import UserSelect from '@core/Components/Common/UserSelect.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import ShowcaseCard from '@core/Components/Base/ShowcaseCard.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
@@ -411,6 +421,8 @@ const thinChecked = ref([]);
 
 // ---- 3. 모달 ----
 const fieldDemo = ref('IT-001');
+const userDemo  = ref(2);
+const DEMO_USERS = [{ account_idx: 2, user_id: 'admin', user_name: '관리자' }, { account_idx: 4, user_id: 'user2', user_name: '' }];   // 이름이 없으면 아이디로
 
 // ---- 4. 확인 ----
 async function confirmDemo() {
@@ -586,11 +598,30 @@ modalStore.open(ItemForm, { modalTitle: isEdit ? '품목 수정' : '품목 등�
     </div>
 </div>`,
 
-    field: `<div>
-    <label class="block text-gray-500 font-medium mb-1">품번 <span class="text-red-500">*</span></label>
+    field: `<!-- 칸 : 라벨 · 필수 별표 · 오류( 서버 422 의 그 칸 배열 그대로 ) · class 는 칸에 ( col-span-2 … ) -->
+<FormField label="품번" required :error="errors.item_code">
     <BaseInput v-model="form.item_code" class="w-full" :disabled="!canWrite" />
-    <p v-if="errors.item_code" class="text-xs text-red-500 mt-0.5">{{ errors.item_code[0] }}</p>
-</div>`,
+    <template #help><p class="text-[11px] text-gray-400 mt-0.5">칸 아래 안내</p></template>
+</FormField>
+<FormField label="검사자" required>
+    <UserSelect v-model="form.inspector_idx" :users="inspectors" placeholder="검사자 선택" class="w-full" />
+</FormField>
+
+<!-- 창 아래 단추 줄 : 위험한 단추는 #left -->
+<ModalFooter>
+    <template #left><BaseButton variant="danger" @click="remove">삭제</BaseButton></template>
+    <BaseButton variant="secondary" @click="$emit('close')">닫기</BaseButton>
+    <BaseButton variant="primary" :disabled="saving" @click="save">저장</BaseButton>
+</ModalFooter>
+
+// 저장 실패 : 칸 아래에 보이는 칸은 칸에서, 나머지 문구는 errorMsg 로 위에 모아서 ( 422 · 403 · 그 밖 )
+import { useFormErrors } from '@core/Composables/useFormErrors';
+const { errors, errorMsg, clear, handle } = useFormErrors(['item_code', 'qty', 'defects']);
+async function save() {
+    clear();
+    try { await window.axios.post(…); }
+    catch (e) { handle(e, '저장하지 못했습니다.'); }
+}`,
 
     flash: `import { useToast, failMsg } from '@core/Composables/useToast';
 const { showFlash } = useToast();   // 화면 알림 = Toast ( AppLayout 의 ToastHost 가 띄운다 )

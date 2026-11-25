@@ -13,7 +13,7 @@
             <div class="w-[30%] shrink-0 flex flex-col gap-4 min-h-0">
 
                 <!-- 그룹 폼 -->
-                <div class="shrink-0 border border-gray-200 p-4 flex flex-col">
+                <div class="shrink-0 border border-gray-200 p-3 flex flex-col">
                     <div class="flex items-center justify-between mb-1">
                         <h3 class="text-sm font-bold tracking-tight">
                             {{ groupForm.system_code_group_idx ? '코드 그룹 수정' : '코드 그룹 등록' }}

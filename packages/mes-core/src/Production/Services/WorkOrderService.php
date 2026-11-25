@@ -193,7 +193,7 @@ class WorkOrderService {
         //   출고는 자재출고 화면에서 따로 · 출고 전에도 첫 공정 진행 · 완료 때 덜 나간 자재 확인이 없다
         $hasMaterials = $issued || ($bom && $bom->lines->isNotEmpty());
         if ($hasMaterials && !$processes->contains(fn (Process $p) => $p->isRmOut())) {
-            $warnings[] = '공정에 원자재출고가 없습니다. 자재는 자재출고 화면에서 따로 출고하세요. ( 출고 전에도 첫 공정을 진행할 수 있고, 덜 나간 자재를 확인하지 않습니다 )';   // W_WO_NO_RM_OUT
+            $warnings[] = '공정에 원자재출고가 없습니다. 자재는 자재출고 화면에서 따로 출고하세요.';   // W_WO_NO_RM_OUT
         }
         if ($data['due_date'] < $data['start_date']) {
             $warnings[] = '생산 기한이 착수 예정일보다 앞입니다.';   // W_WO_DUE

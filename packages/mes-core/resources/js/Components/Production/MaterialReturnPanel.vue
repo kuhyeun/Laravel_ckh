@@ -6,19 +6,14 @@
        원 자재 수량은 그대로( 통째로 소모 ) · 잔재 수량은 사람이 넣는다( 견주지 않음 ) · 새 LOT 이 원 LOT 의 잔재로 이어진다( LOT 추적 ) · 이력 체크 → [잔재 입고 취소]
      - [남은 수량 계산] ( 11-18 ) : 지금까지의 실적 × 개당 소요로 쓴 수량을 어림해, 남은 수량을 반납 수량 칸에 넣는다 ( 제안값 — 고칠 수 있다 · 누를 때 실적을 다시 읽는다 )
        늦게 낸 LOT 부터 담는다 · 대체 자재는 주 자재 기준으로 합쳐 본다 · BOM 외 자재는 계산하지 않는다 · 아래에 계산 근거를 보여 준다
-     - MaterialIssuePanel 의 [반납] 탭. routes : { returnPlan, returnSave, returnCancel, leftoverSave, leftoverCancel } -->
+     - MaterialIssuePanel 의 [반납] 탭. routes : { returnPlan, returnSave, returnCancel, leftoverSave, leftoverCancel }
+     - 단추 배치 ( 11-24 ) : 영역마다 보조 단추( 계산 · + 잔재 ) → 목록 → 실행 단추( 반납 · 잔재 입고 · 취소 — 목록 아래 오른쪽 ) · 잔재 줄이 없으면 [잔재 입고] 숨김 -->
 <template>
     <div class="flex flex-col min-h-0">
         <div class="px-3 py-2 bg-gray-50/70 shrink-0 flex items-center gap-3 flex-wrap">
             <span class="text-xs text-gray-500">쓰고 남은 자재를 그대로 창고로 돌려놓습니다.</span>
             <div class="flex-1"></div>
-            <template v-if="canWrite">
-                <BaseButton variant="secondary" :disabled="saving || loading || !lots.length" title="지금까지의 실적 수량 × 개당 소요로 쓴 자재를 계산해, 남은 수량을 반납 수량 칸에 넣습니다. 넣은 뒤 고칠 수 있습니다." @click="fillSuggest">남은 수량 계산</BaseButton>
-                <label class="text-xs text-gray-500">반납일시</label>
-                <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="md" class="w-44" />
-                <BaseInput v-model="form.remark" size="md" class="w-40" placeholder="반납 사유( 메모 )" maxlength="200" />
-                <BaseButton variant="primary" :disabled="saving || loading || !fillTotal" @click="save">반납</BaseButton>
-            </template>
+            <BaseButton v-if="canWrite" variant="secondary" :disabled="saving || loading || !lots.length" title="지금까지의 실적 수량 × 개당 소요로 쓴 자재를 계산해, 남은 수량을 반납 수량 칸에 넣습니다. 넣은 뒤 고칠 수 있습니다." @click="fillSuggest">남은 수량 계산</BaseButton>
         </div>
         <p v-if="errorText" class="px-3 py-1 text-xs text-red-500 bg-red-50 shrink-0 whitespace-pre-line">{{ errorText }}</p>
 
@@ -76,20 +71,25 @@
                 </p>
             </div>
 
+            <!-- 반납 실행 ( 목록 아래 오른쪽 · 11-24 ) -->
+            <div v-if="canWrite && !loading && lots.length" class="mt-2 flex items-center justify-end gap-2">
+                <label class="text-xs text-gray-500">반납일시</label>
+                <BaseDatePicker v-model="form.occurred_at" mode="datetime" size="md" class="w-44" />
+                <BaseInput v-model="form.remark" size="md" class="w-48" placeholder="반납 사유( 메모 )" maxlength="200" />
+                <BaseButton variant="primary" :disabled="saving || loading || !fillTotal" @click="save">반납</BaseButton>
+            </div>
+
             <!-- 잔재 입고 ( 다른 품목으로 · 11-12 ) -->
             <div v-if="!loading && lots.length && (canWrite || leftovers.length)" class="mt-4">
                 <div class="flex items-center gap-2 mb-1.5">
                     <span class="text-sm font-semibold text-gray-600">잔재 입고</span>
                     <span class="text-xs text-gray-400">쓰고 남은 토막을 다른 품목( 규격이 다른 자재 )으로 창고에 넣습니다. 원 자재 수량은 그대로입니다.</span>
                     <div class="flex-1"></div>
-                    <template v-if="canWrite">
-                        <BaseButton variant="secondary" @click="addLeft">+ 잔재</BaseButton>
-                        <BaseButton variant="primary" :disabled="saving || !leftRows.length" @click="saveLeft">잔재 입고</BaseButton>
-                    </template>
+                    <BaseButton v-if="canWrite" variant="secondary" @click="addLeft">+ 잔재</BaseButton>
                 </div>
                 <p v-if="leftError" class="mb-1 text-xs text-red-500 whitespace-pre-line">{{ leftError }}</p>
-                <table v-if="leftRows.length" class="w-full min-w-[800px] table-fixed text-xs mb-2">
-                    <colgroup><col class="w-72"><col><col class="w-28"><col class="w-36"><col class="w-10"></colgroup>
+                <table v-if="leftRows.length" class="w-full min-w-[840px] table-fixed text-xs mb-2">
+                    <colgroup><!-- 원 자재 : 잔재 품목 = 1 : 1 ( 11-24 ) --><col><col><col class="w-28"><col class="w-36"><col class="w-10"></colgroup>
                     <thead class="bg-gray-50 text-gray-500">
                         <tr>
                             <th class="text-left px-2 py-1.5">원 자재 ( 출고한 LOT ) *</th><th class="text-left px-2 py-1.5">잔재 품목 * <span class="font-normal text-gray-400">— 찾거나 새 자재로 등록</span></th>
@@ -108,12 +108,13 @@
                         </tr>
                     </tbody>
                 </table>
+                <div v-if="canWrite && leftRows.length" class="mb-3 flex justify-end">
+                    <BaseButton variant="primary" :disabled="saving" @click="saveLeft">잔재 입고</BaseButton>
+                </div>
 
                 <div v-if="leftovers.length">
                     <div class="flex items-center gap-2 mb-1">
                         <span class="text-xs font-semibold text-gray-500">잔재 입고 이력 <span class="font-normal text-gray-400">{{ leftovers.length }} 줄</span></span>
-                        <div class="flex-1"></div>
-                        <BaseButton v-if="canCancel" variant="danger" :disabled="!leftChecked.length || saving" @click="cancelLeft">잔재 입고 취소</BaseButton>
                     </div>
                     <table class="w-full min-w-[1024px] table-fixed text-xs">
                         <colgroup><col class="w-8"><col class="w-32"><col class="w-36"><col><col class="w-56"><col class="w-56"><col class="w-28"><col class="w-24"><col class="w-14"><col class="w-24"></colgroup>
@@ -139,6 +140,9 @@
                             </tr>
                         </tbody>
                     </table>
+                    <div v-if="canCancel" class="mt-1.5 flex justify-end">
+                        <BaseButton variant="danger" :disabled="!leftChecked.length || saving" @click="cancelLeft">잔재 입고 취소</BaseButton>
+                    </div>
                 </div>
             </div>
         </div>
@@ -147,8 +151,6 @@
         <div class="shrink-0 border-t border-gray-200 max-h-72 flex flex-col">
             <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50/70">
                 <span class="text-sm font-semibold text-gray-600">반납 이력 <span class="text-xs text-gray-400">{{ history.length }} 줄</span></span>
-                <div class="flex-1"></div>
-                <BaseButton v-if="canCancel" variant="danger" :disabled="!checked.length || saving" @click="cancelChecked">반납 취소</BaseButton>
             </div>
             <div class="overflow-auto">
                 <table class="w-full min-w-[976px] table-fixed text-xs">
@@ -179,6 +181,9 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+            <div v-if="canCancel && history.length" class="shrink-0 flex justify-end px-3 py-1.5 border-t border-gray-100">
+                <BaseButton variant="danger" :disabled="!checked.length || saving" @click="cancelChecked">반납 취소</BaseButton>
             </div>
         </div>
     </div>

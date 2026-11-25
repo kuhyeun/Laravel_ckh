@@ -30,6 +30,16 @@ class DocTemplateController extends Controller {
         'INSPECTION_SPEC' => ['spec_name', 'remark', 'item_count',
             'our_name', 'our_biz_no', 'our_ceo', 'our_address', 'our_tel', 'our_fax',
             'writer', 'print_date', 'page_no'],
+        // 외주 발주서 ( 11-23 ) — 수신 = 외주처
+        'SUBCON_ORDER' => ['order_no', 'order_date', 'due_date', 'manager_name', 'total', 'total_qty', 'remark',
+            'our_name', 'our_biz_no', 'our_ceo', 'our_address', 'our_tel', 'our_fax',
+            'partner_name', 'partner_biz_no', 'partner_ceo', 'partner_address', 'partner_tel', 'partner_contact',
+            'writer', 'print_date', 'page_no'],
+        // 검사성적서 ( 11-23 ) — 저장된 검사 기록 + 측정값
+        'INSPECTION_REPORT' => ['insp_type_name', 'doc_no', 'item_code', 'item_name', 'item_spec', 'name_spec', 'lot_no', 'partner_name',
+            'insp_qty', 'pass_qty', 'fail_qty', 'result_name', 'inspected_at', 'inspector_name', 'spec_name', 'remark',
+            'our_name', 'our_biz_no', 'our_ceo', 'our_address', 'our_tel', 'our_fax',
+            'writer', 'print_date', 'page_no'],
     ];
     // 품목 표의 열
     private const COLUMNS = [
@@ -37,6 +47,11 @@ class DocTemplateController extends Controller {
         'SHIPMENT_ORDER' => ['no', 'item_code', 'item_name', 'item_spec', 'name_spec', 'unit', 'qty', 'lot_nos', 'warehouse', 'order_no', 'customer_po_no', 'remark', 'blank'],
         // 검사기준서 : 표 = 검사 항목 ( 빈 칸 열 = 측정값 · 판정을 손으로 적는 칸 )
         'INSPECTION_SPEC' => ['no', 'inspection_item_name', 'nature', 'method', 'standard_value', 'lower_limit', 'upper_limit', 'limit', 'unit', 'criteria', 'criteria_all', 'blank'],
+        // 외주 발주서 : 작업지시의 외주 공정 줄
+        'SUBCON_ORDER' => ['no', 'wo_no', 'item_code', 'item_name', 'item_spec', 'name_spec', 'process_name', 'unit', 'qty', 'unit_price', 'amount', 'due_date', 'remark', 'blank'],
+        // 검사성적서 : 기준서 열 + 시료 1 ~ 10 · 측정값( 합침 ) · 판정
+        'INSPECTION_REPORT' => ['no', 'inspection_item_name', 'nature', 'method', 'standard_value', 'lower_limit', 'upper_limit', 'limit', 'unit', 'criteria', 'criteria_all',
+            'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10', 'measured_all', 'judge', 'blank'],
     ];
     private const MAX_COLS = 12;
     private const MAX_ROWS = 16;

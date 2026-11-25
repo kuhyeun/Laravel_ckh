@@ -8,8 +8,7 @@
         <div v-if="errorMsg" class="mb-3 text-xs text-red-500">{{ errorMsg }}</div>
 
         <!-- 품목 -->
-        <div class="mb-3">
-            <label class="block text-gray-500 font-medium mb-1">품목 <span v-if="!isDefault && !isEdit" class="text-red-400">*</span></label>
+        <FormField label="품목" :required="!isDefault && !isEdit" :error="errors.item_idx" class="mb-3">
             <p v-if="isDefault" class="h-9 flex items-center font-semibold text-gray-700">
                 ( 기본값 ) <span class="ml-2 text-xs font-normal text-gray-400">품목별 행이 없는 품목에 적용됩니다</span>
             </p>
@@ -21,8 +20,7 @@
                 <ItemPicker v-model="form.item_idx" :options="pickable" size="md" show-type :disabled="!canWrite" />
                 <p v-if="!itemLoading && !pickable.length" class="text-xs text-amber-600 mt-0.5">리드타임을 새로 등록할 수 있는 품목이 없습니다.</p>
             </template>
-            <p v-if="errors.item_idx" class="text-xs text-red-500 mt-0.5">{{ errors.item_idx[0] }}</p>
-        </div>
+        </FormField>
 
         <!-- 5구간 -->
         <label class="block text-gray-500 font-medium mb-1">
@@ -51,18 +49,17 @@
                 <p v-if="form.is_use === 'N'" class="text-xs text-amber-600 mt-1">미사용이면 이 품목은 기본값을 씁니다.</p>
                 <p v-if="errors.is_use" class="text-xs text-red-500 mt-0.5">{{ errors.is_use[0] }}</p>
             </div>
-            <div class="col-span-2">
-                <label class="block text-gray-500 font-medium mb-1">비고</label>
+            <FormField label="비고" class="col-span-2">
                 <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
-            </div>
+            </FormField>
         </div>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ canWrite ? '취소' : '닫기' }}</BaseButton>
             <BaseButton v-if="canWrite" variant="primary" size="sm" :disabled="saving" @click="save">
                 {{ isEdit ? '수정' : '등록' }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -72,6 +69,8 @@ import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 
 const props = defineProps({

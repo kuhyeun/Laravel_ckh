@@ -37,21 +37,27 @@ class OpResultController extends Controller {
     public function list(Request $request) {
         $v = $request->validate([
             'keyword' => 'nullable|string|max:100',
-            'status'  => ['nullable', Rule::in(['OPEN', 'WAIT', 'RUN', 'DONE'])],
+            'status'  => ['nullable', Rule::in(['ALL', 'OPEN', 'WAIT', 'RUN', 'DONE'])],
         ]);
 
         $query = WorkOrder::query()
-            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no', 'sheet:sheet_idx,sheet_no,due_date'])
+            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no,lot_title', 'sheet:sheet_idx,sheet_no,due_date'])
             ->withCount(['ops', 'ops as done_ops_count' => fn ($q) => $q->where('status', 'DONE')])
-            ->orderByDesc('work_order_idx');
+            // 기본 정렬 ( 11-20 ) = 작업지시관리와 같게 : 작업지시서 최신부터 → 그 안은 줄 번호 순 ( 반제품 → 완제품 — 지시 만들 때 반제품 줄이 앞 )
+            ->orderByDesc('sheet_idx')->orderBy('line_no')->orderByDesc('work_order_idx');
 
-        $status = $v['status'] ?? 'OPEN';
-        $status === 'OPEN' ? $query->whereIn('status', ['WAIT', 'RUN']) : $query->where('status', $status);
+        // 상태 거르기 ( 11-20 · ALL = 대기 · 진행 · 완료 — 취소 제외 · 기본 )
+        $status = $v['status'] ?? 'ALL';
+        match ($status) {
+            'ALL'   => $query->whereIn('status', ['WAIT', 'RUN', 'DONE']),
+            'OPEN'  => $query->whereIn('status', ['WAIT', 'RUN']),
+            default => $query->where('status', $status),
+        };
         $this->applyKeyword($query, $v['keyword'] ?? null, [
             'wo_no'     => fn ($q, $kw) => $q->where('wo_no', 'like', $kw),
             'item_code' => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
             'item_name' => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
-            'lot_no'    => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'lot_no'    => fn ($q, $kw) => $q->whereHas('lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
         ]);
 
         return $this->listResponse($request, $query, self::SORTABLE, 'lines', fn (WorkOrder $w) => [
@@ -78,7 +84,7 @@ class OpResultController extends Controller {
         }
         $ops = WorkOrderOp::with([
             'process.equipments.equipment:equipment_idx,equipment_name,is_use',
-            'runs.operator:account_idx,user_id,user_name', 'runs.creator:account_idx,user_id,user_name', 'runs.equipment:equipment_idx,equipment_name', 'runs.lot:lot_idx,lot_no',
+            'runs.operator:account_idx,user_id,user_name', 'runs.creator:account_idx,user_id,user_name', 'runs.equipment:equipment_idx,equipment_name', 'runs.lot:lot_idx,lot_no,lot_title',
         ])->where('work_order_idx', $wo->work_order_idx)->orderBy('seq')->get();
 
         $reasons = SystemCode::where('system_code_group_key', OpResultService::SHORT_GROUP)->pluck('system_code_name', 'system_code_key');
@@ -100,8 +106,14 @@ class OpResultController extends Controller {
                 'label'  => ['PASS' => '합격', 'FAIL' => '불합격'][$iflLatest[$o->work_order_op_idx][$st]?->result ?? ''] ?? '미검사',
             ])->values()->all()
             : [];
+        // 초 · 중 · 종 불량 수량 ( 11-23 — 취소 뺀 단계 기록의 합 · 실적에서 빼지 않으므로 실적 입력 칸에 양품으로 넣으라고 안내 )
+        $iflFail = $iflOps->isNotEmpty()
+            ? \MesCore\Quality\Models\Inspection::where('ref_type', \MesCore\Quality\Services\ProcessInspectionService::REF_TYPE)
+                ->whereIn('ref_idx', $iflOps->pluck('work_order_op_idx'))->whereIn('insp_type', \MesCore\Quality\Services\ProcessInspectionService::STAGE_TYPES)
+                ->where('is_canceled', 'N')->groupBy('ref_idx')->selectRaw('ref_idx, SUM(fail_qty) as n')->pluck('n', 'ref_idx')
+            : collect();
 
-        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left, $inputsBy, $iflOf) {
+        $rows = $ops->map(function (WorkOrderOp $o) use ($wo, $ops, $reasons, $open, $userName, $left, $inputsBy, $iflOf, $iflFail) {
             $first = $ops->first(fn (WorkOrderOp $x) => $x->isQtyOp());
             return [
                 'work_order_op_idx' => $o->work_order_op_idx,
@@ -113,6 +125,7 @@ class OpResultController extends Controller {
                 'is_subcon'         => $o->isSubconOp(),   // 외주 공정 : 실적은 외주 입고로만
                 'is_inspection'     => $o->isInspectionOp(),   // 품질 모듈이 켜져 있으면 공정검사( 6002 )에서 검사 — 수량 = 합격
                 'ifl'               => $iflOf($o),             // 초 · 중 · 종 판정 ( 보기만 )
+                'ifl_fail'          => (float) ($iflFail[$o->work_order_op_idx] ?? 0),   // 초 · 중 · 종 불량 수량 합 ( 11-23 )
                 'is_first_qty'      => $first && $first->work_order_op_idx === $o->work_order_op_idx,
                 'base_qty'          => $this->results->baseQty($wo, $ops, $o),
                 'qty'               => (float) $o->qty,

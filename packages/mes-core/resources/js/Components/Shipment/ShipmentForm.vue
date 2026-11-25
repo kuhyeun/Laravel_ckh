@@ -33,39 +33,27 @@
 
             <!-- 머리 -->
             <div class="grid grid-cols-6 gap-x-4 gap-y-3 shrink-0">
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">출하번호</label>
+                <FormField label="출하번호">
                     <p class="h-9 flex items-center text-gray-700">{{ form.shipment_no || '저장할 때 매깁니다' }}</p>
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-gray-500 font-medium mb-1">고객사 <span class="text-red-500">*</span></label>
+                </FormField>
+                <FormField label="고객사" required :error="errors.partner_idx" class="col-span-2">
                     <PartnerSelect v-model="form.partner_idx" :options="ctx.partners" class="w-full" placeholder="고객사 선택" :current="{ partner_name: form.partner_name }" :disabled="!editable || lines.some(l => l.sales_order_line_idx)" @update:model-value="onPartnerChange" />
-                    <p v-if="errors.partner_idx" class="text-xs text-red-500 mt-0.5">{{ errors.partner_idx[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">출하 예정일 <span class="text-red-500">*</span></label>
+                </FormField>
+                <FormField label="출하 예정일" required :error="errors.plan_date">
                     <BaseDatePicker v-model="form.plan_date" class="w-full" :disabled="!editable" />
-                    <p v-if="errors.plan_date" class="text-xs text-red-500 mt-0.5">{{ errors.plan_date[0] }}</p>
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-gray-500 font-medium mb-1">비고</label>
+                </FormField>
+                <FormField label="비고" class="col-span-2">
                     <BaseInput v-model="form.remark" class="w-full" maxlength="1000" :disabled="!editable" />
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">출하 담당자</label>
+                </FormField>
+                <FormField label="출하 담당자" :error="errors.manager_name">
                     <BaseInput v-model="form.manager_name" class="w-full" maxlength="50" :disabled="!editable" />
-                    <p v-if="errors.manager_name" class="text-xs text-red-500 mt-0.5">{{ errors.manager_name[0] }}</p>
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-gray-500 font-medium mb-1">출고지</label>
+                </FormField>
+                <FormField label="출고지" :error="errors.site_idx" class="col-span-2">
                     <BaseSelect v-model="form.site_idx" :options="siteOptions" class="w-full" :disabled="!editable || !form.partner_idx" @update:model-value="onSiteChange" />
-                    <p v-if="errors.site_idx" class="text-xs text-red-500 mt-0.5">{{ errors.site_idx[0] }}</p>
-                </div>
-                <div class="col-span-3">
-                    <label class="block text-gray-500 font-medium mb-1">주소</label>
+                </FormField>
+                <FormField label="주소" :error="errors.ship_address" class="col-span-3">
                     <BaseInput v-model="form.ship_address" class="w-full" maxlength="200" placeholder="출고지를 고르면 그 주소로 채웁니다" :disabled="!editable" />
-                    <p v-if="errors.ship_address" class="text-xs text-red-500 mt-0.5">{{ errors.ship_address[0] }}</p>
-                </div>
+                </FormField>
             </div>
 
             <!-- 줄 -->
@@ -76,7 +64,9 @@
                 <div class="flex-1"></div>
                 <template v-if="editable">
                     <BaseButton variant="secondary" :disabled="!form.partner_idx" @click="togglePicker">+ 수주 줄</BaseButton>
-                    <ItemPicker v-model="addItemIdx" :remote="SALE_REMOTE" show-type class="w-56" placeholder="+ 품목 ( 수주 없이 )" @select="addItemLine" />
+                    <!-- 11-24 : 고르기 → [추가] ( UI 통일 ) -->
+                    <ItemPicker v-model="addItemIdx" :remote="SALE_REMOTE" show-type class="w-56" placeholder="품목 ( 수주 없이 )" @select="it => addItem = it" />
+                    <BaseButton size="sm" variant="secondary" :disabled="!addItemIdx" @click="addItemLine(addItem)">추가</BaseButton>
                 </template>
             </div>
 
@@ -166,10 +156,11 @@
         </template>
 
         <!-- 아래 버튼 줄 -->
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
-            <BaseButton v-if="canDelete && form.status === 'WAIT' && form.shipment_idx" variant="danger" :disabled="busy" @click="cancel">대기 취소</BaseButton>
-            <BaseButton v-if="canDelete && form.status === 'DONE'" variant="danger" :disabled="busy" @click="cancel">출하 취소</BaseButton>
-            <div class="flex-1"></div>
+        <ModalFooter>
+            <template #left>
+                <BaseButton v-if="canDelete && form.status === 'WAIT' && form.shipment_idx" variant="danger" :disabled="busy" @click="cancel">대기 취소</BaseButton>
+                <BaseButton v-if="canDelete && form.status === 'DONE'" variant="danger" :disabled="busy" @click="cancel">출하 취소</BaseButton>
+            </template>
             <span v-if="dirty && form.shipment_idx && form.status === 'WAIT'" class="text-xs text-amber-600">고친 내용을 저장해야 다음 단계로 갈 수 있습니다</span>
             <template v-if="form.status === 'WAIT' && !dirty && form.shipment_idx">
                 <BaseButton v-if="canWrite && ['APPROVAL_NEED', 'REJECTED'].includes(form.stage)" variant="secondary" :disabled="busy" @click="act('requestApproval', '결재를 요청했습니다.')">결재 요청</BaseButton>
@@ -188,7 +179,7 @@
             <BaseButton v-if="form.shipment_idx && form.status !== 'CANCELED' && !dirty && canOrderSheet" variant="secondary" title="창고에 내리는 출하지시서 ( 배치는 기준정보관리 > 문서 양식 )" @click="openOrderSheet">출하지시서</BaseButton>
             <BaseButton v-if="form.status === 'DONE'" variant="secondary" @click="openInvoice">거래명세서</BaseButton>
             <BaseButton v-if="editable" variant="primary" :disabled="busy || loading" @click="save">{{ busy ? '저장 중…' : (form.shipment_idx ? '저장' : '등록') }}</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -212,6 +203,8 @@ import LabelIssueForm from '@core/Components/Label/LabelIssueForm.vue';
 import { useLabelAccess } from '@core/Composables/useLabelAccess';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 
 const props = defineProps({
     shipmentIdx: { type: Number, default: null },
@@ -345,8 +338,9 @@ async function addSoLine(p) {
 // 수주 없이 출하할 수 있는 품목 = 판매 여부가 켜진 것 ( 제품 + 판매하는 자재 — 품목관리 · 11-13 )
 const SALE_REMOTE = { use: 'SALE', extra: ['std_sale_price'] };
 // 수주 없이 품목 줄 더하기 ( 고른 줄 — 서버 모드 ItemPicker )
+const addItem = ref(null);   // 고른 품목 ( [추가] 때 · 11-24 )
 async function addItemLine(it) {
-    setTimeout(() => { addItemIdx.value = ''; });   // 고르기 칸은 늘 비워 둔다 ( v-model 갱신 뒤에 )
+    addItemIdx.value = ''; addItem.value = null;   // 고르기 칸은 비운다
     if (!it) return;
     const l = blankLine({ item_idx: it.item_idx, item_label: withSpec(`${it.item_code} ${it.item_name}`, it.spec), spec_unit: it.spec_unit,
                           unit_price: it.std_sale_price === null || it.std_sale_price === undefined ? '' : String(it.std_sale_price) });

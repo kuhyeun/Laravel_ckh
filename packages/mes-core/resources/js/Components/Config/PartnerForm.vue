@@ -43,14 +43,13 @@
                         </div>
                         <p v-if="errors.roles" class="text-xs text-red-500 mt-0.5">{{ errors.roles[0] }}</p>
                     </div>
-                    <div class="shrink-0">
-                        <label class="block text-gray-500 font-medium mb-1">사용 여부</label>
+                    <FormField label="사용 여부" class="shrink-0">
                         <div class="flex items-center h-9">
                             <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
                                 {{ form.is_use === 'Y' ? '사용' : '미사용' }}
                             </BaseCheckbox>
                         </div>
-                    </div>
+                    </FormField>
                 </div>
                 <!-- 입고검사 ( 입고가 있는 거래처 = 구매처 · 외주처 ) — 구분 바로 아래 ( 구분을 고르면 나타난다 · 11-19 ) -->
                 <div v-if="hasIncoming && incomingField" class="col-span-2 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/60">
@@ -74,42 +73,34 @@
                         </template>
                     </PolicyOverrideField>
                 </div>
-                <div>
-                    <!-- 새 거래처는 비우면 자동 ( 고객사 CU · 구매처 SU · 외주처 SC + 일련번호 · 11-12 ) -->
-                    <label class="block text-gray-500 font-medium mb-1">거래처코드 <span v-if="isEdit" class="text-red-400">*</span><span v-else class="ml-1 text-xs font-normal text-gray-400">비우면 자동</span></label>
+                <!-- 입고검사 사용 = N 이면 칸이 없다 ( depends_on ) → 이유 안내 ( 11-23 ) -->
+                <div v-else-if="hasIncoming && policiesLoaded" class="col-span-2 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/60">
+                    <div class="mb-1 text-gray-500 font-medium">입고검사</div>
+                    <p class="text-xs text-gray-500 leading-5">시스템 설정 '입고검사 사용'이 꺼져 있어 모든 입고가 검사 없이 재고에 잡힙니다.<br>거래처별로 정하려면 시스템 설정에서 먼저 켜 주세요.</p>
+                </div>
+                <!-- 새 거래처는 비우면 자동 ( 고객사 CU · 구매처 SU · 외주처 SC + 일련번호 · 11-12 ) -->
+                <FormField label="거래처코드" :required="isEdit" :hint="isEdit ? '' : '비우면 자동'" :error="errors.partner_code">
                     <BaseInput v-model="form.partner_code" class="w-full" :placeholder="isEdit ? '예: PT-0012' : `비우면 자동 ( 예: ${autoCodeHint} )`" :disabled="!canWrite" />
-                    <p v-if="errors.partner_code" class="text-xs text-red-500 mt-0.5">{{ errors.partner_code[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">거래처명 <span class="text-red-400">*</span></label>
+                </FormField>
+                <FormField label="거래처명" required :error="errors.partner_name">
                     <BaseInput v-model="form.partner_name" class="w-full" :disabled="!canWrite" />
-                    <p v-if="errors.partner_name" class="text-xs text-red-500 mt-0.5">{{ errors.partner_name[0] }}</p>
-                </div>
+                </FormField>
 
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">사업자번호</label>
+                <FormField label="사업자번호" :error="errors.biz_no">
                     <BaseInput v-model="form.biz_no" class="w-full" placeholder="000-00-00000" :disabled="!canWrite" />
-                    <p v-if="errors.biz_no" class="text-xs text-red-500 mt-0.5">{{ errors.biz_no[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">담당자</label>
+                </FormField>
+                <FormField label="담당자" :error="errors.ceo_name">
                     <BaseInput v-model="form.ceo_name" class="w-full" :disabled="!canWrite" />
-                    <p v-if="errors.ceo_name" class="text-xs text-red-500 mt-0.5">{{ errors.ceo_name[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">전화번호</label>
+                </FormField>
+                <FormField label="전화번호" :error="errors.tel">
                     <BaseInput v-model="form.tel" class="w-full" placeholder="000-0000-0000" maxlength="30" :disabled="!canWrite" />
-                    <p v-if="errors.tel" class="text-xs text-red-500 mt-0.5">{{ errors.tel[0] }}</p>
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-gray-500 font-medium mb-1">주소</label>
+                </FormField>
+                <FormField label="주소" :error="errors.address" class="col-span-2">
                     <BaseInput v-model="form.address" class="w-full" maxlength="200" :disabled="!canWrite" />
-                    <p v-if="errors.address" class="text-xs text-red-500 mt-0.5">{{ errors.address[0] }}</p>
-                </div>
-                <div class="col-span-2">
-                    <label class="block text-gray-500 font-medium mb-1">비고</label>
+                </FormField>
+                <FormField label="비고" class="col-span-2">
                     <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
-                </div>
+                </FormField>
             </div>
 
             <!-- 탭 2 · 담당자 N -->
@@ -238,12 +229,12 @@
         </template>
 
         <!-- 액션 -->
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ canWrite ? '취소' : '닫기' }}</BaseButton>
             <BaseButton v-if="canWrite" variant="primary" size="sm" :disabled="saving || loading" @click="save">
                 {{ isEdit ? '수정' : '등록' }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -254,6 +245,8 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import PolicyOverrideField from '@core/Components/Config/PolicyOverrideField.vue';
 import { PARTNER_ROLES } from '@core/Components/Config/partnerCodes';
@@ -332,6 +325,7 @@ function applyPartner(p) {
 
 // ---- 정책 덮어쓰기 ( 입고검사 ) ----
 const policyFields  = ref([]);        // PolicyService::entityFields
+const policiesLoaded = ref(false);    // 불러온 뒤에만 '꺼져 있음' 안내 ( 깜빡임 방지 )
 const policies      = reactive({});   // key → 덮어쓴 값 ( '' = 설정에 맞춤 )
 const incomingField = computed(() => policyFields.value.find(f => f.key === 'quality.incoming_inspection') ?? null);
 const hasIncoming   = computed(() => form.is_supplier === 'Y' || form.is_subcon === 'Y');
@@ -343,6 +337,7 @@ async function loadPolicies() {
         });
         policyFields.value = data.policies ?? [];
         policyFields.value.forEach(f => { policies[f.key] = f.override ?? ''; });
+        policiesLoaded.value = true;
     } catch (e) {
         errorMsg.value = '입고검사 설정을 불러오지 못했습니다.';
     }

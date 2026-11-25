@@ -7,6 +7,7 @@ use MesCore\Http\Concerns\SearchesKeyword;
 use MesCore\Http\Concerns\RespondsWithList;
 use MesCore\Auth\Models\User;
 use MesCore\Config\Models\InspectionSpec;
+use MesCore\Quality\Services\InspectionReportService;
 use MesCore\Config\Models\Partner;
 use MesCore\Menu\Services\MenuPermissionService;
 use MesCore\Quality\Services\DefectService;
@@ -59,7 +60,7 @@ class ShippingInspectionController extends Controller {
             ->join('shipment', 'shipment.shipment_idx', '=', 'shipment_line.shipment_idx')
             ->addSelect(['partner_name' => Partner::select('partner_name')->whereColumn('partner.partner_idx', 'shipment.partner_idx')])
             ->where('shipment.status', '!=', 'CANCELED')
-            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'picks.lot:lot_idx,lot_no'])
+            ->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'picks.lot:lot_idx,lot_no,lot_title'])
             ->orderBy('shipment.plan_date')->orderBy('shipment.shipment_idx')->orderBy('shipment_line.line_no');
 
         $waitOnly = fn (Builder $q) => $q->where('shipment.status', 'WAIT')
@@ -79,7 +80,7 @@ class ShippingInspectionController extends Controller {
             'shipment_no' => fn ($q, $kw) => $q->where('shipment.shipment_no', 'like', $kw),
             'item_code'   => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_code', 'like', $kw)),
             'item_name'   => fn ($q, $kw) => $q->whereHas('item', fn ($r) => $r->where('item_name', 'like', $kw)),
-            'lot_no'      => fn ($q, $kw) => $q->whereHas('picks.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'lot_no'      => fn ($q, $kw) => $q->whereHas('picks.lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
         ]);
 
         $users = new \ArrayObject();   // 그 페이지 행의 검사자만 ( $prepare 가 채운다 — 화살표 함수는 값을 복사해 잡아서 객체로 )
@@ -115,12 +116,9 @@ class ShippingInspectionController extends Controller {
     }
 
     // 검사 창 : 줄 · LOT · 출고 기준서 요약 · 지금 판정 기록 · 검사할 수 있는지
-    public function show(int $lineIdx) {
+    public function show(int $lineIdx, InspectionReportService $reports) {
         $this->requireScreen(self::READ_SCREENS, 'can_read');
         $line = $this->findLine($lineIdx);
-        $spec = InspectionSpec::withCount('lines')
-            ->where('item_idx', $line->item_idx)->where('insp_type', 'SHIPPING')->where('is_use', 'Y')
-            ->first(['inspection_spec_idx', 'inspection_spec_name']);
         $inspection = $this->inspections->activeInspection($line);
         $defect     = $this->defects->summary($inspection?->defects ?? []);   // 불량 여러 줄 요약
 
@@ -143,11 +141,9 @@ class ShippingInspectionController extends Controller {
                 'shipment_status'   => $line->shipment->status,
             ],
             'blocked' => in_array($line->inspect_status, ['PASS', 'FAIL'], true) ? null : $this->inspections->inspectable($line),
-            'spec' => $spec ? [
-                'inspection_spec_name' => $spec->inspection_spec_name,
-                'item_count'           => $spec->lines_count,
-                'items'                => $spec->lines()->orderBy('seq')->limit(20)->pluck('inspection_item_name'),
-            ] : null,
+            // 성적서 ( 11-23 ) : 설정이 켜졌으면 고를 기준서( 이 검사 종류의 기본 먼저 ) · 저장된 측정값
+            'report'     => $reports->enabled('SHIPPING'),
+            'specs'      => $reports->enabled('SHIPPING') ? InspectionSpec::options('SHIPPING') : [],
             'inspection' => $inspection ? [
                 'result'         => $inspection->result,
                 'pass_qty'       => (float) $inspection->pass_qty,
@@ -157,6 +153,10 @@ class ShippingInspectionController extends Controller {
                 'defect_type'    => $defect['defect_type'],
                 'reason'         => $defect['reason'],
                 'remark'         => $inspection->remark,
+                'inspection_idx' => $inspection->inspection_idx,
+                'mode'           => $inspection->mode,
+                'spec_name'      => $inspection->inspection_spec_idx ? InspectionSpec::whereKey($inspection->inspection_spec_idx)->value('inspection_spec_name') : null,
+                'measures'       => $inspection->mode === 'SHEET' ? $reports->rows($inspection) : [],
             ] : null,
             'can_write'  => $this->can(self::WRITE_SCREENS, 'can_write'),
             'inspectors' => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
@@ -180,6 +180,7 @@ class ShippingInspectionController extends Controller {
             'inspector_idx'    => ['required', 'integer', User::pickableRule()],
             'inspected_at'     => 'required|date_format:Y-m-d\TH:i',
             'remark'           => 'nullable|string|max:2000',
+            ...InspectionReportService::rules(),   // 성적서 측정값 ( 11-23 )
         ], [], [
             'result' => '판정', 'fail_qty' => '불량 수량', 'defect_type_code' => '불량 유형', 'reason' => '불량 상세',
             'inspector_idx' => '검사자', 'inspected_at' => '검사일시',

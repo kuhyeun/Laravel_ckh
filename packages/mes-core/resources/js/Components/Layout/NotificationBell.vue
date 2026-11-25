@@ -1,5 +1,6 @@
 <!-- 상단 종 ( 내 알림 · 11-13 ) — 안 읽은 수 뱃지 · 누르면 최근 10건
      - 알림을 누르면 읽음 표시 후 그 화면으로 ( 주소 ?kw=문서번호 — SearchBar 가 검색어로 받는다 )
+     - [전체 보기] ( 11-23 ) : 내 알림 전체 창( NotificationInbox — 기간 · 종류 · 검색 · 페이지 ) · 알림관리 메뉴는 받기 설정( 관리자 )
      - 새로 고침 : 1분마다( 탭이 보일 때만 ) · 화면을 옮길 때 · 알림관리 화면이 'mes:notifications' 를 쏠 때 -->
 <template>
     <div ref="root" class="relative mr-3">
@@ -24,7 +25,7 @@
                     <span class="mt-1.5 w-2 h-2 rounded-full shrink-0" :class="n.read_at ? 'bg-transparent' : 'bg-blue-500'"></span>
                     <span class="min-w-0 flex-1">
                         <span class="flex items-center gap-1.5">
-                            <span class="text-[11px] px-1.5 py-px rounded font-semibold" :class="KIND_CLASS[n.kind] ?? 'bg-gray-100 text-gray-600'">{{ n.kind_name }}</span>
+                            <span class="text-[11px] px-1.5 py-px rounded font-semibold" :class="kindClass(n.kind)">{{ n.kind_name }}</span>
                             <span class="text-[11px] text-gray-400 ml-auto shrink-0">{{ ago(n.created_at) }}</span>
                         </span>
                         <span class="block text-sm text-gray-800 truncate mt-0.5" :class="n.read_at ? '' : 'font-semibold'">{{ n.title }}</span>
@@ -33,27 +34,31 @@
                 </button>
             </div>
             <div class="px-3 py-2 text-right border-t border-gray-100">
-                <button v-if="manageUrl" type="button" class="text-xs text-gray-600 hover:text-blue-600" @click="goManage">알림관리 열기 →</button>
+                <button type="button" class="text-xs text-gray-600 hover:text-blue-600" @click="openAll">전체 보기 →</button>
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { route } from 'ziggy-js';
-import { router, usePage } from '@inertiajs/vue3';
+import { router } from '@inertiajs/vue3';
 import { BellIcon } from '@heroicons/vue/24/outline';
 import { useToast } from '@core/Composables/useToast';
+import { useModalStore } from '@core/Stores/modalStore';
+import NotificationInbox from '@core/Components/Layout/NotificationInbox.vue';
 
 const POLL_MS = 60_000;
+// 종류 색 : 끝말로 ( 출하 결재 · 나중의 다른 결재 같이 — NotificationService::KINDS )
 const KIND_CLASS = {
-    APPROVAL_REQUEST:  'bg-amber-100 text-amber-800',
-    APPROVAL_APPROVED: 'bg-green-100 text-green-800',
-    APPROVAL_REJECTED: 'bg-red-100 text-red-700',
+    _REQUEST:  'bg-amber-100 text-amber-800',
+    _APPROVED: 'bg-green-100 text-green-800',
+    _REJECTED: 'bg-red-100 text-red-700',
 };
+const kindClass = (kind) => Object.entries(KIND_CLASS).find(([end]) => kind?.endsWith(end))?.[1] ?? 'bg-gray-100 text-gray-600';
 
-const page = usePage();
+const modalStore = useModalStore();
 const { showFlash } = useToast();
 const root    = ref(null);
 const open    = ref(false);
@@ -61,18 +66,6 @@ const unread  = ref(0);
 const rows    = ref([]);
 const loading = ref(false);
 
-// 알림관리 메뉴 주소 ( 내 메뉴 트리에 있을 때만 — 권한이 없으면 링크 없음 )
-const manageUrl = computed(() => {
-    const find = (items) => {
-        for (const m of items ?? []) {
-            if (m.menu_code === '1016') return m.url_path;
-            const hit = find(m.children);
-            if (hit) return hit;
-        }
-        return '';
-    };
-    return find(page.props.userMenu) || find(page.props.adminMenu);
-});
 
 async function refresh() {
     loading.value = true;
@@ -116,9 +109,9 @@ async function readAll() {
     }
 }
 
-function goManage() {
+function openAll() {
     open.value = false;
-    router.visit(manageUrl.value);
+    modalStore.open(NotificationInbox, { modalTitle: '내 알림' }, { size: 'full' });
 }
 
 // 몇 분 전 ( 하루 넘으면 날짜 )

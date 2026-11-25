@@ -78,10 +78,9 @@
                                 <BaseDatePicker v-model="form.changed_at" class="w-full" :disabled="!canWrite" />
                                 <p v-if="errors.changed_at" class="text-xs text-red-500 mt-0.5">{{ errors.changed_at[0] }}</p>
                             </div>
-                            <div>
-                                <label class="block text-gray-500 font-medium mb-1">변경 사유</label>
+                            <FormField label="변경 사유">
                                 <BaseInput v-model="form.remark" class="w-full" placeholder="예: 볼트 규격 M6 → M8" :disabled="!canWrite" />
-                            </div>
+                            </FormField>
                         </div>
 
                         <p v-if="SHOW_OP && !hasRouting" class="mb-3 text-xs text-amber-600">
@@ -259,6 +258,7 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import FormField from '@core/Components/Common/FormField.vue';
 import BomTree from '@core/Components/Config/BomTree.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';

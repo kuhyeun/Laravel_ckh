@@ -2,12 +2,14 @@
      - 검색 : 공통 검색바 — 기간( 착수 예정 / 생산 기한 ) + 검색어( 지시번호 · 품번 · 품명 · LOT · 수주번호 ) + 출처 + 상태( 기본 진행 중 )
      - 목록 : 지시서 행 아래 품목 줄 펼침 ( 줄이 하나면 그 줄 값을 지시서 행에 바로 ). 서버 페이징은 지시서 단위
      - 행 클릭 → 지시서 수정 모달( WorkOrderForm — 품목 줄을 누르면 그 줄이 선택된 채로 ) / [+ 등록] → 빈 모달
-     - 체크( 지시서 ) → [취소] : 모든 줄이 대기인 지시서만 ( 줄 하나 취소는 지시서 창의 [줄 취소] ) -->
+     - 체크( 지시서 ) → [취소] : 모든 줄이 대기인 지시서만 ( 줄 하나 취소는 지시서 창의 [줄 취소] )
+     - [생산계획표] ( 11-19 · 정책 production.plan_sheet ) : 단추 줄 끝 — 설비별 · 날짜별 계획 보기 · 인쇄( A4 가로 · ProductionPlanSheet ) -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div class="flex items-center gap-1 pb-2 shrink-0">
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="!checkedRows.length || busy" @click="cancelChecked">취소</BaseButton>
+            <BaseButton v-if="planSheetOn" size="sm" variant="secondary" @click="openPlanSheet">생산계획표</BaseButton>
         </div>
 
         <SearchBar
@@ -64,6 +66,7 @@ import SearchBar from '@core/Components/Common/SearchBar.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
+import ProductionPlanSheet from '@core/Components/Production/ProductionPlanSheet.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { WO_SOURCES, WO_STATUS_FILTER, woSourceLabel, woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
@@ -209,5 +212,12 @@ async function cancelChecked() {
     } finally {
         busy.value = false;
     }
+}
+
+// ---- 생산계획표 ( 11-19 ) — 시스템 설정에서 켰을 때만 단추 ----
+const planSheetOn = ref(false);
+window.axios.get(route('production.workOrder.planSheet')).then(({ data }) => { planSheetOn.value = data.enabled === true; }).catch(() => {});
+function openPlanSheet() {
+    modalStore.open(ProductionPlanSheet, { modalTitle: '생산계획표' }, { size: 'full' });
 }
 </script>

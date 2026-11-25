@@ -15,7 +15,8 @@ use Illuminate\Support\Facades\Storage;
  *   … --with-routing-bom                          라우팅 · BOM 도 전부 비운다 ( 공용 틀 · 품목 · 수주 사본 모두 + 품목의 기본 라우팅 연결 해제 )
  *                                                 품목 · 공정 · 거래처 등 나머지 기준정보는 그대로 ( 라우팅 · BOM 을 처음부터 다시 잡을 때 )
  *
- *   비움( TRUNCATE — 번호도 1부터 ) : 수주 · 발주 · 작업지시 · 재공 · 외주 · 재고 · LOT · 출하 · 클레임 · 검사 · 라벨 발행 · 변경 이력
+ *   비움( TRUNCATE — 번호도 1부터 ) : 수주 · 발주 · 작업지시( 투입 LOT 연결 포함 ) · 재공 · 외주( 발주 · 출고 LOT 포함 ) · 재고 · LOT · 출하 · 클레임 · 검사( 검사 LOT · 측정값 포함 ) · 라벨 발행 · 알림 · 변경 이력
+ *   새 업무 테이블을 만들면 여기에도 더한다 ( 빠지면 번호가 1부터 다시 시작한 새 전표에 옛 줄이 붙는다 )
  *   일부만 : 라우팅 · BOM 은 수주 줄 사본( ORDER_LINE )만 ( --with-routing-bom 이면 전부 ) / 첨부는 업무 전표에 붙은 것만( 파일도 )
  *   남김 : 계정 · 권한 · 메뉴 · 정책 · 코드 · 계산식 · 그리드 설정 · 품목 · 거래처 · 공정 · 설비 · 창고 · 라우팅 틀 / 품목 라우팅 · 품목 BOM ( 옵션 없을 때 ) · 검사 기준 · 리드타임 · LOT 규칙 · 라벨 양식
  */
@@ -34,8 +35,9 @@ class ResetTransactionsCommand extends Command {
         'purchase_order', 'purchase_order_line', 'purchase_order_line_source',
         // 생산계획 · 작업지시
         'production_plan', 'production_plan_source', 'work_order', 'work_order_source', 'work_order_op', 'work_order_op_run', 'work_order_material', 'work_order_sheet', 'wo_stock',
+        'work_order_run_input',   // 실적 ← 투입 LOT 연결 ( 11-23 — 빠져 있어 초기화 뒤 새 실적에 옛 연결이 붙었다 )
         // 재공 · 외주
-        'wip_txn', 'subcon_issue', 'subcon_receipt',
+        'wip_txn', 'subcon_issue', 'subcon_receipt', 'subcon_issue_lot', 'subcon_order', 'subcon_order_line',
         // 재고 · LOT
         'stock_txn', 'stock_txn_line', 'stock_ledger', 'stock_balance', 'lot', 'lot_seq',
         // 문서 번호 순번 ( Support/DocNumber )
@@ -45,7 +47,9 @@ class ResetTransactionsCommand extends Command {
         // 클레임
         'claim', 'claim_line',
         // 검사 · 불량
-        'inspection', 'defect',
+        'inspection', 'defect', 'inspection_lot', 'inspection_measure',
+        // 알림 ( 받은 알림 — 사용자별 받기 설정 notification_pref 는 남김 )
+        'notification',
         // 라벨 발행
         'barcode_label', 'label_print_log',
         // 변경 이력 ( 수주 사본 · 기준정보 변경 모두 — 새로 시작 )

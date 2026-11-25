@@ -58,7 +58,7 @@ class RunInputService {
             $materials = DB::table('wo_stock as s')->join('lot as l', 'l.lot_idx', '=', 's.lot_idx')->join('item as i', 'i.item_idx', '=', 's.item_idx')
                 ->where('s.work_order_idx', $wo->work_order_idx)->whereIn('s.item_idx', $items)->where('s.lot_idx', '>', 0)->where('s.issued_qty', '>', 0)
                 ->orderBy('i.item_code')->orderBy('l.lot_no')
-                ->get(['s.lot_idx', 's.item_idx', 'l.lot_no', 'l.in_at', 'i.item_code', 'i.item_name', 'i.spec_unit', 's.issued_qty', 's.returned_qty'])
+                ->get(['s.lot_idx', 's.item_idx', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'l.in_at', 'i.item_code', 'i.item_name', 'i.spec_unit', 's.issued_qty', 's.returned_qty'])
                 ->map(fn ($r) => [
                     'lot_idx' => (int) $r->lot_idx, 'item_idx' => (int) $r->item_idx, 'in_at' => (string) $r->in_at,   // 자동 연결( 입고일 선입선출 )용
                     'lot_no' => $r->lot_no, 'item_code' => $r->item_code, 'item_name' => $r->item_name, 'spec_unit' => $r->spec_unit,
@@ -67,17 +67,12 @@ class RunInputService {
                 ])->values()->all();
         }
 
-        // 앞 공정 실적 LOT
+        // 앞 공정 실적 LOT ( 사이에 검사 공정이 있으면 그 합격분까지만 — 회차 검사 · 11-23 )
         $prev = $this->prevQtyOp($ops, $op);
         $runs = [];
         if ($prev) {
             $linked = $this->linkedOf(WorkOrderRunInput::TYPE_RUN, $wo);
-            $runs = WorkOrderOpRun::with('lot:lot_idx,lot_no')->where('work_order_op_idx', $prev->work_order_op_idx)
-                ->where('is_canceled', 'N')->whereNotNull('lot_idx')->orderBy('worked_at')->orderBy('run_idx')->get()
-                ->map(fn (WorkOrderOpRun $r) => [
-                    'lot_idx' => (int) $r->lot_idx, 'lot_no' => $r->lot?->lot_no, 'run_idx' => (int) $r->run_idx,
-                    'worked_at' => $r->worked_at?->format('Y-m-d H:i'), 'qty' => (float) $r->qty, 'linked_qty' => (float) ($linked[$r->lot_idx] ?? 0),
-                ])->values()->all();
+            $runs = $this->chainLots($ops, $op)->map(fn ($l) => $l + ['linked_qty' => (float) ($linked[$l['lot_idx']] ?? 0)])->values()->all();
         }
 
         return ['materials' => $materials, 'runs' => $runs, 'prev_op' => $prev ? sprintf('%03d %s', $prev->seq, $prev->process?->process_name) : null];
@@ -147,8 +142,13 @@ class RunInputService {
      * 화면이 보낸 투입( [ input_type, lot_idx, qty ] … )을 검사해 정리 → [ 정리된 투입, 경고 ]
      *   같은 LOT 를 두 번 보내면 수량을 합친다 · 후보가 아닌 LOT 는 막는다
      */
-    public function normalize(WorkOrder $wo, Collection $ops, WorkOrderOp $op, array $inputs, bool $required): array {
+    public function normalize(WorkOrder $wo, Collection $ops, WorkOrderOp $op, array $inputs, bool $required, ?array $types = null): array {
         $cand = $this->candidates($wo, $ops, $op);
+        // types : 받을 종류만 ( 외주 출고의 「출고 제품 LOT」 = RUN 만 · 자재는 외주 건 자재 출고로 · 11-24 )
+        if ($types !== null) {
+            if (!in_array(WorkOrderRunInput::TYPE_MATERIAL, $types, true)) $cand['materials'] = [];
+            if (!in_array(WorkOrderRunInput::TYPE_RUN, $types, true))      $cand['runs'] = [];
+        }
         $pool = [
             WorkOrderRunInput::TYPE_MATERIAL => collect($cand['materials'])->keyBy('lot_idx'),
             WorkOrderRunInput::TYPE_RUN      => collect($cand['runs'])->keyBy('lot_idx'),
@@ -188,9 +188,44 @@ class RunInputService {
         return [array_values($merged), $warnings];
     }
 
+    /**
+     * 이 공정에 들어올 앞 공정 실적 LOT ( 11-23 ) — lot_idx → [ lot_idx, lot_no, run_idx, worked_at, qty ]
+     *   qty = 앞 수량 공정의 실적 · 사이에 검사 공정( 품질 켬 )이 있으면 그 검사의 LOT 별 합격까지 ( 0 이면 뺀다 )
+     */
+    public function chainLots(Collection $ops, WorkOrderOp $op): Collection {
+        $prev = $this->prevQtyOp($ops, $op);
+        if (!$prev) return collect();
+        $lots = WorkOrderOpRun::with('lot:lot_idx,lot_no,lot_title')->where('work_order_op_idx', $prev->work_order_op_idx)
+            ->where('is_canceled', 'N')->whereNotNull('lot_idx')->orderBy('worked_at')->orderBy('run_idx')->get()
+            ->map(fn (WorkOrderOpRun $r) => [
+                'lot_idx' => (int) $r->lot_idx, 'lot_no' => $r->lot?->lot_no, 'run_idx' => (int) $r->run_idx,
+                'worked_at' => $r->worked_at?->format('Y-m-d H:i'), 'qty' => (float) $r->qty,
+            ])->keyBy('lot_idx');
+        if (!in_array('Quality', config('mes.modules', []), true)) return $lots;
+        foreach ($ops->filter(fn (WorkOrderOp $o) => $o->seq > $prev->seq && $o->seq < $op->seq && $o->isInspectionOp()) as $insp) {
+            $pass = $this->inspectedByLot($insp);
+            $lots = $lots->map(fn ($l) => ['qty' => min($l['qty'], (float) ($pass[$l['lot_idx']]['pass'] ?? 0))] + $l)
+                ->filter(fn ($l) => $l['qty'] > self::EPS);
+        }
+        return $lots;
+    }
+
+    /** 그 검사 공정의 회차 LOT 합 ( 취소 제외 ) — @return array<int, array{qty: float, pass: float}> lot_idx → 검사 · 합격 */
+    public function inspectedByLot(WorkOrderOp $insp): array {
+        return DB::table('inspection_lot as l')->join('inspection as i', 'i.inspection_idx', '=', 'l.inspection_idx')
+            ->where('i.ref_type', 'work_order_op')->where('i.ref_idx', $insp->work_order_op_idx)->where('i.insp_type', 'PROCESS')->where('i.is_canceled', 'N')
+            ->whereNotNull('l.lot_idx')->groupBy('l.lot_idx')->selectRaw('l.lot_idx, SUM(l.qty) as q, SUM(l.qty - l.fail_qty) as p')->get()
+            ->mapWithKeys(fn ($r) => [(int) $r->lot_idx => ['qty' => (float) $r->q, 'pass' => (float) $r->p]])->all();
+    }
+
+    // 이 지시 안에서 앞 공정 실적 LOT 로 끌어간 수량 ( LOT 별 )
+    public function linkedRunQty(WorkOrder $wo): array {
+        return $this->linkedOf(WorkOrderRunInput::TYPE_RUN, $wo);
+    }
+
     // 그 실적에 이미 연결된( 해제 안 한 ) LOT 를 또 연결하려 하면 막는다 — 나중에 더하기
     public function assertNotLinked(WorkOrderOpRun $run, array $normalized): void {
-        $have = WorkOrderRunInput::with('lot:lot_idx,lot_no')->where('run_idx', $run->run_idx)->where('is_canceled', 'N')->get()
+        $have = WorkOrderRunInput::with('lot:lot_idx,lot_no,lot_title')->where('run_idx', $run->run_idx)->where('is_canceled', 'N')->get()
             ->keyBy(fn (WorkOrderRunInput $x) => "{$x->input_type}:{$x->lot_idx}");
         $dup = collect($normalized)->map(fn ($m) => $have->get("{$m['input_type']}:{$m['lot_idx']}"))->filter();
         if ($dup->isNotEmpty()) {
@@ -240,7 +275,7 @@ class RunInputService {
     /** 실적별 투입 연결 ( 화면 ) — @return array<int, array> run_idx → [ … ] */
     public function byRuns(array $runIdxs): array {
         if (!$runIdxs) return [];
-        return WorkOrderRunInput::with(['lot:lot_idx,lot_no', 'creator:account_idx,user_id,user_name'])
+        return WorkOrderRunInput::with(['lot:lot_idx,lot_no,lot_title', 'creator:account_idx,user_id,user_name'])
             ->whereIn('run_idx', $runIdxs)->where('is_canceled', 'N')->orderBy('run_input_idx')->get()
             ->groupBy('run_idx')
             ->map(fn ($g) => $g->map(fn (WorkOrderRunInput $x) => [

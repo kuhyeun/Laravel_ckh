@@ -53,7 +53,7 @@ class OpHistoryController extends Controller {
                 'r.run_idx', 'r.worked_at', 'r.create_datetime as created_at', 'r.qty', 'r.remark', 'r.is_canceled', 'r.canceled_at',
                 'r.operator_idx', 'r.create_account_idx', 'r.stock_txn_line_idx',
                 'wo.work_order_idx', 'wo.wo_no', 'wo.start_date',
-                'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', 'l.lot_no',
+                'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'),
                 'op.seq', 'p.process_name', 'e.equipment_name',
                 DB::raw("COALESCE(NULLIF(u.user_name, ''), u.user_id) as operator_name"),
                 DB::raw("COALESCE(NULLIF(cu.user_name, ''), cu.user_id) as creator_name"),
@@ -145,6 +145,101 @@ class OpHistoryController extends Controller {
 
         $out = $group === 'day' ? $out->sortByDesc('key')->values() : $out->sortByDesc(fn ($r) => $r['run_count'])->values();
         return response()->json(['rows' => $out]);
+    }
+
+    // 일정 ( 간트 · 11-23 ) — 작업지시서별 품목 줄의 계획( 착수 ~ 납기 ) · 실제( 첫 실적 ~ 마지막 실적 / 완료 ) · 진척( 생산 입고 ÷ 지시 수량 ) + 공정
+    //   지시서 : 기간과 일정( 착수 ~ 납기 )이 겹치는 것 · 취소 제외 · 검색어( 줄 번호 · 품번 · 품명 · LOT )는 그 줄이 있는 지시서 · 최근 착수 순 최대 SCHEDULE_MAX
+    //   기간이 비면 오늘 ±30 일 · 공정 · 작업자 · 설비 · 기간 기준은 쓰지 않는다( 일정은 지시서 단위 )
+    private const SCHEDULE_MAX = 100;
+
+    public function schedule(Request $request) {
+        $v    = $this->filters($request);
+        $from = $v['from'] ?? now()->subDays(30)->toDateString();
+        $to   = $v['to']   ?? now()->addDays(30)->toDateString();
+
+        $sheetQ = DB::table('work_order_sheet as s')->where('s.status', '!=', 'CANCELED')
+            ->where('s.start_date', '<=', $to)->whereRaw('COALESCE(s.due_date, s.start_date) >= ?', [$from]);
+        if (!empty($v['keyword'])) {
+            $sheetQ->whereExists(function ($q) use ($v) {
+                $q->from('work_order as wo')->join('item as i', 'i.item_idx', '=', 'wo.item_idx')->leftJoin('lot as l', 'l.lot_idx', '=', 'wo.lot_idx')
+                    ->whereColumn('wo.sheet_idx', 's.sheet_idx')->where('wo.status', '!=', 'CANCELED');
+                $this->applyKeyword($q, $v['keyword'], [
+                    'wo_no'     => fn ($q, $kw) => $q->where('wo.wo_no', 'like', $kw),
+                    'item_code' => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
+                    'item_name' => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
+                    'lot_no'    => fn ($q, $kw) => \MesCore\Stock\Models\Lot::whereNoLike($q, $kw, 'l'),
+                ]);
+            });
+        }
+        $total  = (clone $sheetQ)->count();
+        $sheets = $sheetQ->orderByDesc('s.start_date')->orderByDesc('s.sheet_idx')->limit(self::SCHEDULE_MAX)
+            ->get(['s.sheet_idx', 's.sheet_no', 's.start_date', 's.due_date', 's.status']);
+        if ($sheets->isEmpty()) {
+            return response()->json(['sheets' => [], 'total' => 0, 'from' => $from, 'to' => $to]);
+        }
+
+        $lines = WorkOrder::with('item')->whereIn('sheet_idx', $sheets->pluck('sheet_idx'))->where('status', '!=', 'CANCELED')
+            ->orderBy('sheet_idx')->orderBy('line_no')->get();
+        $woIds = $lines->pluck('work_order_idx');
+        $ops   = WorkOrderOp::with('process')->whereIn('work_order_idx', $woIds)->orderBy('seq')->get()->groupBy('work_order_idx');
+        // 공정별 실적 : 첫 시작( 시작 일시 없으면 작업 일시 ) · 마지막 작업 일시 · 합 ( 취소 제외 )
+        $runs = DB::table('work_order_op_run')->where('is_canceled', 'N')
+            ->whereIn('work_order_op_idx', $ops->flatten()->pluck('work_order_op_idx'))->groupBy('work_order_op_idx')
+            ->selectRaw('work_order_op_idx, MIN(COALESCE(started_at, worked_at)) as first_at, MAX(worked_at) as last_at, SUM(qty) as qty')->get()->keyBy('work_order_op_idx');
+        $received = DB::table('stock_txn_line as l')->join('stock_txn as x', 'x.stock_txn_idx', '=', 'l.stock_txn_idx')
+            ->where('x.txn_type', OpResultService::TXN_TYPE)->where('l.line_status', 'DONE')->whereIn('l.work_order_idx', $woIds)
+            ->groupBy('l.work_order_idx')->selectRaw('l.work_order_idx, SUM(l.qty) as n')->pluck('n', 'work_order_idx');
+
+        $day = fn ($t) => $t ? substr((string) $t, 0, 10) : null;
+        $min = fn (array $xs) => ($xs = array_filter($xs)) ? min($xs) : null;
+        $max = fn (array $xs) => ($xs = array_filter($xs)) ? max($xs) : null;
+
+        $lineRows = $lines->groupBy('sheet_idx')->map(fn ($ls) => $ls->map(function (WorkOrder $w) use ($ops, $runs, $received, $day, $min, $max) {
+            // 생산 공정만 ( 수량 공정 — 원자재출고 · 검사 빼고 · 11-23 ) — 실제 기간도 생산 공정 기준
+            $opRows = ($ops[$w->work_order_idx] ?? collect())->filter(fn (WorkOrderOp $o) => $o->isQtyOp())->map(function (WorkOrderOp $o) use ($runs, $day, $min, $max) {
+                $r = $runs[$o->work_order_op_idx] ?? null;
+                return [
+                    'label'     => str_pad((string) $o->seq, 3, '0', STR_PAD_LEFT) . ' ' . $o->process?->process_name,
+                    'status'    => $o->status,
+                    'is_qty'    => $o->isQtyOp(),
+                    'qty'       => (float) $o->qty,
+                    'due_date'  => $day($o->due_date),
+                    'act_start' => $day($min([$o->started_at?->format('Y-m-d H:i:s'), $r?->first_at])),
+                    'act_end'   => $day($max([$o->done_at?->format('Y-m-d H:i:s'), $r?->last_at])),
+                ];
+            })->values();
+            $recv = (float) ($received[$w->work_order_idx] ?? 0);
+            return [
+                'work_order_idx' => $w->work_order_idx,
+                'wo_no'          => $w->wo_no,
+                'line_no'        => $w->line_no,
+                'item_code'      => $w->item?->item_code,
+                'item_name'      => $w->item?->item_name,
+                'item_kind'      => $w->item?->item_kind,
+                'spec_unit'      => $w->item?->spec_unit,
+                'status'         => $w->status,
+                'target_qty'     => (float) $w->target_qty,
+                'received_qty'   => $recv,
+                'progress'       => (float) $w->target_qty > 0 ? min(1, $recv / (float) $w->target_qty) : 0,
+                'start_date'     => $day($w->start_date),
+                'due_date'       => $day($w->due_date),
+                'act_start'      => $min($opRows->pluck('act_start')->all()),
+                'act_end'        => $max($opRows->pluck('act_end')->all()),
+                'ops'            => $opRows,
+            ];
+        })->values());
+
+        return response()->json([
+            'from' => $from, 'to' => $to, 'total' => $total,
+            'sheets' => $sheets->map(fn ($s) => [
+                'sheet_idx'  => $s->sheet_idx,
+                'sheet_no'   => $s->sheet_no,
+                'start_date' => $day($s->start_date),
+                'due_date'   => $day($s->due_date),
+                'status'     => $s->status,
+                'lines'      => $lineRows[$s->sheet_idx] ?? [],
+            ])->values(),
+        ]);
     }
 
     // 품목 줄 하나의 실적 상세 — 공정별 실적( 취소 포함 ) · 자재 · 입고
@@ -291,7 +386,7 @@ class OpHistoryController extends Controller {
             'wo_no'     => fn ($q, $kw) => $q->where('wo.wo_no', 'like', $kw),
             'item_code' => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
             'item_name' => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
-            'lot_no'    => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
+            'lot_no'    => fn ($q, $kw) => \MesCore\Stock\Models\Lot::whereNoLike($q, $kw, 'l'),
         ]);
         return $q;
     }

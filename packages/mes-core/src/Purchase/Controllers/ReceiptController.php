@@ -73,7 +73,7 @@ class ReceiptController extends Controller {
             'txn_no'          => fn ($q, $kw) => $q->where('txn_no', 'like', $kw),
             'item_code'       => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_code', 'like', $kw)),
             'item_name'       => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_name', 'like', $kw)),
-            'lot_no'          => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'lot_no'          => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
             'external_lot_no' => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('external_lot_no', 'like', $kw)),
             'heat_no'         => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('heat_no', 'like', $kw)),
             'po_no'           => fn ($q, $kw) => $q->whereHas('lines.purchaseOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),

@@ -22,10 +22,10 @@
             <p class="mt-2 text-xs text-gray-400">개당 시간 합계 <b class="text-gray-600">{{ totalCycleOf(lines) }}</b> 초</p>
         </div>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ readonly || locked ? '닫기' : '취소' }}</BaseButton>
             <BaseButton v-if="!readonly && !locked" variant="primary" size="sm" :disabled="busy" @click="apply">적용</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -33,6 +33,7 @@
 import { reactive, ref } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import RoutingLinesEditor from '@core/Components/Config/RoutingLinesEditor.vue';
 import { totalCycleOf } from '@core/Components/Config/routingLines';
 import { showAlert } from '@core/Utils/message';

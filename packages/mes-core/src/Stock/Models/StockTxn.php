@@ -35,7 +35,8 @@ class StockTxn extends Model {
         'CANCELED' => '취소',
     ];
 
-    protected $fillable = ['txn_no', 'txn_type', 'occurred_at', 'recorded_at', 'partner_idx', 'status', 'remark'];
+    protected $fillable = ['txn_no', 'txn_type', 'occurred_at', 'recorded_at', 'partner_idx', 'status', 'remark',
+        'subcon_order_line_idx', 'subcon_issue_idx'];   // 외주 건으로 보낸 자재 출고 ( 11-23 · 출고관리 [외주] )
 
     protected function casts(): array {
         return [

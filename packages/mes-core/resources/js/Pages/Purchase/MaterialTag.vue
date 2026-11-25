@@ -76,7 +76,7 @@ const enabled  = ref(true);
 const templates   = ref([]);
 const templateIdx = ref('');
 const templateOptions = computed(() => [{ value: '', label: '발행한 양식 그대로' },
-    ...templates.value.map(t => ({ value: t.label_template_idx, label: `${t.template_name} ( ${t.width_mm} × ${t.height_mm}mm )${t.is_default === 'Y' ? ' · 기본' : ''}` }))]);
+    ...templates.value.map(t => ({ value: t.label_template_idx, label: `${t.template_name} ${t.is_default === 'Y' ? ' · 기본' : ''}` }))]);
 
 const columns = [
     { header: '입고 일시', name: 'in_at', width: 150, align: 'center', className: 'cursor-pointer' },
@@ -126,6 +126,15 @@ async function openPreview(ids) {
             modalTitle: `물품표 ( ${ids.length} LOT )`,
             labels: data.labels ?? [],
             onPrinted: () => load(),
+            onClosed: () => load(),   // 닫으면 목록 새로 ( LOT 번호 · 인쇄 · 새로 발행 반영 · 11-24 )
+            // LOT 번호 변경 · [새로 발행] ( 11-24 · 지금 번호로 새 바코드 — 예전 라벨은 그대로 )
+            lotEdit: true,
+            onReissue: async (l) => {
+                const { data: r } = await window.axios.post(route('purchase.tag.reissue'), { lot_idx: l.lot_idx, label_template_idx: templateIdx.value || null });
+                showFlash(`${r.label?.barcode_no} 로 새로 발행했습니다.`);
+                load();
+                return r.label;
+            },
         }, { size: 'xl' });
         if ((data.labels ?? []).length) load();   // 새로 발행했으면 라벨 수 갱신
     } catch (e) {

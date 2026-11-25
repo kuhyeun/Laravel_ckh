@@ -49,6 +49,7 @@ class SubconController extends Controller {
             'inspectors'        => User::pickable()->orderBy('user_name')->get(['account_idx', 'user_id', 'user_name']),
             'me'                => User::pickableMe(),
             'now'               => now()->format('Y-m-d\TH:i'),
+            'can_material'      => $permissions->canPageForMe('Production/MaterialIssue', 'can_write'),   // 외주 출고 창의 [자재 출고] ( 11-24 )
         ]);
     }
 
@@ -72,6 +73,12 @@ class SubconController extends Controller {
         $opsByWo  = WorkOrderOp::with('process')->whereIn('work_order_idx', $woIds)->orderBy('seq')->get()->groupBy('work_order_idx');
         $issuedBy = DB::table('subcon_issue')->whereIn('work_order_op_idx', $opIdxs)->where('is_canceled', 'N')
             ->groupBy('work_order_op_idx')->selectRaw('work_order_op_idx, SUM(qty) as n')->pluck('n', 'work_order_op_idx');
+        // 외주 발주 ( 11-23 ) : 공정마다 발주 합 · 발주 줄( 취소 아닌 발주 ) — 외주 출고 창에서 그 발주로 출고할 수 있게
+        $orderLines = DB::table('subcon_order_line as l')->join('subcon_order as o', 'o.subcon_order_idx', '=', 'l.subcon_order_idx')
+            ->whereIn('l.work_order_op_idx', $opIdxs)->where('o.status', '!=', 'CANCELED')
+            ->get(['l.subcon_order_line_idx', 'l.work_order_op_idx', 'l.qty', 'l.unit_price', 'o.order_no', 'o.partner_idx'])->groupBy('work_order_op_idx');
+        $lineIssued = DB::table('subcon_issue')->whereIn('subcon_order_line_idx', $orderLines->flatten()->pluck('subcon_order_line_idx'))->where('is_canceled', 'N')
+            ->groupBy('subcon_order_line_idx')->selectRaw('subcon_order_line_idx, SUM(qty) as n')->pluck('n', 'subcon_order_line_idx');
 
         $rows = [];
         foreach ($mineByWo as $woIdx => $mine) {
@@ -98,6 +105,11 @@ class SubconController extends Controller {
                     'available_qty'     => $av['available'],
                     'is_last'           => $results->receivesOnRun($ops, $op),
                     'lot_mode'          => $wo->lot_mode,   // RUN = 내보낼 LOT 를 고른다 ( 실적LOT-설계 )
+                    'ordered_qty'       => (float) ($orderLines[$op->work_order_op_idx] ?? collect())->sum('qty'),
+                    'order_lines'       => ($orderLines[$op->work_order_op_idx] ?? collect())->map(fn ($x) => [
+                        'subcon_order_line_idx' => (int) $x->subcon_order_line_idx, 'order_no' => $x->order_no, 'partner_idx' => (int) $x->partner_idx,
+                        'qty' => (float) $x->qty, 'unit_price' => (float) $x->unit_price, 'issued_qty' => (float) ($lineIssued[$x->subcon_order_line_idx] ?? 0),
+                    ])->values(),
                 ];
             }
         }
@@ -112,6 +124,7 @@ class SubconController extends Controller {
             'amount'            => 'nullable|numeric|min:0|max:9999999999999',
             'issued_at'         => 'required|date_format:Y-m-d\TH:i',
             'remark'            => 'nullable|string|max:200',
+            'subcon_order_line_idx' => 'nullable|integer',   // 외주 발주서에서 출고 ( 11-23 — 금액은 발주 단가로 )
             // 내보낼 LOT ( 공정 LOT 추적 지시 ) : [ input_type MATERIAL · RUN, lot_idx, qty ]
             'inputs'              => 'nullable|array|max:100',
             'inputs.*.input_type' => 'required|in:MATERIAL,RUN',
@@ -119,7 +132,7 @@ class SubconController extends Controller {
             'inputs.*.qty'        => 'nullable|numeric|min:0|max:999999999999',   // 앞 공정 실적 LOT 만 ( 자재 LOT 는 수량 없음 · 11-12 — 0 보다 큰지는 서비스가 )
         ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => 'LOT 수량은 0보다 커야 합니다.'], ['partner_idx' => '외주처', 'qty' => '수량', 'amount' => '외주 금액', 'issued_at' => '출고 일시', 'inputs.*.qty' => 'LOT 수량']);
         $issue = $this->subcon->issue($d);
-        return response()->json(['message' => 'Success', 'issue_no' => $issue->issue_no, 'warnings' => $issue->warnings ?? []]);
+        return response()->json(['message' => 'Success', 'issue_no' => $issue->issue_no, 'subcon_issue_idx' => (int) $issue->subcon_issue_idx, 'warnings' => $issue->warnings ?? []]);
     }
 
     // 외주 출고 때 고를 LOT ( 공정 LOT 추적 — 공정실적과 같은 후보 · 외주 출고 권한으로 )

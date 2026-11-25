@@ -123,7 +123,7 @@ class LabelController extends Controller {
 
         $query = BarcodeLabel::query()->with([
             'template:label_template_idx,template_name',
-            'lot:lot_idx,lot_no,item_idx', 'lot.item:item_idx,item_code,item_name,spec',
+            'lot:lot_idx,lot_no,lot_title,item_idx', 'lot.item:item_idx,item_code,item_name,spec',
             'shipmentLine:shipment_line_idx,shipment_idx,item_idx,line_no', 'shipmentLine.item:item_idx,item_code,item_name,spec',
             'shipmentLine.shipment:shipment_idx,shipment_no,partner_idx', 'shipmentLine.shipment.partner:partner_idx,partner_name',
         ])->orderByDesc('create_datetime')->orderByDesc('label_idx');

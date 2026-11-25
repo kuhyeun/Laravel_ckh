@@ -47,7 +47,7 @@ class DefectHistoryController extends Controller {
             ->select([
                 'd.defect_idx', 'd.occurred_at', 'd.insp_type', 'd.qty', 'd.defect_type_code', 'd.reason', 'd.is_canceled',
                 'i.insp_type as inspection_kind',
-                'it.item_code', 'it.item_name', 'it.spec as item_spec', 'it.material as item_material', 'it.spec_unit', 'l.lot_no', 'p.partner_name',
+                'it.item_code', 'it.item_name', 'it.spec as item_spec', 'it.material as item_material', 'it.spec_unit', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'p.partner_name',
                 'u.user_name as inspector_name', 'u.user_id as inspector_id', 'c.system_code_name as defect_type',
                 'w.wo_no', 'o.seq as op_seq', 'pr.process_name', 's.shipment_no', 'sl.line_no as shipment_line_no', 't.txn_no',
             ])
@@ -61,7 +61,7 @@ class DefectHistoryController extends Controller {
         $this->applyKeyword($q, $v['keyword'] ?? null, [
             'item_code' => fn ($q, $kw) => $q->where('it.item_code', 'like', $kw),
             'item_name' => fn ($q, $kw) => $q->where('it.item_name', 'like', $kw),
-            'lot_no'    => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
+            'lot_no'    => fn ($q, $kw) => \MesCore\Stock\Models\Lot::whereNoLike($q, $kw, 'l'),
             'reason'    => fn ($q, $kw) => $q->where('d.reason', 'like', $kw),
         ]);
 

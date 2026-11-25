@@ -14,6 +14,7 @@ use MesCore\Config\Controllers\LeadTimeController;
 use MesCore\Config\Controllers\LotRuleController;
 use MesCore\Config\Controllers\SiteConfigController;
 use MesCore\Config\Controllers\DocTemplateController;
+use MesCore\Config\Controllers\NotificationPrefController;
 use MesCore\Auth\Middleware\UserAuth;
 use MesCore\Auth\Middleware\MenuAuth;
 
@@ -287,5 +288,11 @@ Route::prefix('config')->name('config.')->middleware([UserAuth::class])->group(f
         Route::get('/list', [DocTemplateController::class, 'list'])->middleware(MenuAuth::class . ':Config/DocTemplateManage,can_read')->name('list');
         Route::post('/save', [DocTemplateController::class, 'save'])->middleware(MenuAuth::class . ':Config/DocTemplateManage,can_write')->name('save');
         Route::post('/delete', [DocTemplateController::class, 'delete'])->middleware(MenuAuth::class . ':Config/DocTemplateManage,can_delete')->name('del');
+    });
+
+    // 알림관리 ( Config/NotificationManage · 11-23 ) — 사용자 × 알림 종류 받기 설정 ( 내 알림 목록은 common.notifications.* )
+    Route::prefix('notification-pref')->name('notificationPref.')->group(function() {
+        Route::get('/list', [NotificationPrefController::class, 'list'])->middleware(MenuAuth::class . ':Config/NotificationManage,can_read')->name('list');
+        Route::post('/save', [NotificationPrefController::class, 'save'])->middleware(MenuAuth::class . ':Config/NotificationManage,can_write')->name('save');
     });
 });

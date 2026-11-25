@@ -10,32 +10,22 @@
         <div v-if="errorMsg" class="mb-3 text-xs text-red-500">{{ errorMsg }}</div>
 
         <div class="grid grid-cols-2 gap-x-4 gap-y-3">
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">설비코드 <span class="text-red-400">*</span></label>
+            <FormField label="설비코드" required :error="errors.equipment_code">
                 <BaseInput v-model="form.equipment_code" class="w-full" placeholder="예: EQ-003" :disabled="!canWrite" />
-                <p v-if="errors.equipment_code" class="text-xs text-red-500 mt-0.5">{{ errors.equipment_code[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">설비명 <span class="text-red-400">*</span></label>
+            </FormField>
+            <FormField label="설비명" required :error="errors.equipment_name">
                 <BaseInput v-model="form.equipment_name" class="w-full" :disabled="!canWrite" />
-                <p v-if="errors.equipment_name" class="text-xs text-red-500 mt-0.5">{{ errors.equipment_name[0] }}</p>
-            </div>
+            </FormField>
             <!-- 관리 항목 ( 11-19 ) -->
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">설비담당자 ( 정 )</label>
+            <FormField label="설비담당자 ( 정 )" :error="errors.manager_idx">
                 <BaseSelect v-model="form.manager_idx" :options="userOptions" class="w-full" :disabled="!canWrite" />
-                <p v-if="errors.manager_idx" class="text-xs text-red-500 mt-0.5">{{ errors.manager_idx[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">설비담당자 ( 부 )</label>
+            </FormField>
+            <FormField label="설비담당자 ( 부 )" :error="errors.sub_manager_idx">
                 <BaseSelect v-model="form.sub_manager_idx" :options="subUserOptions" class="w-full" :disabled="!canWrite" />
-                <p v-if="errors.sub_manager_idx" class="text-xs text-red-500 mt-0.5">{{ errors.sub_manager_idx[0] }}</p>
-            </div>
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">구매일자</label>
+            </FormField>
+            <FormField label="구매일자" :error="errors.purchase_date">
                 <BaseDatePicker v-model="form.purchase_date" class="w-full" :disabled="!canWrite" />
-                <p v-if="errors.purchase_date" class="text-xs text-red-500 mt-0.5">{{ errors.purchase_date[0] }}</p>
-            </div>
+            </FormField>
             <div>
                 <label class="block text-gray-500 font-medium mb-1">구매비용 <span class="text-xs text-gray-400">( 원 )</span></label>
                 <BaseInput v-model="form.purchase_cost" type="number" min="0" class="w-full text-right" placeholder="0" :disabled="!canWrite" />
@@ -44,20 +34,16 @@
             </div>
             <!-- 점검 ( 11-19 ) : 두 칸을 한 상자로 묶고 안내는 두 칸 너비 한 줄 — 오른쪽 칸만 아래로 늘어나지 않게 -->
             <div class="col-span-2 grid grid-cols-2 gap-x-4 gap-y-2 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/60">
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">점검 기준</label>
+                <FormField label="점검 기준" :error="errors.check_cycle">
                     <BaseSelect v-model="form.check_cycle" :options="CHECK_CYCLES" class="w-full" :disabled="!canWrite" @update:model-value="onCycleChange" />
-                    <p v-if="errors.check_cycle" class="text-xs text-red-500 mt-0.5">{{ errors.check_cycle[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">점검 기준날짜</label>
+                </FormField>
+                <FormField label="점검 기준날짜" :error="errors.check_base">
                     <BaseSelect v-if="form.check_cycle === 'WEEKLY'" v-model="form.check_base" :options="WEEKDAYS" placeholder="요일 선택" class="w-full" :disabled="!canWrite" />
                     <!-- 31줄이 한 번에 펼쳐지면 길어서 15줄 높이로 ( 11-19 ) -->
                     <ListSelect v-else-if="form.check_cycle === 'MONTHLY'" v-model="form.check_base" :options="MONTH_DAYS" :visible="15" placeholder="날 선택" :disabled="!canWrite" />
                     <BaseDatePicker v-else-if="form.check_cycle === 'YEARLY'" v-model="form.check_base" class="w-full" :disabled="!canWrite" />
                     <BaseInput v-else model-value="" class="w-full" placeholder="점검 기준을 먼저 고르세요" disabled />
-                    <p v-if="errors.check_base" class="text-xs text-red-500 mt-0.5">{{ errors.check_base[0] }}</p>
-                </div>
+                </FormField>
                 <p v-if="!errors.check_base && checkHint" class="col-span-2 flex items-center gap-1.5 text-[11px] text-gray-500">
                     <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" class="w-3.5 h-3.5 shrink-0 text-gray-400"><circle cx="10" cy="10" r="7.5" /><path d="M10 9v5" stroke-linecap="round" /><circle cx="10" cy="6.3" r="0.9" fill="currentColor" stroke="none" /></svg>
                     <span>{{ checkHint }}</span>
@@ -73,18 +59,17 @@
                     이 설비를 쓰는 공정이 {{ processCount }}개 있습니다. 미사용이어도 기존 공정에는 남고, 새로 고를 수는 없습니다.
                 </p>
             </div>
-            <div class="col-span-2">
-                <label class="block text-gray-500 font-medium mb-1">비고</label>
+            <FormField label="비고" class="col-span-2">
                 <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
-            </div>
+            </FormField>
         </div>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ canWrite ? '취소' : '닫기' }}</BaseButton>
             <BaseButton v-if="canWrite" variant="primary" size="sm" :disabled="saving" @click="save">
                 {{ isEdit ? '수정' : '등록' }}
             </BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -96,6 +81,8 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import ListSelect from '@core/Components/Common/ListSelect.vue';
 
 const props = defineProps({

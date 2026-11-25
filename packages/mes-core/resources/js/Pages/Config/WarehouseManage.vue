@@ -73,11 +73,9 @@
                             <BaseInput v-model="form.warehouse_name" class="w-full" placeholder="예: 1구역" :disabled="!canWrite" />
                             <p v-if="errors.warehouse_name" class="text-xs text-red-500 mt-0.5">{{ errors.warehouse_name[0] }}</p>
                         </div>
-                        <div>
-                            <label class="block text-gray-500 font-medium mb-1">상위 창고</label>
+                        <FormField label="상위 창고" :error="errors.parent_idx">
                             <BaseSelect v-model="form.parent_idx" :options="parentOptions" class="w-full" :disabled="!canWrite" />
-                            <p v-if="errors.parent_idx" class="text-xs text-red-500 mt-0.5">{{ errors.parent_idx[0] }}</p>
-                        </div>
+                        </FormField>
                         <div>
                             <label class="block text-gray-500 font-medium mb-1">정렬 <span class="text-xs text-gray-400">( 같은 상위 안에서의 순서 )</span></label>
                             <BaseInput v-model="form.sort_order" type="number" min="0" :empty-value="0" class="w-full text-right" :disabled="!canWrite" />
@@ -91,10 +89,9 @@
                                 하위 창고가 있습니다. 미사용으로 내리면 하위 창고도 함께 내려갑니다.
                             </p>
                         </div>
-                        <div class="col-span-2">
-                            <label class="block text-gray-500 font-medium mb-1">비고</label>
+                        <FormField label="비고" class="col-span-2">
                             <textarea v-model="form.remark" rows="2" class="base-input w-full" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
-                        </div>
+                        </FormField>
                     </div>
                 </div>
             </div>
@@ -111,6 +108,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
+import FormField from '@core/Components/Common/FormField.vue';
 import { showAlert } from '@core/Utils/message';
 import { useToast } from '@core/Composables/useToast';
 

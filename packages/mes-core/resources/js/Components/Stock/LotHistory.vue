@@ -2,10 +2,12 @@
      - 최근 것부터 페이지로 ( 50줄씩 — 11-12 ) · 누계는 그 행까지의 합
      - 아래 [입고] · [출고] · [창고이동] · [재고조정]이 처리 창을 연다 ( 그 메뉴 쓰기 권한이 있을 때 — 입고 = 입고관리 · 출고 = 출고관리 )
      - 발생 시각( 업무 순서 ) · 등록 시각( 전산 입력 ) 둘 다 보여 준다 ( 재고-수불-설계 §4.3 )
-     - 누계는 서버가 행을 따라 더한 값 ( 원장 GROUP BY 아님 ) -->
+     - 누계는 서버가 행을 따라 더한 값 ( 원장 GROUP BY 아님 )
+     - LOT 표시 번호 ( 11-24 ) : 위에 LOT 번호 · [번호 변경] ( LotTitleEditor — 자재 = 재고관리 · 제품 = 제품재고 쓰기 권한 ) → onLotRenamed( lot ) -->
 <template>
     <div class="mt-3 text-sm">
-        <p class="text-gray-600 mb-2">{{ title }}</p>
+        <p class="text-gray-600 mb-1">{{ title }}</p>
+        <LotTitleEditor v-if="lotIdx" :lot-idx="lotIdx" class="mb-2" @saved="lot => onLotRenamed?.(lot)" />
         <p v-if="loading" class="py-6 text-center text-gray-400">불러오는 중...</p>
         <p v-else-if="error" class="py-6 text-center text-red-500">{{ error }}</p>
         <div v-else class="border rounded max-h-[60vh] overflow-y-auto">
@@ -45,7 +47,7 @@
             </template>
         </div>
         <p class="text-xs text-gray-400 mt-1">취소된 입출고는 줄을 그어 보이고, 되돌린 행( 취소 )이 따로 있습니다.</p>
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <!-- 진입점 ( 화면목록 §5-2 ) — 처리는 각 화면의 창이 한다 -->
             <BaseButton v-if="canReceipt" size="sm" variant="secondary" @click="act('receipt')">입고</BaseButton>
             <BaseButton v-if="canIssue && balanceIdx" size="sm" variant="secondary" @click="act('issue')">출고</BaseButton>
@@ -53,7 +55,7 @@
             <BaseButton v-if="canAdjust && balanceIdx" size="sm" variant="secondary" @click="act('adjust')">재고조정</BaseButton>
             <BaseButton v-if="canLabel" size="sm" variant="secondary" @click="act('label')">라벨 발행</BaseButton>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -61,6 +63,8 @@
 import { ref, reactive, computed, onMounted } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
+import LotTitleEditor from '@core/Components/Stock/LotTitleEditor.vue';
 import { STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 import { fmtNum } from '@core/Utils/format';
 
@@ -77,6 +81,7 @@ const props = defineProps({
     canLabel:     { type: Boolean, default: false },   // 라벨 발행 ( feature.barcode · 발행 권한 )
     onAction:     { type: Function, default: null },   // ( type, reload ) — 처리 창을 연다. 처리 후 reload() 로 이 이력을 다시 읽는다
     scope:        { type: String, default: 'material' },   // material | product — API 범위
+    onLotRenamed: { type: Function, default: null },   // LOT 표시 번호를 바꾼 뒤 ( 목록 새로 · 11-24 )
 });
 const emit = defineEmits(['close']);
 

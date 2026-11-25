@@ -69,6 +69,7 @@ class ShippingInspectionService {
                 'inspector_idx' => $data['inspector_idx'],
                 'remark'        => $data['remark'] ?? null,
             ]);
+            app(InspectionReportService::class)->record($inspection, $data['measure'] ?? null);   // 성적서 ( 11-23 — 설정이 켜졌을 때만 · 측정값 필수 )
             $lots = $line->picks->pluck('lot_idx')->unique();
             $this->defects->recordRows($inspection, [
                 'item_idx'          => $line->item_idx,

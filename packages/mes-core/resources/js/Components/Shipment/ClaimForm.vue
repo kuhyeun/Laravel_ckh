@@ -139,11 +139,13 @@
 
             <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
 
-            <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
-                <BaseButton v-if="claim && canDelete" size="sm" variant="danger" class="mr-auto" :disabled="saving" @click="remove">삭제</BaseButton>
+            <ModalFooter>
+                <template v-if="claim && canDelete" #left>
+                    <BaseButton size="sm" variant="danger" :disabled="saving" @click="remove">삭제</BaseButton>
+                </template>
                 <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
                 <BaseButton v-if="canWrite" size="sm" variant="primary" :disabled="saving" @click="save">{{ saving ? '처리 중…' : (claim ? '수정' : '등록') }}</BaseButton>
-            </div>
+            </ModalFooter>
         </template>
     </div>
 </template>
@@ -158,6 +160,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { useCommonCode } from '@core/Composables/useCommonCode';
 import { showAlert } from '@core/Utils/message';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';

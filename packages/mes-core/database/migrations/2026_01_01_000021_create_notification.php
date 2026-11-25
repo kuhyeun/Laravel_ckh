@@ -14,7 +14,7 @@ return new class extends Migration {
         Schema::create('notification', function (Blueprint $table) {
             $table->id('notification_idx');
             $table->unsignedBigInteger('account_idx')->comment('받는 사람');
-            $table->string('kind', 30)->comment('종류 ( APPROVAL_REQUEST 결재 요청 · APPROVAL_APPROVED 승인 · APPROVAL_REJECTED 반려 … )');
+            $table->string('kind', 30)->comment('종류 ( NotificationService::KINDS — SHIP_APPROVAL_REQUEST 출하 결재 요청 받음 · _APPROVED 승인됨 · _REJECTED 반려됨 … )');
             $table->string('title', 200)->comment('제목');
             $table->string('body', 500)->nullable()->comment('내용');
             $table->string('page_component', 100)->nullable()->comment('누르면 갈 화면 ( 메뉴의 page_component — 주소는 볼 때 메뉴에서 찾는다 )');

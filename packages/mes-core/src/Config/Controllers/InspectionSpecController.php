@@ -20,13 +20,18 @@ use Illuminate\Validation\ValidationException;
 //   줄은 검사항목 마스터에서 고르거나 직접 입력 — 고르는 순간 복사하므로 마스터를 고쳐도 기준서는 그대로
 //   11-18 : 품목 · 검사 종류에 묶지 않는다 — 기준서는 이름 + 항목 줄만 가진 독립 문서 · 여러 개를 따로 관리
 //           기본 기준서( is_default ) 하나 : 검사 창에서 먼저 골라진다 · 기본 기준서는 미사용으로 내릴 수 없다
+//   11-23 : 기본 기준서를 검사 종류별로( default_incoming · default_process · default_shipping — 종류마다 하나 · 켜면 다른 기준서에서 넘어온다 · 끌 수 있다 )
+//           줄의 시료 수( 1 ~ 10 — 성적서의 측정값 칸 · docs/검사성적서-설계.md )
 //   줄 IDX 는 유지한다 ( 검사 결과가 줄을 참조할 예정 )
 //   삭제는 미사용 처리( is_use = N, ADR 0019 )
 class InspectionSpecController extends Controller {
 
     private const ATTRIBUTES = [
         'inspection_spec_name'           => '기준서명',
-        'is_default'                     => '기본 기준서',
+        'default_incoming'               => '입고 기본',
+        'default_process'                => '공정 기본',
+        'default_shipping'               => '출하 기본',
+        'lines.*.sample_count'           => '시료 수',
         'is_use'                         => '사용 여부',
         'remark'                         => '비고',
         'lines.*.inspection_item_name'   => '항목명',
@@ -50,10 +55,10 @@ class InspectionSpecController extends Controller {
             ->withCount('lines')
             ->when($validated['keyword'] ?? null, fn ($q, $keyword) => $q->where('inspection_spec_name', 'like', "%{$keyword}%"))
             ->when($validated['is_use'] ?? null, fn ($q, $isUse) => $q->where('is_use', $isUse))
-            ->orderByRaw("is_default = 'Y' desc")->orderBy('inspection_spec_name')
+            ->orderByRaw("( default_incoming = 'Y' or default_process = 'Y' or default_shipping = 'Y' ) desc")->orderBy('inspection_spec_name')
             ->get()
             ->map(fn (InspectionSpec $s) => array_merge(
-                $s->only(['inspection_spec_idx', 'inspection_spec_name', 'is_default', 'is_use']),
+                $s->only(['inspection_spec_idx', 'inspection_spec_name', 'default_incoming', 'default_process', 'default_shipping', 'is_use']),
                 ['lines_count' => $s->lines_count]
             ));
 
@@ -129,7 +134,9 @@ class InspectionSpecController extends Controller {
 
         $validated = $request->validate([
             'inspection_spec_name' => 'required|string|max:100',
-            'is_default'           => 'nullable|in:Y,N',
+            'default_incoming'     => 'nullable|in:Y,N',
+            'default_process'      => 'nullable|in:Y,N',
+            'default_shipping'     => 'nullable|in:Y,N',
             'is_use'               => 'required|in:Y,N',
             'remark'               => 'nullable|string|max:2000',
 
@@ -144,6 +151,7 @@ class InspectionSpecController extends Controller {
             'lines.*.upper_limit'              => 'nullable|numeric|min:-99999999999|max:99999999999',
             'lines.*.unit_code'                => 'nullable|string|max:100',
             'lines.*.criteria'                 => 'nullable|string|max:500',
+            'lines.*.sample_count'             => 'nullable|integer|min:1|max:10',
         ], [], self::ATTRIBUTES);
 
         $lines  = array_values($validated['lines']);
@@ -154,13 +162,13 @@ class InspectionSpecController extends Controller {
             throw ValidationException::withMessages(['lines' => ['검사 항목을 1개 이상 등록하세요.']]);
         }
 
-        // 기본 기준서 : 미사용으로 둘 수 없다 · 하나뿐인 기본을 끌 수 없다 ( 다른 기준서를 기본으로 켜면 넘어간다 )
-        $validated['is_default'] = ($validated['is_default'] ?? 'N') === 'Y' ? 'Y' : 'N';
-        if ($validated['is_default'] === 'Y' && $validated['is_use'] === 'N') {
-            $errors['is_use'] = ['기본 기준서는 미사용으로 둘 수 없습니다.'];
+        // 기본 기준서 ( 검사 종류별 · 11-23 ) : 미사용으로 둘 수 없다 · 켜면 그 종류의 다른 기준서에서 넘어온다
+        $defaultCols = array_values(InspectionSpec::DEFAULT_COLUMNS);
+        foreach ($defaultCols as $c) {
+            $validated[$c] = ($validated[$c] ?? 'N') === 'Y' ? 'Y' : 'N';
         }
-        if ($spec->exists && $spec->is_default === 'Y' && $validated['is_default'] === 'N') {
-            $errors['is_default'] = ['기본 기준서는 끌 수 없습니다. 다른 기준서를 기본으로 켜면 이 기준서의 기본이 풀립니다.'];
+        if ($validated['is_use'] === 'N' && collect($defaultCols)->contains(fn ($c) => $validated[$c] === 'Y')) {
+            $errors['is_use'] = ['기본 기준서는 미사용으로 둘 수 없습니다. 기본을 먼저 끄세요.'];
         }
 
         $units = SystemCode::where('system_code_group_key', InspectionItem::UNIT_CODE_GROUP)
@@ -222,13 +230,15 @@ class InspectionSpecController extends Controller {
             DB::transaction(function () use ($spec, $validated, $lines, &$warnings) {
                 $spec->fill(collect($validated)->except('lines')->all())->save();
 
-                // 기본 기준서는 하나 → 이 기준서를 기본으로 저장하면 나머지의 기본을 푼다
-                if ($validated['is_default'] === 'Y') {
-                    $others = InspectionSpec::where('inspection_spec_idx', '!=', $spec->inspection_spec_idx)->where('is_default', 'Y')->get();
+                // 기본 기준서는 검사 종류마다 하나 → 이 기준서를 그 종류의 기본으로 저장하면 다른 기준서의 그 기본을 푼다
+                $typeNames = ['default_incoming' => '입고', 'default_process' => '공정', 'default_shipping' => '출하'];
+                foreach ($typeNames as $c => $name) {
+                    if ($validated[$c] !== 'Y') continue;
+                    $others = InspectionSpec::where('inspection_spec_idx', '!=', $spec->inspection_spec_idx)->where($c, 'Y')->get();
                     if ($others->isNotEmpty()) {
                         InspectionSpec::whereIn('inspection_spec_idx', $others->pluck('inspection_spec_idx'))
-                            ->update(['is_default' => 'N', 'update_account_idx' => Auth::id(), 'update_datetime' => now()]);
-                        $warnings[] = '기본 기준서를 [ ' . $others->pluck('inspection_spec_name')->implode(', ') . ' ]에서 이 기준서로 바꿨습니다.';
+                            ->update([$c => 'N', 'update_account_idx' => Auth::id(), 'update_datetime' => now()]);
+                        $warnings[] = "{$name} 기본 기준서를 [ " . $others->pluck('inspection_spec_name')->implode(', ') . ' ]에서 이 기준서로 바꿨습니다.';
                     }
                 }
 
@@ -261,7 +271,7 @@ class InspectionSpecController extends Controller {
         if (!InspectionSpec::whereIn('inspection_spec_idx', $idxs)->exists()) {
             return response()->json(['message' => 'NotFound'], 404);
         }
-        if (InspectionSpec::whereIn('inspection_spec_idx', $idxs)->where('is_default', 'Y')->exists()) {
+        if (InspectionSpec::whereIn('inspection_spec_idx', $idxs)->where(fn ($q) => $q->where('default_incoming', 'Y')->orWhere('default_process', 'Y')->orWhere('default_shipping', 'Y'))->exists()) {
             throw ValidationException::withMessages(['inspection_spec_idxs' => ['기본 기준서는 삭제( 미사용 )할 수 없습니다. 다른 기준서를 기본으로 바꾼 뒤 하세요.']]);
         }
 
@@ -309,6 +319,7 @@ class InspectionSpecController extends Controller {
                 'upper_limit'          => $isQuant ? ($row['upper_limit'] ?? null) : null,
                 'unit_code'            => $isQuant ? ($row['unit_code'] ?? null) : null,
                 'criteria'             => $isQuant ? null : ($row['criteria'] ?? null),
+                'sample_count'         => max(1, min(10, (int) ($row['sample_count'] ?? 1))),
             ]);
             $line->save();
             $keep[] = $line->inspection_spec_item_idx;
@@ -320,11 +331,11 @@ class InspectionSpecController extends Controller {
     }
 
     private function toPayload(InspectionSpec $spec): array {
-        $data = $spec->only(['inspection_spec_idx', 'inspection_spec_name', 'is_default', 'is_use', 'remark']);
+        $data = $spec->only(['inspection_spec_idx', 'inspection_spec_name', 'default_incoming', 'default_process', 'default_shipping', 'is_use', 'remark']);
 
         $data['lines'] = $spec->lines->map(fn (InspectionSpecItem $l) => $l->only([
             'inspection_spec_item_idx', 'seq', 'inspection_item_idx', 'inspection_item_name', 'is_quantitative', 'method',
-            'standard_value', 'lower_limit', 'upper_limit', 'unit_code', 'criteria',
+            'standard_value', 'lower_limit', 'upper_limit', 'unit_code', 'criteria', 'sample_count',
         ]))->values();
 
         return $data;

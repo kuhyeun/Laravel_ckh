@@ -17,6 +17,9 @@ use MesCore\Shipment\Models\ShipmentLine;
  *     INCLUDED 포함 : 합계 = 수량 × 단가 , 공급가액 = 합계 ÷ 1.1 , 세액 = 합계 − 공급가액
  *     EXEMPT   면세 : 세액 0
  *   발행 기록은 남기지 않는다 — 출하가 원본, 언제든 다시 출력
+ *   같은 품목 · 같은 단가 · 같은 거래일자( 출하일 )의 줄은 한 줄로 ( 11-24 · 발주서와 같은 방식 — combineLines )
+ *     수량 · 공급가액 · 세액 = 줄마다 계산한 값의 합( 합계는 그대로 ) · 비고 = 서로 다른 것을 「 / 」 로 · 순서 = 품번 → 거래일자
+ *     같은 고객사 합치기( merge )면 출하일이 다른 줄은 따로
  */
 class InvoiceService {
 
@@ -51,8 +54,10 @@ class InvoiceService {
                 'supply'     => $supply,
                 'tax'        => $tax,
                 'remark'     => $so?->order ? ($so->order->customer_po_no ?: "{$so->order->order_no} #{$so->line_no}") : ($l->remark ?? ''),
+                '_item'      => (int) $l->item_idx,
             ];
         });
+        $lines = collect($this->combineLines($lines->all(), ($s->shipped_at ?? $s->plan_date)?->toDateString()));
         $supply = $lines->sum('supply');
         $tax    = $lines->sum('tax');
 
@@ -95,7 +100,8 @@ class InvoiceService {
     public function merge(array $docs): array {
         return collect($docs)->groupBy('partner_idx')->map(function ($group) {
             $first = $group->first();
-            $lines = $group->flatMap(fn ($d) => $d['lines'])->values()->map(fn ($l, $i) => ['no' => $i + 1] + $l)->all();
+            // 출하마다 그 출하일을 줄에 붙여 다시 합친다 ( 출하일이 다르면 따로 )
+            $lines = $this->combineLines($group->flatMap(fn ($d) => collect($d['lines'])->map(fn ($l) => ['_date' => $d['date']] + $l))->values()->all());
             return array_merge($first, [
                 'shipment_idx' => null,
                 'shipment_no'  => $group->count() > 1 ? "{$first['shipment_no']} 외 " . ($group->count() - 1) . '건' : $first['shipment_no'],
@@ -108,6 +114,30 @@ class InvoiceService {
                 'total'        => $group->sum('total'),
             ]);
         })->values()->all();
+    }
+
+    /**
+     * 같은 품목 · 같은 단가 · 같은 거래일자의 줄을 한 줄로 ( 11-24 ) — 수량 · 공급가액 · 세액 합 · 비고 「 / 」 · 순서 = 품번 → 거래일자 → 처음 나온 순서
+     * @param array[] $lines build() 의 줄 ( _item · 있으면 _date )
+     */
+    private function combineLines(array $lines, ?string $date = null): array {
+        $rows = collect($lines)->values()->map(fn ($l, $i) => $l + ['_date' => $date, '_i' => $i]);
+        return $rows->groupBy(fn ($l) => ($l['_item'] ?? $l['item_code']) . '|' . number_format((float) $l['unit_price'], 6, '.', '') . '|' . ($l['_date'] ?? ''))
+            ->map(function ($g) {
+                $f = $g->first();
+                return array_merge($f, [
+                    'qty'    => round((float) $g->sum('qty'), 6),
+                    'supply' => $g->sum('supply'),
+                    'tax'    => $g->sum('tax'),
+                    'remark' => $g->pluck('remark')->map(fn ($r) => trim((string) $r))->filter()->unique()->implode(' / '),
+                ]);
+            })
+            ->sort(fn ($a, $b) => [(string) $a['item_code'], (string) $a['_date'], $a['_i']] <=> [(string) $b['item_code'], (string) $b['_date'], $b['_i']])
+            ->values()
+            ->map(function ($l, $i) {
+                unset($l['_item'], $l['_date'], $l['_i']);
+                return ['no' => $i + 1] + $l;
+            })->all();
     }
 
     // 합계만 ( 목록용 )

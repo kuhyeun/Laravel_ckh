@@ -30,7 +30,7 @@ class MaterialTagController extends Controller {
             ->leftJoinSub(DB::table('stock_balance')->groupBy('lot_idx')->selectRaw('lot_idx, SUM(qty) as qty'), 'sb', 'sb.lot_idx', '=', 'l.lot_idx')
             ->leftJoinSub(DB::table('barcode_label')->where('status', 'ISSUED')->whereNotNull('lot_idx')->groupBy('lot_idx')
                 ->selectRaw('lot_idx, COUNT(*) as n, MAX(last_printed_at) as printed_at'), 'b', 'b.lot_idx', '=', 'l.lot_idx')
-            ->select('l.lot_idx', 'l.lot_no', 'l.external_lot_no', 'l.heat_no', 'l.source', 'l.in_at', 'l.spec_value', 'pt.partner_name',
+            ->select('l.lot_idx', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'l.external_lot_no', 'l.heat_no', 'l.source', 'l.in_at', 'l.spec_value', 'pt.partner_name',
                 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.spec_unit', 'i.pack_qty', 'rin.in_qty',
                 DB::raw('COALESCE(sb.qty, 0) as stock_qty'), DB::raw('COALESCE(b.n, 0) as label_n'), 'b.printed_at');
         if (!empty($v['from'])) $q->where('l.in_at', '>=', $v['from']);
@@ -41,7 +41,7 @@ class MaterialTagController extends Controller {
         if (($v['printed'] ?? null) === 'Y') $q->whereNotNull('b.printed_at');
         if (($v['printed'] ?? null) === 'N') $q->whereNull('b.printed_at');
         $this->applyKeyword($q, $v['keyword'] ?? null, [
-            'lot_no'          => fn ($q, $kw) => $q->where('l.lot_no', 'like', $kw),
+            'lot_no'          => fn ($q, $kw) => \MesCore\Stock\Models\Lot::whereNoLike($q, $kw, 'l'),
             'item_code'       => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
             'item_name'       => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
             'external_lot_no' => fn ($q, $kw) => $q->where('l.external_lot_no', 'like', $kw),
@@ -88,6 +88,16 @@ class MaterialTagController extends Controller {
         $labelIdxs = $this->labels->labelsForLots(collect($ordered)->mapWithKeys(fn ($id) => [$id => (float) $qty[$id]])->all(), $tpl);
         $sheets = collect($this->labels->sheets($labelIdxs, $tpl))->keyBy('label_idx');
         return response()->json(['labels' => collect($labelIdxs)->map(fn ($i) => $sheets[$i] ?? null)->filter()->values()]);
+    }
+
+    // 새로 발행 ( 11-24 · 미리보기의 [새로 발행] ) — 바코드 = 지금 표시 번호 · 예전 라벨은 그대로 → 그 한 장의 인쇄 데이터
+    public function reissue(Request $request) {
+        $v = $request->validate(['lot_idx' => 'required|integer', 'label_template_idx' => 'nullable|integer']);
+        abort_unless($this->labels->enabled(), 404);
+        abort_unless($this->lots()->where('l.lot_idx', $v['lot_idx'])->exists(), 422, '입고된 자재 LOT 만 발행할 수 있습니다.');
+        $tpl = !empty($v['label_template_idx']) ? (int) $v['label_template_idx'] : null;
+        $idx = $this->labels->reissueLot((int) $v['lot_idx'], $tpl);
+        return response()->json(['label' => $this->labels->sheets([$idx], $tpl)[0] ?? null]);
     }
 
     // 자재 LOT ( 품목 대분류 = 자재 ) 중 살아 있는 입고가 있는 것 + 입고 수량 ( 구매 입고 · 수동 입고 · 잔재 — 취소된 줄 제외 )

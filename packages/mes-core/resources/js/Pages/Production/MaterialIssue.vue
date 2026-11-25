@@ -2,7 +2,8 @@
      - 왼쪽 : 작업지시( 대기 · 진행 · [완료 포함] ) 목록 — 검색바( 착수 예정 · 검색어 · 출고 상태 ). ?wo=번호 로 들어오면 그 지시를 연다( 작업지시 자재 탭의 [출고] )
      - 오른쪽 패널의 [반납] 탭 : 남은 자재를 그대로 창고로 ( 완료된 줄은 반납만 — §15-1 )
      - 오른쪽 : 자재 줄마다 계산 소요( ⓘ 계산 과정 ) · 규격 묶음 · 후보 LOT( 선입선출 ) 채움 → [출고]
-     - 아래 : 이 지시의 출고 이력 — 체크 → [출고 취소] ( 보유분 안에서만 ) -->
+     - 아래 : 이 지시의 출고 이력 — 체크 → [출고 취소] ( 보유분 안에서만 )
+     - 탭 [외주] ( 11-23 · docs/외주발주-설계.md ) : 외주 건( 외주 발주 줄 · 발주 없는 외주 출고 )으로 자재를 보낸다 — 수량은 손으로 ( SubconMaterialPanel ) -->
 <template>
     <!-- [기타출고] 탭 : 재고관리 LOT 창의 [출고 → 기타출고] 이력 + 취소 -->
     <StockTxnHistory v-if="tab === 'misc'" type="misc">
@@ -21,6 +22,8 @@
             </div>
         </div>
 
+        <SubconMaterialPanel v-if="tab === 'subcon'" :can-write="canWrite" />
+        <template v-else>
         <SearchBar
             v-model="search"
             :date-bases="[{ value: 'start_date', label: '착수 예정' }]"
@@ -66,6 +69,7 @@
                 <MaterialIssuePanel v-else class="flex-1" :wo-idx="woIdx" :can-write="canWrite" :can-cancel="canWrite" @changed="load" @flash="showFlash" />
             </div>
         </div>
+        </template>
     </div>
 </template>
 
@@ -84,13 +88,14 @@ import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import { woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
 import StockTxnHistory from '@core/Components/Stock/StockTxnHistory.vue';
+import SubconMaterialPanel from '@core/Components/Production/SubconMaterialPanel.vue';
 import { COLORS } from '@core/Utils/colors';
 import { useToast } from '@core/Composables/useToast';
 
 defineOptions({ layout: AppLayout });
 
 // 탭 : 작업지시 자재출고 / 기타출고 이력
-const TABS = [{ key: 'wo', label: '자재출고' }, { key: 'misc', label: '기타출고' }];
+const TABS = [{ key: 'wo', label: '자재출고' }, { key: 'subcon', label: '외주' }, { key: 'misc', label: '기타출고' }];   // 외주 ( 11-23 )
 const tab  = ref('wo');
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 

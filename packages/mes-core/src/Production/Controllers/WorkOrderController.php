@@ -74,7 +74,7 @@ class WorkOrderController extends Controller {
         $query = WorkOrderSheet::query()
             ->with([
                 'manager:account_idx,user_id,user_name',
-                'lines' => fn ($q) => $q->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no', 'sources.salesOrderLine.order:sales_order_idx,order_no'])
+                'lines' => fn ($q) => $q->with(['item:item_idx,item_code,item_name,spec,material,spec_unit', 'lot:lot_idx,lot_no,lot_title', 'sources.salesOrderLine.order:sales_order_idx,order_no'])
                     ->withCount(['ops', 'ops as done_ops_count' => fn ($o) => $o->where('status', 'DONE')])
                     ->when($hideCanceled, fn ($l) => $l->where('status', '!=', 'CANCELED')),
             ])
@@ -92,7 +92,7 @@ class WorkOrderController extends Controller {
             'wo_no'     => fn ($q, $kw) => $q->where('sheet_no', 'like', $kw)->orWhereHas('lines', fn ($r) => $r->where('wo_no', 'like', $kw)),
             'item_code' => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_code', 'like', $kw)),
             'item_name' => fn ($q, $kw) => $q->whereHas('lines.item', fn ($r) => $r->where('item_name', 'like', $kw)),
-            'lot_no'    => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => $r->where('lot_no', 'like', $kw)),
+            'lot_no'    => fn ($q, $kw) => $q->whereHas('lines.lot', fn ($r) => \MesCore\Stock\Models\Lot::whereNoLike($r, $kw, '')),
             'order_no'  => fn ($q, $kw) => $q->whereHas('lines.sources.salesOrderLine.order', fn ($r) => $r->where('order_no', 'like', $kw)),
         ]);
 
@@ -129,6 +129,75 @@ class WorkOrderController extends Controller {
     }
 
     // 등록 모달 선택지 : 품목 · 라우팅 · 공정( 설비 후보 포함 ) · LOT 규칙 · 작업자
+    // 생산계획표 ( 11-19 ) — 단추를 보일지 ( 정책 production.plan_sheet ) · 데이터 연결은 나중 ( 지금은 화면의 예시 데이터 )
+    public function planSheet() {
+        return response()->json(['enabled' => (bool) app(\MesCore\Basic\Services\PolicyService::class)->get('production.plan_sheet')]);
+    }
+
+    // 생산계획표 머리 ( 11-20 ) — 팀 = 사용자 부서( 공통코드 DEPT ) · 담당자 = 그 부서 사용자 · 설비 = 담당자(정)인 설비 ( 부 는 보지 않는다 )
+    //   팀 · 담당자 · 설비를 한 번에 보내고 화면이 팀 · 담당자 체크로 거른다 · 기본 팀 = 로그인한 사람의 부서 ( 없으면 화면이 첫 팀 )
+    //   날짜별 작업은 아직 연결 전 ( 화면의 예시 )
+    public function planSheetData(Request $request) {
+        $teams = DB::table('system_code')->where('system_code_group_key', 'DEPT')->where('is_use', 'Y')
+            ->orderBy('sort_order')->orderBy('system_code_key')
+            ->get(['system_code_key as value', 'system_code_name as label']);
+
+        $members = User::where('is_use', 'Y')->whereIn('dept_code', $teams->pluck('value'))
+            ->orderBy('user_name')->get(['account_idx', 'user_name', 'dept_code']);
+
+        $equipments = DB::table('equipment')->where('is_use', 'Y')->whereIn('manager_idx', $members->pluck('account_idx'))
+            ->orderBy('equipment_code')->get(['equipment_idx', 'equipment_code', 'equipment_name', 'manager_idx'])
+            ->groupBy('manager_idx');
+
+        return response()->json([
+            'teams'   => $teams,
+            'team'    => $request->user()?->dept_code,
+            'members' => $members->map(fn ($m) => [
+                'idx'        => $m->account_idx,
+                'name'       => $m->user_name,
+                'team'       => $m->dept_code,
+                'equipments' => ($equipments[$m->account_idx] ?? collect())->map(fn ($e) => [
+                    'idx' => $e->equipment_idx, 'code' => $e->equipment_code, 'name' => $e->equipment_name,
+                ])->values(),
+            ])->values(),
+        ]);
+    }
+
+    // 생산계획표 작업 ( 11-20 ) — 작업지시 공정 중 설비가 있는 것 · 기간( from 부터 2주 )과 겹치는 것
+    //   날짜 범위 = 작업지시 착수일 ~ 공정 기한 ( 없으면 작업지시 납기 · 그것도 없으면 착수일 ) — 그 사이 매일 그 설비 칸에
+    //   대상 = 취소를 뺀 대기 · 진행 · 완료 · 도번 = 품번 · 수량 = 지시 수량 + 단위 · 작업자 = 공정 작업자
+    public function planSheetJobs(Request $request) {
+        $data = $request->validate(['from' => ['required', 'date_format:Y-m-d']]);
+        $from = $data['from'];
+        $to   = date('Y-m-d', strtotime($from . ' +13 days'));
+        $end  = 'COALESCE(o.due_date, w.due_date, w.start_date)';
+
+        $rows = DB::table('work_order_op as o')
+            ->join('work_order as w', 'w.work_order_idx', '=', 'o.work_order_idx')
+            ->join('item as i', 'i.item_idx', '=', 'w.item_idx')
+            ->leftJoin('account_member as u', 'u.account_idx', '=', 'o.worker_idx')
+            ->whereNotNull('o.equipment_idx')->whereNotNull('w.start_date')
+            ->where('w.status', '!=', 'CANCELED')
+            ->where('w.start_date', '<=', $to)
+            ->whereRaw("{$end} >= ?", [$from])
+            ->orderBy('w.start_date')->orderBy('w.wo_no')->orderBy('o.seq')
+            ->get([
+                'o.work_order_op_idx as idx', 'o.equipment_idx as equipment', 'w.start_date as start', DB::raw("{$end} as end"),
+                'i.item_code as no', 'w.target_qty as qty', 'i.spec_unit as unit', 'u.user_name as worker',
+            ]);
+
+        return response()->json(['jobs' => $rows->map(fn ($r) => [
+            'idx'       => $r->idx,
+            'equipment' => $r->equipment,
+            'start'     => $r->start,
+            'end'       => max($r->start, $r->end),   // 기한이 착수일보다 앞이면 착수일 하루
+            'no'        => $r->no,
+            'qty'       => (float) $r->qty,
+            'unit'      => $r->unit ?? '',
+            'worker'    => $r->worker ?? '',
+        ])->values()]);
+    }
+
     public function formData(MenuPermissionService $permissions) {
         // 품목 선택지는 보내지 않는다 — 화면의 ItemPicker 가 공용 검색( common.items.search )에서 30개씩
         $processes = Process::with(['equipments.equipment:equipment_idx,equipment_code,equipment_name,is_use'])

@@ -90,9 +90,9 @@ class LabelService {
         $isLot = $target === BarcodeLabel::TARGET_LOT;
         $ids   = collect($rows)->pluck('id')->map(fn ($v) => (int) $v)->all();
 
-        // 대상 확인 + 기본 번호 ( LOT 번호는 바꾸지 않는다 · 출하는 고객 지정 번호 허용 )
+        // 대상 확인 + 기본 번호 ( LOT = 표시 번호 lot_title → lot_no · 11-24 · 출하는 고객 지정 번호 허용 )
         if ($isLot) {
-            $defaults = Lot::whereIn('lot_idx', $ids)->pluck('lot_no', 'lot_idx');
+            $defaults = Lot::whereIn('lot_idx', $ids)->get(['lot_idx', 'lot_no', 'lot_title'])->mapWithKeys(fn (Lot $l) => [$l->lot_idx => $l->lot_no]);
         } else {
             $lines = ShipmentLine::with('shipment:shipment_idx,shipment_no,status')->whereIn('shipment_line_idx', $ids)->get()->keyBy('shipment_line_idx');
             if ($lines->contains(fn ($l) => $l->shipment?->status === 'CANCELED')) {
@@ -169,6 +169,26 @@ class LabelService {
         return collect($lotIdxs)->map(fn ($id) => (int) ($latest[$id] ?? 0))->filter()->values()->all();
     }
 
+    /**
+     * LOT 라벨 새로 발행 ( 11-24 · 물품표 미리보기의 [새로 발행] ) — 바코드 = 지금 표시 번호( lot_title → lot_no )
+     *   양식 · 장수 · 한 장 수량 = 고른 양식 / 가장 최근 라벨 그대로 ( 없으면 기본 ) · 예전 라벨은 그대로 둔다( 붙어 있는 라벨도 스캔 )
+     */
+    public function reissueLot(int $lotIdx, ?int $templateIdx = null): int {
+        $last = BarcodeLabel::where('lot_idx', $lotIdx)->where('status', 'ISSUED')->orderByDesc('label_idx')->first();
+        $tplId = $templateIdx ?: $last?->label_template_idx;
+        $template = ($tplId ? $this->templates('LOT')->firstWhere('label_template_idx', $tplId) : null) ?? $this->templates('LOT')->first();
+        if (!$template) {
+            throw ValidationException::withMessages(['rows' => 'LOT 라벨 양식이 없습니다. 라벨 양식을 먼저 등록하세요.']);
+        }
+        $row = $last
+            ? ['id' => $lotIdx, 'label_count' => $last->label_count, 'label_qty' => $last->label_qty]
+            : collect($this->draftLots([['lot_idx' => $lotIdx]]))->map(fn ($d) => ['id' => $d['id'], 'label_count' => $d['label_count'], 'label_qty' => $d['label_qty']])->first();
+        if (!$row) {
+            throw ValidationException::withMessages(['rows' => 'LOT 을 찾을 수 없습니다.']);
+        }
+        return $this->issue(BarcodeLabel::TARGET_LOT, $template->label_template_idx, [$row])[0];
+    }
+
     // 인쇄용 — 발행 건마다 양식 · 라벨 내용 ( 화면이 장수만큼 그린다 )
     //   $templateIdx ( 11-18 ) : 이번 인쇄만 그 양식으로 그린다 — 발행 기록의 양식은 바꾸지 않는다 ( 대상이 같은 사용 중 양식만 · 아니면 무시 )
     public function sheets(array $labelIdxs, ?int $templateIdx = null): array {
@@ -211,7 +231,9 @@ class LabelService {
                     'material'        => $item?->material,
                     'spec_unit'       => $item?->spec_unit,
                     'spec_value'      => $lot->spec_value,
-                    'lot_no'          => $lot->lot_no,
+                    'lot_no'          => $lot->lot_no,          // 표시 번호 ( lot_title → lot_no )
+                    'lot_idx'         => $lot->lot_idx,
+                    'current_no'      => $lot->lot_no,          // 지금 번호 — 바코드( barcode_no )와 다르면 미리보기가 [새로 발행] 을 권한다
                     'external_lot_no' => $lot->external_lot_no,
                     'heat_no'         => $lot->heat_no,
                     'partner_name'    => $lot->partner?->partner_name,
@@ -299,7 +321,7 @@ class LabelService {
     //   SCRAPPED  : 폐기된 라벨만 있다 — 사유 · 일시와 함께 알린다
     //   UNKNOWN   : 발행 기록도 LOT 도 없다
     public function lookup(string $barcodeNo): array {
-        $labels = BarcodeLabel::with(['lot:lot_idx,lot_no,item_idx', 'shipmentLine:shipment_line_idx,shipment_idx'])
+        $labels = BarcodeLabel::with(['lot:lot_idx,lot_no,lot_title,item_idx', 'shipmentLine:shipment_line_idx,shipment_idx'])
             ->where('barcode_no', $barcodeNo)->orderByDesc('label_idx')->get();
         $live = $labels->firstWhere('status', 'ISSUED');
 
@@ -316,7 +338,8 @@ class LabelService {
                 'scrapped_at'  => $last->scrapped_at?->format('Y-m-d H:i'),
             ];
         }
-        $lotIdx = Lot::where('lot_no', $barcodeNo)->value('lot_idx');
+        // 라벨 없이 LOT 번호 그대로 — 원번호 · 표시 번호 ( 11-24 )
+        $lotIdx = Lot::where('lot_no', $barcodeNo)->value('lot_idx') ?? Lot::where('lot_title', $barcodeNo)->value('lot_idx');
         return $lotIdx
             ? ['status' => 'OK', 'target' => BarcodeLabel::TARGET_LOT, 'lot_idx' => $lotIdx, 'shipment_line_idx' => null, 'barcode_no' => $barcodeNo]
             : ['status' => 'UNKNOWN', 'barcode_no' => $barcodeNo];

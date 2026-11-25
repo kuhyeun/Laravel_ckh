@@ -200,12 +200,13 @@
                     </div>
                 </div>
 
-                <!-- BOM 외 자재 더하기 ( 11-13 ) -->
+                <!-- BOM 외 자재 더하기 ( 11-13 ) — 11-24 : 고르기 → 사유 → [추가] ( 고르자마자 더하지 않는다 ) -->
                 <div v-if="canAddExtra" class="flex items-center gap-2 px-2 py-1.5 border border-dashed border-gray-300 rounded">
                     <span class="text-xs text-gray-500 shrink-0">BOM 에 없는 자재</span>
-                    <ItemPicker v-model="extra.item_idx" :remote="EXTRA_REMOTE" :exclude="materialItemIdxs" class="w-72" placeholder="+ 자재 추가" :disabled="extra.busy" @select="addExtra" />
-                    <BaseInput v-model="extra.reason" size="md" class="w-56" placeholder="사유 ( 선택 )" maxlength="200" :disabled="extra.busy" />
-                    <span class="text-xs text-gray-400 truncate">자재를 고르면 아래에 'BOM 외' 줄이 생깁니다 · 수량을 넣고 [출고]</span>
+                    <ItemPicker v-model="extra.item_idx" :remote="EXTRA_REMOTE" :exclude="materialItemIdxs" class="w-72" placeholder="자재 선택" :disabled="extra.busy" @select="it => extra.item = it" />
+                    <BaseInput v-model="extra.reason" size="md" class="w-56" placeholder="사유 ( 선택 )" maxlength="200" :disabled="extra.busy" @keyup.enter="addExtra" />
+                    <span class="flex-1 min-w-0 text-xs text-gray-400 truncate">자재를 고르고 [추가] 하면 아래에 'BOM 외' 줄이 생깁니다 · 수량을 넣고 [출고]</span>
+                    <BaseButton size="sm" variant="secondary" class="shrink-0" :disabled="extra.busy || !extra.item_idx" @click="addExtra">{{ extra.busy ? '추가 중…' : '추가' }}</BaseButton>
                 </div>
             </div>
 
@@ -222,8 +223,6 @@
             <div class="shrink-0 border-t border-gray-200 max-h-72 flex flex-col">
                 <div class="flex items-center gap-2 px-3 py-1.5 bg-gray-50/70">
                     <span class="text-sm font-semibold text-gray-600">출고 이력 <span class="text-xs text-gray-400">{{ history.length }} 줄</span></span>
-                    <div class="flex-1"></div>
-                    <BaseButton v-if="canCancel && isOpen" variant="danger" :disabled="!checked.length || saving" @click="cancelChecked">출고 취소</BaseButton>
                 </div>
                 <div class="overflow-auto">
                     <table class="w-full min-w-[1008px] table-fixed text-xs">
@@ -254,6 +253,10 @@
                             </tr>
                         </tbody>
                     </table>
+                </div>
+                <!-- 출고 취소 : 이력 아래 오른쪽 ( 11-24 · 목록 → 실행 단추 ) -->
+                <div v-if="canCancel && isOpen && history.length" class="shrink-0 flex justify-end px-3 py-1.5 border-t border-gray-100">
+                    <BaseButton variant="danger" :disabled="!checked.length || saving" @click="cancelChecked">출고 취소</BaseButton>
                 </div>
             </div>
             </template>
@@ -339,7 +342,7 @@ function toggleTrace(g) { g._trace = !g._trace; }
 // ---- BOM 외 자재 ( 11-13 ) — 고르면 그 지시에 자재 줄이 생긴다 ( 서버 ) → 다시 불러와 후보 LOT 을 보여 준다 ----
 const EXTRA_REMOTE = { types: ['MATERIAL'] };
 const extraAllowed = ref(false);
-const extra        = reactive({ item_idx: '', reason: '', busy: false });
+const extra        = reactive({ item_idx: '', item: null, reason: '', busy: false });   // item = 고른 품목 ( [추가] 때 쓴다 · 11-24 )
 const canAddExtra  = computed(() => canIssue.value && extraAllowed.value && !!props.routes.extraAdd);
 const materialItemIdxs = computed(() => materials.value.map(m => m.item_idx));
 // 다시 불러와도 이미 넣어 둔 출고 수량은 남긴다 ( 잔고 행 기준 )
@@ -480,8 +483,9 @@ async function reloadKeeping() {
     await loadPlan();
     restoreFills(saved);
 }
-async function addExtra(it) {
-    if (!it || extra.busy) return;
+async function addExtra() {
+    const it = extra.item;
+    if (!extra.item_idx || !it || extra.busy) return;
     extra.busy = true;
     errorText.value = '';
     const saved = keepFills();
@@ -495,7 +499,7 @@ async function addExtra(it) {
     } catch (e) {
         errorText.value = errorsOf(e);
     } finally {
-        extra.item_idx = '';
+        extra.item_idx = ''; extra.item = null;
         extra.busy = false;
     }
 }

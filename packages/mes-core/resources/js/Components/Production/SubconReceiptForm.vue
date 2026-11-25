@@ -41,10 +41,10 @@
         </p>
         <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">닫기</BaseButton>
             <BaseButton size="sm" variant="primary" :disabled="saving" @click="save">{{ saving ? '처리 중…' : '입고' }}</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -55,6 +55,8 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
+import { useFormErrors } from '@core/Composables/useFormErrors';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
 
 const props = defineProps({
@@ -68,11 +70,11 @@ const emit = defineEmits(['close']);
 
 const form = reactive({ qty: String(props.issue.left_qty || ''), received_at: props.now, warehouse_idx: '', remark: '' });
 const saving   = ref(false);
-const errors   = ref({});
-const errorMsg = ref('');
+// 칸 아래에 보이는 오류만 빼고 위에 모아 보인다 ( 창고 칸이 숨겨져 있으면 창고 오류도 위에 — 11-10 )
+const { errors, errorMsg, clear, handle } = useFormErrors(props.issue.is_last ? ['qty', 'warehouse_idx'] : ['qty']);
 
 async function save() {
-    saving.value = true; errors.value = {}; errorMsg.value = '';
+    saving.value = true; clear();
     try {
         const { data } = await window.axios.post(route('production.subcon.receipt.save'), {
             subcon_issue_idx: props.issue.subcon_issue_idx,
@@ -84,14 +86,7 @@ async function save() {
         props.onDone?.(`${data.receipt_no} ${data.status === 'WAIT' ? '입고 등록 — 검사대기' : '입고 완료'}했습니다.`);
         emit('close');
     } catch (e) {
-        if (e.response?.status === 422) {
-            errors.value = e.response.data.errors || {};
-            // 칸 아래에 보이는 오류만 빼고 위에 모아 보인다 ( 창고 칸이 숨겨져 있으면 창고 오류도 위에 — 11-10 )
-            const shown = props.issue.is_last ? ['qty', 'warehouse_idx'] : ['qty'];
-            errorMsg.value = Object.entries(errors.value).filter(([k]) => !shown.includes(k)).flatMap(([, v]) => v).join('\n');
-        } else {
-            errorMsg.value = e.response?.status === 403 ? '권한이 없습니다.' : '입고하지 못했습니다.';
-        }
+        handle(e, '입고하지 못했습니다.');
     } finally {
         saving.value = false;
     }

@@ -11,28 +11,21 @@
 
         <template v-else>
             <div class="grid grid-cols-4 gap-x-4 gap-y-3">
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">계획번호</label>
+                <FormField label="계획번호">
                     <p class="h-9 flex items-center text-gray-700">{{ form.plan_no || '저장할 때 자동으로 매깁니다' }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">품목</label>
+                </FormField>
+                <FormField label="품목">
                     <p class="h-9 flex items-center text-gray-700 truncate" :title="itemLabel">{{ itemLabel || '수주 줄을 담으면 정해집니다' }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">생산 시작일 <span class="text-red-500">*</span></label>
+                </FormField>
+                <FormField label="생산 시작일" required :error="errors.start_date">
                     <BaseDatePicker v-model="form.start_date" class="w-full" :disabled="readonly" @update:model-value="onStartChange" />
-                    <p v-if="errors.start_date" class="text-xs text-red-500 mt-0.5">{{ errors.start_date[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">완료 예정일 <span class="text-red-500">*</span></label>
+                </FormField>
+                <FormField label="완료 예정일" required :error="errors.end_date">
                     <BaseDatePicker v-model="form.end_date" class="w-full" :disabled="readonly" />
-                    <p v-if="errors.end_date" class="text-xs text-red-500 mt-0.5">{{ errors.end_date[0] }}</p>
-                </div>
-                <div class="col-span-4">
-                    <label class="block text-gray-500 font-medium mb-1">비고</label>
+                </FormField>
+                <FormField label="비고" class="col-span-4">
                     <BaseInput v-model="form.remark" class="w-full" maxlength="200" :disabled="readonly" />
-                </div>
+                </FormField>
             </div>
 
             <!-- 담긴 수주 줄 -->
@@ -133,11 +126,13 @@
             </section>
         </template>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t shrink-0">
-            <BaseButton v-if="isEdit && canDelete && form.status !== 'CANCELED'" class="mr-auto" size="sm" variant="danger" :disabled="saving" @click="remove">삭제</BaseButton>
+        <ModalFooter>
+            <template v-if="isEdit && canDelete && form.status !== 'CANCELED'" #left>
+                <BaseButton size="sm" variant="danger" :disabled="saving" @click="remove">삭제</BaseButton>
+            </template>
             <BaseButton variant="secondary" size="sm" @click="$emit('close')">{{ readonly ? '닫기' : '취소' }}</BaseButton>
             <BaseButton v-if="!readonly" variant="primary" size="sm" :disabled="saving || loading" @click="save">{{ isEdit ? '수정' : '등록' }}</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -147,6 +142,8 @@ import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import OrderLineRoutingForm from '@core/Components/Order/OrderLineRoutingForm.vue';
 import OrderLineMaterialForm from '@core/Components/Order/OrderLineMaterialForm.vue';
 import { linkRouting, toMaterialPayload } from '@core/Components/Order/orderMaterial';

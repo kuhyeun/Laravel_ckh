@@ -12,7 +12,6 @@
             <main class="app-content flex flex-col flex-1 overflow-y-auto p-[12px] bg-white">
                 <slot></slot>
             </main>
-            <!-- 디버깅 : 지금 화면의 페이지 파일 ( 시스템 계정만 ) -->
             <DevSourceTag class="fixed bottom-1.5 right-2 z-40" :name="page.component ? `Pages/${page.component}.vue` : ''" />
         </div>
         

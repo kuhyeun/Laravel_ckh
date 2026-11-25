@@ -18,37 +18,31 @@
             <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
 
             <div class="mt-4 grid grid-cols-3 gap-x-4 gap-y-3">
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">조정 후 수량 <span class="text-red-500">*</span></label>
+                <FormField label="조정 후 수량" required :error="errors.after_qty">
                     <BaseInput v-model="form.after_qty" type="number" min="0" class="w-full text-right" placeholder="실제로 센 수량" />
-                    <p v-if="errors.after_qty" class="text-xs text-red-500 mt-0.5">{{ errors.after_qty[0] }}</p>
-                    <p v-else-if="form.after_qty !== ''" class="text-[11px] mt-0.5" :class="delta < 0 ? 'text-red-600' : delta > 0 ? 'text-blue-700' : 'text-gray-400'">
-                        증감 {{ delta > 0 ? '+' : '' }}{{ fmt(delta) }}
-                    </p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">사유 <span class="text-red-500">*</span></label>
+                    <template #help>
+                        <p v-if="!errors.after_qty && form.after_qty !== ''" class="text-[11px] mt-0.5" :class="delta < 0 ? 'text-red-600' : delta > 0 ? 'text-blue-700' : 'text-gray-400'">
+                            증감 {{ delta > 0 ? '+' : '' }}{{ fmt(delta) }}
+                        </p>
+                    </template>
+                </FormField>
+                <FormField label="사유" required :error="errors.reason_code">
                     <BaseSelect v-model="form.reason_code" :options="reasons" class="w-full" placeholder="사유 선택" />
-                    <p v-if="errors.reason_code" class="text-xs text-red-500 mt-0.5">{{ errors.reason_code[0] }}</p>
-                </div>
-                <div>
-                    <label class="block text-gray-500 font-medium mb-1">조정일시 <span class="text-red-500">*</span></label>
+                </FormField>
+                <FormField label="조정일시" required :error="errors.occurred_at">
                     <BaseDatePicker v-model="form.occurred_at" mode="datetime" class="w-full" />
-                    <p v-if="errors.occurred_at" class="text-xs text-red-500 mt-0.5">{{ errors.occurred_at[0] }}</p>
-                </div>
-                <div class="col-span-3">
-                    <label class="block text-gray-500 font-medium mb-1">상세 <span v-if="form.reason_code === 'ETC'" class="text-red-500">*</span></label>
+                </FormField>
+                <FormField label="상세" :required="form.reason_code === 'ETC'" :error="errors.remark" class="col-span-3">
                     <BaseInput v-model="form.remark" class="w-full" placeholder="예: 운반 중 찍힘" />
-                    <p v-if="errors.remark" class="text-xs text-red-500 mt-0.5">{{ errors.remark[0] }}</p>
-                </div>
+                </FormField>
             </div>
         </template>
         <p v-else class="py-8 text-center text-red-500">{{ errorMsg || '재고를 찾을 수 없습니다.' }}</p>
 
-        <div class="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+        <ModalFooter>
             <BaseButton size="sm" variant="secondary" @click="$emit('close')">취소</BaseButton>
             <BaseButton v-if="b" size="sm" variant="primary" :disabled="saving || form.after_qty === ''" @click="save">{{ saving ? '처리 중…' : '조정' }}</BaseButton>
-        </div>
+        </ModalFooter>
     </div>
 </template>
 
@@ -59,6 +53,9 @@ import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import FormField from '@core/Components/Common/FormField.vue';
+import ModalFooter from '@core/Components/Common/ModalFooter.vue';
+import { useFormErrors } from '@core/Composables/useFormErrors';
 import { qtyText, STOCK_ROUTES } from '@core/Components/Stock/stockCodes';
 
 const props = defineProps({
@@ -71,9 +68,8 @@ const R = STOCK_ROUTES[props.scope];
 
 const loading  = ref(true);
 const saving   = ref(false);
-const errorMsg = ref('');
-const errors   = ref({});
-const b        = ref(null);
+const { errors, errorMsg, clear: clearErrors, handle } = useFormErrors(['after_qty', 'reason_code', 'occurred_at', 'remark']);
+const b      = ref(null);
 const reasons  = ref([]);
 const form = reactive({ after_qty: '', reason_code: '', remark: '', occurred_at: '' });
 
@@ -97,7 +93,7 @@ onMounted(async () => {
 });
 
 async function save() {
-    saving.value = true; errors.value = {}; errorMsg.value = '';
+    saving.value = true; clearErrors();
     try {
         const { data } = await window.axios.post(route(R.adjustSave), {
             stock_balance_idx: props.balanceIdx,
@@ -109,14 +105,7 @@ async function save() {
         props.onDone?.(data.txn_no, data.warnings ?? []);
         emit('close');
     } catch (e) {
-        const status = e.response?.status;
-        if (status === 422) {
-            errors.value = e.response.data.errors || {};
-            const other = Object.entries(errors.value).filter(([k]) => !['after_qty', 'reason_code', 'occurred_at', 'remark'].includes(k)).flatMap(([, v]) => v);
-            if (other.length) errorMsg.value = other.join('\n');
-        } else {
-            errorMsg.value = status === 403 ? '재고조정 권한이 없습니다.' : '조정하지 못했습니다.';
-        }
+        handle(e, '조정하지 못했습니다.', '재고조정 권한이 없습니다.');
     } finally {
         saving.value = false;
     }
