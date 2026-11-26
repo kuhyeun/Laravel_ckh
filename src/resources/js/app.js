@@ -5,6 +5,7 @@ import { createInertiaApp, router } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { handleSessionExpired, isSessionExpired } from '@core/Utils/session.js';
 import { markActivity } from '@core/Utils/sessionActivity.js';
+import MonitorLayout from '@core/Layouts/MonitorLayout.vue';
 
 // 페이지 이동 중 세션 만료(401/419) → Inertia 기본 에러 다이얼로그 대신 안내창 후 로그인 이동
 // ( Inertia v3 는 'invalid' 대신 'httpException' 이벤트를 사용. cancelable → preventDefault 로 기본 다이얼로그 차단 )
@@ -19,7 +20,7 @@ router.on('httpException', (event) => {
 router.on('success', () => markActivity());
 
 createInertiaApp({
-    resolve: name => {
+    resolve: async name => {
         // Core 화면 먼저, 업체 화면( src/resources/js/Pages ) 나중 → 같은 경로면 업체 화면이 이긴다 ( ADR 0028 화면 교체 )
         const pages = {
             ...Object.fromEntries(
@@ -31,7 +32,10 @@ createInertiaApp({
             ),
             ...import.meta.glob('./Pages/**/*.vue'),
         };
-        return resolvePageComponent(`./Pages/${name}.vue`, pages);
+        const page = await resolvePageComponent(`./Pages/${name}.vue`, pages);
+        // 모니터링 화면 ( Pages/Monitor/… · 11-26 ) = 프레임 없이 전체화면 — 화면이 정한 layout 보다 우선 ( 모니터링 하위 메뉴 전부 )
+        if (name.startsWith('Monitor/')) page.default.layout = MonitorLayout;
+        return page;
     },
     setup({ el, App, props, plugin }) {
         createApp({ render: () => h(App, props) })

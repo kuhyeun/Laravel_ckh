@@ -43,7 +43,7 @@
                             <span class="text-[10px] px-1 rounded shrink-0" :class="TYPE_BADGE[r.rule_type]">{{ TYPE_LABEL[r.rule_type] }}</span>
                             <span class="truncate" :class="r.is_use === 'N' ? 'text-gray-400 line-through' : ''">{{ r.lot_rule_name }}</span>
                         </div>
-                        <div class="text-[11px] text-gray-400 font-mono truncate">{{ r.preview }}</div>
+                        <div class="text-[11px] text-gray-400 truncate">{{ r.preview }}</div>
                     </button>
                 </div>
             </div>
@@ -87,7 +87,7 @@
                     <!-- 미리보기 -->
                     <div class="mb-4 px-3 py-2 rounded border bg-gray-50 flex items-center gap-3">
                         <span class="text-xs text-gray-500 shrink-0">미리보기</span>
-                        <span class="font-mono text-base font-semibold tracking-wide text-gray-800 break-all">{{ preview || '—' }}</span>
+                        <span class="text-base font-semibold tracking-wide text-gray-800 break-all">{{ preview || '—' }}</span>
                         <span v-if="hasAskPartner" class="text-xs text-gray-400 shrink-0">거래처를 빼면 → <span class="font-mono">{{ previewWithoutPartner || '—' }}</span></span>
                     </div>
 
@@ -150,11 +150,11 @@
                                     <td class="px-2 py-2 align-middle font-medium text-gray-700">{{ ELEMENT_LABEL[el.type] }}</td>
                                     <td class="px-1.5 py-1">
                                         <!-- 요소별 설정 -->
-                                        <BaseInput v-if="el.type === 'TEXT'" v-model="el.value" size="md" class="w-40 font-mono uppercase" placeholder="예: L" :disabled="!canWrite" />
+                                        <BaseInput v-if="el.type === 'TEXT'" v-model="el.value" size="md" class="w-40 uppercase" placeholder="예: L" :disabled="!canWrite" />
                                         <div v-else-if="el.type === 'DATE'" class="flex items-center gap-3 h-8 text-xs">
                                             <label v-for="u in DATE_UNITS" :key="u.value" class="inline-flex items-center gap-1 cursor-pointer">
                                                 <input type="radio" class="accent-blue-600" :value="u.value" v-model="el.unit" :disabled="!canWrite" />
-                                                {{ u.label }} <span class="font-mono text-gray-400">{{ u.value }}</span>
+                                                {{ u.label }} <span class="text-gray-400">{{ u.value }}</span>
                                             </label>
                                         </div>
                                         <div v-else-if="el.type === 'SEQ'" class="flex items-center gap-1.5 h-8 text-xs">
@@ -173,7 +173,7 @@
 
                                         <p v-if="elementError(i)" class="text-[11px] text-red-500">{{ elementError(i) }}</p>
                                     </td>
-                                    <td class="px-2 py-2 font-mono text-xs text-gray-500 align-middle">{{ renderElement(el, true) || '—' }}</td>
+                                    <td class="px-2 py-2 text-xs text-gray-500 align-middle">{{ renderElement(el, true) || '—' }}</td>
                                     <td v-if="canWrite" class="px-1.5 py-1 text-center">
                                         <button type="button" class="px-1.5 py-1 text-gray-400 hover:text-red-500" title="요소 삭제" @click="form.format_spec.splice(i, 1)">✕</button>
                                     </td>

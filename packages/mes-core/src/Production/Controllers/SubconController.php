@@ -21,6 +21,7 @@ use Illuminate\Validation\Rule;
 
 // 외주관리 ( 4005 ) — 외주 출고 400501 · 외주 입고 400502 · 외주 품질검사 400503 · 외주 이력관리 400504 ( SubconService )
 //   목록( 출고 · 입고 · 이력 )은 서버 페이징 · 정렬 · 엑셀 전체( RespondsWithList ) — 전에는 기간을 넓히면 전부 내려받았다
+//   품목 외주 ( 11-26 · SubconItemService ) : 작업지시 · 공정이 없는 출고 — 품목 = 출고 품목 · 공정 칸 = 작업 내용 · kind ITEM
 class SubconController extends Controller {
     use SearchesKeyword, RespondsWithList;
 
@@ -57,8 +58,9 @@ class SubconController extends Controller {
     // ---- 외주 출고 ----
 
     // 출고 대상 : 대기 · 진행 중 지시의 끝나지 않은 외주 공정 ( 출고 가능 = 기준 − 이미 출고 )
+    //   with_items=1 ( 외주 출고 화면 ) : 품목 외주 발주 줄 중 출고가 발주보다 적은 것도 ( kind ITEM · 11-26 ) — 외주 발주의 줄 고르기에는 넣지 않는다
     public function candidates(Request $request, OpResultService $results) {
-        $v = $request->validate(['keyword' => 'nullable|string|max:100', 'search_field' => 'nullable|string|max:30']);
+        $v = $request->validate(['keyword' => 'nullable|string|max:100', 'search_field' => 'nullable|string|max:30', 'with_items' => 'nullable|boolean']);
         $q = WorkOrderOp::query()->from('work_order_op as op')
             ->join('process as p', 'p.process_idx', '=', 'op.process_idx')
             ->join('work_order as wo', 'wo.work_order_idx', '=', 'op.work_order_idx')
@@ -90,6 +92,7 @@ class SubconController extends Controller {
                 $av = $this->subcon->available($wo, $ops, $op, (float) ($issuedBy[$op->work_order_op_idx] ?? 0));
                 $prev = $ops->filter(fn ($x) => $x->seq < $op->seq && ($x->isQtyOp() || $x->isInspectionOp()))->last();
                 $rows[] = [
+                    'kind'              => 'OP',
                     'work_order_op_idx' => $op->work_order_op_idx,
                     'work_order_idx'    => $wo->work_order_idx,
                     'wo_no'             => $wo->wo_no,
@@ -115,12 +118,78 @@ class SubconController extends Controller {
                 ];
             }
         }
+        if (filter_var($v['with_items'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $rows = array_merge($rows, $this->itemCandidates($v));
+        }
         return response()->json(['rows' => $rows]);
+    }
+
+    // 품목 외주 출고 대상 ( 11-26 ) : 취소 안 된 품목 외주 발주 줄 · 출고 < 발주
+    private function itemCandidates(array $v): array {
+        if (($v['search_field'] ?? '') === 'wo_no' && trim((string) ($v['keyword'] ?? '')) !== '') return [];
+        $q = DB::table('subcon_order_line as l')->join('subcon_order as o', 'o.subcon_order_idx', '=', 'l.subcon_order_idx')
+            ->join('item as i', 'i.item_idx', '=', 'l.item_idx')
+            ->leftJoinSub(DB::table('subcon_issue')->where('is_canceled', 'N')->whereNotNull('subcon_order_line_idx')->groupBy('subcon_order_line_idx')
+                ->selectRaw('subcon_order_line_idx, SUM(qty) as n'), 'si', 'si.subcon_order_line_idx', '=', 'l.subcon_order_line_idx')
+            ->where('o.order_kind', 'ITEM')->where('o.status', '!=', 'CANCELED')
+            ->whereRaw('l.qty - COALESCE(si.n, 0) > 0.000001');
+        $this->applyKeyword($q, $v['keyword'] ?? null, [
+            'item_code' => fn ($q, $kw) => $q->where('i.item_code', 'like', $kw),
+            'item_name' => fn ($q, $kw) => $q->where('i.item_name', 'like', $kw),
+        ]);
+        return $q->orderBy('o.order_no')->orderBy('l.line_no')->limit(self::CANDIDATE_LIMIT)
+            ->get(['l.subcon_order_line_idx', 'l.item_idx', 'l.work_name', 'l.qty', 'l.unit_price', 'o.order_no', 'o.partner_idx',
+                'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.spec_unit', DB::raw('COALESCE(si.n, 0) as issued')])
+            ->map(fn ($r) => [
+                'kind' => 'ITEM', 'work_order_op_idx' => null, 'work_order_idx' => null, 'wo_no' => null, 'wo_status' => null,
+                'item_idx' => (int) $r->item_idx, 'item_code' => $r->item_code, 'item_name' => $r->item_name, 'item_spec' => $r->item_spec, 'spec_unit' => $r->spec_unit,
+                'process_name' => $r->work_name, 'work_name' => $r->work_name, 'default_partner_idx' => (int) $r->partner_idx,
+                'prev_label' => $r->order_no, 'target_qty' => (float) $r->qty, 'base_qty' => (float) $r->qty, 'issued_qty' => (float) $r->issued,
+                'available_qty' => max(0, (float) $r->qty - (float) $r->issued), 'is_last' => false, 'lot_mode' => null, 'ordered_qty' => (float) $r->qty,
+                'order_no' => $r->order_no,
+                'order_line' => ['subcon_order_line_idx' => (int) $r->subcon_order_line_idx, 'order_no' => $r->order_no, 'partner_idx' => (int) $r->partner_idx,
+                    'qty' => (float) $r->qty, 'unit_price' => (float) $r->unit_price, 'issued_qty' => (float) $r->issued],
+                'order_lines' => [],
+            ])->values()->all();
+    }
+
+    // 품목 외주 출고 : 보낼 자재의 재고 LOT ( 품목 하나 · 11-26 )
+    public function itemLots(Request $request, \MesCore\Production\Services\MaterialIssueService $issues) {
+        $v    = $request->validate(['item_idx' => 'required|integer']);
+        $item = \MesCore\Config\Models\Item::find($v['item_idx']);
+        if (!$item) return response()->json(['message' => 'NotFound'], 404);
+        return response()->json([
+            'item' => ['item_idx' => (int) $item->item_idx, 'item_code' => $item->item_code, 'item_name' => $item->item_name, 'item_spec' => $item->spec, 'spec_unit' => $item->spec_unit],
+            'lots' => ($issues->lotCandidates(collect([$item->item_idx]))[$item->item_idx] ?? collect())->values(),
+        ]);
+    }
+
+    // 품목 외주 출고 : 바코드( LOT 번호 ) → 그 LOT 의 품목 · 재고 ( 11-26 )
+    public function lotScan(Request $request, \MesCore\Production\Services\MaterialIssueService $issues) {
+        $v = $request->validate(['code' => 'required|string|max:100'], [], ['code' => '바코드']);
+        $code = trim($v['code']);
+        $r = app(\MesCore\Label\Services\LabelService::class)->lookup($code);
+        if ($r['status'] === 'SCRAPPED') {
+            throw \Illuminate\Validation\ValidationException::withMessages(['code' => ["{$code} : 폐기된 라벨입니다."]]);
+        }
+        $lot = ($r['status'] === 'OK' && !empty($r['lot_idx'])) ? \MesCore\Stock\Models\Lot::find($r['lot_idx']) : null;
+        if (!$lot) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['code' => ["{$code} : LOT 을 찾을 수 없는 번호입니다."]]);
+        }
+        $lots = collect($issues->lotCandidates(collect([$lot->item_idx]))[$lot->item_idx] ?? [])->where('lot_idx', (int) $lot->lot_idx)->values();
+        if ($lots->isEmpty()) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['code' => ["{$lot->lot_no} : 보낼 수 있는 재고가 없습니다."]]);
+        }
+        $item = \MesCore\Config\Models\Item::find($lot->item_idx);
+        return response()->json([
+            'item' => ['item_idx' => (int) $item->item_idx, 'item_code' => $item->item_code, 'item_name' => $item->item_name, 'item_spec' => $item->spec, 'spec_unit' => $item->spec_unit],
+            'lots' => $lots,
+        ]);
     }
 
     public function issue(Request $request) {
         $d = $request->validate([
-            'work_order_op_idx' => 'required|integer',
+            'work_order_op_idx' => 'nullable|integer',   // 비면 품목 외주 ( 발주 줄 필수 · 11-26 )
             'partner_idx'       => 'required|integer',
             'qty'               => 'required|numeric|gt:0|max:999999999999',
             'amount'            => 'nullable|numeric|min:0|max:9999999999999',
@@ -132,7 +201,11 @@ class SubconController extends Controller {
             'inputs.*.input_type' => 'required|in:MATERIAL,RUN',
             'inputs.*.lot_idx'    => 'required|integer',
             'inputs.*.qty'        => 'nullable|numeric|min:0|max:999999999999',   // 앞 공정 실적 LOT 만 ( 자재 LOT 는 수량 없음 · 11-12 — 0 보다 큰지는 서비스가 )
-        ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => 'LOT 수량은 0보다 커야 합니다.'], ['partner_idx' => '외주처', 'qty' => '수량', 'amount' => '외주 금액', 'issued_at' => '출고 일시', 'inputs.*.qty' => 'LOT 수량']);
+            // 품목 외주 ( 11-26 ) : 보낼 자재 = 재고 줄 · 수량 ( 바로 차감 )
+            'materials'                     => 'nullable|array|max:100',
+            'materials.*.stock_balance_idx' => 'required|integer',
+            'materials.*.qty'               => 'required|numeric|gt:0|max:999999999999',
+        ], ['qty.gt' => '수량은 0보다 커야 합니다.', 'inputs.*.qty.gt' => 'LOT 수량은 0보다 커야 합니다.', 'materials.*.qty.gt' => '자재 수량은 0보다 커야 합니다.'], ['partner_idx' => '외주처', 'qty' => '수량', 'amount' => '외주 금액', 'issued_at' => '출고 일시', 'inputs.*.qty' => 'LOT 수량']);
         $issue = $this->subcon->issue($d);
         return response()->json(['message' => 'Success', 'issue_no' => $issue->issue_no, 'subcon_issue_idx' => (int) $issue->subcon_issue_idx, 'warnings' => $issue->warnings ?? []]);
     }
@@ -194,11 +267,11 @@ class SubconController extends Controller {
                 'failed_qty'   => (float) $r->failed,
                 'waiting'      => (int) $r->waiting,
                 'left_qty'     => $r->is_canceled === 'Y' ? 0.0 : max(0, (float) $r->qty - (float) $r->received),
-                'is_last'      => ($lastOps[$r->work_order_idx] ?? null) === (int) $r->work_order_op_idx,
+                'is_last'      => $r->work_order_op_idx && ($lastOps[$r->work_order_idx] ?? null) === (int) $r->work_order_op_idx,
                 'has_wip'      => (bool) $r->has_wip,
             ];
         }, function ($rows) use (&$lastOps, &$sentLots) {
-            $lastOps  = $this->lastOps($rows->pluck('work_order_idx')->unique()->all());
+            $lastOps  = $this->lastOps($rows->pluck('work_order_idx')->filter()->unique()->values()->all());
             $sentLots = $this->subcon->issueLots($rows->pluck('subcon_issue_idx')->all());
         });
     }
@@ -243,8 +316,10 @@ class SubconController extends Controller {
             ->leftJoin('inspection as insp', 'insp.inspection_idx', '=', 'r.inspection_idx')
             ->leftJoin('account_member as qu', 'qu.account_idx', '=', 'insp.inspector_idx')
             ->leftJoin('work_order_op_run as rr', 'rr.run_idx', '=', 'r.run_idx')   // 입고로 생긴 실적 ( 제품 입고 여부 — 날짜 수정 경고 · 11-25 )
+            ->leftJoin('lot as rl', 'rl.lot_idx', '=', 'r.lot_idx')   // 품목 외주 입고 LOT ( 11-26 )
             ->addSelect('r.inspection_idx', 'r.run_idx', 'rr.stock_txn_line_idx as run_line_idx', 'r.subcon_receipt_idx', 'r.receipt_no', 'r.qty as r_qty', 'r.pass_qty', 'r.fail_qty', 'r.status as r_status', 'r.received_at', 'r.done_at', 'r.remark as r_remark',
-                DB::raw("COALESCE(NULLIF(qu.user_name, ''), qu.user_id) as inspector_name"));
+                DB::raw("COALESCE(NULLIF(qu.user_name, ''), qu.user_id) as inspector_name"), 'r.stock_txn_idx as r_txn_idx',
+                DB::raw(\MesCore\Stock\Models\Lot::showSql('rl') . ' as receipt_lot_no'));
         if (!empty($v['status'])) $q->where('r.status', $v['status']);
         elseif (filter_var($v['hide_canceled'] ?? false, FILTER_VALIDATE_BOOLEAN)) $q->where('r.status', '!=', 'CANCELED');
         $this->period($q, 'r.received_at', $v);
@@ -268,7 +343,8 @@ class SubconController extends Controller {
             // 날짜 수정 ( 11-25 ) : 검사 없이 완료 = 입고 일시가 실적 시각 → 실적 · 재공 이력( · 제품 입고 원장 )도 함께
             'inspected'          => (bool) $r->inspection_idx,
             'has_run'            => (bool) $r->run_idx,
-            'run_received'       => (bool) $r->run_line_idx,
+            'run_received'       => (bool) $r->run_line_idx || (bool) $r->r_txn_idx,   // 품목 외주 입고도 재고 원장이 바뀐다
+            'receipt_lot_no'     => $r->receipt_lot_no,
         ]);
     }
 
@@ -354,20 +430,23 @@ class SubconController extends Controller {
     // 출고 + 지시 · 공정 · 품목 · 외주처
     private function issueBase(): Builder {
         return DB::table('subcon_issue as s')
-            ->join('work_order as wo', 'wo.work_order_idx', '=', 's.work_order_idx')
-            ->join('work_order_op as op', 'op.work_order_op_idx', '=', 's.work_order_op_idx')
-            ->join('process as p', 'p.process_idx', '=', 'op.process_idx')
-            ->join('item as i', 'i.item_idx', '=', 'wo.item_idx')
+            ->leftJoin('work_order as wo', 'wo.work_order_idx', '=', 's.work_order_idx')   // 품목 외주면 없음 ( 11-26 )
+            ->leftJoin('work_order_op as op', 'op.work_order_op_idx', '=', 's.work_order_op_idx')
+            ->leftJoin('process as p', 'p.process_idx', '=', 'op.process_idx')
+            ->join('item as i', 'i.item_idx', '=', DB::raw('COALESCE(s.item_idx, wo.item_idx)'))
             ->join('partner as pt', 'pt.partner_idx', '=', 's.partner_idx')
             ->leftJoin('account_member as su', 'su.account_idx', '=', 's.create_account_idx')
             ->select('s.subcon_issue_idx', 's.issue_no', 's.work_order_idx', 's.work_order_op_idx', 's.partner_idx', 's.qty', 's.amount', 's.issued_at', 's.remark', 's.is_canceled',
-                'wo.wo_no', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.spec_unit', 'p.process_name', 'pt.partner_name',
+                'wo.wo_no', 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.spec_unit', DB::raw('COALESCE(p.process_name, s.work_name) as process_name'), 'pt.partner_name',
+                's.item_idx as s_item_idx', 's.stock_txn_idx as s_txn_idx',
                 DB::raw("COALESCE(NULLIF(su.user_name, ''), su.user_id) as issuer_name"));
     }
 
     private function issueRow(object $r): array {
         return [
             'subcon_issue_idx'  => $r->subcon_issue_idx,
+            'kind'              => $r->work_order_op_idx ? 'OP' : 'ITEM',   // ITEM = 품목 외주 ( 11-26 · 입고 때 창고 필수 )
+            'has_stock_txn'     => (bool) $r->s_txn_idx,
             'issue_no'          => $r->issue_no,
             'work_order_idx'    => $r->work_order_idx,
             'work_order_op_idx' => $r->work_order_op_idx,

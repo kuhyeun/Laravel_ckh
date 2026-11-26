@@ -74,7 +74,7 @@
                         </thead>
                         <tbody>
                             <tr v-for="o in w.ops" :key="o.seq" class="border-t" :class="o.status === 'RUN' ? 'bg-blue-50/60' : ''">
-                                <td class="px-2 py-1 text-center text-gray-400">{{ o.seq }}</td>
+                                <td class="px-2 py-1 text-center text-gray-400">{{ o.seq_label }}</td>
                                 <td class="px-2 py-1 truncate" :title="o.process_name">{{ o.process_name }}</td>
                                 <td class="px-2 py-1 text-center font-semibold" :style="{ color: woStatusColor(o.status) }">{{ woStatusLabel(o.status) }}</td>
                                 <td class="px-2 py-1 text-center whitespace-nowrap">{{ o.started_at || '' }}</td>

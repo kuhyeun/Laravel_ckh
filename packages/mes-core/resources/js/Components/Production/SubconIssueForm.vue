@@ -7,10 +7,19 @@
      - 출고 제품 LOT ( 공정 LOT 추적 지시 · 앞 수량 공정이 있을 때만 — 첫 공정이 외주면 숨김 ) : 앞 공정 실적 LOT 선택 — 후보가 있으면 필수 · 외주 입고가 완료되면 새 LOT 의 투입 LOT 로 자동 연결
      - 외주 발주 ( 11-23 · docs/외주발주-설계.md ) : 발주서에서 열면( orderLine ) 외주처 고정 · 금액 = 출고 수량 × 발주 단가
        외주 출고 메뉴에서 열면 그 외주처 · 공정의 발주( target.order_lines )를 고를 수 있다( 안 골라도 된다 — 발주 없이 출고 · 금액 = 총액 입력 )
-       발주 남은 수량보다 많이 내면 안내만 -->
+       발주 남은 수량보다 많이 내면 안내만
+     - 품목 외주 ( 11-26 · target.kind ITEM ) : 품목 외주 발주 줄에서만 · 출고 가능 제한 없음( 발주보다 많으면 안내만 )
+       보낼 자재 = 재고 LOT 직접 고르기( SubconItemMaterials — BOM 없음 ) → 출고하면 바로 재고에서 빠진다 -->
 <template>
     <div class="mt-3 text-sm">
-        <div class="grid grid-cols-3 gap-x-4 gap-y-1.5 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/70">
+        <div v-if="isItem" class="grid grid-cols-3 gap-x-4 gap-y-1.5 px-3 py-2.5 rounded border border-violet-200 bg-violet-50/40">
+            <div><span class="text-xs text-gray-500">구분</span><p class="font-semibold text-violet-700">품목 외주</p></div>
+            <div class="col-span-2"><span class="text-xs text-gray-500">받을 품목</span><p>{{ itemLabel(target) }}</p></div>
+            <div><span class="text-xs text-gray-500">작업 내용</span><p class="font-semibold">{{ target.work_name || '—' }}</p></div>
+            <div><span class="text-xs text-gray-500">발주</span><p>{{ fmtQty(orderLine?.qty, target.spec_unit) }} <span class="text-xs text-gray-400">( 이미 출고 {{ fmtNum(orderLine?.issued_qty ?? 0) }} )</span></p></div>
+            <div><span class="text-xs text-gray-500">남은 발주</span><p class="font-semibold text-blue-700">{{ fmtQty(target.available_qty, target.spec_unit) }}</p></div>
+        </div>
+        <div v-else class="grid grid-cols-3 gap-x-4 gap-y-1.5 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/70">
             <div><span class="text-xs text-gray-500">작업지시</span><p>{{ target.wo_no }}</p></div>
             <div class="col-span-2"><span class="text-xs text-gray-500">품목</span><p>{{ itemLabel(target) }}</p></div>
             <div><span class="text-xs text-gray-500">외주 공정</span><p class="font-semibold">{{ target.process_name }}</p></div>
@@ -51,8 +60,10 @@
                 <BaseInput v-model="form.remark" class="w-full" maxlength="200" />
             </div>
         </div>
+        <!-- 품목 외주 : 보낼 자재 LOT ( 11-26 · 재고에서 직접 · 바로 차감 ) -->
+        <SubconItemMaterials v-if="isItem" v-model="form.materials" class="mt-4 pt-3 border-t" :error="materialError" />
         <!-- 출고 자재 LOT ( 11-24 ) -->
-        <div class="mt-4 pt-3 border-t">
+        <div v-else class="mt-4 pt-3 border-t">
             <div class="flex items-center gap-2 mb-1.5">
                 <span class="text-sm font-semibold text-gray-700">출고 자재 LOT</span>
                 <span class="text-xs text-gray-400">외주처로 함께 보내는 자재 ( 사급 자재 포함 )</span>
@@ -97,6 +108,7 @@ import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import RunInputPicker from '@core/Components/Production/RunInputPicker.vue';
+import SubconItemMaterials from '@core/Components/Production/SubconItemMaterials.vue';
 import ModalFooter from '@core/Components/Common/ModalFooter.vue';
 import { useFormErrors } from '@core/Composables/useFormErrors';
 import { fmtNum, fmtQty, itemLabel } from '@core/Utils/format';
@@ -113,8 +125,9 @@ const emit = defineEmits(['close']);
 
 const form = reactive({
     partner_idx: props.orderLine?.partner_idx ?? props.target.default_partner_idx ?? '', qty: String(props.target.available_qty || ''), amount: '',
-    issued_at: props.now, remark: '', inputs: [], order_line_idx: '',
+    issued_at: props.now, remark: '', inputs: [], order_line_idx: '', materials: [],
 });
+const isItem = computed(() => props.target.kind === 'ITEM');   // 품목 외주 ( 11-26 )
 // 외주 발주 ( 11-23 ) : 고정( 발주서에서 ) 또는 그 외주처의 발주 중 고르기
 const orderOptions = computed(() => [{ value: '', label: '발주 없이' }, ...(props.target.order_lines ?? [])
     .filter(l => Number(l.partner_idx) === Number(form.partner_idx))
@@ -130,7 +143,7 @@ const saving   = ref(false);
 // ---- 출고 자재 LOT ( 11-24 ) ----
 const modalStore = useModalStore();
 const hasPrev = computed(() => props.target.has_prev ?? (props.target.prev_label !== '지시 수량'));   // 앞 수량 공정 있음 ( 없으면 첫 공정 외주 )
-const caseRef = computed(() => curOrder.value ? { kind: 'ORDER', ref_idx: curOrder.value.subcon_order_line_idx } : null);
+const caseRef = computed(() => !isItem.value && curOrder.value ? { kind: 'ORDER', ref_idx: curOrder.value.subcon_order_line_idx } : null);
 const sent        = ref([]);
 const sentLoading = ref(false);
 async function loadSent() {
@@ -154,13 +167,15 @@ function openMaterial(c, title = null) {
         fixedCase: c, canWrite: props.canMaterial, onChanged: loadSent,
     }, { size: 'xl', closeOnClickOutside: false });
 }
-const { errors, errorMsg, clear, handle } = useFormErrors(['partner_idx', 'qty', 'amount', 'subcon_order_line_idx']);
+const { errors, errorMsg, clear, handle } = useFormErrors(['partner_idx', 'qty', 'amount', 'subcon_order_line_idx', 'materials']);
+const materialError = computed(() => errors.value.materials?.[0] ?? Object.entries(errors.value).find(([k]) => k.startsWith('materials.'))?.[1]?.[0] ?? '');
 
 async function save() {
     saving.value = true; clear();
     try {
         const { data } = await window.axios.post(route('production.subcon.issue.save'), {
-            work_order_op_idx: props.target.work_order_op_idx,
+            work_order_op_idx: isItem.value ? null : props.target.work_order_op_idx,
+            ...(isItem.value ? { materials: form.materials.filter(m => num(m.qty) > 0).map(m => ({ stock_balance_idx: m.stock_balance_idx, qty: m.qty })) } : {}),
             partner_idx: form.partner_idx === '' ? null : Number(form.partner_idx),
             qty: form.qty === '' ? null : form.qty,
             amount: curOrder.value ? orderAmount.value : (form.amount === '' ? 0 : form.amount),

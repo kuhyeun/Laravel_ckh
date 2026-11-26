@@ -210,6 +210,7 @@ class SalesProgressService {
                 $final = $list->where('insp_type', 'PROCESS')->last();
                 return [
                     'seq'           => $o->seq,
+                    'seq_label'     => \MesCore\Support\OpSeq::label($o->seq, $o->isRmOut()),   // 원자재출고 = M · 나머지 010 ( 11-26 )
                     'process_name'  => $o->process?->process_name,
                     'is_inspection' => $o->isInspectionOp() || $o->isIflOp(),
                     'status'        => $o->status,

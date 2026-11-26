@@ -138,7 +138,7 @@
                             <BaseInput v-model="form.page_component" class="w-full" placeholder="예: Basic/MenuManage" />
                             <p v-if="errors.page_component" class="text-xs text-red-500 mt-1">{{ errors.page_component[0] }}</p>
                             <label class="block text-sm font-medium text-gray-600 mt-2 mb-1">화면 옵션 <span class="text-xs font-normal text-gray-400">( JSON — 같은 화면을 메뉴마다 다르게 · 예: {"warehouse_filter": false} )</span></label>
-                            <BaseInput v-model="form.page_options" class="w-full font-mono" placeholder="비우면 기본" />
+                            <BaseInput v-model="form.page_options" class="w-full" placeholder="비우면 기본" />
                             <p v-if="errors.page_options" class="text-xs text-red-500 mt-1">{{ errors.page_options[0] }}</p>
                         </div>
                         <div>

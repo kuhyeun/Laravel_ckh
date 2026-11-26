@@ -22,8 +22,10 @@
                         <!-- 코드 열 ( 11-26 · 공정 코드 ) : QR · 바코드 -->
                         <div v-if="c.code" class="ds-code" :style="{ height: `${page.heights?.[r] ?? design.table.row_h_mm}mm` }">
                             <template v-if="l">
-                                <div v-if="c.code !== 'BARCODE'" class="ds-qr"><QrCode v-if="codeOfLine(l, 'QR')" :value="codeOfLine(l, 'QR')" /></div>
-                                <Barcode v-else-if="codeOfLine(l, 'BARCODE')" :value="codeOfLine(l, 'BARCODE')" height="100%" class="ds-bar" />
+                                <div class="ds-code-box" :style="{ height: `${codeSize(c).h}%` }">   <!-- 크기 가로 · 세로 % ( 11-26 ) -->
+                                    <div v-if="c.code !== 'BARCODE'" class="ds-qr" :style="{ width: `${codeSize(c).w}%` }"><QrCode v-if="codeOfLine(l, 'QR')" :value="codeOfLine(l, 'QR')" /></div>
+                                    <div v-else-if="codeOfLine(l, 'BARCODE')" class="ds-bar" :style="{ width: `${codeSize(c).w}%` }"><Barcode :value="codeOfLine(l, 'BARCODE')" height="100%" /></div>
+                                </div>
                                 <span v-if="c.show_no" class="ds-code-no">{{ codeOfLine(l, 'BARCODE') }}</span>
                             </template>
                         </div>
@@ -53,6 +55,7 @@ import { PAGE, lineValue, sumValue, codeOfLine } from '@core/Components/Doc/docD
 import QrCode from '@core/Components/Label/QrCode.vue';
 import Barcode from '@core/Components/Label/Barcode.vue';
 import { columnWidths } from '@core/Components/Doc/measureLines';
+const codeSize = (c) => { const p = (v) => { const n = Number(v); return n >= 20 && n <= 100 ? n : null; }; const s = p(c?.scale) ?? 100; return c?.code === 'BARCODE' ? { w: p(c?.scale_w) ?? s, h: p(c?.scale_h) ?? s } : { w: s, h: s }; };   // 코드 크기 가로 · 세로 % ( 11-26 · 기본 100 )
 
 const props = defineProps({
     docType:     { type: String, required: true },
@@ -88,8 +91,11 @@ const zoneH = computed(() => {
 .ds-head td { text-align: center; font-weight: 600; background: #f3f4f6; }
 .ds-sum td { font-weight: 700; border-top-width: 0.5mm; }
 .ds-code { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5mm; padding: 1mm 0; box-sizing: border-box; overflow: hidden; }
-.ds-qr { flex: 1 1 auto; min-height: 0; aspect-ratio: 1 / 1; max-width: 100%; }
-.ds-bar { flex: 1 1 auto; min-height: 0; width: 100%; }
+.ds-code-box { flex: 0 1 auto; min-height: 0; width: 100%; display: flex; align-items: center; justify-content: center; }
+.ds-qr { height: 100%; }
+.ds-bar { height: 100%; }
+/* 바코드 svg 높이 — JsBarcode 가 svg style( height )을 덮어써 비율대로 작아지며 위에 붙던 것 ( 11-26 · 라벨 양식과 같게 ) */
+.ds-bar :deep(svg) { width: 100%; height: 100% !important; }
 .ds-code-no { flex: none; font-size: 7pt; font-weight: 600; line-height: 1; }
 .ds-clip { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ds-wrap { overflow: hidden; white-space: pre-line; overflow-wrap: anywhere; word-break: keep-all; padding: 0.8mm 0; box-sizing: border-box; }   /* measureLines 와 같게 */

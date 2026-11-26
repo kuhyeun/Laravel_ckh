@@ -75,7 +75,7 @@ class RunInputService {
             $runs = $this->chainLots($ops, $op)->map(fn ($l) => $l + ['linked_qty' => (float) ($linked[$l['lot_idx']] ?? 0)])->values()->all();
         }
 
-        return ['materials' => $materials, 'runs' => $runs, 'prev_op' => $prev ? sprintf('%03d %s', $prev->seq, $prev->process?->process_name) : null];
+        return ['materials' => $materials, 'runs' => $runs, 'prev_op' => $prev ? \MesCore\Support\OpSeq::name($prev->seq, $prev->isRmOut(), $prev->process?->process_name) : null];
     }
 
     /**
@@ -264,7 +264,7 @@ class RunInputService {
             if ($used) {
                 $o = $used->run?->op;
                 throw ValidationException::withMessages(['run_idx' => [
-                    sprintf('이 실적 LOT 가 뒤 공정( %03d %s ) 실적에 투입 LOT 로 연결돼 있습니다. 그 연결을 먼저 해제하세요.', $o?->seq, $o?->process?->process_name),
+                    sprintf('이 실적 LOT 가 뒤 공정( %s ) 실적에 투입 LOT 로 연결돼 있습니다. 그 연결을 먼저 해제하세요.', $o ? \MesCore\Support\OpSeq::name($o->seq, $o->isRmOut(), $o->process?->process_name) : ''),
                 ]]);
             }
         }

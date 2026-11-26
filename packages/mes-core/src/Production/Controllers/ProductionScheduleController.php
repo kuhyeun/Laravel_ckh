@@ -36,7 +36,7 @@ class ProductionScheduleController extends Controller {
         // 기간에 실제로 한 일이 걸칠 수 있는 지시 — 취소 제외 ( 정확한 기간은 아래에서 다시 본다 )
         $fromAt = $v['from'] . ' 00:00:00';
         $toAt   = $v['to'] . ' 23:59:59';
-        $query = WorkOrder::with(['item:item_idx,item_code,item_name,spec,spec_unit', 'ops' => fn ($q) => $q->orderBy('seq')])
+        $query = WorkOrder::with(['item:item_idx,item_code,item_name,spec,spec_unit', 'ops' => fn ($q) => $q->orderBy('seq'), 'ops.process:process_idx,is_system,system_key'])
             ->where('status', '!=', 'CANCELED')
             ->whereHas('ops', fn ($o) => $o
                 ->where(fn ($s) => $s->where('started_at', '<=', $toAt)
@@ -86,6 +86,7 @@ class ProductionScheduleController extends Controller {
                     'work_order_idx' => $wo->work_order_idx,
                     'wo_no'          => $wo->wo_no,
                     'seq'            => $op->seq,
+                    'seq_label'      => \MesCore\Support\OpSeq::label($op->seq, $op->isRmOut()),
                     'item'           => trim(($wo->item?->item_code ?? '') . ' ' . ($wo->item?->item_name ?? '')),
                     'item_spec'      => $wo->item?->spec,
                     'spec_unit'      => $wo->item?->spec_unit,

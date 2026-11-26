@@ -92,5 +92,5 @@ function remove(i) {
 </script>
 
 <style scoped>
-.lbl { display: block; margin-bottom: 0.25rem; font-size: 0.75rem; font-weight: 500; color: #6b7280; }
+.lbl { display: block; margin-bottom: 0.25rem; font-size: 13px; font-weight: 500; color: #6b7280; }
 </style>

@@ -106,7 +106,7 @@ class ShipmentTagController extends Controller {
             // 그 LOT 을 만든 전환 = 같은 전표의 뺀 줄이 그 LOT 의 원 LOT
             ->leftJoin('stock_txn_line as sa', fn ($j) => $j->on('sa.stock_txn_idx', '=', 'tl.stock_txn_idx')->on('sa.lot_idx', '=', 'nl.parent_lot_idx')->where('sa.pass_qty', '<', 0))
             // 생산 입고 + LOT 전환으로 생긴 제품 LOT 의 받은 줄 ( 11-25 · 재고조정 — 수량 = 받은 수량 )
-            ->where(fn ($q) => $q->where('t.txn_type', 'IN_PRODUCTION')
+            ->where(fn ($q) => $q->whereIn('t.txn_type', ['IN_PRODUCTION', 'IN_SUBCON'])   // + 품목 외주 입고 ( 11-26 · 제품 )
                 ->orWhere(fn ($x) => $x->where('t.txn_type', 'LOT_CHANGE')->where('tl.pass_qty', '>', 0)->where('nl.source', 'CONVERT')->whereNotNull('sa.stock_txn_line_idx')))
             ->where('t.status', '!=', 'CANCELED')->where('tl.line_status', '!=', 'CANCELED')->whereNotNull('tl.lot_idx')
             ->groupBy('tl.lot_idx')->selectRaw("tl.lot_idx, SUM(CASE WHEN t.txn_type = 'LOT_CHANGE' THEN tl.pass_qty ELSE tl.qty END) as in_qty, MIN(w.wo_no) as wo_no");

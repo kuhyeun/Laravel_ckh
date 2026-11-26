@@ -27,6 +27,13 @@ export const WO_STATUS_FILTER = [
     ...WO_STATUSES.map(s => ({ value: s.value, label: s.label })),
 ];
 
+// 공정 순번 표시 ( 11-26 · 서버 MesCore\Support\OpSeq 와 맞출 것 ) — 원자재출고 = 설정 문자( 기본 M ) · 나머지는 원자재출고를 빼고 010 · 020 …
+//   isRm : [ bool, … ] ( 공정 목록 순서대로 ) → [ '010' | 'M', … ]
+export function opSeqLabels(isRm, rmLabel = 'M') {
+    let n = 0;
+    return isRm.map(r => r ? rmLabel : String(++n * 10).padStart(3, '0'));
+}
+
 // 공정 구분 표시 ( 공정관리의 구분 )
 export function processKindLabel(p) {
     if (!p) return '';

@@ -79,7 +79,7 @@
                     </div>
 
                     <!-- 설정 -->
-                    <div class="w-[22rem] shrink-0 border-l border-gray-200 flex flex-col text-sm">
+                    <div class="w-[30rem] shrink-0 border-l border-gray-200 flex flex-col text-sm">
                         <div class="inline-flex p-0.5 m-2 rounded bg-gray-100 shrink-0">
                             <button v-for="z in ZONES" :key="z.key" type="button" class="flex-1 px-2 py-1.5 rounded text-xs"
                                 :class="zone === z.key ? 'bg-white shadow-sm font-semibold text-gray-900' : 'text-gray-500 hover:text-gray-700'" @click="setZone(z.key)">{{ z.label }}</button>
@@ -88,9 +88,9 @@
                         <!-- 품목 표 -->
                         <div v-if="zone === 'table'" class="flex-1 min-h-0 overflow-y-auto px-3 pb-3 space-y-3">
                             <div class="grid grid-cols-2 gap-2">
-                                <div><label class="lbl">한 장 줄 수</label><BaseInput v-model="tbl.rows_per_page" type="number" min="1" class="w-full text-right" :disabled="!canWrite" /></div>
-                                <div><label class="lbl">줄 높이 mm</label><BaseInput v-model="tbl.row_h_mm" type="number" min="4" class="w-full text-right" :disabled="!canWrite" /></div>
-                                <div><label class="lbl">머리글 높이 mm</label><BaseInput v-model="tbl.head_h_mm" type="number" min="4" class="w-full text-right" :disabled="!canWrite" /></div>
+                                <div><label class="lbl">한 장 줄 수</label><BaseInput v-model="tbl.rows_per_page" type="number" min="1" max="60" class="w-full text-right" :disabled="!canWrite" /></div>
+                                <div><label class="lbl">줄 높이 mm</label><BaseInput v-model="tbl.row_h_mm" type="number" min="4" max="100" class="w-full text-right" :disabled="!canWrite" /></div>
+                                <div><label class="lbl">머리글 높이 mm</label><BaseInput v-model="tbl.head_h_mm" type="number" min="4" max="30" class="w-full text-right" :disabled="!canWrite" /></div>
                                 <div><label class="lbl">글자 크기 pt</label><BaseInput v-model="tbl.size" type="number" min="5" class="w-full text-right" :disabled="!canWrite" /></div>
                             </div>
                             <BaseCheckbox variant="switch" v-model="tbl.sum" true-value="Y" false-value="N" :disabled="!canWrite">합계 줄 ( 수량 · 금액 열 )</BaseCheckbox>
@@ -120,6 +120,17 @@
                                     <div v-if="CODE_COLUMNS.includes(c.field)" class="flex items-center gap-1">
                                         <BaseSelect v-model="c.code" :options="CODE_KINDS" size="sm" class="w-28" :disabled="!canWrite" />
                                         <label class="inline-flex items-center gap-0.5 text-[11px] text-gray-600 cursor-pointer"><input type="checkbox" class="accent-blue-600" v-model="c.show_no" :disabled="!canWrite" /> 번호 글자</label>
+                                        <template v-if="c.code === 'BARCODE'">
+                                            <span class="ml-2 text-[11px] text-gray-500" title="열 너비 대비 ( 20 ~ 100 · 기본 100 )">가로</span>
+                                            <BaseInput v-model="c.scale_w" type="number" min="20" max="100" step="5" size="sm" class="w-16 text-right" placeholder="100" :disabled="!canWrite" />
+                                            <span class="text-[11px] text-gray-500" title="행 높이 대비 ( 20 ~ 100 · 기본 100 )">세로</span>
+                                            <BaseInput v-model="c.scale_h" type="number" min="20" max="100" step="5" size="sm" class="w-16 text-right" placeholder="100" :disabled="!canWrite" />
+                                        </template>
+                                        <template v-else>
+                                            <span class="ml-2 text-[11px] text-gray-500" title="칸 대비 ( 20 ~ 100 · 기본 100 · 정사각형 )">크기</span>
+                                            <BaseInput v-model="c.scale" type="number" min="20" max="100" step="5" size="sm" class="w-16 text-right" placeholder="100" :disabled="!canWrite" />
+                                        </template>
+                                        <span class="text-[11px] text-gray-500">%</span>
                                     </div>
                                 </div>
                                 <p class="text-[11px] text-gray-400">너비는 비율입니다 ( 열끼리 견줘 나눕니다 ) · 「빈 칸」 열은 손으로 적는 확인란 등에 씁니다</p>
@@ -193,7 +204,21 @@
                                                 <BaseSelect v-model="cur.code" :options="CODE_KINDS" class="w-32" :disabled="!canWrite" />
                                                 <BaseCheckbox v-model="cur.show_no" :disabled="!canWrite">아래에 번호 글자</BaseCheckbox>
                                             </div>
-                                            <p class="text-[11px] text-gray-400">QR = 휴대폰 · 스캐너로 찍으면 그 작업지시로 이동 · 바코드 = 번호( 스캐너 )</p>
+                                            <div class="flex items-center gap-2">
+                                                <template v-if="cur.code === 'BARCODE'">
+                                                    <label class="lbl !mb-0">가로</label>
+                                                    <BaseInput v-model="cur.scale_w" type="number" min="20" max="100" step="5" class="w-16 text-right" placeholder="100" :disabled="!canWrite" />
+                                                    <label class="lbl !mb-0">세로</label>
+                                                    <BaseInput v-model="cur.scale_h" type="number" min="20" max="100" step="5" class="w-16 text-right" placeholder="100" :disabled="!canWrite" />
+                                                </template>
+                                                <template v-else>
+                                                    <label class="lbl !mb-0">크기</label>
+                                                    <BaseInput v-model="cur.scale" type="number" min="20" max="100" step="5" class="w-16 text-right" placeholder="100" :disabled="!canWrite" />
+                                                </template>
+                                                <span class="text-xs text-gray-500">%</span>
+                                            </div>
+                                            <p class="text-[11px] text-gray-400">칸 크기 대비 ( 20 ~ 100 · 기본 100 ) · {{ cur.code === 'BARCODE' ? '바코드는 가로 · 세로를 따로' : 'QR 은 정사각형이라 크기 하나' }}</p>
+                                            <p class="text-[11px] text-gray-400">QR · 바코드 모두 번호( 작업지시 번호 · 공정 OP-번호 ) — 화면 어디서든 스캐너로 찍으면 그 작업지시 · 공정으로 이동</p>
                                         </template>
                                         <div v-if="cur?.type === 'TEXT'">
                                             <label class="lbl">글자</label>
@@ -285,6 +310,9 @@ function load(data, unsaved = false) {
     origin = clone(data); originUnsaved = unsaved;   // [초기화] 가 돌아갈 곳
     Object.assign(form, clone(data));
     form.design.stamps ??= [];   // 도장 없이 저장된 양식 ( 11-25 이전 )
+    // 코드 크기 ( 11-26 ) : QR = 크기 하나( scale ) · 바코드 = 가로 · 세로( scale_w · scale_h — 없으면 scale 로 채워 보인다 )
+    const sizeUp = (o) => { if (o?.code && (o.type === 'CODE' || o.field)) { o.scale ??= 100; o.scale_w ??= o.scale; o.scale_h ??= o.scale; } };
+    [...(form.design.head?.cells ?? []), ...(form.design.foot?.cells ?? []), ...(form.design.table?.columns ?? [])].forEach(sizeUp);
     stampSel.value = null;
     grids.head.clearPick(); grids.foot.clearPick();
     errorText.value = '';
@@ -341,6 +369,9 @@ function setType(type) {
         cell.field = CODE_FIELDS[form.doc_type]?.[0]?.key ?? null;
         cell.code ??= 'QR';
         cell.show_no ??= true;
+        cell.scale   ??= 100;            // 크기 % ( 11-26 · QR )
+        cell.scale_w ??= cell.scale;     // 가로 · 세로 % ( 바코드 )
+        cell.scale_h ??= cell.scale;
         cell.align = 'center';
     }
     if (type === 'FIELD' && !FIELDS[form.doc_type].some(f => f.key === cell.field)) cell.field = FIELDS[form.doc_type][0].key;
@@ -363,6 +394,9 @@ function setColumnField(c, key) {
     c.wrap  = defaultWrap(key);   // 품명 · 규격 · 비고 = 줄바꿈 ( 11-24 )
     c.code    = CODE_COLUMNS.includes(key) ? (c.code ?? 'QR') : null;   // 코드 열 ( 11-26 )
     c.show_no = CODE_COLUMNS.includes(key) ? (c.show_no ?? true) : null;
+    c.scale   = CODE_COLUMNS.includes(key) ? (c.scale ?? 100) : null;
+    c.scale_w = CODE_COLUMNS.includes(key) ? (c.scale_w ?? c.scale ?? 100) : null;
+    c.scale_h = CODE_COLUMNS.includes(key) ? (c.scale_h ?? c.scale ?? 100) : null;
 }
 function addColumn() {
     const used = new Set(tbl.value.columns.map(c => c.field));
@@ -456,12 +490,12 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.lbl { display: block; margin-bottom: 0.25rem; font-size: 0.75rem; font-weight: 500; color: #6b7280; }
+.lbl { display: block; margin-bottom: 0.25rem; font-size: 13px; font-weight: 500; color: #6b7280; }
 .dt-step { width: 1.5rem; height: 1.5rem; border: 1px solid #d1d5db; border-radius: 0.25rem; background: #fff; line-height: 1; color: #4b5563; }
 .dt-step:hover:not(:disabled) { background: #f3f4f6; }
 .dt-step:disabled, .dt-ico:disabled { opacity: 0.35; }
 .dt-ico { flex: none; width: 1.5rem; height: 1.75rem; border-radius: 0.25rem; color: #6b7280; }
 .dt-ico:hover:not(:disabled) { background: #f3f4f6; color: #111827; }
-.dt-ratio { width: 3rem; height: 1.75rem; padding: 0 0.25rem; border: 1px solid #d1d5db; border-radius: 0.25rem; font-size: 0.75rem; text-align: center; }
+.dt-ratio { width: 3rem; height: 1.75rem; padding: 0 0.25rem; border: 1px solid #d1d5db; border-radius: 0.25rem; font-size: 13px; text-align: center; }
 .dt-ratio:focus { outline: none; border-color: #2563eb; }
 </style>

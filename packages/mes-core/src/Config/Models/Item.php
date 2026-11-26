@@ -104,8 +104,9 @@ class Item extends Model {
     //   표시 · 찾기 규칙이 바뀌면 여기와 ItemPicker 만 고친다 ( 화면마다 칸 목록을 따로 적지 않는다 )
     public const PICKER_COLUMNS = ['item_idx', 'item_code', 'item_name', 'spec', 'material', 'spec_unit', 'item_type', 'item_kind', 'procure_type', 'is_sale', 'is_use'];
 
-    // 조달 구분 ( 11-13 ) — 자재 : 구매 · 사급 / 제품 : 해당 없음 · 구매( 사서 쓰는 상품 · 반제품 )
-    public const PROCURE_TYPES = ['BUY' => '구매', 'SUPPLIED' => '사급', 'NONE' => '해당 없음'];
+    // 조달 구분 ( 11-13 ) — 자재 : 구매 · 생산 · 사급 / 제품 : 생산 · 구매( 사서 쓰는 상품 · 반제품 )
+    //   NONE = 생산 ( 11-26 · 전에는 '해당 없음' — 값은 그대로 이름만 · 구매가 아니면 발주 · 구매 소요에서 빠지는 것도 그대로 )
+    public const PROCURE_TYPES = ['BUY' => '구매', 'SUPPLIED' => '사급', 'NONE' => '생산'];
 
     // 선택지 칸 + 그 화면에만 필요한 칸( 단가 · 포장 수량 등 )
     public function scopeForPicker(\Illuminate\Database\Eloquent\Builder $query, array $extra = []): \Illuminate\Database\Eloquent\Builder {
@@ -131,12 +132,12 @@ class Item extends Model {
     protected static function booted(): void {
         static::saving(function (self $m) {
             $m->spec_key = self::specKey($m->spec);
-            // 조달 구분 · 판매 여부 : 비어 있으면 대분류 기본값 ( 자재 = 구매 · 판매 안 함 / 제품 = 해당 없음 · 판매 )
-            //   대분류에 없는 값은 기본값으로 ( 자재에 '해당 없음' · 제품에 '사급' )
+            // 조달 구분 · 판매 여부 : 비어 있으면 대분류 기본값 ( 자재 = 구매 · 판매 안 함 / 제품 = 생산 · 판매 )
+            //   대분류에 없는 값은 기본값으로 ( 제품에 '사급' ) — 자재도 생산( NONE )을 고를 수 있다 ( 11-26 )
             //   일부 칸만 읽어 온 모델( select )을 저장할 때는 건드리지 않는다 — 읽지 않은 칸을 기본값으로 덮지 않게
             $isMaterial = $m->item_type === 'MATERIAL';
             $has        = fn (string $k) => !$m->exists || array_key_exists($k, $m->getAttributes());
-            if ($m->item_type !== null && $has('procure_type') && !in_array($m->procure_type, $isMaterial ? ['BUY', 'SUPPLIED'] : ['NONE', 'BUY'], true)) {
+            if ($m->item_type !== null && $has('procure_type') && !in_array($m->procure_type, $isMaterial ? ['BUY', 'NONE', 'SUPPLIED'] : ['NONE', 'BUY'], true)) {
                 $m->procure_type = $isMaterial ? 'BUY' : 'NONE';
             }
             if ($m->item_type !== null && $has('is_sale') && !in_array($m->is_sale, ['Y', 'N'], true)) {

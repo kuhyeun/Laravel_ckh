@@ -197,8 +197,8 @@
                                     <span class="block h-10 border-b border-gray-200" :style="{ background: c.hex }"></span>
                                     <span class="block px-2 py-1 leading-tight">
                                         <span class="block text-xs font-semibold text-gray-700">{{ c.tw }}</span>
-                                        <span class="block text-[11px] text-gray-400 font-mono">{{ c.hex }}</span>
-                                        <span class="block text-[11px] text-blue-700 font-mono">{{ c.key }}</span>
+                                        <span class="block text-[11px] text-gray-400">{{ c.hex }}</span>
+                                        <span class="block text-[11px] text-blue-700">{{ c.key }}</span>
                                     </span>
                                 </button>
                             </div>
@@ -214,7 +214,7 @@
                     <table class="text-sm">
                         <tbody>
                             <tr v-for="f in FORMAT_DEMO" :key="f.call" class="border-b last:border-b-0">
-                                <td class="pr-6 py-1 font-mono text-xs text-gray-500">{{ f.call }}</td>
+                                <td class="pr-6 py-1 text-xs text-gray-500">{{ f.call }}</td>
                                 <td class="py-1 text-right font-semibold">{{ f.value }}</td>
                             </tr>
                         </tbody>
@@ -230,7 +230,7 @@
                         <div class="w-full grid grid-cols-2 gap-3 text-sm">
                             <div><label class="block text-gray-500 font-medium mb-1">날짜</label><BaseDatePicker v-model="pick.d" /></div>
                             <div><label class="block text-gray-500 font-medium mb-1">일시</label><BaseDatePicker v-model="pick.dt" mode="datetime" /></div>
-                            <p class="col-span-2 text-xs text-gray-400 font-mono">값 : {{ pick.d || '( 빈 값 )' }} · {{ pick.dt || '( 빈 값 )' }}</p>
+                            <p class="col-span-2 text-xs text-gray-400">값 : {{ pick.d || '( 빈 값 )' }} · {{ pick.dt || '( 빈 값 )' }}</p>
                         </div>
                     </ShowcaseCard>
                     <ShowcaseCard title="검색바 · 패널 머리 ( 입력 · 선택은 모두 md 32px — 11-25 )" :code="code.pickerSm">

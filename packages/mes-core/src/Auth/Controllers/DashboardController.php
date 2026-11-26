@@ -140,7 +140,7 @@ class DashboardController extends Controller {
             ->join('process as p', 'p.process_idx', '=', 'o.process_idx')
             ->whereIn('o.work_order_idx', $wos->pluck('id')->all() ?: [0])
             ->orderBy('o.seq')
-            ->get(['o.work_order_idx', 'o.seq', 'o.status', 'p.process_name'])
+            ->get(['o.work_order_idx', 'o.seq', 'o.status', 'p.process_name', 'p.system_key'])
             ->groupBy('work_order_idx');
         return $wos->map(function ($w) use ($ops) {
             $list = $ops[$w->id] ?? collect();
@@ -148,7 +148,7 @@ class DashboardController extends Controller {
             return (object) [
                 'id' => $w->id, 'sheet_idx' => $w->sheet_idx, 'wo_no' => $w->wo_no, 'item' => $this->itemText($w),
                 'due_date' => $w->due_date, 'status' => $w->status,
-                'current_op' => $run ? "OP{$run->seq} {$run->process_name}" : '',
+                'current_op' => $run ? \MesCore\Support\OpSeq::name($run->seq, \MesCore\Support\OpSeq::isRmKey($run->system_key), $run->process_name) : '',
                 'done_ops' => $list->where('status', 'DONE')->count(), 'total_ops' => $list->count(),
             ];
         });
@@ -188,10 +188,10 @@ class DashboardController extends Controller {
             ->whereRaw('COALESCE(o.due_date, w.due_date) = ?', [$t])
             ->orderByRaw("FIELD(o.status, 'RUN', 'WAIT', 'DONE'), w.wo_no, o.seq")
             ->limit(self::LIMIT)
-            ->get(['o.work_order_op_idx as id', 'w.work_order_idx', 'w.sheet_idx', 'o.status', 'o.seq', 'p.process_name', 'i.item_code', 'i.item_name', 'o.qty', 'w.target_qty'])
+            ->get(['o.work_order_op_idx as id', 'w.work_order_idx', 'w.sheet_idx', 'o.status', 'o.seq', 'p.process_name', 'p.system_key', 'i.item_code', 'i.item_name', 'o.qty', 'w.target_qty'])
             ->map(fn ($r) => [
                 'id' => $r->id, 'work_order_idx' => $r->work_order_idx, 'sheet_idx' => $r->sheet_idx, 'status' => $r->status,
-                'process' => "OP{$r->seq} {$r->process_name}", 'item' => $this->itemText($r), 'done' => (float) $r->qty, 'target' => (float) $r->target_qty,
+                'process' => \MesCore\Support\OpSeq::name($r->seq, \MesCore\Support\OpSeq::isRmKey($r->system_key), $r->process_name), 'item' => $this->itemText($r), 'done' => (float) $r->qty, 'target' => (float) $r->target_qty,
             ])->all();
     }
 

@@ -38,7 +38,7 @@
                             class="w-full text-left px-3 py-2 border-b border-gray-100 flex items-start gap-2"
                             :class="selectedIdx === o.work_order_op_idx ? 'bg-blue-50 border-l-4 border-l-blue-600 pl-2' : 'hover:bg-gray-50'"
                             @click="pick(o)">
-                            <span class="text-xs text-gray-400 tabular-nums pt-0.5">{{ String(o.seq).padStart(3, '0') }}</span>
+                            <span class="text-xs text-gray-400 tabular-nums pt-0.5">{{ o.seq_label }}</span>
                             <span class="flex-1 min-w-0">
                                 <span class="flex items-center gap-1.5">
                                     <span class="font-medium truncate">{{ o.name }}</span>
@@ -63,7 +63,7 @@
                     <template v-else>
                         <!-- 머리 : 공정 · 상태 · 단추 -->
                         <div class="shrink-0 px-3 py-2 bg-gray-50/70 border-b flex items-center gap-2 flex-wrap">
-                            <span class="font-semibold">{{ String(op.seq).padStart(3, '0') }} {{ op.name }}</span>
+                            <span class="font-semibold">{{ op.seq_label }} {{ op.name }}</span>
                             <span class="text-[11px] px-1 rounded" :class="KIND_CLASS[kind]">{{ KIND_LABEL[kind] }}</span>
                             <span class="font-semibold" :style="{ color: woStatusColor(op.status) }">{{ woStatusLabel(op.status) }}</span>
                             <span v-if="op.started_at" class="text-xs text-gray-400">시작 {{ op.started_at }}</span>
@@ -195,7 +195,7 @@ import { route } from 'ziggy-js';
 import Swal from 'sweetalert2';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
-import DocPreview from '@core/Components/Doc/DocPreview.vue';
+import WoFlowPreview from '@core/Components/Production/WoFlowPreview.vue';
 import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
 import RunInputPickModal from '@core/Components/Production/RunInputPickModal.vue';
@@ -304,7 +304,7 @@ function openRunForm() {
     }, { size: 'md', closeOnClickOutside: false });
 }
 function openFlowSheet() {
-    modalStore.open(DocPreview, { modalTitle: `공정흐름표 [ ${line.value.wo_no} ]`, docType: 'WO_FLOW', routeName: 'production.opResult.flowSheets', ids: [props.woIdx] }, { size: 'xl' });
+    modalStore.open(WoFlowPreview, { modalTitle: `공정흐름표 [ ${line.value.wo_no} ]`, routeName: 'production.opResult.flowSheets', ids: [props.woIdx] }, { size: 'xl' });
 }
 // 공정 QR 스캔 → 실적 등록 창 ( 열 수 없으면 이유만 )
 function openRunByScan() {
@@ -391,7 +391,7 @@ async function confirmComplete(o) {
         short ? `<b style="color:#b45309">${fmtNum(num(o.base_qty) - num(o.qty))} 미달</b> — 사유를 고르세요.` : '',
         wh ? '마지막 공정이라 남은 수량을 제품 입고하고 줄을 완료합니다.' : o.is_last_open ? '마지막 공정이라 공정실적등록을 완료합니다.' : '',
     ].filter(Boolean);
-    const field = (label, html) => `<label style="display:block;text-align:left;font-size:12px;color:#6b7280;margin:12px 0 4px">${label} <span style="color:#ef4444">*</span></label>${html}`;
+    const field = (label, html) => `<label style="display:block;text-align:left;font-size:13px;color:#6b7280;margin:12px 0 4px">${label} <span style="color:#ef4444">*</span></label>${html}`;
     const html = `<div style="font-size:14px;line-height:1.6">${notes.map(t => `<div>${t}</div>`).join('')}</div>`
         + (short ? field('미달 사유', selectHtml('op-done-reason', reasonOptions.value, '', '사유 선택')) : '')
         + (wh ? field('입고 창고', selectHtml('op-done-wh', (props.ctx.warehouses ?? []).map(w => ({ value: w.warehouse_idx, label: w.label ?? w.name })), defaultWarehouse(), '창고 선택')) : '');

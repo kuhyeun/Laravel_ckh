@@ -18,15 +18,15 @@ export const DOC_TYPES = [
     { value: 'INSPECTION_SPEC', label: '검사기준서' },   // 기준정보관리 > 검사기준서관리 [인쇄] ( 11-18 )
     { value: 'INSPECTION_REPORT', label: '검사성적서' },
     { value: 'SUBCON_ORDER', label: '외주 발주서' },   // 생산관리 > 외주관리 > 외주 발주 [인쇄] ( 11-23 )   // 입고 · 공정 · 출하 검사 창 [성적서] [인쇄] ( 11-23 — 저장된 측정값 )
-    { value: 'WO_FLOW', label: '공정흐름표' },   // 작업지시관리 · 공정실적 창 [공정흐름표] ( 11-26 — 작업지시 · 공정 QR / 바코드 )
+    // 공정흐름표( WO_FLOW )는 뺐다 ( 11-26 — 고정 배치 WoFlowPages · 사용자가 고칠 양이 아니다 )
 ];
-// QR · 바코드 칸에 넣는 코드 ( 11-26 ) — 값 : 항목키_qr( 주소 ) · 항목키_bar( 번호 )
+// QR · 바코드 칸에 넣는 코드 ( 11-26 ) — 값 : 항목키_qr · 항목키_bar ( 둘 다 같은 번호 — 주소를 넣지 않는다 )
 export const CODE_FIELDS = {
     WO_FLOW: [{ key: 'wo_code', label: '작업지시 코드' }],
 };
-// QR · 바코드로 그리는 표 열 — 줄의 op_url( QR ) · op_code( 바코드 )
+// QR · 바코드로 그리는 표 열 — 줄의 op_code ( QR · 바코드 같은 값 )
 export const CODE_COLUMNS = ['op_code'];
-export const codeOfLine = (l, code) => !l ? '' : code === 'BARCODE' ? (l.op_code ?? '') : (l.op_url ?? l.op_code ?? '');
+export const codeOfLine = (l) => l?.op_code ?? '';
 export const docTypeLabel = (v) => DOC_TYPES.find(t => t.value === v)?.label ?? v;
 
 const OURS = [
@@ -163,7 +163,7 @@ export function fieldValues(type, doc, ctx = {}) {
             name_spec: withSpec(doc.item_name, doc.item_spec), item_material: doc.item_material ?? '', unit: doc.unit ?? '',
             qty: doc.qty === null || doc.qty === undefined ? '' : `${fmtNum(doc.qty)}${unit}`, start_date: doc.start_date ?? '', due_date: doc.due_date ?? '',
             lot_no: doc.lot_no ?? '', order_no: doc.order_no ?? '',
-            wo_code_qr: doc.wo_url ?? doc.wo_no ?? '', wo_code_bar: doc.wo_no ?? '' };   // 코드 칸 ( 11-26 )
+            wo_code_qr: doc.wo_no ?? '', wo_code_bar: doc.wo_no ?? '' };   // 코드 칸 ( 11-26 )
     }
     if (type === 'SUBCON_ORDER') {
         return { ...base, order_no: doc.order_no, order_date: doc.order_date, due_date: doc.due_date ?? '', manager_name: doc.manager_name ?? '',
@@ -414,13 +414,13 @@ export const SAMPLE = {
     WO_FLOW: {
         wo_no: 'WO-261126-001-01', sheet_no: 'WO-261126-001', item_code: 'PD-01', item_name: '완제품 예시', item_spec: '100 × 50 × 10', item_material: 'SUS304',
         unit: 'EA', qty: 120, start_date: '2026-11-26', due_date: '2026-11-30', lot_no: 'PD-01_2611_003', order_no: 'SO-261120-004', remark: '도면 Rev.B',
-        wo_url: 'https://mes.example.com/go/wo/WO-261126-001-01', supplier: OUR, receiver: {},
+        supplier: OUR, receiver: {},
         lines: [
-            { no: 1, seq: '010', process_name: '원자재출고', process_type: '자재 출고', equipment: '', worker: '', due_date: '', op_code: 'OP-101', op_url: 'https://mes.example.com/go/op/101' },
-            { no: 2, seq: '020', process_name: '절단', process_type: '생산', equipment: '절단기-1', worker: '김작업', due_date: '2026-11-27', op_code: 'OP-102', op_url: 'https://mes.example.com/go/op/102' },
-            { no: 3, seq: '030', process_name: '가공', process_type: '생산', equipment: 'CNC-2', worker: '이작업', due_date: '2026-11-28', op_code: 'OP-103', op_url: 'https://mes.example.com/go/op/103' },
-            { no: 4, seq: '040', process_name: '도금', process_type: '외주', equipment: '', worker: '', due_date: '2026-11-29', op_code: 'OP-104', op_url: 'https://mes.example.com/go/op/104' },
-            { no: 5, seq: '050', process_name: '출하검사', process_type: '검사', equipment: '', worker: '', due_date: '2026-11-30', op_code: 'OP-105', op_url: 'https://mes.example.com/go/op/105' },
+            { no: 1, seq: 'M', process_name: '원자재출고', process_type: '자재 출고', equipment: '', worker: '', due_date: '', op_code: 'OP-101' },
+            { no: 2, seq: '010', process_name: '절단', process_type: '생산', equipment: '절단기-1', worker: '김작업', due_date: '2026-11-27', op_code: 'OP-102' },
+            { no: 3, seq: '020', process_name: '가공', process_type: '생산', equipment: 'CNC-2', worker: '이작업', due_date: '2026-11-28', op_code: 'OP-103' },
+            { no: 4, seq: '030', process_name: '도금', process_type: '외주', equipment: '', worker: '', due_date: '2026-11-29', op_code: 'OP-104' },
+            { no: 5, seq: '040', process_name: '출하검사', process_type: '검사', equipment: '', worker: '', due_date: '2026-11-30', op_code: 'OP-105' },
         ],
     },
     SUBCON_ORDER: {

@@ -932,19 +932,27 @@ return [
         'menu_level' => 99,
         'children' => [
             [
+                // 생산종합현황 ( 11-26 ) — Pages/Monitor/… = 프레임 없이 전체화면 ( MonitorLayout )
                 'menu_code' => '12001',
                 'menu_name' => '생산종합현황',
                 'menu_icon' => null,
                 'module_code' => 'Monitoring',
                 'menu_route_name' => '',
+                'url_path' => '/monitor/production',
+                'page_component' => 'Monitor/ProductionOverview',
+                'read_only' => 'Y',
                 'menu_level' => 99,
             ],
             [
+                // 설비별 가동률 ( 11-26 ) — Pages/Monitor/… = 프레임 없이 전체화면 ( MonitorLayout )
                 'menu_code' => '12002',
                 'menu_name' => '설비별 가동률',
                 'menu_icon' => null,
                 'module_code' => 'Monitoring',
                 'menu_route_name' => '',
+                'url_path' => '/monitor/equipment-rate',
+                'page_component' => 'Monitor/EquipmentRate',
+                'read_only' => 'Y',
                 'menu_level' => 99,
             ],
             [
@@ -953,6 +961,9 @@ return [
                 'menu_icon' => null,
                 'module_code' => 'Monitoring',
                 'menu_route_name' => '',
+                'url_path' => '/monitor/production-result',
+                'page_component' => 'Monitor/ProductionResult',
+                'read_only' => 'Y',
                 'menu_level' => 99,
             ],
             [
@@ -961,6 +972,9 @@ return [
                 'menu_icon' => null,
                 'module_code' => 'Monitoring',
                 'menu_route_name' => '',
+                'url_path' => '/monitor/production-info',
+                'page_component' => 'Monitor/ProductionInfo',
+                'read_only' => 'Y',
                 'menu_level' => 99,
             ],
             [
@@ -969,6 +983,9 @@ return [
                 'menu_icon' => null,
                 'module_code' => 'Monitoring',
                 'menu_route_name' => '',
+                'url_path' => '/monitor/equipment-status',
+                'page_component' => 'Monitor/EquipmentStatus',
+                'read_only' => 'Y',
                 'menu_level' => 99,
             ],
         ],

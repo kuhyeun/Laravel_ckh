@@ -26,6 +26,10 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
     // 스캔한 코드 풀기 ( 11-26 · 화면 어디서든 — 권한은 컨트롤러가 이동할 메뉴로 본다 )
     Route::get('/scan/resolve', [\MesCore\Production\Controllers\ScanController::class, 'resolve'])->name('scan.resolve');
 
+    // 모니터링 화면 설정 ( 11-26 · 장 넘김 시간 ) — 읽기는 누구나 · 저장은 시스템 계정만 ( 컨트롤러가 본다 )
+    Route::get('/monitor/settings', [\MesCore\Production\Controllers\MonitorSettingController::class, 'show'])->name('monitor.settings');
+    Route::post('/monitor/settings', [\MesCore\Production\Controllers\MonitorSettingController::class, 'save'])->name('monitor.settingsSave');
+
     // 생산일정 ( Production/ProductionSchedule ) — 조회 전용 간트
     Route::middleware(MenuAuth::class . ':Production/ProductionSchedule,can_read')
         ->get('/schedule/list', [ProductionScheduleController::class, 'list'])->name('schedule.list');
@@ -134,6 +138,8 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
                 Route::get('/formData', [SubconController::class, 'formData'])->name('formData');
                 Route::get('/candidates', [SubconController::class, 'candidates'])->name('candidates');
                 Route::get('/inputCandidates', [SubconController::class, 'inputCandidates'])->name('inputCandidates');   // 내보낼 LOT ( 공정 LOT 추적 )
+                Route::get('/itemLots', [SubconController::class, 'itemLots'])->name('itemLots');   // 품목 외주 : 보낼 자재 재고 LOT ( 11-26 )
+                Route::get('/lotScan', [SubconController::class, 'lotScan'])->name('lotScan');      // 품목 외주 : 바코드 → 자재 LOT 재고
                 Route::get('/issues', [SubconController::class, 'issues'])->name('issues');
             });
             Route::post('/save', [SubconController::class, 'issue'])->middleware($auth('SubconIssue', 'can_write'))->name('save');

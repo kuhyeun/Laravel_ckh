@@ -30,6 +30,7 @@ use MesCore\Support\DateEdit;
  *   취소 : 출고 = 입고가 없을 때 / 입고 = 실적 취소( 뒤 공정이 쓰지 않았을 때 ) + 검사 · 불량 취소 표시
  *   공정 LOT 추적 지시( RUN — 실적LOT-설계 §4 · 5단계 ) : 출고 때 내보낼 LOT( 앞 공정 실적 LOT · 외주 공정 자재 LOT )를 고른다( 후보가 있으면 필수 · subcon_issue_lot )
  *     입고 완료 → 외주 공정 실적 = 새 LOT · 그 출고의 LOT 를 투입 LOT 로 자동 연결 ( 수량 = 출고 LOT 수량 × 합격 ÷ 출고 수량 · 기록용 )
+ *   품목 외주 ( 11-26 · 작업지시 공정 없음 — SubconItemService ) : 품목 외주 발주 줄에서 출고 · 자재 LOT 바로 차감 · 입고 합격분 = 새 LOT 재고 입고
  */
 class SubconService {
     use \MesCore\Support\FormatsQty;   // str() · num() ( 코드 검사 C-1 )
@@ -45,6 +46,7 @@ class SubconService {
         private PolicyService $policy,
         private RunInputService $inputs,
         private SubconMaterialService $caseMaterials,   // 외주 건 자재 LOT → 입고 LOT 연결 ( 11-24 )
+        private SubconItemService $items,               // 품목 외주 ( 11-26 )
     ) {}
 
     public function inspectionOn(): bool {
@@ -62,6 +64,9 @@ class SubconService {
     }
 
     public function issue(array $d): object {
+        if (empty($d['work_order_op_idx'])) {
+            return $this->issueItem($d);
+        }
         return DB::transaction(function () use ($d) {
             [$wo, $ops, $op] = $this->lockOp((int) $d['work_order_op_idx']);
             if (!$op->isSubconOp()) {
@@ -83,7 +88,7 @@ class SubconService {
                 if (!$orderLine || $orderLine->order_status === 'CANCELED') {
                     throw ValidationException::withMessages(['subcon_order_line_idx' => ['취소되었거나 없는 외주 발주입니다. 새로고침하세요.']]);
                 }
-                if ((int) $orderLine->work_order_op_idx !== (int) $op->work_order_op_idx || (int) $orderLine->partner_idx !== (int) $d['partner_idx']) {
+                if ((int) $orderLine->work_order_op_idx !== (int) $op->work_order_op_idx || (int) $orderLine->partner_idx !== (int) $d['partner_idx']) {   // 품목 외주 줄( 공정 없음 )도 여기서 걸린다
                     throw ValidationException::withMessages(['subcon_order_line_idx' => ["{$orderLine->order_no} 의 외주처 · 공정과 다릅니다."]]);
                 }
                 $onLine = (float) DB::table('subcon_issue')->where('subcon_order_line_idx', $orderLine->subcon_order_line_idx)->where('is_canceled', 'N')->sum('qty');
@@ -131,6 +136,41 @@ class SubconService {
         });
     }
 
+    // 품목 외주 출고 ( 11-26 ) — 품목 외주 발주 줄에서만 · 외주처 = 발주 외주처 · 금액 = 수량 × 단가 · 발주 남은 수량 초과는 경고만
+    private function issueItem(array $d): object {
+        return DB::transaction(function () use ($d) {
+            if (empty($d['subcon_order_line_idx'])) {
+                throw ValidationException::withMessages(['subcon_order_line_idx' => ['품목 외주는 외주 발주서에서 출고합니다.']]);
+            }
+            $orderLine = DB::table('subcon_order_line as l')->join('subcon_order as o', 'o.subcon_order_idx', '=', 'l.subcon_order_idx')
+                ->where('l.subcon_order_line_idx', (int) $d['subcon_order_line_idx'])->lockForUpdate()
+                ->first(['l.*', 'o.partner_idx', 'o.status as order_status', 'o.order_no', 'o.order_kind']);
+            if (!$orderLine || $orderLine->order_status === 'CANCELED') {
+                throw ValidationException::withMessages(['subcon_order_line_idx' => ['취소되었거나 없는 외주 발주입니다. 새로고침하세요.']]);
+            }
+            if ($orderLine->order_kind !== 'ITEM' || !$orderLine->item_idx) {
+                throw ValidationException::withMessages(['subcon_order_line_idx' => ["{$orderLine->order_no} 은 품목 외주 발주가 아닙니다."]]);
+            }
+            if ((int) $orderLine->partner_idx !== (int) $d['partner_idx']) {
+                throw ValidationException::withMessages(['partner_idx' => ["{$orderLine->order_no} 의 외주처와 다릅니다."]]);
+            }
+            if (!Partner::whereKey($d['partner_idx'])->where('is_subcon', 'Y')->where('is_use', 'Y')->exists()) {
+                throw ValidationException::withMessages(['partner_idx' => ['사용 중인 외주처를 고르세요.']]);
+            }
+            $qty  = (float) $d['qty'];
+            $warn = [];
+            $onLine = (float) DB::table('subcon_issue')->where('subcon_order_line_idx', $orderLine->subcon_order_line_idx)->where('is_canceled', 'N')->sum('qty');
+            if ($onLine + $qty > (float) $orderLine->qty + self::EPS) {
+                $warn[] = "{$orderLine->order_no} 발주 {$this->num((float) $orderLine->qty)} · 이미 출고 {$this->num($onLine)} — 발주보다 많이 출고했습니다.";
+            }
+            $d['amount'] = round($qty * (float) $orderLine->unit_price, 2);
+            $at = Carbon::parse($d['issued_at']);
+            [$issue, $w] = $this->items->issue($d, $orderLine, $this->nextNo('subcon_issue', 'issue_no', 'SC', $at));
+            $issue->warnings = array_merge($w, $warn);
+            return $issue;
+        });
+    }
+
     public function cancelIssue(int $issueIdx): void {
         DB::transaction(function () use ($issueIdx) {
             $issue = DB::table('subcon_issue')->where('subcon_issue_idx', $issueIdx)->lockForUpdate()->first();
@@ -141,7 +181,11 @@ class SubconService {
                 throw ValidationException::withMessages(['subcon_issue_idx' => ["{$issue->issue_no} 은 입고가 있어 취소할 수 없습니다. 입고를 먼저 취소하세요."]]);
             }
             DB::table('subcon_issue')->where('subcon_issue_idx', $issueIdx)->update(['is_canceled' => 'Y', 'canceled_by' => Auth::id(), 'canceled_at' => now(), 'update_account_idx' => Auth::id()]);
-            $this->wip->reverseSubconIssue($issue);
+            if ($issue->work_order_op_idx) {
+                $this->wip->reverseSubconIssue($issue);
+            } else {
+                $this->items->cancelIssue($issue);   // 품목 외주 : 자재 재고 되돌림
+            }
         });
     }
 
@@ -165,9 +209,13 @@ class SubconService {
             if ($qty > $left + self::EPS) {
                 throw ValidationException::withMessages(['qty' => ["입고할 수 있는 수량은 {$this->num(max(0, $left))} 입니다. ( 출고 {$this->num((float) $issue->qty)} − 이미 입고 )"]]);   // E_SUBCON_RCV_OVER
             }
-            [$wo, $ops, $op] = $this->lockOp((int) $issue->work_order_op_idx);
-            if ($this->results->receivesOnRun($ops, $op) && empty($d['warehouse_idx'])) {
-                throw ValidationException::withMessages(['warehouse_idx' => ['마지막 공정입니다. 제품을 넣을 창고를 고르세요.']]);
+            if ($issue->work_order_op_idx) {
+                [$wo, $ops, $op] = $this->lockOp((int) $issue->work_order_op_idx);
+                if ($this->results->receivesOnRun($ops, $op) && empty($d['warehouse_idx'])) {
+                    throw ValidationException::withMessages(['warehouse_idx' => ['마지막 공정입니다. 제품을 넣을 창고를 고르세요.']]);
+                }
+            } elseif (empty($d['warehouse_idx']) || !\MesCore\Config\Models\Warehouse::whereKey($d['warehouse_idx'])->where('is_use', 'Y')->exists()) {
+                throw ValidationException::withMessages(['warehouse_idx' => ['입고할 창고를 고르세요. ( 사용 중 창고 )']]);   // 품목 외주 ( 11-26 )
             }
             $at  = Carbon::parse($d['received_at']);
             $idx = DB::table('subcon_receipt')->insertGetId([
@@ -206,7 +254,7 @@ class SubconService {
                 throw ValidationException::withMessages(['inspected_at' => ['아직 오지 않은 시각입니다.']]);
             }
             $issue = DB::table('subcon_issue')->where('subcon_issue_idx', $rc->subcon_issue_idx)->first();
-            $wo    = WorkOrder::find($issue->work_order_idx);
+            $wo    = $issue->work_order_idx ? WorkOrder::find($issue->work_order_idx) : null;   // 품목 외주면 없음
 
             $inspection = Inspection::create([
                 'insp_type'     => 'SUBCON',
@@ -221,8 +269,8 @@ class SubconService {
                 'remark'        => $d['remark'] ?? null,
             ]);
             $this->defects->recordRows($inspection, [
-                'item_idx'          => $wo->item_idx,
-                'lot_idx'           => $wo->lot_idx ?? 0,
+                'item_idx'          => $wo?->item_idx ?? $issue->item_idx,
+                'lot_idx'           => $wo?->lot_idx ?? 0,
                 'partner_idx'       => $issue->partner_idx,
                 'work_order_op_idx' => $issue->work_order_op_idx,
                 'occurred_at'       => $at,
@@ -254,6 +302,7 @@ class SubconService {
                 $before['run.worked_at'] = $run->worked_at?->format('Y-m-d H:i:s');
                 $warnings = $this->results->editRunDate($run, $run->started_at, $at, true);
             }
+            $this->items->moveTxn($rc->stock_txn_idx ? (int) $rc->stock_txn_idx : null, $at, $rc->lot_idx ? (int) $rc->lot_idx : null);   // 품목 외주 입고 전표
             $dates->move($inspection, $at, $before);   // 활동 로그 _before 는 이것으로 ( 실적 쪽 remember 를 덮는다 — 실적 시각도 $before 에 )
             DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->update(['done_at' => $at, 'update_account_idx' => Auth::id()]);
             return $warnings;
@@ -267,6 +316,7 @@ class SubconService {
             if (!$rc || $rc->status === 'CANCELED') {
                 throw ValidationException::withMessages(['receipt' => ['이미 취소되었거나 없는 입고입니다.']]);
             }
+            $this->items->cancelReceipt($rc);   // 품목 외주 : 입고 LOT 재고 되돌림 ( 전표가 없으면 그대로 )
             if ($rc->run_idx && ($run = WorkOrderOpRun::find($rc->run_idx)) && $run->is_canceled === 'N') {
                 $this->results->cancelRun($run, true);
             }
@@ -296,6 +346,7 @@ class SubconService {
             DateEdit::remember(['issue_no' => $issue->issue_no, 'issued_at' => substr((string) $issue->issued_at, 0, 16)]);
 
             DB::table('subcon_issue')->where('subcon_issue_idx', $issueIdx)->update(['issued_at' => $at, 'update_account_idx' => Auth::id()]);
+            $this->items->moveTxn($issue->stock_txn_idx ? (int) $issue->stock_txn_idx : null, $at);   // 품목 외주 : 자재 출고 전표
             // 재공 이력 : 이 출고의 줄 ( 취소 반대 줄은 취소 시각이라 그대로 )
             DB::table('wip_txn')->where('subcon_issue_idx', $issueIdx)->where('is_reversal', 'N')->update(['occurred_at' => $at]);
             return [];
@@ -330,6 +381,7 @@ class SubconService {
                     $warnings = $this->results->editRunDate($run, $run->started_at, $at, true);
                     $before  += (array) request()->attributes->get(DateEdit::BEFORE, []);   // 실적 · 전표 쪽 _before ( editRunDate 가 남긴 것 )
                 }
+                $this->items->moveTxn($rc->stock_txn_idx ? (int) $rc->stock_txn_idx : null, $at, $rc->lot_idx ? (int) $rc->lot_idx : null);   // 품목 외주 입고 전표
             }
             DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->update($set);
             DateEdit::remember($before);
@@ -350,7 +402,10 @@ class SubconService {
         $rc    = DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->first();
         $issue = DB::table('subcon_issue')->where('subcon_issue_idx', $rc->subcon_issue_idx)->first();
         $runIdx = null;
-        if ($pass > self::EPS) {
+        $stockIn = ['lot_idx' => null, 'stock_txn_idx' => null];
+        if ($pass > self::EPS && !$issue->work_order_op_idx) {
+            $stockIn = $this->items->receive($rc, $issue, $pass, $at);   // 품목 외주 : 새 LOT 으로 재고 입고 ( 11-26 )
+        } elseif ($pass > self::EPS) {
             $op = WorkOrderOp::find($issue->work_order_op_idx);
             [$run] = $this->results->addRun($op, [
                 'equipment_idx' => null,
@@ -366,6 +421,7 @@ class SubconService {
         }
         DB::table('subcon_receipt')->where('subcon_receipt_idx', $receiptIdx)->update([
             'status' => 'DONE', 'pass_qty' => $this->str($pass), 'fail_qty' => $this->str($fail), 'run_idx' => $runIdx, 'done_at' => $at, 'update_account_idx' => Auth::id(),
+            'lot_idx' => $stockIn['lot_idx'], 'stock_txn_idx' => $stockIn['stock_txn_idx'],
         ]);
     }
 

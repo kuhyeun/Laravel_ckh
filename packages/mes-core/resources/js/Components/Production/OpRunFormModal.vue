@@ -9,7 +9,7 @@
 <template>
     <div class="text-sm flex flex-col">
         <div class="mb-3 px-3 py-2 rounded bg-gray-50 text-xs text-gray-600 flex flex-wrap gap-x-4 gap-y-1">
-            <span><b class="text-gray-800">{{ String(op.seq).padStart(3, '0') }} {{ op.name }}</b></span>
+            <span><b class="text-gray-800">{{ op.seq_label }} {{ op.name }}</b></span>
             <template v-if="op.is_first_qty"><span>지시 {{ fmtNum(op.base_qty) }}</span><span>실적 {{ fmtNum(op.qty) }}</span></template>
             <template v-else><span>앞 공정 실적 {{ fmtNum(op.base_qty) }}</span><span>실적 {{ fmtNum(op.qty) }}</span><span>더 넣을 수 있는 수량 <b class="text-gray-800">{{ fmtNum(Math.max(0, op.base_qty - op.qty)) }}</b></span></template>
             <span v-if="op.cycle_time_sec > 0">개당 {{ fmtMin(op.cycle_time_sec) }}</span>
@@ -265,7 +265,7 @@ async function save() {
 </script>
 
 <style scoped>
-.lbl  { display: block; color: theme('colors.gray.500'); font-weight: 500; font-size: 12px; margin-bottom: 0.25rem; }
+.lbl  { display: block; color: theme('colors.gray.500'); font-weight: 500; font-size: 13px; margin-bottom: 0.25rem; }
 .hint { margin-top: 2px; font-size: 11px; color: theme('colors.gray.400'); }
 /* 오류 칸 ( #8 ) : 빨간 테두리 */
 .fld-err :deep(.base-input),

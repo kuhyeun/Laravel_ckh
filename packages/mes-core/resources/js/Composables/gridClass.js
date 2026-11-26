@@ -78,7 +78,7 @@ export class ToggleRenderer {
         this.textEl = document.createElement('span');
 
         if( this.onText != '' || this.offText != '' ) {
-            this.textEl.style.cssText = 'font-size:12px;min-width:36px;text-align:left;';
+            this.textEl.style.cssText = 'font-size:13px;min-width:36px;text-align:left;';
 
             wrap.appendChild(this.textEl);
         };

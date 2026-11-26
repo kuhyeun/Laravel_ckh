@@ -530,7 +530,7 @@ class LotTraceController extends Controller {
                 ->join('process as p', 'p.process_idx', '=', 'op.process_idx')->join('lot as l', 'l.lot_idx', '=', 'r.lot_idx')
                 ->leftJoin('account_member as u', 'u.account_idx', '=', 'r.operator_idx')
                 ->whereIn('r.lot_idx', $need)->where('r.is_canceled', 'N')
-                ->get(['r.lot_idx', 'r.run_idx', 'r.qty', 'r.worked_at', 'op.work_order_idx', 'op.seq', 'p.process_name', 'l.source', 'u.user_name', 'u.user_id']) as $r) {
+                ->get(['r.lot_idx', 'r.run_idx', 'r.qty', 'r.worked_at', 'op.work_order_idx', 'op.seq', 'p.process_name', 'p.system_key', 'l.source', 'u.user_name', 'u.user_id']) as $r) {
                 $this->runMeta[(int) $r->lot_idx] = $r;
             }
         }
@@ -648,7 +648,7 @@ class LotTraceController extends Controller {
                     $who = $run ? ($run->user_name ?: $run->user_id) : '';
                     $nodes["L{$lot}"] = [
                         'id' => "L{$lot}", 'kind' => 'PROCESS', 'title' => $r->lot_no,
-                        'item' => $run ? sprintf('%03d %s', $run->seq, $run->process_name) : '',
+                        'item' => $run ? \MesCore\Support\OpSeq::name($run->seq, \MesCore\Support\OpSeq::isRmKey($run->system_key), $run->process_name) : '',
                         'sub'  => $run ? $this->join([substr((string) $run->worked_at, 5, 11), $who]) : '',
                         'qty'  => $run ? '실적 ' . $this->num((float) $run->qty) : '',
                         'lot_idx' => $lot, 'run_idx' => $run ? (int) $run->run_idx : null,
@@ -800,7 +800,7 @@ class LotTraceController extends Controller {
             ->join('process as p', 'p.process_idx', '=', 'op.process_idx')->join('work_order as wo', 'wo.work_order_idx', '=', 'op.work_order_idx')
             ->leftJoin('account_member as u', 'u.account_idx', '=', 'r.operator_idx')->leftJoin('equipment as e', 'e.equipment_idx', '=', 'r.equipment_idx')
             ->where('r.lot_idx', $v['lot_idx'])->where('r.is_canceled', 'N')
-            ->first(['r.run_idx', 'r.qty', 'r.worked_at', 'r.remark', 'op.seq', 'p.process_name', 'wo.wo_no', 'u.user_name', 'u.user_id', 'e.equipment_name']);
+            ->first(['r.run_idx', 'r.qty', 'r.worked_at', 'r.remark', 'op.seq', 'p.process_name', 'p.system_key', 'wo.wo_no', 'u.user_name', 'u.user_id', 'e.equipment_name']);
         if (!$r) return response()->json(['run' => null, 'inputs' => [], 'used_by' => []]);
         $inputs = DB::table('work_order_run_input as x')->join('lot as l', 'l.lot_idx', '=', 'x.lot_idx')->leftJoin('account_member as u', 'u.account_idx', '=', 'x.create_account_idx')
             ->where('x.run_idx', $r->run_idx)->where('x.is_canceled', 'N')->orderBy('x.run_input_idx')
@@ -809,15 +809,15 @@ class LotTraceController extends Controller {
             ->join('work_order_op as op', 'op.work_order_op_idx', '=', 'r2.work_order_op_idx')->join('process as p', 'p.process_idx', '=', 'op.process_idx')
             ->join('lot as l', 'l.lot_idx', '=', 'r2.lot_idx')
             ->where('x.lot_idx', $v['lot_idx'])->where('x.is_canceled', 'N')->where('r2.is_canceled', 'N')->orderBy('r2.run_idx')
-            ->get([\Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'op.seq', 'p.process_name', 'x.qty']);
+            ->get([\Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'op.seq', 'p.process_name', 'p.system_key', 'x.qty']);
         return response()->json([
             'run' => [
-                'process'   => sprintf('%03d %s', $r->seq, $r->process_name), 'wo_no' => $r->wo_no, 'qty' => (float) $r->qty,
+                'process'   => \MesCore\Support\OpSeq::name($r->seq, \MesCore\Support\OpSeq::isRmKey($r->system_key), $r->process_name), 'wo_no' => $r->wo_no, 'qty' => (float) $r->qty,
                 'worked_at' => substr((string) $r->worked_at, 0, 16), 'operator' => $r->user_name ?: $r->user_id, 'equipment' => $r->equipment_name, 'remark' => $r->remark,
             ],
             'inputs'  => $inputs->map(fn ($x) => ['type' => $x->input_type === 'MATERIAL' ? '자재' : ($x->input_type === 'RUN' ? '앞 공정' : '외주'),
                 'lot_no' => $x->lot_no, 'qty' => (float) $x->qty, 'by' => $x->user_name ?: $x->user_id, 'at' => substr((string) $x->create_datetime, 0, 16)])->values(),
-            'used_by' => $usedBy->map(fn ($x) => ['lot_no' => $x->lot_no, 'process' => sprintf('%03d %s', $x->seq, $x->process_name), 'qty' => (float) $x->qty])->values(),
+            'used_by' => $usedBy->map(fn ($x) => ['lot_no' => $x->lot_no, 'process' => \MesCore\Support\OpSeq::name($x->seq, \MesCore\Support\OpSeq::isRmKey($x->system_key), $x->process_name), 'qty' => (float) $x->qty])->values(),
         ]);
     }
 

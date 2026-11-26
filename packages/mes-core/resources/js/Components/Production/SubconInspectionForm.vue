@@ -7,8 +7,8 @@
         <div class="grid grid-cols-3 gap-x-4 gap-y-1.5 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/70">
             <div><span class="text-xs text-gray-500">외주 입고</span><p>{{ receipt.receipt_no }} · {{ receipt.received_at }}</p></div>
             <div><span class="text-xs text-gray-500">외주처</span><p>{{ receipt.partner_name }}</p></div>
-            <div><span class="text-xs text-gray-500">외주 공정</span><p>{{ receipt.process_name }}</p></div>
-            <div><span class="text-xs text-gray-500">작업지시</span><p>{{ receipt.wo_no }}</p></div>
+            <div><span class="text-xs text-gray-500">{{ receipt.wo_no ? '외주 공정' : '작업 내용' }}</span><p>{{ receipt.process_name || '—' }}</p></div>
+            <div><span class="text-xs text-gray-500">작업지시</span><p :class="receipt.wo_no ? '' : 'text-violet-700'">{{ receipt.wo_no ?? '품목 외주' }}</p></div>
             <div class="col-span-2"><span class="text-xs text-gray-500">품목</span><p>{{ itemLabel(receipt) }}</p></div>
             <div><span class="text-xs text-gray-500">입고 수량</span><p class="font-semibold">{{ fmtQty(receipt.receipt_qty, receipt.spec_unit) }}</p></div>
         </div>
@@ -43,7 +43,7 @@
                 <label class="lbl">비고</label>
                 <BaseInput v-model="form.remark" class="w-full" :disabled="!canWrite" />
             </div>
-            <p class="col-span-4 text-xs text-gray-400">합격 수량만 외주 공정 실적( 재고 · 다음 공정 기준 )으로 들어갑니다. 불합격분은 불량으로 기록됩니다.</p>
+            <p class="col-span-4 text-xs text-gray-400">{{ receipt.wo_no ? '합격 수량만 외주 공정 실적( 재고 · 다음 공정 기준 )으로 들어갑니다.' : '합격 수량만 받을 품목의 새 LOT 으로 재고에 들어갑니다. ( 품목 외주 )' }} 불합격분은 불량으로 기록됩니다.</p>
         </div>
 
         <div v-else-if="inspection" class="mt-4 px-3 py-2.5 rounded border" :class="inspection.fail_qty > 0 ? 'border-amber-200 bg-amber-50' : 'border-green-200 bg-green-50'">

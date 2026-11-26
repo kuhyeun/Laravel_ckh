@@ -177,6 +177,9 @@ return [
                                     'remark' => '끄면 경고 후 허용' ],
         'op_after_prev_done'   => [ 'name' => '앞 공정 완료 후 다음 공정', 'value' => 'N', 'category' => 'RULE', 'type' => 'BOOL',
                                     'remark' => '켜면 앞 생산 공정을 [공정 완료] 한 뒤에만 다음 공정 실적을 넣는다 ( 묶음 이동 ). 끄면 흐름 생산 — 뒤 공정은 앞 공정 실적까지만' ],
+        // 공정 순번 ( 11-26 · MesCore\Support\OpSeq ) — 원자재출고는 이 문자 · 나머지 공정은 010 부터
+        'rm_out_seq_label'      => [ 'name' => '원자재출고 순번 표시', 'value' => 'M', 'category' => 'RULE', 'type' => 'STRING', 'editable_by' => 'SYSTEM_ADMIN',
+                                    'remark' => '작업지시 · 공정실적 · 공정흐름표 등에서 원자재출고 공정의 순번 자리에 보이는 문자 ( 나머지 공정은 원자재출고를 빼고 010 · 020 … ). 실적 LOT 번호에는 원자재출고가 쓰이지 않는다' ],
         // docs/실적LOT-설계.md §3 ( 11-11 )
         'op_before_rm_out_done' => [ 'name' => '원자재출고 완료 전 다음 공정 진행', 'value' => 'Y', 'category' => 'RULE', 'type' => 'BOOL',
                                     'remark' => '켜면 그 품목 줄에 자재 출고가 1건이라도 있으면 원자재출고 공정을 완료하지 않아도 다음 공정 실적을 넣는다 ( 원자재출고 공정만 · 수량 상한 없음 ). 끄면 원자재출고를 [완료] 해야 다음 공정' ],
@@ -216,6 +219,12 @@ return [
     'ui' => [
         'search_range_from_days' => [ 'name' => '기본 검색 시작일 ( 오늘 + N일 )', 'value' => '-14', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
         'search_range_to_days'   => [ 'name' => '기본 검색 종료일 ( 오늘 + N일 )', 'value' => '15', 'category' => 'RULE', 'type' => 'INT', 'visible' => true ],
+    ],
+
+    // ---- B-6-1. 모니터링 화면 ( 11-26 ) — 모니터링 화면 머리 왼쪽 [⚙] 에서 시스템 계정이 바꾼다 ----
+    'monitor' => [
+        'slide_sec' => [ 'name' => '모니터링 장 넘김 시간 ( 초 )', 'value' => '10', 'category' => 'RULE', 'type' => 'INT', 'editable_by' => 'SYSTEM_ADMIN',
+                         'remark' => '모니터링 화면에서 설비가 한 화면을 넘을 때 다음 장으로 넘어가는 시간 ( 3 ~ 600초 )' ],
     ],
 
     // ---- B-7. 회사 정보 · 거래명세서 ( 10-29 — docs/screens/60-출하.md §9 ) ----

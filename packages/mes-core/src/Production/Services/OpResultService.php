@@ -550,7 +550,7 @@ class OpResultService {
     }
 
     public function opName(WorkOrderOp $op): string {
-        return str_pad((string) $op->seq, 3, '0', STR_PAD_LEFT) . ' ' . ($op->process?->process_name ?? '');
+        return \MesCore\Support\OpSeq::name($op->seq, $op->isRmOut(), $op->process?->process_name);
     }
 
     // ---- 내부 ----
@@ -676,7 +676,7 @@ class OpResultService {
         $n = WorkOrderOpRun::where('work_order_op_idx', $op->work_order_op_idx)->whereNotNull('lot_idx')->count() + 1;
         return Lot::create([
             'item_idx' => $wo->item_idx,
-            'lot_no'   => mb_substr(sprintf('%s-P%03d-%03d', $wo->wo_no, (int) $op->seq, $n), 0, 50),
+            'lot_no'   => mb_substr(sprintf('%s-P%s-%03d', $wo->wo_no, \MesCore\Support\OpSeq::label($op->seq, $op->isRmOut()), $n), 0, 50),   // 공정 순번 = 화면 표시와 같게 ( 11-26 )
             'source'   => 'PROCESS',
         ]);
     }

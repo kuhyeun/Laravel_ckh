@@ -69,7 +69,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
 import ProductionPlanSheet from '@core/Components/Production/ProductionPlanSheet.vue';
-import DocPreview from '@core/Components/Doc/DocPreview.vue';
+import WoFlowPreview from '@core/Components/Production/WoFlowPreview.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { WO_SOURCES, WO_STATUS_FILTER, woSourceLabel, woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
@@ -81,10 +81,10 @@ defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const modalStore = useModalStore();
-// 공정흐름표 ( 11-26 ) — 문서 양식 「공정흐름표」의 기본 양식 ( 없으면 처음 배치 )
+// 공정흐름표 ( 11-26 ) — 고정 배치 ( WoFlowPreview · QR 양식 / 바코드 양식 )
 function openFlowSheet() {
     const ids = checkedRows.value.map(r => r.sheet_idx);
-    modalStore.open(DocPreview, { modalTitle: `공정흐름표 ( 작업지시서 ${ids.length}건 )`, docType: 'WO_FLOW', routeName: 'production.workOrder.flowSheets', ids }, { size: 'xl' });
+    modalStore.open(WoFlowPreview, { modalTitle: `공정흐름표 ( 작업지시서 ${ids.length}건 )`, routeName: 'production.workOrder.flowSheets', ids }, { size: 'xl' });
 }
 const page      = usePage();
 const menuCode  = page.props.menuCode;

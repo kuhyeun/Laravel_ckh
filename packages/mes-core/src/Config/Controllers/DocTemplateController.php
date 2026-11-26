@@ -156,14 +156,23 @@ class DocTemplateController extends Controller {
                 // 코드 열 ( 11-26 ) : QR · 바코드 ( 기본 QR ) · 번호 글자 표시
                 'code'    => in_array($c['field'], self::CODE_COLUMNS, true) ? (($c['code'] ?? 'QR') === 'BARCODE' ? 'BARCODE' : 'QR') : null,
                 'show_no' => in_array($c['field'], self::CODE_COLUMNS, true) ? !empty($c['show_no']) : null,
+                'scale'   => in_array($c['field'], self::CODE_COLUMNS, true) ? self::codeScale($c['scale'] ?? null) : null,   // 코드 크기 % ( 11-26 · QR )
+                'scale_w' => in_array($c['field'], self::CODE_COLUMNS, true) ? self::codeScale($c['scale_w'] ?? $c['scale'] ?? null) : null,   // 바코드 가로 %
+                'scale_h' => in_array($c['field'], self::CODE_COLUMNS, true) ? self::codeScale($c['scale_h'] ?? $c['scale'] ?? null) : null,   // 세로 %
             ];
         }
         if (!$cols) {
             $fail('품목 표에 열이 하나는 있어야 합니다.');
         }
+        // 범위 밖이면 말없이 바꾸지 않고 알린다 ( 11-26 — 줄 높이 30mm 넘게 넣으면 30 으로 저장돼 「저장이 안 된다」 )
+        foreach ([['rows_per_page', '한 장 줄 수', 1, 60, ''], ['row_h_mm', '줄 높이', 4, 100, 'mm'], ['head_h_mm', '머리글 높이', 4, 30, 'mm']] as [$k, $label, $min, $max, $unit]) {
+            if (isset($t[$k]) && is_numeric($t[$k]) && ((float) $t[$k] < $min || (float) $t[$k] > $max)) {
+                $fail("{$label}는 {$min} ~ {$max}{$unit} 사이로 넣으세요.");
+            }
+        }
         $table = [
             'rows_per_page' => (int) $this->clamp($t['rows_per_page'] ?? 18, 1, 60, 0),
-            'row_h_mm'      => $this->clamp($t['row_h_mm'] ?? 7.5, 4, 30),
+            'row_h_mm'      => $this->clamp($t['row_h_mm'] ?? 7.5, 4, 100),   // 상한 30 → 100 ( 11-26 · 공정흐름표처럼 큰 줄 )
             'head_h_mm'     => $this->clamp($t['head_h_mm'] ?? 7, 4, 30),
             'size'          => $this->clamp($t['size'] ?? 9, 5, 20),
             'sum'           => ($t['sum'] ?? 'Y') === 'N' ? 'N' : 'Y',
@@ -222,6 +231,9 @@ class DocTemplateController extends Controller {
                 'field' => in_array($kind, ['FIELD', 'CODE'], true) ? $c['field'] : null,
                 'code'  => $kind === 'CODE' ? (($c['code'] ?? 'QR') === 'BARCODE' ? 'BARCODE' : 'QR') : null,   // QR · 바코드 ( 11-26 )
                 'show_no' => $kind === 'CODE' ? !empty($c['show_no']) : null,                                      // 코드 아래 번호 글자
+                'scale'   => $kind === 'CODE' ? self::codeScale($c['scale'] ?? null) : null,                       // 코드 크기 % ( 칸 대비 · 11-26 · QR )
+                'scale_w' => $kind === 'CODE' ? self::codeScale($c['scale_w'] ?? $c['scale'] ?? null) : null,     // 바코드 가로 %
+                'scale_h' => $kind === 'CODE' ? self::codeScale($c['scale_h'] ?? $c['scale'] ?? null) : null,     // 세로 %
                 'text'  => $kind === 'TEXT' ? mb_substr((string) ($c['text'] ?? ''), 0, 200) : null,
                 'size'  => $this->clamp($c['size'] ?? 9, 5, 40),
                 'bold'  => !empty($c['bold']),
@@ -241,5 +253,11 @@ class DocTemplateController extends Controller {
 
     private function clamp($v, float $min, float $max, int $round = 1): float {
         return round(max($min, min($max, is_numeric($v) ? (float) $v : $min)), $round);
+    }
+
+    // QR · 바코드 크기 ( 칸 · 행 높이 대비 % · 20 ~ 100 · 기본 100 — 11-26 )
+    private static function codeScale($v): int {
+        $n = (int) round((float) ($v ?? 100));
+        return $n <= 0 ? 100 : max(20, min(100, $n));
     }
 }

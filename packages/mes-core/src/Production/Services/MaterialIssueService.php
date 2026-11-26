@@ -185,7 +185,7 @@ class MaterialIssueService {
         // 남은 소요( 계산 − 이미 출고 · 대체 환산 포함 )가 재고보다 많을 때만 — 11-12 : 전에는 전체 계산과 견줘 다 나간 자재에도 떴다
         $remain = $result === null ? 0.0 : max(0, $result - $issued);
         if ($needOverride === null && $remain > ($default['stock'] ?? 0) + self::EPS) {   // 대체 행은 주 자재 대신이라 전체 소요와 견주지 않는다
-            $warnings['W_OVER'] = '남은 소요가 재고보다 많습니다. ( 부족 ' . $this->num($remain - ($default['stock'] ?? 0)) . ' )';
+            $warnings['W_OVER'] = '재고가 부족합니다. ( 부족 ' . $this->num($remain - ($default['stock'] ?? 0)) . ' )';
         }
 
         // 채움 : 자동이면 기본 묶음의 LOT 을 선입선출로 위에서부터 ( 남은 소요 = 계산 − 이미 출고 — §17-4 )
@@ -218,7 +218,7 @@ class MaterialIssueService {
             'calc_code'     => $def['code'],
             'calc_name'     => $def['name'],
             'result_kind'   => $def['kind'],
-            'op_label'      => $op ? sprintf('%03d %s', $op->seq, $op->process?->process_name) : '',
+            'op_label'      => $op ? \MesCore\Support\OpSeq::name($op->seq, $op->isRmOut(), $op->process?->process_name) : '',
             'qty_per'       => (float) $m->qty_per,
             'yield_qty'     => $yield > 0 ? $yield : null,
             'required_qty'  => $base,
@@ -583,7 +583,7 @@ class MaterialIssueService {
             $op    = $m->work_order_op_idx ? $ops->get($m->work_order_op_idx) : $first;
             $done  = (float) ($op?->qty ?? 0);
             $used  = \MesCore\Support\MaterialNeed::of($done, (float) $m->qty_per, $m->yield_qty);   // 주 자재 기준
-            $label = $op ? sprintf('%03d %s', $op->seq, $op->process?->process_name) : '';
+            $label = $op ? \MesCore\Support\OpSeq::name($op->seq, $op->isRmOut(), $op->process?->process_name) : '';
             $code  = $m->calc_code ?: ($m->childItem?->calc_code ?: $basic);
             $approx = !((float) ($m->yield_qty ?? 0) > 0) && $code !== CalcDef::DEFAULT_CODE;
 

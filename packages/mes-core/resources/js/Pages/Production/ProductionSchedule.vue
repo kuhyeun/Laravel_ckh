@@ -159,7 +159,7 @@ const ganttItems = computed(() => ops.value.map(o => ({ ...o, row_id: group.valu
 
 // 막대 글자 : 품목 · 공정 · 수량 ( 지시번호 · OP 는 툴팁에 — 11-05 )
 const barText  = (o) => `${o.item} · ${procName(o.process)} · ${fmtNum(o.target)}${o.spec_unit ? ' ' + o.spec_unit : ''}`;
-const barTitle = (o) => `${o.wo_no} OP${o.seq} · ${procName(o.process)} · ${OP_STATUSES.find(s => s.value === o.status)?.label}\n${withSpec(o.item, o.item_spec)} · 지시 ${fmtNum(o.target)} · 실적 ${fmtNum(o.done)} ${o.spec_unit ?? ''}\n${o.start_date} ~ ${o.end_date}`;
+const barTitle = (o) => `${o.wo_no} ${o.seq_label} ${procName(o.process)} · ${OP_STATUSES.find(s => s.value === o.status)?.label}\n${withSpec(o.item, o.item_spec)} · 지시 ${fmtNum(o.target)} · 실적 ${fmtNum(o.done)} ${o.spec_unit ?? ''}\n${o.start_date} ~ ${o.end_date}`;
 
 // 막대 → 작업지시서 ( 보기 — 여기서는 고치지 않는다 )
 function openWorkOrder(o) {

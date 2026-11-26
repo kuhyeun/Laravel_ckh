@@ -32,6 +32,8 @@ class HandleInertiaRequests extends Middleware {
             'adminMenu'   => $payload['adminMenus'] ?? [],
             'permissions' => $payload['permissions'],
             // 화면 파일 이름표 ( DevSourceTag ) — 시스템 계정( 레벨 0 )에게만 · 시스템 설정 Common.dev_source_tag ( 11-25 )
+            // 공정 순번에서 원자재출고 자리 문자 ( 시스템 설정 production.rm_out_seq_label · 11-26 — 작업지시 공정 줄 편집 중 순번 )
+            'rmOutSeq'    => Auth::check() ? \MesCore\Support\OpSeq::rmLabel() : 'M',
             'devSourceTag' => Auth::check() && (int) Auth::user()->user_level === 0
                 && SystemConfig::get('Common', 'dev_source_tag', 'Y') !== 'N',
         ]);

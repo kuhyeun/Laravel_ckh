@@ -488,7 +488,7 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.lbl { display: block; margin-bottom: 0.25rem; font-size: 0.75rem; font-weight: 500; color: #6b7280; }
+.lbl { display: block; margin-bottom: 0.25rem; font-size: 13px; font-weight: 500; color: #6b7280; }
 .lt-stage { flex: none; padding: 1rem; background: #e5e7eb; border-radius: 0.25rem; overflow: auto; max-width: 100%; }
 .lt-step { width: 1.5rem; height: 1.5rem; border: 1px solid #d1d5db; border-radius: 0.25rem; background: #fff; line-height: 1; color: #4b5563; }
 .lt-step:hover:not(:disabled) { background: #f3f4f6; }

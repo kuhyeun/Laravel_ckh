@@ -78,12 +78,20 @@ const handleKeydown = (e) => {
     }
 };
 
+// 뒤로 · 앞으로 가기 ( 11-26 ) — 브라우저 기록이 바뀌면 떠 있는 모달을 모두 닫는다
+//   ( 전에는 모달이 남은 채 뒤 화면만 바뀌었다 · 저장 안 한 입력도 닫힌다 — 이동이 먼저 )
+const closeAllOnHistory = () => {
+    if (modalStore.modals.length) modalStore.modals = [];
+};
+
 onMounted(() => {
     window.addEventListener('keydown', handleKeydown);
+    window.addEventListener('popstate', closeAllOnHistory);
 });
 
 onUnmounted(() => {
     window.removeEventListener('keydown', handleKeydown);
+    window.removeEventListener('popstate', closeAllOnHistory);
 });
 </script>
 

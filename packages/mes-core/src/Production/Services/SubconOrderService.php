@@ -19,11 +19,13 @@ use MesCore\Production\Models\WorkOrderOp;
  *   고치기 : 출고가 있는 줄은 지우지 못하고 공정도 못 바꾼다 · 취소 = 출고가 하나도 없을 때
  *   상태 : 저장하는 것은 취소( CANCELED )뿐 — 그 밖은 출고 · 입고에서 계산 ( 발주 / 진행 / 완료 )
  *   출고 : 발주서 줄의 [출고] → SubconService::issue( subcon_order_line_idx ) — 외주처 · 공정이 같아야 · 금액 = 출고 수량 × 단가
+ *   발주 구분 ( 11-26 ) : OP = 작업지시 외주 공정 / ITEM = 품목 외주 ( 줄 = 받을 품목 · 작업 내용 — SubconItemService ) — 한 발주에 섞지 않는다 · 저장한 뒤에는 못 바꾼다
  */
 class SubconOrderService {
     use \MesCore\Support\FormatsQty;
 
     public const STATUSES = ['ORDERED' => '발주', 'RUN' => '진행', 'DONE' => '완료', 'CANCELED' => '취소'];
+    public const KINDS    = ['OP' => '작업지시 외주', 'ITEM' => '품목 외주'];
     private const EPS = 0.000001;
 
     public function __construct(private SubconService $subcon) {}
@@ -70,8 +72,19 @@ class SubconOrderService {
                 throw ValidationException::withMessages(['subcon_order_idx' => ['취소된 발주는 고칠 수 없습니다.']]);
             }
             $lines = array_values($d['lines'] ?? []);
+            // 발주 구분 ( 11-26 ) — 저장된 발주는 그 구분 그대로 · 줄은 그 구분만 ( 작업지시 공정 줄과 품목 줄을 섞지 않는다 )
+            $kind = $order ? $order->order_kind : (($d['order_kind'] ?? 'OP') === 'ITEM' ? 'ITEM' : 'OP');
+            if ($order && !empty($d['order_kind']) && $d['order_kind'] !== $order->order_kind) {
+                throw ValidationException::withMessages(['order_kind' => ['저장된 발주의 구분은 바꿀 수 없습니다.']]);
+            }
             if (!$lines) {
-                throw ValidationException::withMessages(['lines' => ['외주 공정을 한 줄 이상 넣으세요.']]);
+                throw ValidationException::withMessages(['lines' => [$kind === 'ITEM' ? '외주 품목을 한 줄 이상 넣으세요.' : '외주 공정을 한 줄 이상 넣으세요.']]);
+            }
+            foreach ($lines as $i => $l) {
+                if ($kind === 'ITEM' ? !empty($l['work_order_op_idx']) : empty($l['work_order_op_idx'])) {
+                    throw ValidationException::withMessages(["lines.{$i}.work_order_op_idx" => [$kind === 'ITEM'
+                        ? '품목 외주 발주에는 작업지시 외주 공정을 넣을 수 없습니다.' : '작업지시 외주 발주에는 품목 줄을 넣을 수 없습니다.']]);
+                }
             }
 
             $existing = $order ? DB::table('subcon_order_line')->where('subcon_order_idx', $order->subcon_order_idx)->get()->keyBy('subcon_order_line_idx') : collect();
@@ -92,6 +105,10 @@ class SubconOrderService {
             $warnings = [];
             $opRows   = [];
             foreach ($lines as $i => $l) {
+                if ($kind === 'ITEM') {
+                    $opRows[$i] = $this->itemLine($l, $i, $existing, $progress, $warnings);
+                    continue;
+                }
                 $op = WorkOrderOp::with('process')->find((int) $l['work_order_op_idx']);
                 if (!$op || !$op->isSubconOp()) {
                     throw ValidationException::withMessages(["lines.{$i}.work_order_op_idx" => ['외주 공정이 아닙니다. 새로고침하세요.']]);
@@ -137,6 +154,7 @@ class SubconOrderService {
                 $orderIdx = (int) $order->subcon_order_idx;
             } else {
                 $orderIdx = DB::table('subcon_order')->insertGetId($head + [
+                    'order_kind' => $kind,
                     'order_no' => \MesCore\Support\DocNumber::next('SCO-' . $at->format('ymd') . '-', 'subcon_order', 'order_no'),
                     'status' => 'ORDERED', 'create_account_idx' => Auth::id() ?? 0, 'create_datetime' => now(),
                 ]);
@@ -149,7 +167,10 @@ class SubconOrderService {
                 $qty   = (float) $l['qty'];
                 $price = round((float) ($l['unit_price'] ?? 0), 2);
                 $row   = [
-                    'line_no' => $i + 1, 'work_order_idx' => $op->work_order_idx, 'work_order_op_idx' => $op->work_order_op_idx,
+                    'line_no' => $i + 1,
+                    ...($kind === 'ITEM'
+                        ? ['work_order_idx' => null, 'work_order_op_idx' => null, 'item_idx' => $op->item_idx, 'work_name' => $this->workName($l)]
+                        : ['work_order_idx' => $op->work_order_idx, 'work_order_op_idx' => $op->work_order_op_idx, 'item_idx' => null, 'work_name' => null]),
                     'qty' => $this->str($qty), 'unit_price' => $price, 'amount' => round($qty * $price, 2),
                     'due_date' => $l['due_date'] ?? null, 'remark' => $l['remark'] ?? null,
                 ];
@@ -164,6 +185,35 @@ class SubconOrderService {
 
             return [DB::table('subcon_order')->where('subcon_order_idx', $orderIdx)->first(), $warnings];
         });
+    }
+
+    // 품목 외주 줄 확인 ( 11-26 ) — 받을 품목 · 수량 · 출고가 있는 줄은 품목을 못 바꾼다 → [ 품목, 원래 줄 ]
+    private function itemLine(array $l, int $i, Collection $existing, array $progress, array &$warnings): array {
+        $was = !empty($l['subcon_order_line_idx']) ? $existing->get((int) $l['subcon_order_line_idx']) : null;
+        if (!empty($l['subcon_order_line_idx']) && !$was) {
+            throw ValidationException::withMessages(["lines.{$i}.item_idx" => ['이 발주의 줄이 아닙니다. 새로고침하세요.']]);
+        }
+        $issued = $was ? ($progress[$was->subcon_order_line_idx]['issued'] ?? 0) : 0;
+        if ($was && $issued > self::EPS && (int) $was->item_idx !== (int) ($l['item_idx'] ?? 0)) {
+            throw ValidationException::withMessages(["lines.{$i}.item_idx" => ['출고가 있는 줄은 품목을 바꿀 수 없습니다.']]);
+        }
+        $item = \MesCore\Config\Models\Item::whereKey((int) ($l['item_idx'] ?? 0))->first();
+        if (!$item || (!$was && $item->is_use !== 'Y')) {
+            throw ValidationException::withMessages(["lines.{$i}.item_idx" => ['받을 품목을 고르세요. ( 사용 중 품목 )']]);
+        }
+        $qty = (float) $l['qty'];
+        if ($qty <= self::EPS) {
+            throw ValidationException::withMessages(["lines.{$i}.qty" => ['발주 수량은 0보다 커야 합니다.']]);
+        }
+        if ($issued > $qty + self::EPS) {
+            $warnings[] = "{$item->item_code} {$item->item_name} : 이미 출고 {$this->num($issued)} — 발주 {$this->num($qty)} 보다 많습니다.";
+        }
+        return [$item, $was];
+    }
+
+    private function workName(array $l): ?string {
+        $w = trim((string) ($l['work_name'] ?? ''));
+        return $w !== '' ? mb_substr($w, 0, 100) : null;
     }
 
     // 취소 — 출고가 하나도 없을 때
@@ -219,7 +269,7 @@ class SubconOrderService {
         $rows  = $this->lineRows($lines, $prog);
         $qty   = $rows->sum('qty');
         return [
-            'subcon_order_idx' => (int) $o->subcon_order_idx, 'order_no' => $o->order_no,
+            'subcon_order_idx' => (int) $o->subcon_order_idx, 'order_no' => $o->order_no, 'order_kind' => $o->order_kind,
             'partner_idx' => (int) $o->partner_idx, 'partner_name' => $o->partner_name,
             'order_date' => $o->order_date, 'due_date' => $o->due_date, 'manager_idx' => $o->manager_idx ? (int) $o->manager_idx : null, 'manager_name' => $o->manager_name,
             'remark' => $o->remark, 'stored_status' => $o->status,
@@ -233,17 +283,34 @@ class SubconOrderService {
     // 줄 → 화면 행 ( 작업지시 · 품목 · 공정 · 앞 공정 생산 · 출고 가능 · 출고 · 입고 )
     public function lineRows(Collection $lines, array $prog): Collection {
         if ($lines->isEmpty()) return collect();
-        $woIds   = $lines->pluck('work_order_idx')->unique()->all();
+        $woIds   = $lines->pluck('work_order_idx')->filter()->unique()->values()->all();
+        $items   = \MesCore\Config\Models\Item::whereIn('item_idx', $lines->pluck('item_idx')->filter()->unique()->values()->all())->get()->keyBy('item_idx');   // 품목 외주 줄 ( 11-26 )
         $wos     = WorkOrder::with('item')->whereIn('work_order_idx', $woIds)->get()->keyBy('work_order_idx');
         $opsByWo = WorkOrderOp::with('process')->whereIn('work_order_idx', $woIds)->orderBy('seq')->get()->groupBy('work_order_idx');
-        return $lines->map(function ($l) use ($wos, $opsByWo, $prog) {
+        return $lines->map(function ($l) use ($wos, $opsByWo, $prog, $items) {
+            if (!$l->work_order_op_idx) {
+                $it = $items[$l->item_idx] ?? null;
+                return [
+                    'subcon_order_line_idx' => (int) $l->subcon_order_line_idx, 'line_no' => (int) $l->line_no, 'kind' => 'ITEM',
+                    'work_order_idx' => null, 'work_order_op_idx' => null, 'wo_no' => null, 'wo_status' => null, 'lot_mode' => null,
+                    'item_idx' => (int) $l->item_idx, 'item_type' => $it?->item_type,
+                    'item_code' => $it?->item_code, 'item_name' => $it?->item_name, 'item_spec' => $it?->spec, 'spec_unit' => $it?->spec_unit,
+                    'process_name' => $l->work_name, 'work_name' => $l->work_name, 'op_status' => null,
+                    'prev_label' => null, 'has_prev' => false, 'base_qty' => 0.0, 'op_issued_qty' => 0.0, 'available_qty' => null,
+                    'qty' => (float) $l->qty, 'unit_price' => (float) $l->unit_price, 'amount' => (float) $l->amount,
+                    'due_date' => $l->due_date, 'remark' => $l->remark,
+                    'issued_qty' => $prog[$l->subcon_order_line_idx]['issued'] ?? 0.0,
+                    'received_qty' => $prog[$l->subcon_order_line_idx]['received'] ?? 0.0,
+                    'is_last' => false,
+                ];
+            }
             $wo  = $wos[$l->work_order_idx] ?? null;
             $ops = $opsByWo[$l->work_order_idx] ?? collect();
             $op  = $ops->firstWhere('work_order_op_idx', $l->work_order_op_idx);
             $av  = $wo && $op ? $this->subcon->available($wo, $ops, $op) : ['base' => 0, 'issued' => 0, 'available' => 0];
             $prev = $op ? $ops->filter(fn ($x) => $x->seq < $op->seq && ($x->isQtyOp() || $x->isInspectionOp()))->last() : null;
             return [
-                'subcon_order_line_idx' => (int) $l->subcon_order_line_idx, 'line_no' => (int) $l->line_no,
+                'subcon_order_line_idx' => (int) $l->subcon_order_line_idx, 'line_no' => (int) $l->line_no, 'kind' => 'OP',
                 'work_order_idx' => (int) $l->work_order_idx, 'work_order_op_idx' => (int) $l->work_order_op_idx,
                 'wo_no' => $wo?->wo_no, 'wo_status' => $wo?->status, 'lot_mode' => $wo?->lot_mode,
                 'item_code' => $wo?->item?->item_code, 'item_name' => $wo?->item?->item_name, 'item_spec' => $wo?->item?->spec, 'spec_unit' => $wo?->item?->spec_unit,

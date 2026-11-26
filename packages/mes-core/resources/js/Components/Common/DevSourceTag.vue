@@ -4,7 +4,7 @@
      - 시스템 설정 「화면 파일 이름표 표시」( Common.dev_source_tag )로 켜고 끈다 — 서버가 devSourceTag 로 넘긴다 ( 11-25 ) -->
 <template>
     <button v-if="visible && name" type="button"
-        class="px-1.5 py-0.5 rounded bg-gray-800/70 text-white text-[10px] font-mono leading-none hover:bg-gray-800 select-none"
+        class="px-1.5 py-0.5 rounded bg-gray-800/70 text-white text-[10px] leading-none hover:bg-gray-800 select-none"
         :title="copied ? '복사했습니다' : '눌러서 복사'" @click.stop="copy">
         {{ copied ? '복사됨' : name }}
     </button>

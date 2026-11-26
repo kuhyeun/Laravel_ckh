@@ -1,7 +1,8 @@
 <!-- 외주 출고 ( 400501 ) / 생산관리 > 외주관리 > 외주 출고 ( 서버 SubconController · SubconService )
      - 탭 [출고 대상] : 대기 · 진행 중 지시의 외주 공정 — 출고 가능 = 기준( 앞 수량 공정 실적 · 없으면 지시 수량 ) − 이미 출고 · 행 클릭 → 출고 창
      - 탭 [출고 내역] : 기간( 출고 일시 ) · 외주처 · 검색어 — 체크 → [출고 취소] ( 입고가 없을 때만 · 삭제 권한 )
-       · 하나 체크 → [출고 일시 수정] ( 11-25 · 일시만 — DateEditDialog · 재공 이력도 함께 · 쓰기 권한 ) -->
+       · 하나 체크 → [출고 일시 수정] ( 11-25 · 일시만 — DateEditDialog · 재공 이력도 함께 · 쓰기 권한 )
+     - 품목 외주 ( 11-26 ) : [출고 대상] 에 품목 외주 발주 줄( 출고 < 발주 )도 — 지시번호 칸 「품목 외주」 · 공정 칸 = 작업 내용 · 행 클릭 → 자재 LOT 을 골라 출고 -->
 <template>
     <div class="flex flex-col flex-1 min-h-0 text-gray-800 antialiased">
         <div v-if="tab === 'issues' && (canDelete || canWrite)" class="flex items-center gap-1 pb-2 shrink-0">
@@ -82,14 +83,14 @@ const ctx = reactive({ now: '', canMaterial: true });
 
 const qty = (name, header, width = 100) => ({ header, name, width, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => fmtQty(value, row.spec_unit) });
 const base = [
-    { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer' },
+    { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer', formatter: ({ value }) => value ?? `<span style="color:${COLORS.violet}">품목 외주</span>` },   // 품목 외주 ( 11-26 ) = 지시 없음
     { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '규격', name: 'item_spec', width: 100, sortable: true, className: 'cursor-pointer', escapeHTML: true },
     { header: '외주 공정', name: 'process_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
 ];
 const TARGET_COLUMNS = [
     ...base,
-    { header: '기준 공정', name: 'prev_label', width: 100, className: 'cursor-pointer', escapeHTML: true },
+    { header: '기준 공정', name: 'prev_label', width: 120, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row, value }) => row.kind === 'ITEM' ? `발주 ${row.order_no}` : value },
     qty('base_qty', '기준 수량'),
     qty('issued_qty', '이미 출고'),
     { ...qty('available_qty', '출고 가능'), formatter: ({ row, value }) => `<b style="color:${value > 0 ? COLORS.blue700 : COLORS.gray400}">${fmtQty(value, row.spec_unit)}</b>` },
@@ -131,7 +132,7 @@ async function load() {
     loading.value = true; checked.value = [];
     try {
         const name = tab.value === 'targets' ? 'production.subcon.issue.candidates' : 'production.subcon.issue.issues';
-        const paged = tab.value === 'issues' ? { page: paging.page, perPage: paging.perPage } : {};
+        const paged = tab.value === 'issues' ? { page: paging.page, perPage: paging.perPage } : { with_items: 1 };   // 출고 대상 = 품목 외주 발주 줄도
         const { data } = await window.axios.get(route(name), { params: { ...params(), ...paged, _t: Date.now() } });   // 늘 새로 ( 캐시 안 씀 )
         if (!isLatest()) return;
         if (tab.value === 'issues') { paging.total = data.total ?? 0; paging.page = data.page ?? 1; }
@@ -154,6 +155,16 @@ async function exportRows() {
 function onRow(row) {
     if (tab.value !== 'targets') return;
     if (!canWrite.value) { showFlash('출고 권한이 없습니다.', true); return; }
+    const same = (r) => r.kind === row.kind && (row.kind === 'ITEM'
+        ? r.order_line?.subcon_order_line_idx === row.order_line?.subcon_order_line_idx : r.work_order_op_idx === row.work_order_op_idx);
+    if (row.kind === 'ITEM') {   // 품목 외주 ( 11-26 ) — 발주 줄에서 · 자재 LOT 고르기
+        modalStore.open(SubconIssueForm, {
+            modalTitle: `외주 출고 [ ${row.order_no} · ${row.item_code} ${row.work_name ?? ''} ]`,
+            target: row, orderLine: row.order_line, partners: partners.value, now: ctx.now, canMaterial: ctx.canMaterial,
+            onDone: (msg) => { showFlash(msg); load(); },
+        }, { size: 'xl', closeOnClickOutside: false });
+        return;
+    }
     // 수량이 없는 행( 다른 탭 행 포함 )은 열지 않는다
     if (!(row.available_qty > 0)) { showFlash(row.base_qty <= 0 ? '앞 공정 실적이 없어 출고할 수 없습니다.' : '출고할 수 있는 수량이 남지 않았습니다.', true); return; }
     modalStore.open(SubconIssueForm, {
@@ -162,7 +173,7 @@ function onRow(row) {
         // 출고 직후 : 그 행 수량을 바로 줄이고( 화면 즉시 반영 ) 서버에서 다시 읽는다
         onDone: (msg, qty) => {
             showFlash(msg);
-            rows.value = rows.value.map(r => r.work_order_op_idx === row.work_order_op_idx
+            rows.value = rows.value.map(r => same(r)
                 ? { ...r, issued_qty: r.issued_qty + qty, available_qty: Math.max(0, r.available_qty - qty) } : r);
             load();
         },
@@ -179,7 +190,7 @@ function editDate() {
     if (!r) return;
     modalStore.open(DateEditDialog, {
         modalTitle: '출고 일시 수정',
-        target: `${r.issue_no} · ${r.partner_name} · ${r.wo_no} ${r.process_name}`,
+        target: `${r.issue_no} · ${r.partner_name} · ${r.wo_no ?? '품목 외주'} ${r.process_name ?? ''}`,
         fields: [{ key: 'issued_at', label: '출고 일시', mode: 'datetime', value: r.issued_at }],
         warning: r.has_wip ? '출고 일시를 바꾸면 재공 이력( 앞 공정 − )의 일시도 함께 바뀝니다. 날짜별 조회 결과가 달라질 수 있습니다. ( 수량은 그대로 )' : '',
         url: route('production.subcon.issue.editDate'),

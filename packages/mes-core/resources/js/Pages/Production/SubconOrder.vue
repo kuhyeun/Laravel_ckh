@@ -54,6 +54,7 @@ import { STATUS_FILTER_OPTIONS, statusLabel, statusColor } from '@core/Component
 import { useModalStore } from '@core/Stores/modalStore';
 import { useToast, failMsg } from '@core/Composables/useToast';
 import { fmtNum } from '@core/Utils/format';
+import { COLORS } from '@core/Utils/colors';
 import { showAlert } from '@core/Utils/message';
 
 defineOptions({ layout: AppLayout });
@@ -81,6 +82,8 @@ const columns = [
     cell({ header: '발주일', name: 'order_date', width: 100, align: 'center', sortable: true }),
     cell({ header: '납기', name: 'due_date', width: 100, align: 'center', sortable: true }),
     cell({ header: '외주처', name: 'partner_name', width: 140, sortable: true, escapeHTML: true }),
+    cell({ header: '구분', name: 'order_kind', width: 90, align: 'center', sortable: true,   // 작업지시 외주 · 품목 외주 ( 11-26 )
+        formatter: ({ row }) => `<span style="color:${row.order_kind === 'ITEM' ? COLORS.violet : COLORS.gray500}">${row.kind_label ?? ''}</span>` }),
     cell({ header: '내용', name: 'summary', minWidth: 220, sortable: true, escapeHTML: true }),
     num('qty', '발주 수량'),
     num('issued_qty', '출고'),

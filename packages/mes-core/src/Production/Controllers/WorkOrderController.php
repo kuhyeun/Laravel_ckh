@@ -441,6 +441,7 @@ class WorkOrderController extends Controller {
             // 초 · 중 · 종 기본값 ( 공정을 줄에 넣을 때 · 11-18 )
             'insp_first'      => $p->insp_first, 'insp_middle' => $p->insp_middle, 'insp_last' => $p->insp_last,
             'is_system'       => $p->is_system,
+            'is_rm_out'       => $p->isRmOut(),   // 작업지시 공정 줄 순번 ( 원자재출고 = M · 11-26 )
             'class_code'      => $p->class_code,
             'equipments'      => $p->equipments
                 ->filter(fn ($pe) => $pe->equipment && $pe->equipment->is_use === 'Y')
@@ -617,11 +618,6 @@ class WorkOrderController extends Controller {
         $docs = \MesCore\Production\Models\WorkOrder::with($flow::RELATIONS)->whereIn('sheet_idx', $v['ids'])
             ->where('status', '!=', 'CANCELED')->orderBy('wo_no')->get()
             ->map(fn ($wo) => $flow->build($wo))->values();
-        return response()->json([
-            'docs'     => $docs,
-            'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
-            'template' => \MesCore\Config\Models\DocTemplate::forPrint('WO_FLOW'),
-            'templates' => \MesCore\Config\Models\DocTemplate::choices('WO_FLOW'),   // 미리보기에서 양식 고르기 ( 11-26 )
-        ]);
+        return response()->json(['docs' => $docs]);   // 고정 배치 ( WoFlowPages · 11-26 — 문서 양식에서 뺐다 )
     }
 }

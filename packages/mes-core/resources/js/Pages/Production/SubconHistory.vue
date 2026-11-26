@@ -54,7 +54,7 @@ const columns = [
     { header: '구분', name: 'kind_label', width: 80, align: 'center', className: 'cursor-pointer' },
     { header: '번호', name: 'doc_no', width: 130, className: 'cursor-pointer' },
     { header: '외주처', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
-    { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer' },
+    { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer', formatter: ({ value }) => value ?? `<span style="color:${COLORS.violet}">품목 외주</span>` },   // 품목 외주 ( 11-26 ) = 지시 없음
     { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '외주 공정', name: 'process_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
     { header: '수량', name: 'move_qty', width: 100, align: 'right', className: 'cursor-pointer',
@@ -99,7 +99,7 @@ async function exportRows() {
 }
 
 function goOpResult(row) {
-    if (!opResultUrl.value) return;
+    if (!opResultUrl.value || !row.work_order_idx) return;   // 품목 외주( 지시 없음 · 11-26 )는 이동하지 않는다
     router.visit(`${opResultUrl.value}?wo=${row.work_order_idx}`);
 }
 

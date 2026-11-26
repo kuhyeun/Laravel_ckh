@@ -69,7 +69,7 @@ const curTime = computed(() => {
 .dp__theme_light {
     --dp-font-family: var(--app-font);
     --dp-font-size: 13px;
-    --dp-preview-font-size: 12px;
+    --dp-preview-font-size: 13px;
     --dp-border-radius: 6px;
     --dp-cell-border-radius: 6px;
     --dp-cell-size: 32px;
@@ -137,7 +137,7 @@ const curTime = computed(() => {
     content: '시간';
     flex: 1;
     padding-left: 8px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 500;
     color: theme('colors.gray.500');
 }
@@ -185,7 +185,7 @@ const curTime = computed(() => {
 .dp__overlay[aria-label="minutes overlay"] .dp__selection_grid_header {
     grid-column: 1 / -1;
     padding: 0 4px 6px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     color: theme('colors.gray.500');
 }

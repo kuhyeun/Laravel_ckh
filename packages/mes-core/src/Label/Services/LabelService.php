@@ -37,7 +37,7 @@ class LabelService {
     // 양식 종류 ( 11-25 ) : 제품 LOT( 품목 대분류 제품 · 생산 LOT ) = PRODUCT( 현품표 ) / 그 밖 = LOT( 자재식별표 )
     public function kindOf(?Lot $lot): string {
         return $lot && ($lot->item?->item_type === 'PRODUCT' || $lot->source === 'PRODUCTION'
-            || ($lot->source === 'CONVERT' && $lot->item && $lot->item->item_type !== 'MATERIAL')) ? 'PRODUCT' : 'LOT';   // LOT 전환으로 생긴 제품 · 반제품 LOT ( 11-25 )
+            || (in_array($lot->source, ['CONVERT', 'SUBCON'], true) && $lot->item && $lot->item->item_type !== 'MATERIAL')) ? 'PRODUCT' : 'LOT';   // + 품목 외주 입고 LOT ( 11-26 )   // LOT 전환으로 생긴 제품 · 반제품 LOT ( 11-25 )
     }
 
     /** @return array<int,string> lot_idx => 양식 종류 */

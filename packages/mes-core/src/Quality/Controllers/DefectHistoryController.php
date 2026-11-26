@@ -49,7 +49,7 @@ class DefectHistoryController extends Controller {
                 'i.insp_type as inspection_kind',
                 'it.item_code', 'it.item_name', 'it.spec as item_spec', 'it.material as item_material', 'it.spec_unit', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'), 'p.partner_name',
                 'u.user_name as inspector_name', 'u.user_id as inspector_id', 'c.system_code_name as defect_type',
-                'w.wo_no', 'o.seq as op_seq', 'pr.process_name', 's.shipment_no', 'sl.line_no as shipment_line_no', 't.txn_no',
+                'w.wo_no', 'o.seq as op_seq', 'pr.process_name', 'pr.system_key as process_system_key', 's.shipment_no', 'sl.line_no as shipment_line_no', 't.txn_no',
             ])
             ->orderByDesc('d.occurred_at')->orderByDesc('d.defect_idx');
 
@@ -81,7 +81,7 @@ class DefectHistoryController extends Controller {
                 'spec_unit'        => $r->spec_unit,
                 'lot_no'           => $r->lot_no,
                 'partner_name'     => $r->partner_name,
-                'op_name'          => $r->process_name ? str_pad((string) $r->op_seq, 3, '0', STR_PAD_LEFT) . ' ' . $r->process_name : null,
+                'op_name'          => $r->process_name ? \MesCore\Support\OpSeq::name($r->op_seq, \MesCore\Support\OpSeq::isRmKey($r->process_system_key), $r->process_name) : null,
                 'qty'              => (float) $r->qty,
                 'defect_type_code' => $r->defect_type_code,
                 'defect_type'      => $r->defect_type ?? $r->defect_type_code ?? '( 없음 )',

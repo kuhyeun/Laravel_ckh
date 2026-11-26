@@ -4,6 +4,7 @@
 //     ( 그리드의 복사용 textarea 는 입력 칸이 아니다 — 그리드를 누른 채로도 찍힌다 )
 //   글자 : 보낸 글자가 영문 · 숫자 · 기호면 그대로 · 한글 입력 상태면 물리 키( event.code ) 자리로 바꿔 읽는다 → WO-… 가 그대로
 //   처리 순서 : 화면이 올린 처리기( pushScanHandler — 위에서부터, true 를 돌려주면 끝 ) → 기본 = 서버에서 풀어 이동( production.scan.resolve )
+//     물품표 · 현품표 · LOT 번호면 이동 없이 LOT 추적 창( LotFlowModal · 11-26 )
 //   TopFrame 의 스캔 칸( 손으로 넣기 )도 같은 dispatchScan 으로
 import { reactive } from 'vue';
 import { route } from 'ziggy-js';
@@ -51,6 +52,12 @@ function say(msg, error = false) {
     try { useToast().showFlash(msg, error); } catch (e) { /* 앱 밖 */ }
 }
 
+// 겹쳐 찍기 막기 ( 11-26 ) — 「안 됐나?」 하고 여러 번 찍어 창이 겹쳐 열리던 것
+//   처리 중( 서버 확인 · 창 열기 )에 들어온 스캔은 버린다 · 같은 코드를 REPEAT_MS 안에 다시 찍어도 버린다
+//   같은 LOT 의 추적 창이 이미 떠 있으면 새로 열지 않는다 ( 화면 처리기 — 자재 출고 등 — 는 찍을 때마다 그대로 )
+const REPEAT_MS = 2000;
+let lastDone = { code: '', at: 0 };
+
 export async function dispatchScan(raw) {
     const code = String(raw ?? '').trim();
     if (!code) return;
@@ -59,11 +66,27 @@ export async function dispatchScan(raw) {
         try { if (await handlers[i](code)) return; } catch (e) { /* 다음 처리기로 */ }
     }
     if (!route().has('production.scan.resolve')) { say(`${code} : 스캔 이동을 쓸 수 없습니다.`, true); return; }
+    if (scanState.busy) return;   // 앞 스캔 처리 중
+    if (lastDone.code === code && Date.now() - lastDone.at < REPEAT_MS) return;   // 같은 코드 연달아
+    lastDone = { code, at: Date.now() };
     scanState.busy = true;
     try {
         const { data } = await window.axios.get(route('production.scan.resolve'), { params: { code } });
+        // 물품표 · 현품표 · LOT 번호 ( 11-26 ) — 이동 없이 지금 화면 위에 LOT 추적 창
+        if (data.type === 'LOT' && data.lot) {
+            const [{ useModalStore }, { default: LotFlowModal }] = await Promise.all([
+                import('@core/Stores/modalStore'), import('@core/Components/Shipment/LotFlowModal.vue'),
+            ]);
+            const store = useModalStore();
+            if (store.modals.some(m => m.props?.root?.lot_idx === data.lot.lot_idx && m.props?.modalTitle?.startsWith('LOT 추적'))) {
+                say(`${data.lot.lot_no} : LOT 추적 창이 이미 열려 있습니다.`);
+                return;
+            }
+            store.open(LotFlowModal, { modalTitle: `LOT 추적 — ${data.lot.lot_no}`, dir: data.lot.dir, root: data.lot }, { size: 'full' });
+            return;
+        }
         if (!data.url) { say(data.message || `${code} : 알 수 없는 코드입니다.`, true); return; }
-        say(`${data.type === 'OP' ? '공정' : data.type === 'SHEET' ? '작업지시서' : '작업지시'} ${data.label} 로 이동합니다.`);
+        say(data.type === 'SHEET' ? `작업지시관리에서 ${data.label} 을 찾습니다.` : `${data.type === 'OP' ? '공정' : '작업지시'} ${data.label} 로 이동합니다.`);
         // 떠 있는 창은 닫고 이동 ( 같은 화면이어도 새로 그린다 — preserveState false )
         const { useModalStore } = await import('@core/Stores/modalStore');
         useModalStore().modals = [];
@@ -72,6 +95,7 @@ export async function dispatchScan(raw) {
         say(`${code} : 확인하지 못했습니다.`, true);
     } finally {
         scanState.busy = false;
+        lastDone.at = Date.now();   // 같은 코드 막는 시간은 처리가 끝난 때부터
     }
 }
 

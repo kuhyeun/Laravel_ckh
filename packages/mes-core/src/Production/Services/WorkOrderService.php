@@ -434,8 +434,10 @@ class WorkOrderService {
         $procs    = Process::whereIn('process_idx', array_column($ops, 'process_idx'))->get()->keyBy('process_idx');   // 한 번에 ( 전에는 공정마다 )
         $keep     = [];
         $map      = [];
+        // 순번 : 원자재출고를 뺀 공정 10 · 20 … / 원자재출고는 그 사이 ( 11-26 · OpSeq )
+        $seqs     = \MesCore\Support\OpSeq::assign(array_map(fn ($r) => (bool) $procs->get($r['process_idx'])?->isRmOut(), array_values($ops)));
 
-        foreach ($ops as $n => $row) {
+        foreach (array_values($ops) as $n => $row) {
             $op = (!empty($row['work_order_op_idx']) && $existing->has($row['work_order_op_idx']))
                 ? $existing->get($row['work_order_op_idx'])
                 : new WorkOrderOp(['work_order_idx' => $wo->work_order_idx]);
@@ -444,7 +446,7 @@ class WorkOrderService {
             $ifl  = $this->isIfl($proc);
 
             $op->fill([
-                'seq'                    => ($n + 1) * 10,
+                'seq'                    => $seqs[$n],
                 'process_idx'            => $row['process_idx'],
                 'routing_line_idx'       => $rl?->routing_line_idx,
                 // 대표 = 목록의 첫 값 ( 11-25 — 실적 등록 기본 설비 · 물림 손실 등 기존 읽기용 )

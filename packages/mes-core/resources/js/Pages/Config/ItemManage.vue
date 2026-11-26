@@ -127,7 +127,7 @@ const itemColumns = [
     { header: '판매단가', name: 'std_sale_price', width: 110, align: 'right', className: 'cursor-pointer', formatter: fmtNum },
     // 조달 구분 · 판매 여부 ( 11-13 ) — 발주서 = 구매만 · 수주 / 출하 = 판매만
     { header: '조달', name: 'procure_type', width: 70, align: 'center', className: 'cursor-pointer',
-      formatter: ({ value }) => value === 'BUY' ? '구매' : value === 'SUPPLIED' ? '<span style="color:#7e22ce">사급</span>' : '<span style="color:#d1d5db">-</span>' },
+      formatter: ({ value }) => value === 'BUY' ? '구매' : value === 'SUPPLIED' ? '<span style="color:#7e22ce">사급</span>' : value === 'NONE' ? '생산' : '<span style="color:#d1d5db">-</span>' },   // NONE = 생산 ( 11-26 )
     { header: '판매', name: 'is_sale', width: 60, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => value === 'Y' ? '판매' : '<span style="color:#d1d5db">-</span>' },
     {

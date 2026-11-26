@@ -88,7 +88,7 @@ const ctx = reactive({ now: '', warehouses: [], inspection_on: false, inspectors
 const qty = (name, header, width = 90) => ({ header, name, width, align: 'right', className: 'cursor-pointer', formatter: ({ row, value }) => value === null || value === undefined ? '' : fmtQty(value, row.spec_unit) });
 const base = [
     { header: '외주처', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
-    { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer' },
+    { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer', formatter: ({ value }) => value ?? `<span style="color:${COLORS.violet}">품목 외주</span>` },   // 품목 외주 ( 11-26 ) = 지시 없음
     { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '외주 공정', name: 'process_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
 ];
@@ -108,6 +108,7 @@ const RECEIPT_COLUMNS = [
     ...base,
     qty('receipt_qty', '입고'),
     qty('pass_qty', '합격'),
+    { header: '입고 LOT', name: 'receipt_lot_no', width: 150, className: 'cursor-pointer', escapeHTML: true },   // 품목 외주 ( 11-26 )
     qty('fail_qty', '불합격'),
     { header: '출고 번호', name: 'issue_no', width: 130, className: 'cursor-pointer' },
     { header: '검사자', name: 'inspector_name', width: 80, align: 'center', className: 'cursor-pointer', escapeHTML: true },
@@ -179,13 +180,14 @@ const editTarget = computed(() => checked.value.length === 1 && checked.value[0]
 function editDate() {
     const r = editTarget.value;
     if (!r) return;
-    const cascades = r.status === 'DONE' && !r.inspected && r.has_run;
+    const cascades = r.status === 'DONE' && !r.inspected && (r.has_run || r.run_received);   // 품목 외주 입고 = 재고 입고 원장 ( 11-26 )
     modalStore.open(DateEditDialog, {
         modalTitle: '입고 일시 수정',
-        target: `${r.receipt_no} · ${r.partner_name} · ${r.wo_no} ${r.process_name}`,
+        target: `${r.receipt_no} · ${r.partner_name} · ${r.wo_no ?? '품목 외주'} ${r.process_name ?? ''}`,
         fields: [{ key: 'received_at', label: '입고 일시', mode: 'datetime', value: r.received_at }],
         warning: cascades
-            ? `입고 일시를 바꾸면 외주 공정 실적 · 재공 이력${r.run_received ? '과 제품 입고 원장' : ''}의 일시도 함께 바뀝니다. 날짜별 조회 결과가 달라질 수 있습니다. ( 수량은 그대로 )`
+            ? (r.kind === 'ITEM' ? '입고 일시를 바꾸면 재고 입고 원장 · 입고 LOT 의 입고일도 함께 바뀝니다. 날짜별 조회 결과가 달라질 수 있습니다. ( 수량은 그대로 )'
+                : `입고 일시를 바꾸면 외주 공정 실적 · 재공 이력${r.run_received ? '과 제품 입고 원장' : ''}의 일시도 함께 바뀝니다. 날짜별 조회 결과가 달라질 수 있습니다. ( 수량은 그대로 )`)
             : '',
         url: route('production.subcon.receipt.editDate'),
         payload: { subcon_receipt_idx: r.subcon_receipt_idx },

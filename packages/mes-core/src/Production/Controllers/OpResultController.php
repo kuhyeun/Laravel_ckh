@@ -152,6 +152,7 @@ class OpResultController extends Controller {
             return [
                 'work_order_op_idx' => $o->work_order_op_idx,
                 'seq'               => $o->seq,
+                'seq_label'         => \MesCore\Support\OpSeq::label($o->seq, $o->isRmOut()),   // 원자재출고 = M · 나머지 010 ( 11-26 )
                 'name'              => $o->process?->process_name,
                 'code'              => $o->process?->process_code,
                 'is_qty'            => $o->isQtyOp(),
@@ -397,17 +398,12 @@ class OpResultController extends Controller {
         return response()->json(['message' => 'Success']);
     }
 
-    // 공정흐름표 ( 11-26 · 문서 양식 WO_FLOW ) — 작업지시( work_order_idx ) · 작업지시 하나 = 한 장
+    // 공정흐름표 ( 11-26 · 고정 배치 WoFlowPages ) — 작업지시( work_order_idx ) · 작업지시 하나 = 한 건
     public function flowSheets(\Illuminate\Http\Request $request, \MesCore\Production\Services\WoFlowSheetService $flow, \MesCore\Config\Services\SiteConfigService $site) {
         $v = $request->validate(['ids' => 'required|array|min:1|max:200', 'ids.*' => 'integer']);
         $docs = \MesCore\Production\Models\WorkOrder::with($flow::RELATIONS)->whereIn('work_order_idx', $v['ids'])
             ->where('status', '!=', 'CANCELED')->orderBy('wo_no')->get()
             ->map(fn ($wo) => $flow->build($wo))->values();
-        return response()->json([
-            'docs'     => $docs,
-            'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
-            'template' => \MesCore\Config\Models\DocTemplate::forPrint('WO_FLOW'),
-            'templates' => \MesCore\Config\Models\DocTemplate::choices('WO_FLOW'),   // 미리보기에서 양식 고르기 ( 11-26 )
-        ]);
+        return response()->json(['docs' => $docs]);   // 고정 배치 ( WoFlowPages · 11-26 — 문서 양식에서 뺐다 )
     }
 }

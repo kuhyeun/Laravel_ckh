@@ -166,7 +166,7 @@
                             :class="dragIndex === i ? 'opacity-40' : ''"
                             :draggable="structEditable" @dragstart="dragIndex = i" @dragover.prevent @drop="dropOn(i)" @dragend="dragIndex = null">
                             <td class="px-1 text-center text-gray-300" :class="structEditable ? 'cursor-move' : ''">≡</td>
-                            <td class="px-2 py-1 text-center text-gray-500">{{ String((i + 1) * 10).padStart(3, '0') }}</td>
+                            <td class="px-2 py-1 text-center text-gray-500">{{ seqLabels[i] }}</td>
                             <td class="px-2 py-1">{{ procOf(o)?.process_name }} <span class="text-gray-400">{{ procOf(o)?.process_code }}</span>
                                 <span v-if="!o.routing_line_idx" class="ml-1 text-[10px] text-blue-600">추가</span>
                                 <p v-if="errors[`ops.${i}.process_idx`]" class="err">{{ errors[`ops.${i}.process_idx`][0] }}</p>
@@ -273,7 +273,8 @@ import MultiSelect from '@core/Components/Common/MultiSelect.vue';   // 설비 �
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import AttachFiles from '@core/Components/Common/AttachFiles.vue';
 import { showAlert } from '@core/Utils/message';
-import { woStatusLabel, woStatusColor, processKindLabel, isIfl } from '@core/Components/Production/productionCodes';
+import { woStatusLabel, woStatusColor, processKindLabel, isIfl, opSeqLabels } from '@core/Components/Production/productionCodes';
+import { usePage } from '@inertiajs/vue3';
 const IFL_KEYS = [{ key: 'insp_first', label: '초물' }, { key: 'insp_middle', label: '중물' }, { key: 'insp_last', label: '종물' }];
 import { blankOp, blankCrew, toOps, applyItemDefaults, sameRouting, applyOrderRouting } from '@core/Components/Production/workOrderLine';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
@@ -326,6 +327,9 @@ const routingOptions = computed(() => {
 const ruleOptions    = computed(() => props.ctx.lot.rules.map(r => ({ value: r.lot_rule_idx, label: `${r.lot_rule_name} ( ${r.rule_type === 'PRODUCE_END' ? '종료일' : '생산일'} )` })));
 
 const procOf = (o) => props.ctx.processes.find(p => Number(p.process_idx) === Number(o.process_idx));
+// 공정 순번 ( 11-26 ) — 원자재출고 = 설정 문자( M ) · 나머지는 원자재출고를 빼고 010 · 020 … ( 저장하면 서버도 같은 규칙 )
+const page = usePage();
+const seqLabels = computed(() => opSeqLabels(props.line.ops.map(o => !!procOf(o)?.is_rm_out), page.props.rmOutSeq || 'M'));
 // 묶음의 설비 선택지 — 다른 줄에서 고른 설비는 뺀다 ( 같은 설비 두 번 X ) · 「· 기본」 표시는 뺐다 ( 11-25 — 첫 줄 「대표」로 충분 )
 const crewEquipOptions = (o, c) => [{ value: '', label: '( 미지정 )' }, ...(procOf(o)?.equipments ?? [])
     .filter(e => Number(e.equipment_idx) === Number(c.equipment_idx) || !o.crews.some(x => x !== c && Number(x.equipment_idx) === Number(e.equipment_idx)))
@@ -354,7 +358,7 @@ function inputOpLabel(m) {
         // BOM 은 품목 공정( ② ) 줄을 가리킨다 — 수주 공정( ③ ) 줄이면 그 원본 줄로
         : ops.findIndex(o => m.routing_line_idx && (Number(o.routing_line_idx) === Number(m.routing_line_idx) || Number(o.source_routing_line_idx) === Number(m.routing_line_idx)));
     if (i < 0) return '첫 수량 공정';
-    return `${String((i + 1) * 10).padStart(3, '0')} ${procOf(ops[i])?.process_name ?? ''}`;
+    return `${seqLabels.value[i]} ${procOf(ops[i])?.process_name ?? ''}`;
 }
 
 // ---- 공정 ----

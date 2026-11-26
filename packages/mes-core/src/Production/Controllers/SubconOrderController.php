@@ -37,6 +37,7 @@ class SubconOrderController extends Controller {
             'now'      => now()->format('Y-m-d\TH:i'),
             'can_issue' => $perm->canPageForMe('Production/SubconIssue', 'can_write'),   // 발주서 [출고] ( 외주 출고 권한 )
             'can_material' => $perm->canPageForMe('Production/MaterialIssue', 'can_write'),   // 출고 창의 [자재 출고] ( 11-24 )
+            'kinds'    => collect(SubconOrderService::KINDS)->map(fn ($l, $v) => ['value' => $v, 'label' => $l])->values(),   // 발주 구분 ( 11-26 )
             'statuses' => collect(SubconOrderService::STATUSES)->map(fn ($l, $v) => ['value' => $v, 'label' => $l])->values(),
         ]);
     }
@@ -45,7 +46,7 @@ class SubconOrderController extends Controller {
     public function list(Request $request) {
         $v = $request->validate([
             'date_basis' => 'nullable|in:order_date,due_date', 'from' => 'nullable|date_format:Y-m-d', 'to' => 'nullable|date_format:Y-m-d',
-            'partner_idx' => 'nullable|integer', 'status' => 'nullable|in:ORDERED,RUN,DONE,CANCELED,OPEN',
+            'partner_idx' => 'nullable|integer', 'status' => 'nullable|in:ORDERED,RUN,DONE,CANCELED,OPEN', 'order_kind' => 'nullable|in:OP,ITEM',
             'keyword' => 'nullable|string|max:100', 'search_field' => 'nullable|string|max:30',
         ]);
         $q = DB::table('subcon_order as o')->leftJoin('partner as p', 'p.partner_idx', '=', 'o.partner_idx')
@@ -54,10 +55,11 @@ class SubconOrderController extends Controller {
         if (!empty($v['from'])) $q->where($basis, '>=', $v['from']);
         if (!empty($v['to']))   $q->where($basis, '<=', $v['to']);
         if (!empty($v['partner_idx'])) $q->where('o.partner_idx', $v['partner_idx']);
+        if (!empty($v['order_kind'])) $q->where('o.order_kind', $v['order_kind']);
         if (($v['status'] ?? '') === 'CANCELED') $q->where('o.status', 'CANCELED');
         elseif (!empty($v['status'])) $q->where('o.status', '!=', 'CANCELED');
-        $line = fn ($q, \Closure $fn) => $q->whereExists(fn ($e) => $e->from('subcon_order_line as l')->join('work_order as w', 'w.work_order_idx', '=', 'l.work_order_idx')
-            ->join('item as i', 'i.item_idx', '=', 'w.item_idx')->whereColumn('l.subcon_order_idx', 'o.subcon_order_idx')->where($fn));
+        $line = fn ($q, \Closure $fn) => $q->whereExists(fn ($e) => $e->from('subcon_order_line as l')->leftJoin('work_order as w', 'w.work_order_idx', '=', 'l.work_order_idx')
+            ->join('item as i', 'i.item_idx', '=', DB::raw('COALESCE(l.item_idx, w.item_idx)'))->whereColumn('l.subcon_order_idx', 'o.subcon_order_idx')->where($fn));
         $this->applyKeyword($q, $v['keyword'] ?? null, [
             'order_no'  => fn ($q, $kw) => $q->where('o.order_no', 'like', $kw),
             'wo_no'     => fn ($q, $kw) => $line($q, fn ($w) => $w->where('w.wo_no', 'like', $kw)),
@@ -71,15 +73,16 @@ class SubconOrderController extends Controller {
         $hist = [];
         $prepare = function ($rows) use (&$lines, &$prog, &$hist) {
             $hist = $this->orders->historyByOrder($rows->pluck('subcon_order_idx')->all());
-            $lines = DB::table('subcon_order_line as l')->join('work_order as w', 'w.work_order_idx', '=', 'l.work_order_idx')
-                ->join('item as i', 'i.item_idx', '=', 'w.item_idx')
+            $lines = DB::table('subcon_order_line as l')->leftJoin('work_order as w', 'w.work_order_idx', '=', 'l.work_order_idx')
+                ->join('item as i', 'i.item_idx', '=', DB::raw('COALESCE(l.item_idx, w.item_idx)'))   // 품목 외주 줄 = 줄 품목 ( 11-26 )
                 ->whereIn('l.subcon_order_idx', $rows->pluck('subcon_order_idx'))->orderBy('l.line_no')
                 ->get(['l.*', 'w.wo_no', 'i.item_name'])->groupBy('subcon_order_idx');
             $prog = collect($this->orders->lineProgress($lines->flatten()->pluck('subcon_order_line_idx')->all()));
         };
         // 내용( 첫 줄 "지시번호 품명 외 N" ) 정렬 = 첫 줄 지시번호 ( 11-25 )
-        $sortable = [...self::SORTABLE, 'summary' => DB::table('subcon_order_line as sl')->join('work_order as sw', 'sw.work_order_idx', '=', 'sl.work_order_idx')
-            ->whereColumn('sl.subcon_order_idx', 'o.subcon_order_idx')->orderBy('sl.line_no')->limit(1)->select('sw.wo_no')];
+        $sortable = [...self::SORTABLE, 'order_kind', 'summary' => DB::table('subcon_order_line as sl')->leftJoin('work_order as sw', 'sw.work_order_idx', '=', 'sl.work_order_idx')
+            ->leftJoin('item as si', 'si.item_idx', '=', 'sl.item_idx')
+            ->whereColumn('sl.subcon_order_idx', 'o.subcon_order_idx')->orderBy('sl.line_no')->limit(1)->select(DB::raw('COALESCE(sw.wo_no, si.item_name)'))];
         $res = $this->listResponse($request, $q, $sortable, 'rows', function ($o) use (&$lines, &$prog, &$hist) {
             $mine = $lines[$o->subcon_order_idx] ?? collect();
             $qty = (float) $mine->sum('qty');
@@ -89,7 +92,8 @@ class SubconOrderController extends Controller {
             return [
                 'subcon_order_idx' => (int) $o->subcon_order_idx, 'order_no' => $o->order_no, 'partner_name' => $o->partner_name,
                 'order_date' => $o->order_date, 'due_date' => $o->due_date,
-                'summary' => $first ? $first->wo_no . ' ' . $first->item_name . ($mine->count() > 1 ? ' 외 ' . ($mine->count() - 1) : '') : '',
+                'order_kind' => $o->order_kind, 'kind_label' => SubconOrderService::KINDS[$o->order_kind] ?? $o->order_kind,
+                'summary' => $first ? trim(($first->wo_no ?? '') . ' ' . $first->item_name . ($first->work_name ? " ( {$first->work_name} )" : '')) . ($mine->count() > 1 ? ' 외 ' . ($mine->count() - 1) : '') : '',
                 'line_count' => $mine->count(), 'qty' => $qty, 'issued_qty' => $iss, 'received_qty' => $rcv,
                 'amount' => round((float) $mine->sum('amount'), 2),
                 'status' => $this->orders->statusOf($o->status, $qty, $iss, $rcv),
@@ -115,6 +119,7 @@ class SubconOrderController extends Controller {
     public function save(Request $request) {
         $d = $request->validate([
             'subcon_order_idx' => 'nullable|integer',
+            'order_kind'       => 'nullable|in:OP,ITEM',   // 발주 구분 ( 11-26 · 새 발주만 — 저장 뒤엔 그대로 )
             'partner_idx'      => 'required|integer',
             'order_date'       => 'required|date_format:Y-m-d',
             'due_date'         => 'nullable|date_format:Y-m-d',
@@ -122,14 +127,16 @@ class SubconOrderController extends Controller {
             'remark'           => 'nullable|string|max:500',
             'lines'                         => 'required|array|min:1|max:200',
             'lines.*.subcon_order_line_idx' => 'nullable|integer',
-            'lines.*.work_order_op_idx'     => 'required|integer',
+            'lines.*.work_order_op_idx'     => 'nullable|integer',   // 작업지시 외주 ( OP )
+            'lines.*.item_idx'              => 'nullable|integer',   // 품목 외주 ( ITEM · 11-26 )
+            'lines.*.work_name'             => 'nullable|string|max:100',
             'lines.*.qty'                   => 'required|numeric|gt:0|max:999999999999',
             'lines.*.unit_price'            => 'nullable|numeric|min:0|max:9999999999999',
             'lines.*.due_date'              => 'nullable|date_format:Y-m-d',
             'lines.*.remark'                => 'nullable|string|max:200',
         ], ['lines.*.qty.gt' => '발주 수량은 0보다 커야 합니다.'], [
             'partner_idx' => '외주처', 'order_date' => '발주일', 'due_date' => '납기', 'manager_idx' => '담당',
-            'lines.*.qty' => '발주 수량', 'lines.*.unit_price' => '단가', 'lines.*.due_date' => '줄 납기',
+            'lines.*.qty' => '발주 수량', 'lines.*.unit_price' => '단가', 'lines.*.due_date' => '줄 납기', 'lines.*.work_name' => '작업 내용',
         ]);
         [$order, $warnings] = $this->orders->save($d);
         return response()->json(['message' => 'Success', 'subcon_order_idx' => (int) $order->subcon_order_idx, 'order_no' => $order->order_no, 'warnings' => $warnings]);
@@ -157,7 +164,7 @@ class SubconOrderController extends Controller {
                 'receiver' => ['name' => $p?->partner_name, 'biz_no' => $p?->biz_no, 'ceo_name' => $p?->ceo_name, 'address' => $p?->address, 'tel' => $p?->tel ?: $contact?->phone, 'contact' => $contact?->contact_name,
                     'fax' => $p?->fax, 'email' => $p?->email ?: $contact?->email],   // fax · email : 11-25 ( 이메일은 거래처 → 담당자 )
                 'lines' => collect($o['lines'])->values()->map(fn ($l, $k) => [
-                    'no' => $k + 1, 'wo_no' => $l['wo_no'], 'item_code' => $l['item_code'], 'item_name' => $l['item_name'], 'item_spec' => $l['item_spec'],
+                    'no' => $k + 1, 'wo_no' => $l['wo_no'] ?? '품목 외주',   // 품목 외주 줄 ( 11-26 ) — 공정 칸 = 작업 내용 'item_code' => $l['item_code'], 'item_name' => $l['item_name'], 'item_spec' => $l['item_spec'],
                     'process_name' => $l['process_name'], 'unit' => $l['spec_unit'], 'qty' => $l['qty'], 'unit_price' => $l['unit_price'], 'amount' => $l['amount'],
                     'due_date' => $l['due_date'], 'remark' => $l['remark'],
                 ])->all(),

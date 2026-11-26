@@ -1,14 +1,15 @@
 <!-- 외주 입고 창 ( 400502 ) — 모달 본체. 입고할 출고 건 행에서 연다
      - 남은 수량( 출고 − 이미 입고 )까지 · 여러 번 나눠 입고
      - 외주 검사 사용( quality.subcon_inspection ) = Y → 검사대기 ( 외주관리 > 품질검사 ) / N → 바로 입고 완료 = 외주 공정 실적
-     - 외주 공정이 마지막 공정이면 제품 창고 필수 ( 합격분이 제품 입고 ) -->
+     - 외주 공정이 마지막 공정이면 제품 창고 필수 ( 합격분이 제품 입고 )
+     - 품목 외주 ( 11-26 · issue.kind ITEM ) : 창고 필수 · 합격분 = 받을 품목의 새 LOT 으로 재고 입고 ( 공정 실적 없음 ) -->
 <template>
     <div class="mt-3 text-sm">
         <div class="grid grid-cols-3 gap-x-4 gap-y-1.5 px-3 py-2.5 rounded border border-gray-200 bg-gray-50/70">
             <div><span class="text-xs text-gray-500">외주 출고</span><p>{{ issue.issue_no }} · {{ issue.issued_at }}</p></div>
             <div><span class="text-xs text-gray-500">외주처</span><p>{{ issue.partner_name }}</p></div>
-            <div><span class="text-xs text-gray-500">외주 공정</span><p class="font-semibold">{{ issue.process_name }}</p></div>
-            <div><span class="text-xs text-gray-500">작업지시</span><p>{{ issue.wo_no }}</p></div>
+            <div><span class="text-xs text-gray-500">{{ isItem ? '작업 내용' : '외주 공정' }}</span><p class="font-semibold">{{ issue.process_name || '—' }}</p></div>
+            <div><span class="text-xs text-gray-500">작업지시</span><p :class="isItem ? 'text-violet-700' : ''">{{ issue.wo_no ?? '품목 외주' }}</p></div>
             <div class="col-span-2"><span class="text-xs text-gray-500">품목</span><p>{{ itemLabel(issue) }}</p></div>
             <div><span class="text-xs text-gray-500">출고</span><p>{{ fmtQty(issue.qty, issue.spec_unit) }}</p></div>
             <div><span class="text-xs text-gray-500">이미 입고</span><p>{{ fmtNum(issue.received_qty) }}</p></div>
@@ -25,8 +26,8 @@
                 <label class="lbl">입고 일시 <span class="text-red-500">*</span></label>
                 <BaseDatePicker v-model="form.received_at" mode="datetime" class="w-full" />
             </div>
-            <div v-if="issue.is_last">
-                <label class="lbl">제품 창고 <span class="text-red-500">*</span></label>
+            <div v-if="needsWarehouse">
+                <label class="lbl">{{ isItem ? '입고 창고' : '제품 창고' }} <span class="text-red-500">*</span></label>
                 <WarehouseSelect v-model="form.warehouse_idx" :options="warehouses" class="w-full" placeholder="창고" />
                 <p v-if="errors.warehouse_idx" class="text-xs text-red-500 mt-0.5">{{ errors.warehouse_idx[0] }}</p>
             </div>
@@ -36,7 +37,8 @@
             </div>
         </div>
         <p class="mt-2 text-xs" :class="inspectionOn ? 'text-amber-700' : 'text-gray-400'">
-            {{ inspectionOn ? '외주 검사를 사용합니다 — 입고하면 검사대기가 되고, 외주관리 > 품질검사에서 합격분만 실적으로 들어갑니다.' : '입고하면 바로 외주 공정 실적으로 들어갑니다.' }}
+            <template v-if="isItem">{{ inspectionOn ? '외주 검사를 사용합니다 — 입고하면 검사대기가 되고, 외주관리 > 품질검사에서 합격분만 새 LOT 으로 재고에 들어갑니다.' : '입고하면 바로 받을 품목의 새 LOT 으로 재고에 들어갑니다.' }}</template>
+            <template v-else>{{ inspectionOn ? '외주 검사를 사용합니다 — 입고하면 검사대기가 되고, 외주관리 > 품질검사에서 합격분만 실적으로 들어갑니다.' : '입고하면 바로 외주 공정 실적으로 들어갑니다.' }}</template>
             <template v-if="issue.is_last"> 마지막 공정이라 합격분은 제품으로 입고됩니다.</template>
         </p>
         <p v-if="errorMsg" class="mt-3 text-xs text-red-500 whitespace-pre-line">{{ errorMsg }}</p>
@@ -49,7 +51,7 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { route } from 'ziggy-js';
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
@@ -68,10 +70,12 @@ const props = defineProps({
 });
 const emit = defineEmits(['close']);
 
+const isItem = computed(() => props.issue.kind === 'ITEM');   // 품목 외주 ( 11-26 )
+const needsWarehouse = computed(() => props.issue.is_last || isItem.value);
 const form = reactive({ qty: String(props.issue.left_qty || ''), received_at: props.now, warehouse_idx: '', remark: '' });
 const saving   = ref(false);
 // 칸 아래에 보이는 오류만 빼고 위에 모아 보인다 ( 창고 칸이 숨겨져 있으면 창고 오류도 위에 — 11-10 )
-const { errors, errorMsg, clear, handle } = useFormErrors(props.issue.is_last ? ['qty', 'warehouse_idx'] : ['qty']);
+const { errors, errorMsg, clear, handle } = useFormErrors(props.issue.is_last || props.issue.kind === 'ITEM' ? ['qty', 'warehouse_idx'] : ['qty']);
 
 async function save() {
     saving.value = true; clear();

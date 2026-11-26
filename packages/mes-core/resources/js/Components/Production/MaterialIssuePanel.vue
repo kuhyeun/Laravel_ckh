@@ -68,7 +68,7 @@
                         <table class="w-full min-w-[720px] table-fixed text-xs border">
                             <colgroup><col><col class="w-24"><col class="w-24"><col class="w-24"><col class="w-28"><col class="w-8"></colgroup>
                             <thead class="bg-gray-50 text-gray-500">
-                                <tr><th class="text-left px-2 py-1.5">자재</th><th class="text-right px-2 py-1.5">필요</th><th class="text-right px-2 py-1.5">출고</th><th class="text-right px-2 py-1.5">남음</th><th class="text-right px-2 py-1.5">이번 스캔</th><th></th></tr>
+                                <tr><th class="text-left px-2 py-1.5">자재</th><th class="text-right px-2 py-1.5">필요</th><th class="text-right px-2 py-1.5">출고</th><th class="text-right px-2 py-1.5">남은 수량</th><th class="text-right px-2 py-1.5">이번 스캔</th><th></th></tr>
                             </thead>
                             <tbody>
                                 <tr v-if="!materials.length"><td colspan="6" class="px-2 py-2 text-center text-gray-400">이 지시에 자재가 없습니다 ( 사용 중 BOM 없음 ). 찍은 자재는 BOM 외로 더해집니다.</td></tr>
@@ -306,12 +306,12 @@ const emit = defineEmits(['changed', 'flash']);
 const unitOf = (m) => m.result_kind === 'SPEC_COUNT' ? '개' : (m.spec_unit ?? '');
 
 // 계산 과정 ( 설계 §9 ⓘ ) — 식 · 대입 · 결과 · 변수마다 출처
-const TracePanel = (p) => h('div', { class: 'my-1 px-2 py-1.5 rounded bg-slate-50 border border-slate-200 text-xs font-mono text-slate-700 space-y-0.5' }, [
+const TracePanel = (p) => h('div', { class: 'my-1 px-2 py-1.5 rounded bg-slate-50 border border-slate-200 text-xs text-slate-700 space-y-0.5' }, [
     h('div', p.trace.expr),
     h('div', p.trace.subst),
     h('div', { class: 'font-semibold' }, `= ${p.trace.value === null ? '—' : fmtNum(p.trace.value)} ${p.unit}` + (p.trace.value !== null && p.trace.raw !== p.trace.value ? `  ( 계산값 ${fmtNum(p.trace.raw)} )` : '')),
     h('table', { class: 'mt-1 font-sans' }, p.trace.vars.map(v => h('tr', [
-        h('td', { class: 'pr-3 font-mono' }, v.name),
+        h('td', { class: 'pr-3' }, v.name),
         h('td', { class: 'pr-3 text-right' }, v.value === null ? '( 없음 )' : fmtNum(v.value)),
         h('td', { class: 'text-slate-500' }, v.source),
     ]))),

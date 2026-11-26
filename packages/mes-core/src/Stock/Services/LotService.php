@@ -76,9 +76,10 @@ class LotService {
      *          규칙이 없으면 원 LOT 번호 + -S순번
      *   물려받기 : 같은 품목( 분리 ) = 공급처 · 공급처 LOT · Heat No · 조각 규격 · 입고일 / 다른 품목 = 공급처 · Heat No ( 입고일 = 처리일 )
      *   $title : 표시 번호 ( 있으면 lot_title — 겹치면 막는다 )
+     *   품목 외주 입고 ( 11-26 · SubconItemService ) : $source SUBCON · 원 LOT = 내보낸 첫 자재 LOT ( 없으면 $fallbackBase + -S순번 )
      */
-    public function issueChangeLot(Item $item, Lot $src, string $at, ?string $title = null): Lot {
-        $same = (int) $item->item_idx === (int) $src->item_idx;
+    public function issueChangeLot(Item $item, ?Lot $src, string $at, ?string $title = null, string $source = 'CONVERT', ?string $fallbackBase = null): Lot {
+        $same = $src && (int) $item->item_idx === (int) $src->item_idx;
         $date = substr($at, 0, 10);
         $rule = null;
         $lotNo = null;
@@ -88,7 +89,7 @@ class LotService {
             $rule = $this->productionRules()->first();
         }
         if ($rule) {
-            $partnerCode = $src->partner_idx ? (string) DB::table('partner')->where('partner_idx', $src->partner_idx)->value('partner_code') : '';
+            $partnerCode = $src?->partner_idx ? (string) DB::table('partner')->where('partner_idx', $src->partner_idx)->value('partner_code') : '';
             $lotNo = LotRule::render($rule->format_spec ?? [], (string) $rule->separator, [
                 'item_code'    => $item->item_code,
                 'item_spec'    => $item->spec,
@@ -100,7 +101,7 @@ class LotService {
             if (Lot::where('lot_no', $lotNo)->exists()) $lotNo = null;   // 규칙에 순번이 없어 겹치면 아래 방식으로
         }
         if ($lotNo === null) {
-            $base = $src->original_no . '-S';
+            $base = ($src?->original_no ?? $fallbackBase ?? $item->item_code) . '-S';
             $seq  = (int) Lot::where('lot_no', 'like', $base . '%')->count();
             do {
                 $lotNo = mb_substr($base . str_pad((string) ++$seq, 2, '0', STR_PAD_LEFT), 0, 50);
@@ -120,11 +121,11 @@ class LotService {
             'lot_no'          => mb_substr($lotNo, 0, 50),
             'lot_title'       => $title !== '' ? $title : null,
             'external_lot_no' => $same ? $src->external_lot_no : null,
-            'heat_no'         => $src->heat_no,
-            'partner_idx'     => $src->partner_idx,
+            'heat_no'         => $src?->heat_no,
+            'partner_idx'     => $src?->partner_idx,
             'spec_value'      => $same ? $src->spec_value : null,
-            'parent_lot_idx'  => $src->lot_idx,
-            'source'          => 'CONVERT',
+            'parent_lot_idx'  => $src?->lot_idx,
+            'source'          => $source,
             'lot_rule_idx'    => $rule?->lot_rule_idx,
             'in_at'           => $same && $src->in_at ? $src->in_at : $at,
         ]);

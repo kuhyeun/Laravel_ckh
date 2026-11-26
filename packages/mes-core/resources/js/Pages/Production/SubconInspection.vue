@@ -65,7 +65,7 @@ const columns = [
     { header: '입고 일시', name: 'received_at', width: 130, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '상태', name: 'status_label', width: 80, align: 'center', className: 'cursor-pointer', formatter: ({ row, value }) => `<span style="color:${STATUS_COLOR[row.status]}">${value}</span>` },
     { header: '외주처', name: 'partner_name', width: 130, className: 'cursor-pointer', escapeHTML: true },
-    { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer' },
+    { header: '지시번호', name: 'wo_no', width: 150, className: 'cursor-pointer', formatter: ({ value }) => value ?? `<span style="color:${COLORS.violet}">품목 외주</span>` },   // 품목 외주 ( 11-26 ) = 지시 없음
     { header: '품목', name: 'item_code', minWidth: 160, sortable: true, className: 'cursor-pointer', escapeHTML: true, formatter: ({ row }) => itemLabel(row) },
     { header: '외주 공정', name: 'process_name', width: 100, className: 'cursor-pointer', escapeHTML: true },
     qty('receipt_qty', '입고'),

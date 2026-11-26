@@ -55,7 +55,7 @@ class OpHistoryController extends Controller {
                 'r.operator_idx', 'r.create_account_idx', 'r.stock_txn_line_idx',
                 'wo.work_order_idx', 'wo.wo_no', 'wo.start_date',
                 'i.item_code', 'i.item_name', 'i.spec as item_spec', 'i.material as item_material', 'i.spec_unit', \Illuminate\Support\Facades\DB::raw(\MesCore\Stock\Models\Lot::showSql('l') . ' as lot_no'),
-                'op.seq', 'p.process_name', 'e.equipment_name',
+                'op.seq', 'p.process_name', 'p.system_key', 'e.equipment_name',
                 DB::raw("COALESCE(NULLIF(u.user_name, ''), u.user_id) as operator_name"),
                 DB::raw("COALESCE(NULLIF(cu.user_name, ''), cu.user_id) as creator_name"),
                 DB::raw("COALESCE(NULLIF(xu.user_name, ''), xu.user_id) as canceler_name"),
@@ -75,7 +75,7 @@ class OpHistoryController extends Controller {
             'item_material'  => $r->item_material,
             'spec_unit'      => $r->spec_unit,
             'lot_no'         => $r->lot_no,
-            'op_label'       => str_pad((string) $r->seq, 3, '0', STR_PAD_LEFT) . ' ' . $r->process_name,
+            'op_label'       => \MesCore\Support\OpSeq::name($r->seq, \MesCore\Support\OpSeq::isRmKey($r->system_key), $r->process_name),
             'equipment_name' => $r->equipment_name,
             'operator_name'  => $r->operator_name,
             'creator_name'   => (int) $r->operator_idx !== (int) $r->create_account_idx ? $r->creator_name : null,   // 대리 입력일 때만
@@ -200,7 +200,7 @@ class OpHistoryController extends Controller {
             $opRows = ($ops[$w->work_order_idx] ?? collect())->filter(fn (WorkOrderOp $o) => $o->isQtyOp())->map(function (WorkOrderOp $o) use ($runs, $day, $min, $max) {
                 $r = $runs[$o->work_order_op_idx] ?? null;
                 return [
-                    'label'     => str_pad((string) $o->seq, 3, '0', STR_PAD_LEFT) . ' ' . $o->process?->process_name,
+                    'label'     => \MesCore\Support\OpSeq::name($o->seq, $o->isRmOut(), $o->process?->process_name),
                     'status'    => $o->status,
                     'is_qty'    => $o->isQtyOp(),
                     'qty'       => (float) $o->qty,
@@ -255,7 +255,7 @@ class OpHistoryController extends Controller {
         $users   = User::namesFor($runs->pluck('canceled_by'));   // 이 줄들의 취소자만
         $reasons = SystemCode::where('system_code_group_key', OpResultService::SHORT_GROUP)->pluck('system_code_name', 'system_code_key');
         $name    = fn ($u) => $u ? ($u->user_name ?: $u->user_id) : null;
-        $opName  = fn (WorkOrderOp $o) => str_pad((string) $o->seq, 3, '0', STR_PAD_LEFT) . ' ' . $o->process?->process_name;
+        $opName  = fn (WorkOrderOp $o) => \MesCore\Support\OpSeq::name($o->seq, $o->isRmOut(), $o->process?->process_name);
 
         $runRow = fn (WorkOrderOpRun $r) => [
             'run_idx'           => $r->run_idx,

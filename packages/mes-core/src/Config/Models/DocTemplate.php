@@ -15,7 +15,7 @@ class DocTemplate extends Model {
     const CREATED_AT = 'create_datetime';
     const UPDATED_AT = 'update_datetime';
 
-    public const TYPES = ['PURCHASE_ORDER' => '발주서', 'SHIPMENT_ORDER' => '출하지시서', 'INSPECTION_SPEC' => '검사기준서', 'INSPECTION_REPORT' => '검사성적서', 'SUBCON_ORDER' => '외주 발주서', 'WO_FLOW' => '공정흐름표'];   // 공정흐름표 ( 11-26 )   // 외주 발주서 ( 11-23 )   // 검사성적서 ( 11-23 )   // 검사기준서 ( 11-18 )
+    public const TYPES = ['PURCHASE_ORDER' => '발주서', 'SHIPMENT_ORDER' => '출하지시서', 'INSPECTION_SPEC' => '검사기준서', 'INSPECTION_REPORT' => '검사성적서', 'SUBCON_ORDER' => '외주 발주서'];   // 공정흐름표는 뺐다 ( 11-26 — 고정 배치 WoFlowPages · QR / 바코드 양식 )   // 외주 발주서 ( 11-23 )   // 검사성적서 ( 11-23 )   // 검사기준서 ( 11-18 )
 
     protected $fillable = ['template_name', 'doc_type', 'orientation', 'design', 'is_default', 'is_use', 'remark'];
 

@@ -12,13 +12,21 @@
             <span v-if="page.props.readOnly && page.props.auth?.user?.user_level === 0" class="ml-2 align-middle text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-normal">조회 전용</span>
         </h2>
         <div class="flex-1"></div>
-        <!-- 스캔 ( 11-26 ) — 스캐너는 어디서 찍어도 된다( 전역 감지 · 포커스를 뺏지 않음 ) · 이 칸은 번호를 손으로 넣을 때 -->
+        <!-- 스캔 ( 11-26 ) — 스캐너는 어디서 찍어도 된다( 전역 감지 · 포커스를 뺏지 않음 )
+             평소엔 QR 아이콘만 · 누르면 손으로 넣는 칸이 펼쳐진다( Enter = 이동 후 접힘 · Esc · 바깥 누르면 접힘 ) · 처리 중엔 아이콘이 깜빡인다 -->
         <div v-if="scanOn" class="mr-4 flex items-center font-normal">
             <span class="relative flex items-center">
-                <QrCodeIcon class="absolute left-2 h-4 w-4 text-gray-400 pointer-events-none" />
-                <input v-model="scanText" v-scan-input type="text" class="h-8 w-52 rounded border border-gray-300 bg-white pl-7 pr-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
-                    :class="scanState.busy ? 'opacity-60' : ''" placeholder="스캔 · 작업지시 번호" title="바코드 · QR 은 아무 데서나 찍으면 됩니다. 번호를 손으로 넣을 때 여기에 넣고 Enter"
-                    @keydown.enter.prevent="onScanEnter" />
+                <button v-if="!scanOpen" type="button" class="p-1 rounded-md border border-transparent hover:border-gray-300 text-gray-500 hover:text-blue-600"
+                    :class="scanState.busy ? 'animate-pulse text-blue-600' : ''"
+                    title="바코드 · QR 은 어디서나 찍으면 됩니다. 번호를 손으로 넣으려면 누르세요" @click="openScan">
+                    <QrCodeIcon class="h-5 w-5" />
+                </button>
+                <template v-else>
+                    <QrCodeIcon class="absolute left-2 h-4 w-4 pointer-events-none" :class="scanState.busy ? 'animate-pulse text-blue-600' : 'text-gray-400'" />
+                    <input ref="scanEl" v-model="scanText" v-scan-input type="text" class="h-8 w-52 rounded border border-gray-300 bg-white pl-7 pr-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+                        :class="scanState.busy ? 'opacity-60' : ''" placeholder="번호 입력 후 Enter"
+                        @keydown.enter.prevent="onScanEnter" @keydown.esc.prevent="closeScan" @blur="closeScan" />
+                </template>
             </span>
         </div>
         <div class="flex items-center">
@@ -33,7 +41,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { route } from 'ziggy-js';
 import { storeToRefs } from 'pinia';
 import { useUiStore } from '@core/Stores/uiStore';
@@ -48,10 +56,20 @@ import { vScanInput } from '@core/Composables/scanInput';
 // 스캔 ( 11-26 ) — 전역 감지 설치 · 손으로 넣는 칸
 const scanOn   = route().has('production.scan.resolve');
 const scanText = ref('');
+const scanOpen = ref(false);   // 손으로 넣는 칸 펼침 ( 평소엔 아이콘만 )
+const scanEl   = ref(null);
 if (scanOn) installScanner();
+function openScan() {
+    scanOpen.value = true;
+    nextTick(() => scanEl.value?.focus());
+}
+function closeScan() {
+    scanOpen.value = false;
+    scanText.value = '';
+}
 function onScanEnter() {
     const code = scanText.value.trim();
-    scanText.value = '';
+    closeScan();
     if (code) dispatchScan(code);
 }
 

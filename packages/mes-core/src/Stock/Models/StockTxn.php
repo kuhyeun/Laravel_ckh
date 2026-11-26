@@ -28,6 +28,8 @@ class StockTxn extends Model {
         'IN_PRODUCTION' => '생산 입고',
         'OUT_SHIPMENT'  => '출하',
         'OUT_MISC'      => '기타출고',
+        'OUT_SUBCON'    => '외주 출고',   // 품목 외주로 보낸 자재 ( 11-26 · SubconItemService )
+        'IN_SUBCON'     => '외주 입고',   // 품목 외주에서 받은 새 LOT ( 11-26 )
     ];
 
     const STATUSES = [

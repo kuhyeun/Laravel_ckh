@@ -31,7 +31,8 @@
 
         <!-- 탭 1 · 기본 -->
         <!-- 4칸 격자 ( 11-25 ) — 창이 넓어( xl ) 2칸이면 입력칸이 600px × 30px 로 길쭉했다 → 짧은 칸 1칸 · 품명 · 규격 · 주 자재는 2칸
-               품번( 2 ) | 품명( 2 ) / 대분류 | 소분류 | 규격 | 단위 / 주 자재( 2 ) | 소요 / 조달 구분 | 판매 여부 | 사용 여부 | 시리얼 / 비고( 4 ) -->
+               품번( 2 ) | 품명( 2 ) / 대분류 | 소분류 | 규격 | 재질 / 단위 | 조달 구분 | 판매 여부 | 사용 여부 / 시리얼 / 주 자재( 2 ) | 소요 / 비고( 4 )
+               ( 11-26 : 재질 다시 엶 — 규격 옆 · 단위는 조달 구분 왼쪽 ) -->
         <div v-show="tab === 'basic'" class="grid grid-cols-4 gap-x-4 gap-y-3 pt-4">
             <!-- 새 품목은 비우면 자동 ( 자재 MT · 반제품 SM · 제품 PD + 일련번호 · 11-12 ) -->
             <FormField label="품번" :required="isEdit" :hint="isEdit ? '' : '비우면 자동'" :error="errors.item_code" class="col-span-2">
@@ -50,16 +51,43 @@
                 <!-- 코드관리 규격에서 찾기 · 새 규격도 그대로 ( 저장하면 규격 코드에 추가 ) -->
                 <SpecPicker v-model="form.spec" :can-create="canWrite" :disabled="!canWrite" />
             </FormField>
+            <!-- 재질 ( 11-26 다시 엶 ) — 라벨 「규격 / 재질」 · 공정흐름표 · BOM 카드에 나온다 -->
+            <FormField label="재질" :error="errors.material">
+                <BaseInput v-model="form.material" class="w-full" maxlength="100" placeholder="예: SUS304" :disabled="!canWrite" />
+            </FormField>
             <FormField label="단위" required :error="errors.spec_unit">
                 <UnitSelect v-model="form.spec_unit" :disabled="!canWrite" empty-hint />
             </FormField>
 
-            <!-- 재질 일단 보류 -->
-            <!-- <div>
-                <label class="block text-gray-500 font-medium mb-1">재질</label>
-                <BaseInput v-model="form.material" class="w-full" maxlength="100" :disabled="!canWrite" />
-                <p v-if="errors.material" class="text-xs text-red-500 mt-0.5">{{ errors.material[0] }}</p>
-            </div> -->
+            <!-- 조달 구분 · 판매 여부 ( 11-13 ) — 발주서에는 구매만 · 수주 / 출하에는 판매만 나온다 -->
+            <div>
+                <label class="block text-gray-500 font-medium mb-1">조달 구분</label>
+                <BaseSelect v-model="form.procure_type" :options="procureOptions" class="w-full" :disabled="!canWrite" />
+                <p class="text-xs text-gray-400 mt-0.5">{{ procureHint }}</p>
+                <p v-if="errors.procure_type" class="text-xs text-red-500 mt-0.5">{{ errors.procure_type[0] }}</p>
+            </div>
+            <FormField label="판매 여부" :error="errors.is_sale">
+                <div class="h-8 flex items-center">
+                    <BaseCheckbox variant="switch" v-model="form.is_sale" true-value="Y" false-value="N" :disabled="!canWrite">
+                        {{ form.is_sale === 'Y' ? '판매함' : '판매 안 함' }}
+                    </BaseCheckbox>
+                </div>
+            </FormField>
+
+            <FormField label="사용 여부">
+                <div class="h-8 flex items-center">
+                    <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
+                        {{ form.is_use === 'Y' ? '사용' : '미사용' }}
+                    </BaseCheckbox>
+                </div>
+            </FormField>
+            <FormField v-if="serialEnabled || form.serial_use === 'Y'" label="시리얼" hint="낱개마다 번호 — 중요 제품만" :error="errors.serial_use">
+                <div class="h-8 flex items-center">
+                    <BaseCheckbox variant="switch" v-model="form.serial_use" true-value="Y" false-value="N" :disabled="!canWrite">
+                        {{ form.serial_use === 'Y' ? '사용' : '사용 안 함' }}
+                    </BaseCheckbox>
+                </div>
+            </FormField>
 
             <!-- 주 자재( BOM ) 는 만드는 품목( 제품 )만 · 공정은 공정 탭 -->
             <!-- 주 자재 : 가공품은 제품 1 : 원자재 1 이 대부분 → 저장하면 BOM V1 이 만들어진다 -->
@@ -95,35 +123,6 @@
                 </div>
             </div>
 
-            <!-- 조달 구분 · 판매 여부 ( 11-13 ) — 발주서에는 구매만 · 수주 / 출하에는 판매만 나온다 -->
-            <div>
-                <label class="block text-gray-500 font-medium mb-1">조달 구분</label>
-                <BaseSelect v-model="form.procure_type" :options="procureOptions" class="w-full" :disabled="!canWrite" />
-                <p class="text-xs text-gray-400 mt-0.5">{{ procureHint }}</p>
-                <p v-if="errors.procure_type" class="text-xs text-red-500 mt-0.5">{{ errors.procure_type[0] }}</p>
-            </div>
-            <FormField label="판매 여부" :error="errors.is_sale">
-                <div class="h-8 flex items-center">
-                    <BaseCheckbox variant="switch" v-model="form.is_sale" true-value="Y" false-value="N" :disabled="!canWrite">
-                        {{ form.is_sale === 'Y' ? '판매함' : '판매 안 함' }}
-                    </BaseCheckbox>
-                </div>
-            </FormField>
-
-            <FormField label="사용 여부">
-                <div class="h-8 flex items-center">
-                    <BaseCheckbox variant="switch" v-model="form.is_use" true-value="Y" false-value="N" :disabled="!canWrite">
-                        {{ form.is_use === 'Y' ? '사용' : '미사용' }}
-                    </BaseCheckbox>
-                </div>
-            </FormField>
-            <FormField v-if="serialEnabled || form.serial_use === 'Y'" label="시리얼" hint="낱개마다 번호 — 중요 제품만" :error="errors.serial_use">
-                <div class="h-8 flex items-center">
-                    <BaseCheckbox variant="switch" v-model="form.serial_use" true-value="Y" false-value="N" :disabled="!canWrite">
-                        {{ form.serial_use === 'Y' ? '사용' : '사용 안 함' }}
-                    </BaseCheckbox>
-                </div>
-            </FormField>
             <!-- 비고 : 처음엔 한 줄( 다른 칸과 같은 높이 ) · 길면 모서리를 끌어 늘린다 / ! : 공통 textarea.base-input 이 최소 2줄 높이를 정해 두어서 -->
             <FormField label="비고" class="col-span-4">
                 <textarea v-model="form.remark" rows="1" class="base-input w-full !min-h-8 !py-[5px] !leading-5" style="height: 32px" :class="!canWrite ? 'resize-none': 'resize-y'" :disabled="!canWrite"></textarea>
@@ -490,7 +489,7 @@ const form = reactive({
     spec:             src.spec ?? '',
     material:         src.material ?? '',
     serial_use:       src.serial_use ?? 'N',
-    // 조달 구분 · 판매 여부 — 새 품목은 대분류 기본값 ( 자재 = 구매 · 판매 안 함 / 제품 = 해당 없음 · 판매 )
+    // 조달 구분 · 판매 여부 — 새 품목은 대분류 기본값 ( 자재 = 구매 · 판매 안 함 / 제품 = 생산 · 판매 )
     procure_type:     src.procure_type ?? ((src.item_type ?? props.onlyTypes?.[0] ?? 'PRODUCT') === 'MATERIAL' ? 'BUY' : 'NONE'),
     is_sale:          src.is_sale ?? ((src.item_type ?? props.onlyTypes?.[0] ?? 'PRODUCT') === 'MATERIAL' ? 'N' : 'Y'),
     pack_qty:         src.pack_qty ?? '',
@@ -666,14 +665,15 @@ const defaultLeadText = computed(() => {
 const isProduct = computed(() => form.item_type === 'PRODUCT');
 const visibleTabs = computed(() => TABS.filter(t => t.key !== 'routing' || isProduct.value));
 
-// 조달 구분 선택지 — 자재 : 구매 · 사급 / 제품 : 해당 없음( 만들어 쓴다 ) · 구매( 사서 쓰는 상품 · 반제품 )
+// 조달 구분 선택지 — 자재 : 구매 · 생산 · 사급 / 제품 : 생산( 만들어 쓴다 ) · 구매( 사서 쓰는 상품 · 반제품 )
+//   생산 = 값 NONE ( 11-26 · 전에는 '해당 없음' — 이름만 바꿈 · 구매가 아니면 발주 대상이 아닌 것은 그대로 )
 const procureOptions = computed(() => form.item_type === 'MATERIAL'
-    ? [{ value: 'BUY', label: '구매' }, { value: 'SUPPLIED', label: '사급' }]
-    : [{ value: 'NONE', label: '해당 없음' }, { value: 'BUY', label: '구매' }]);
+    ? [{ value: 'BUY', label: '구매' }, { value: 'NONE', label: '생산' }, { value: 'SUPPLIED', label: '사급' }]
+    : [{ value: 'NONE', label: '생산' }, { value: 'BUY', label: '구매' }]);
 const procureHint = computed(() => ({
     BUY:      '발주서( 구매관리 )에서 고를 수 있습니다.',
     SUPPLIED: '발주하지 않습니다. 수동 입고로 받습니다.',
-    NONE:     '발주서 · 수동 입고에 나오지 않습니다.',
+    NONE:     form.item_type === 'MATERIAL' ? '발주서에 나오지 않습니다. ( 만들어 씁니다 )' : '발주서 · 수동 입고에 나오지 않습니다.',
 }[form.procure_type] ?? ''));
 
 function onTypeChange(type) {
