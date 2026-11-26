@@ -306,10 +306,22 @@ function openRunForm() {
 function openFlowSheet() {
     modalStore.open(WoFlowPreview, { modalTitle: `공정흐름표 [ ${line.value.wo_no} ]`, routeName: 'production.opResult.flowSheets', ids: [props.woIdx] }, { size: 'xl' });
 }
-// 공정 QR 스캔 → 실적 등록 창 ( 열 수 없으면 이유만 )
+// 공정 QR 스캔 → 공정 종류에 맞는 창 ( 열 수 없으면 이유만 · 11-26 )
+//   생산 = 실적 등록 / 외주 = 외주 출고 · 입고 / 검사 = 공정검사 — 각 단추가 보이는 조건 그대로
+//   원자재출고 = 이 창 오른쪽이 곧 출고 화면 · 완료만 공정 = 안내만
 function openRunByScan() {
     const o = op.value;
     if (!o || o.work_order_op_idx !== props.focusOpIdx) return;
+    if (kind.value === 'SUBCON') {
+        if (urls.value.issue || urls.value.receipt) openSubcon();
+        else showFlash(`${o.name} : 외주 출고 / 입고 권한이 없습니다. 외주관리에서 처리하세요.`, true);
+        return;
+    }
+    if (kind.value === 'INSP') {
+        if (line.value?.quality_on) openInspection(o);
+        else showFlash(`${o.name} 은( 는 ) 검사 공정입니다. 품질 모듈이 꺼져 있어 [완료] 로 처리합니다.`);
+        return;
+    }
     if (kind.value !== 'RUN') { showFlash(`${o.name} 은( 는 ) ${KIND_LABEL[kind.value]} 공정입니다. 이 창에서 처리하세요.`); return; }
     if (canRun.value) { openRunForm(); return; }
     showFlash(!props.canWrite ? '실적 등록 권한이 없습니다.'

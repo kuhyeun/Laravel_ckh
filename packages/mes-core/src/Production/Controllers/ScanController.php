@@ -10,7 +10,7 @@ use MesCore\Menu\Services\MenuPermissionService;
 
 // 바코드 · QR 스캔 → 이동 ( 11-26 ) — 화면 어디서든 찍은 코드( TopFrame 스캔 · useScanner )를 풀어 이동할 주소를 준다
 //   작업지시 : 지시 번호( WO-… ) 또는 주소 …/go/wo/{지시 번호}            → 공정실적관리 ?wo={idx}
-//   공정     : OP-{work_order_op_idx}  또는 주소 …/go/op/{work_order_op_idx} → 공정실적관리 ?wo={idx}&op={idx}&run=1 ( 실적 등록 창까지 )
+//   공정     : OP-{work_order_op_idx}  또는 주소 …/go/op/{work_order_op_idx} → 공정실적관리 ?wo={idx}&op={idx}&run=1 ( 공정 종류에 맞는 창까지 — 생산 = 실적 등록 · 외주 = 외주 출고 / 입고 · 검사 = 공정검사 · 11-26 )
 //   작업지시서 : 지시서 번호( WO-… · 줄 번호 없이 · 공정흐름표 아래 코드 ) → 작업지시관리를 그 번호로 검색( ?kw= · 모달은 열지 않음 · 11-26 )
 //                권한 = 작업지시관리 읽기 ( 전에는 공정실적관리 — 줄이 하나면 그 지시 창까지 열었다 )
 //   LOT ( 11-26 ) : 물품표 · 현품표 바코드 · LOT 번호 → 이동 없이 LOT 추적 창 ( type LOT · lot = { lot_idx, lot_no, item…, dir } — 자재 = 정추적 · 그 밖 = 역추적 )
