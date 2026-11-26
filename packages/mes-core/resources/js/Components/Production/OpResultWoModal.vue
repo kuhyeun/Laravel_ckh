@@ -20,6 +20,8 @@
                 <span v-if="line.received_qty" class="text-xs text-blue-700">입고 {{ fmtNum(line.received_qty) }} {{ line.spec_unit }}</span>
                 <span class="font-semibold" :style="{ color: woStatusColor(line.status) }">{{ woStatusLabel(line.status) }}</span>
                 <div class="flex-1"></div>
+                <!-- 공정흐름표 ( 11-26 ) — 이 작업지시 한 장 -->
+                <BaseButton size="sm" variant="secondary" @click="openFlowSheet">공정흐름표</BaseButton>
                 <template v-if="canWrite && line.complete_all?.can">
                     <WarehouseSelect v-if="line.complete_all.needs_warehouse" v-model="allWarehouse" :options="ctx.warehouses ?? []" class="w-40" placeholder="입고 창고" />
                     <BaseButton size="sm" variant="primary" :disabled="busy" title="실적이 지시 수량을 채운 줄의 남은 공정을 순서대로 한 번에 완료합니다" @click="completeAll">모든 공정 완료 ( {{ line.complete_all.open }} )</BaseButton>
@@ -109,7 +111,7 @@
                                 <div class="mb-1 text-xs font-semibold text-gray-500">실적 이력 <span class="font-normal text-gray-400">{{ op.runs.length }}</span></div>
                                 <div class="border rounded overflow-auto">
                                     <table class="w-full table-fixed text-xs" :class="runLot ? 'min-w-[712px]' : 'min-w-[572px]'">
-                                        <colgroup><col :class="timeEditing ? 'w-[15rem]' : 'w-48'"><col v-if="runLot"><col :class="runLot ? 'w-[6.5rem]' : ''"><col class="w-[8rem]"><col class="w-[5rem]"><col class="w-[4rem]"><col class="w-[5.5rem]"></colgroup>
+                                        <colgroup><col :class="timeEditing ? 'w-[15rem]' : 'w-48'"><col v-if="runLot"><col :class="runLot ? 'w-[20rem]' : ''"><col class="w-[10rem]"><col class="w-[8rem]"><col class="w-[8rem]"><col class="w-[6rem]"></colgroup>
                                         <thead class="text-gray-500 bg-gray-50"><tr><th class="px-2 py-1.5 text-left">작업 시간</th><th v-if="runLot" class="px-2 py-1.5 text-left">실적 LOT</th><th class="px-2 py-1.5 text-left">설비</th><th class="px-2 py-1.5 text-left">작업자</th><th class="px-2 py-1.5 text-right">양품 수량</th><th class="px-2 py-1.5 text-right">불량</th><th></th></tr></thead>
                                         <tbody>
                                             <tr v-if="!op.runs.length"><td :colspan="runLot ? 7 : 6" class="px-3 py-4 text-center text-gray-400">실적이 없습니다. [실적 등록] 으로 넣으세요.</td></tr>
@@ -193,6 +195,7 @@ import { route } from 'ziggy-js';
 import Swal from 'sweetalert2';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
 import WarehouseSelect from '@core/Components/Common/WarehouseSelect.vue';
+import DocPreview from '@core/Components/Doc/DocPreview.vue';
 import InlineDateEdit from '@core/Components/Common/InlineDateEdit.vue';
 import MaterialIssuePanel from '@core/Components/Production/MaterialIssuePanel.vue';
 import RunInputPickModal from '@core/Components/Production/RunInputPickModal.vue';
@@ -212,7 +215,10 @@ const props = defineProps({
     canWrite:  { type: Boolean, default: false },
     canDelete: { type: Boolean, default: false },
     onChanged: { type: Function, default: null },       // 목록 다시 읽기
+    focusOpIdx: { type: Number, default: null },        // 처음 고를 공정 ( 11-26 · 공정 QR 스캔 )
+    openRun:    { type: Boolean, default: false },      // 그 공정의 실적 등록 창까지 연다
 });
+let focusDone = false;
 const { showFlash } = useToast();
 const modalStore = useModalStore();
 
@@ -250,8 +256,14 @@ async function loadDetail() {
     try {
         const { data } = await window.axios.get(route('production.opResult.show', props.woIdx));
         line.value = data.line;
+        // 공정 QR 스캔으로 들어왔으면 그 공정 ( 한 번만 )
+        if (!focusDone && props.focusOpIdx && line.value.ops.some(o => o.work_order_op_idx === props.focusOpIdx)) selectedIdx.value = props.focusOpIdx;
         if (!line.value.ops.some(o => o.work_order_op_idx === selectedIdx.value)) {
             selectedIdx.value = (line.value.ops.find(o => o.status !== 'DONE') ?? line.value.ops[0])?.work_order_op_idx ?? null;
+        }
+        if (!focusDone && props.focusOpIdx) {
+            focusDone = true;
+            if (props.openRun) openRunByScan();
         }
     } catch (e) {
         showFlash(e.response?.status === 404 ? '작업지시를 찾을 수 없습니다.' : '작업지시를 불러오지 못했습니다.', true);
@@ -290,6 +302,19 @@ function openRunForm() {
         line: line.value, op: op.value, ctx: props.ctx,
         onDone: (text, warnings) => { showFlash(okMsg(text, warnings)); refresh(); },
     }, { size: 'md', closeOnClickOutside: false });
+}
+function openFlowSheet() {
+    modalStore.open(DocPreview, { modalTitle: `공정흐름표 [ ${line.value.wo_no} ]`, docType: 'WO_FLOW', routeName: 'production.opResult.flowSheets', ids: [props.woIdx] }, { size: 'xl' });
+}
+// 공정 QR 스캔 → 실적 등록 창 ( 열 수 없으면 이유만 )
+function openRunByScan() {
+    const o = op.value;
+    if (!o || o.work_order_op_idx !== props.focusOpIdx) return;
+    if (kind.value !== 'RUN') { showFlash(`${o.name} 은( 는 ) ${KIND_LABEL[kind.value]} 공정입니다. 이 창에서 처리하세요.`); return; }
+    if (canRun.value) { openRunForm(); return; }
+    showFlash(!props.canWrite ? '실적 등록 권한이 없습니다.'
+        : o.status === 'DONE' || line.value?.status === 'DONE' ? `${o.name} 은( 는 ) 완료된 공정입니다.`
+        : o.block ? `${o.name} : ${o.block}` : `${o.name} 은( 는 ) 지금 실적을 넣을 수 없습니다.`, true);
 }
 function openInspection(o) {
     modalStore.open(ProcessInspectionForm, {

@@ -112,9 +112,14 @@
                                         <BaseInput v-model="c.label" size="sm" class="flex-1 min-w-0" placeholder="머리글" maxlength="30" :disabled="!canWrite" />
                                         <BaseInput v-model="c.width" type="number" min="0.2" size="sm" class="w-16 text-right" title="너비 비율" :disabled="!canWrite" />
                                         <BaseSelect v-model="c.align" :options="ALIGNS_OPT" size="sm" class="w-20" :disabled="!canWrite" />
-                                        <label class="shrink-0 inline-flex items-center gap-0.5 text-[11px] text-gray-600 cursor-pointer" title="칸 폭을 넘으면 아랫줄로 ( 그 행만 높아지고, 넘치면 다음 장으로 )">
+                                        <label v-if="!CODE_COLUMNS.includes(c.field)" class="shrink-0 inline-flex items-center gap-0.5 text-[11px] text-gray-600 cursor-pointer" title="칸 폭을 넘으면 아랫줄로 ( 그 행만 높아지고, 넘치면 다음 장으로 )">
                                             <input type="checkbox" class="accent-blue-600" v-model="c.wrap" :disabled="!canWrite" /> 줄바꿈
                                         </label>
+                                    </div>
+                                    <!-- 코드 열 ( 11-26 ) : QR · 바코드 · 번호 글자 -->
+                                    <div v-if="CODE_COLUMNS.includes(c.field)" class="flex items-center gap-1">
+                                        <BaseSelect v-model="c.code" :options="CODE_KINDS" size="sm" class="w-28" :disabled="!canWrite" />
+                                        <label class="inline-flex items-center gap-0.5 text-[11px] text-gray-600 cursor-pointer"><input type="checkbox" class="accent-blue-600" v-model="c.show_no" :disabled="!canWrite" /> 번호 글자</label>
                                     </div>
                                 </div>
                                 <p class="text-[11px] text-gray-400">너비는 비율입니다 ( 열끼리 견줘 나눕니다 ) · 「빈 칸」 열은 손으로 적는 확인란 등에 씁니다</p>
@@ -178,6 +183,18 @@
                                             <label class="lbl">항목</label>
                                             <BaseSelect v-model="cur.field" :options="fieldOptions" class="w-full" :disabled="!canWrite" />
                                         </div>
+                                        <!-- QR · 바코드 칸 ( 11-26 ) -->
+                                        <template v-if="cur?.type === 'CODE'">
+                                            <div>
+                                                <label class="lbl">코드</label>
+                                                <BaseSelect v-model="cur.field" :options="codeFieldOptions" class="w-full" :disabled="!canWrite" />
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <BaseSelect v-model="cur.code" :options="CODE_KINDS" class="w-32" :disabled="!canWrite" />
+                                                <BaseCheckbox v-model="cur.show_no" :disabled="!canWrite">아래에 번호 글자</BaseCheckbox>
+                                            </div>
+                                            <p class="text-[11px] text-gray-400">QR = 휴대폰 · 스캐너로 찍으면 그 작업지시로 이동 · 바코드 = 번호( 스캐너 )</p>
+                                        </template>
                                         <div v-if="cur?.type === 'TEXT'">
                                             <label class="lbl">글자</label>
                                             <BaseInput v-model="cur.text" class="w-full" placeholder="예: 발 주 서" maxlength="200" :disabled="!canWrite" />
@@ -216,7 +233,7 @@ import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import BaseCheckbox from '@core/Components/Base/BaseCheckbox.vue';
 import DocSheet from '@core/Components/Doc/DocSheet.vue';
 import StampPanel from '@core/Components/Common/StampPanel.vue';
-import { DOC_TYPES, FIELDS, COLUMNS, SAMPLE, PAGE, MAX_COLS, MAX_ROWS, docTypeLabel, columnDef, starterDesign, paginate, neededHeight, defaultWrap } from '@core/Components/Doc/docDesign';
+import { DOC_TYPES, FIELDS, COLUMNS, CODE_FIELDS, CODE_COLUMNS, SAMPLE, PAGE, MAX_COLS, MAX_ROWS, docTypeLabel, columnDef, starterDesign, paginate, neededHeight, defaultWrap } from '@core/Components/Doc/docDesign';
 import { measureLineHeights } from '@core/Components/Doc/measureLines';
 import { useGridEdit } from '@core/Components/Doc/useGridEdit';
 import { showAlert } from '@core/Utils/message';
@@ -233,7 +250,11 @@ const { showFlash } = useToast();
 
 const ZONES      = [{ key: 'head', label: '머리 영역' }, { key: 'table', label: '품목 표' }, { key: 'foot', label: '아래 영역' }, { key: 'stamp', label: '도장' }];
 const ORIENTS    = [{ value: 'P', label: '세로' }, { value: 'L', label: '가로' }];
-const KINDS      = [{ key: null, label: '비움' }, { key: 'FIELD', label: '항목' }, { key: 'TEXT', label: '글자' }];   // 그림 칸은 도장으로 ( 11-25 )
+const KINDS_BASE = [{ key: null, label: '비움' }, { key: 'FIELD', label: '항목' }, { key: 'TEXT', label: '글자' }];   // 그림 칸은 도장으로 ( 11-25 )
+// 코드 칸( QR · 바코드 )은 코드가 있는 문서만 ( 공정흐름표 · 11-26 )
+const KINDS      = computed(() => CODE_FIELDS[form.doc_type] ? [...KINDS_BASE, { key: 'CODE', label: 'QR · 바코드' }] : KINDS_BASE);
+const CODE_KINDS = [{ value: 'QR', label: 'QR 코드' }, { value: 'BARCODE', label: '바코드' }];
+const codeFieldOptions = computed(() => (CODE_FIELDS[form.doc_type] ?? []).map(f => ({ value: f.key, label: f.label })));
 const ALIGNS     = [{ key: 'left', label: '왼쪽' }, { key: 'center', label: '가운데' }, { key: 'right', label: '오른쪽' }];
 const ALIGNS_OPT = ALIGNS.map(a => ({ value: a.key, label: a.label }));
 const fmt1       = (v) => (Math.round(v * 10) / 10).toString();
@@ -316,6 +337,13 @@ function setType(type) {
     cell.type = type;
     if (type === 'FIELD') cell.field ??= FIELDS[form.doc_type][0].key;
     if (type === 'TEXT')  cell.text  ??= '';
+    if (type === 'CODE') {   // 11-26
+        cell.field = CODE_FIELDS[form.doc_type]?.[0]?.key ?? null;
+        cell.code ??= 'QR';
+        cell.show_no ??= true;
+        cell.align = 'center';
+    }
+    if (type === 'FIELD' && !FIELDS[form.doc_type].some(f => f.key === cell.field)) cell.field = FIELDS[form.doc_type][0].key;
     g.prune();
 }
 function setBg(v) {
@@ -333,6 +361,8 @@ function setColumnField(c, key) {
     c.field = key;
     c.align = d.align;
     c.wrap  = defaultWrap(key);   // 품명 · 규격 · 비고 = 줄바꿈 ( 11-24 )
+    c.code    = CODE_COLUMNS.includes(key) ? (c.code ?? 'QR') : null;   // 코드 열 ( 11-26 )
+    c.show_no = CODE_COLUMNS.includes(key) ? (c.show_no ?? true) : null;
 }
 function addColumn() {
     const used = new Set(tbl.value.columns.map(c => c.field));

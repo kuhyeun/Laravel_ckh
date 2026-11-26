@@ -322,6 +322,7 @@ class ShipmentController extends Controller {
             'docs'     => $docs,
             'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
             'template' => \MesCore\Config\Models\DocTemplate::forPrint('SHIPMENT_ORDER'),
+            'templates' => \MesCore\Config\Models\DocTemplate::choices('SHIPMENT_ORDER'),   // 미리보기에서 양식 고르기 ( 11-26 )
         ]);
     }
 

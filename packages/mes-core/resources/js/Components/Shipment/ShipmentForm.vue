@@ -82,7 +82,7 @@
             <!-- 현품표 스캔 ( 11-25 ) — 늘 보인다 · 찍을 때마다 그 LOT 지정 + 1 ( 줄이 없으면 수주 줄 · 품목 줄을 자동으로 담는다 ) -->
             <div v-if="editable && canScan" class="mb-2 flex items-center gap-2 px-2 py-1.5 rounded border border-dashed border-blue-200 bg-blue-50/40 shrink-0">
                 <span class="text-xs font-semibold text-blue-700 whitespace-nowrap">현품표 스캔</span>
-                <BaseInput ref="scanEl" v-model="scan.text" size="md" class="w-64" placeholder="바코드를 찍거나 LOT 번호 + Enter" :select-on-focus="true" @keydown.enter.prevent="onScanEnter" />
+                <BaseInput ref="scanEl" v-scan-input v-model="scan.text" size="md" class="w-64" placeholder="바코드를 찍거나 LOT 번호 + Enter" :select-on-focus="true" @keydown.enter.prevent="onScanEnter" />
                 <span class="flex-1 min-w-0 truncate text-xs" :class="scan.error ? 'text-red-600 font-semibold' : 'text-green-700'">{{ scan.msg || '찍으면 그 LOT 의 수주 줄을 자동으로 담고 1 씩 올립니다 · 출하 수량 = 지정 합 · 수량은 손으로 고칠 수 있습니다' }}</span>
             </div>
             <!-- 스캔한 LOT 의 수주가 여럿 — 고르기 -->
@@ -245,6 +245,7 @@ import ShippingInspectionForm from '@core/Components/Quality/ShippingInspectionF
 import { useModalStore } from '@core/Stores/modalStore';
 import { useLabelAccess } from '@core/Composables/useLabelAccess';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';
+import { vScanInput } from '@core/Composables/scanInput';   // 스캔 칸 : 한글 → 영문 ( 11-26 )
 import PartnerSelect from '@core/Components/Common/PartnerSelect.vue';
 import FormField from '@core/Components/Common/FormField.vue';
 import ModalFooter from '@core/Components/Common/ModalFooter.vue';
@@ -700,6 +701,23 @@ const queueFocus = () => { clearTimeout(focusTimer); focusTimer = setTimeout(foc
 onMounted(() => { document.addEventListener('focusout', queueFocus, true); document.addEventListener('click', queueFocus, true); });
 onBeforeUnmount(() => { document.removeEventListener('focusout', queueFocus, true); document.removeEventListener('click', queueFocus, true); clearTimeout(focusTimer); scanChoiceResolve?.(null); });
 watch(() => [loading.value, modalStore.modals.length, canScan.value, editable.value], () => nextTick(queueFocus));   // 바코드 기능은 불러온 뒤 켜진다
+
+// 창을 열자마자 스캔 칸 ( 11-26 ) — 연 단추( 창 밖 )가 커서를 쥔 채라 위 규칙으로는 옮기지 못했다 · 창이 뜨는 동안 몇 번 더 잡는다
+//   이 창 안의 다른 입력 칸에 이미 들어가 있으면 그대로
+let openFocused = false;
+function initialFocus() {
+    if (openFocused || loading.value || !editable.value || !canScan.value) return;
+    openFocused = true;
+    for (const ms of [60, 250, 500, 900]) {
+        setTimeout(() => {
+            if (!scanEl.value || modalStore.modals.length > myDepth || document.querySelector('.swal2-container')) return;
+            const a = document.activeElement;
+            if (a && root.value?.contains(a) && isField(a)) return;
+            scanEl.value.focus?.();
+        }, ms);
+    }
+}
+watch(() => [loading.value, canScan.value, editable.value], () => nextTick(initialFocus), { immediate: true });
 
 // 출하지시서 ( 11-18 ) — 문서 양식( 기준정보관리 )의 출하지시서 기본 양식으로 · 출하관리 조회 권한
 const canOrderSheet = route().has('shipment.manage.orderSheets');

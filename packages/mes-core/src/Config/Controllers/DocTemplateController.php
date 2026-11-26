@@ -43,7 +43,17 @@ class DocTemplateController extends Controller {
             'insp_qty', 'pass_qty', 'fail_qty', 'result_name', 'inspected_at', 'inspector_name', 'spec_name', 'remark',
             'our_name', 'our_biz_no', 'our_ceo', 'our_address', 'our_tel', 'our_fax',
             'writer', 'print_date', 'page_no'],
+        // 공정흐름표 ( 11-26 ) — 작업지시 · 품목
+        'WO_FLOW' => ['wo_no', 'sheet_no', 'item_code', 'item_name', 'item_spec', 'name_spec', 'item_material', 'unit', 'qty', 'start_date', 'due_date', 'lot_no', 'order_no', 'remark',
+            'our_name', 'our_biz_no', 'our_ceo', 'our_address', 'our_tel', 'our_fax',
+            'writer', 'print_date', 'page_no'],
     ];
+    // QR · 바코드 칸에 넣을 수 있는 코드 ( 11-26 ) — 칸 종류 CODE
+    private const CODE_FIELDS = [
+        'WO_FLOW' => ['wo_code'],
+    ];
+    // QR · 바코드로 그릴 수 있는 표 열 ( 11-26 )
+    private const CODE_COLUMNS = ['op_code'];
     // 품목 표의 열
     private const COLUMNS = [
         'PURCHASE_ORDER' => ['no', 'item_code', 'item_name', 'item_spec', 'name_spec', 'unit', 'qty', 'unit_price', 'amount', 'due_date', 'remark', 'blank'],
@@ -55,6 +65,8 @@ class DocTemplateController extends Controller {
         // 검사성적서 : 기준서 열 + 시료 1 ~ 10 · 측정값( 합침 ) · 판정
         'INSPECTION_REPORT' => ['no', 'inspection_item_name', 'nature', 'method', 'standard_value', 'lower_limit', 'upper_limit', 'limit', 'unit', 'criteria', 'criteria_all',
             'x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7', 'x8', 'x9', 'x10', 'measured_all', 'judge', 'blank'],
+        // 공정흐름표 ( 11-26 ) : 공정 줄 · 공정 코드( QR · 바코드 )
+        'WO_FLOW' => ['no', 'seq', 'process_name', 'process_type', 'equipment', 'worker', 'due_date', 'op_code', 'blank'],
     ];
     private const MAX_COLS = 12;
     private const MAX_ROWS = 16;
@@ -141,6 +153,9 @@ class DocTemplateController extends Controller {
                 'align' => in_array($c['align'] ?? null, ['left', 'center', 'right'], true) ? $c['align'] : 'left',
                 // 줄바꿈 ( 11-24 ) — 저장에서 빠져 다시 열면 사라졌다 ( 11-25 ) · 안 정한 열은 null = 열 종류별 기본값( docDesign defaultWrap )
                 'wrap'  => array_key_exists('wrap', $c) && $c['wrap'] !== null ? (bool) $c['wrap'] : null,
+                // 코드 열 ( 11-26 ) : QR · 바코드 ( 기본 QR ) · 번호 글자 표시
+                'code'    => in_array($c['field'], self::CODE_COLUMNS, true) ? (($c['code'] ?? 'QR') === 'BARCODE' ? 'BARCODE' : 'QR') : null,
+                'show_no' => in_array($c['field'], self::CODE_COLUMNS, true) ? !empty($c['show_no']) : null,
             ];
         }
         if (!$cols) {
@@ -192,16 +207,21 @@ class DocTemplateController extends Controller {
                     $taken["$y:$x"] = true;
                 }
             }
-            $kind = in_array($c['type'] ?? null, ['FIELD', 'TEXT'], true) ? $c['type'] : null;   // 예전 그림 칸( IMAGE )은 빈 칸으로 ( 11-25 — 도장으로 )
+            $kind = in_array($c['type'] ?? null, ['FIELD', 'TEXT', 'CODE'], true) ? $c['type'] : null;   // 예전 그림 칸( IMAGE )은 빈 칸으로 ( 11-25 — 도장으로 )
             if ($kind === 'FIELD' && !in_array($c['field'] ?? null, self::FIELDS[$type], true)) {
                 $fail('이 문서에 넣을 수 없는 항목이 있습니다.');
+            }
+            if ($kind === 'CODE' && !in_array($c['field'] ?? null, self::CODE_FIELDS[$type] ?? [], true)) {
+                $fail('이 문서에 넣을 수 없는 코드가 있습니다.');
             }
             if ($kind === null && $rs === 1 && $cs === 1 && empty($c['bg'])) {
                 continue;   // 빈 한 칸은 저장하지 않는다
             }
             $cells[] = [
                 'r' => $r, 'c' => $k, 'rs' => $rs, 'cs' => $cs, 'type' => $kind,
-                'field' => $kind === 'FIELD' ? $c['field'] : null,
+                'field' => in_array($kind, ['FIELD', 'CODE'], true) ? $c['field'] : null,
+                'code'  => $kind === 'CODE' ? (($c['code'] ?? 'QR') === 'BARCODE' ? 'BARCODE' : 'QR') : null,   // QR · 바코드 ( 11-26 )
+                'show_no' => $kind === 'CODE' ? !empty($c['show_no']) : null,                                      // 코드 아래 번호 글자
                 'text'  => $kind === 'TEXT' ? mb_substr((string) ($c['text'] ?? ''), 0, 200) : null,
                 'size'  => $this->clamp($c['size'] ?? 9, 5, 40),
                 'bold'  => !empty($c['bold']),

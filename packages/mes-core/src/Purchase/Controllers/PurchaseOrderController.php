@@ -133,6 +133,7 @@ class PurchaseOrderController extends Controller {
             'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
             // 기준정보관리 > 문서 양식의 발주서 기본 양식 ( 없으면 null — 화면이 예전 고정 배치로 그린다 · 11-18 )
             'template' => \MesCore\Config\Models\DocTemplate::forPrint('PURCHASE_ORDER'),
+            'templates' => \MesCore\Config\Models\DocTemplate::choices('PURCHASE_ORDER'),   // 미리보기에서 양식 고르기 ( 11-26 )
         ]);
     }
 

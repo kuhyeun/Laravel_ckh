@@ -17,7 +17,14 @@ use MesCore\Auth\Middleware\MenuAuth;
 // 생산 ( config('mes.modules') 의 Production ) 엔드포인트 — docs/screens/50-생산.md
 //   권한 : 조회 can_read / 등록 · 수정 can_write / 취소 can_delete
 
+// 바코드 · QR 스캔 ( 11-26 ) — 휴대폰 카메라로 연 QR 주소 /go/wo/{지시 번호} · /go/op/{공정 IDX} → 공정실적관리로
+Route::middleware([UserAuth::class])->get('/go/{type}/{key}', [\MesCore\Production\Controllers\ScanController::class, 'go'])
+    ->where('type', 'wo|op')->name('scan.go');
+
 Route::prefix('production')->name('production.')->middleware([UserAuth::class])->group(function() {
+
+    // 스캔한 코드 풀기 ( 11-26 · 화면 어디서든 — 권한은 컨트롤러가 이동할 메뉴로 본다 )
+    Route::get('/scan/resolve', [\MesCore\Production\Controllers\ScanController::class, 'resolve'])->name('scan.resolve');
 
     // 생산일정 ( Production/ProductionSchedule ) — 조회 전용 간트
     Route::middleware(MenuAuth::class . ':Production/ProductionSchedule,can_read')
@@ -55,6 +62,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::get('/list', [WorkOrderController::class, 'list'])->name('list');
             Route::get('/show/{sheetIdx}', [WorkOrderController::class, 'show'])->whereNumber('sheetIdx')->name('show');
             Route::get('/formData', [WorkOrderController::class, 'formData'])->name('formData');
+            Route::get('/flowSheets', [WorkOrderController::class, 'flowSheets'])->name('flowSheets');   // 공정흐름표 ( 11-26 · 고른 작업지시서 )
             Route::get('/routingOps/{routingIdx}', [WorkOrderController::class, 'routingOps'])->whereNumber('routingIdx')->name('routingOps');
             Route::get('/itemDefaults', [WorkOrderController::class, 'itemDefaults'])->name('itemDefaults');
             Route::get('/soLines', [WorkOrderController::class, 'soLines'])->name('soLines');
@@ -84,6 +92,7 @@ Route::prefix('production')->name('production.')->middleware([UserAuth::class])-
             Route::get('/list', [OpResultController::class, 'list'])->name('list');
             Route::get('/show/{woIdx}', [OpResultController::class, 'show'])->whereNumber('woIdx')->name('show');
             Route::get('/formData', [OpResultController::class, 'formData'])->name('formData');
+            Route::get('/flowSheets', [OpResultController::class, 'flowSheets'])->name('flowSheets');   // 공정흐름표 ( 11-26 · 작업지시 창 )
             Route::get('/inputCandidates', [OpResultController::class, 'inputCandidates'])->name('inputCandidates');
             // 원자재출고 공정의 [출고] — 자재출고와 같은 처리를 공정실적 권한으로
             Route::get('/issuePlan/{woIdx}', [MaterialIssueController::class, 'plan'])->whereNumber('woIdx')->name('issuePlan');

@@ -8,6 +8,12 @@
             :class="{ 'dg-sel': selected?.has(`${t.r}:${t.c}`), 'dg-bg': t.cell?.bg, 'dg-wrap': t.cell?.wrap }"
             :style="cellStyle(t)" @click="editable && $emit('pick', t, $event)">
             <span v-if="t.cell?.type === 'FIELD' || t.cell?.type === 'TEXT'" class="dg-text">{{ t.cell.type === 'TEXT' ? t.cell.text : (values[t.cell.field] ?? '') }}</span>
+            <!-- QR · 바코드 ( 11-26 ) — 값 : 항목키_qr( 주소 ) · 항목키_bar( 번호 ) -->
+            <div v-else-if="t.cell?.type === 'CODE'" class="dg-code">
+                <div v-if="t.cell.code !== 'BARCODE'" class="dg-qr"><QrCode v-if="values[`${t.cell.field}_qr`]" :value="String(values[`${t.cell.field}_qr`])" /></div>
+                <Barcode v-else-if="values[`${t.cell.field}_bar`]" :value="String(values[`${t.cell.field}_bar`])" height="100%" class="dg-bar" />
+                <span v-if="t.cell.show_no" class="dg-code-no">{{ values[`${t.cell.field}_bar`] ?? '' }}</span>
+            </div>
         </div>
     </div>
 </template>
@@ -15,6 +21,8 @@
 <script setup>
 import { computed } from 'vue';
 import { tilesOf } from '@core/Components/Label/labelDesign';
+import QrCode from '@core/Components/Label/QrCode.vue';
+import Barcode from '@core/Components/Label/Barcode.vue';
 
 const props = defineProps({
     design:   { type: Object, required: true },
@@ -50,6 +58,11 @@ const cellStyle = (t) => ({
 .dg-wrap { align-items: flex-start; padding-top: 1mm; }
 .dg-wrap .dg-text { white-space: pre-line; overflow-wrap: anywhere; word-break: keep-all; max-height: 100%; }
 
+/* QR · 바코드 칸 ( 11-26 ) — 칸 안에서 가운데 · QR 은 정사각형 */
+.dg-code { width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6mm; padding: 1.2mm 0; box-sizing: border-box; }
+.dg-qr { flex: 1 1 auto; min-height: 0; aspect-ratio: 1 / 1; max-width: 100%; }
+.dg-bar { flex: 1 1 auto; min-height: 0; width: 100%; }
+.dg-code-no { flex: none; font-size: 7.5pt; font-weight: 600; letter-spacing: 0.1mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .dg-edit .dg-cell { cursor: pointer; user-select: none; }
 .dg-edit:not(.dg-border) .dg-cell { outline: 0.2mm dashed #cbd5e1; outline-offset: -0.1mm; }
 .dg-edit .dg-cell:hover { background: #eff6ff; }

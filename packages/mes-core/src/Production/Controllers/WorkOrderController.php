@@ -610,4 +610,18 @@ class WorkOrderController extends Controller {
             ])->values(),
         ];
     }
+
+    // 공정흐름표 ( 11-26 · 문서 양식 WO_FLOW ) — 고른 작업지시서( sheet_idx )의 모든 작업지시 · 작업지시 하나 = 한 장
+    public function flowSheets(\Illuminate\Http\Request $request, \MesCore\Production\Services\WoFlowSheetService $flow, \MesCore\Config\Services\SiteConfigService $site) {
+        $v = $request->validate(['ids' => 'required|array|min:1|max:200', 'ids.*' => 'integer']);
+        $docs = \MesCore\Production\Models\WorkOrder::with($flow::RELATIONS)->whereIn('sheet_idx', $v['ids'])
+            ->where('status', '!=', 'CANCELED')->orderBy('wo_no')->get()
+            ->map(fn ($wo) => $flow->build($wo))->values();
+        return response()->json([
+            'docs'     => $docs,
+            'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
+            'template' => \MesCore\Config\Models\DocTemplate::forPrint('WO_FLOW'),
+            'templates' => \MesCore\Config\Models\DocTemplate::choices('WO_FLOW'),   // 미리보기에서 양식 고르기 ( 11-26 )
+        ]);
+    }
 }

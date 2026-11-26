@@ -56,7 +56,7 @@
             <div v-if="inputMode === 'scan'" class="flex-1 min-h-0 overflow-auto px-3 py-2 space-y-3">
                 <div class="flex items-center gap-3 px-3 py-2.5 rounded-md border-2 border-blue-200 bg-blue-50/50">
                     <svg viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6 shrink-0 text-blue-500"><path d="M2 4h1.5v12H2zM5 4h1v12H5zM7.5 4h2v12h-2zM11 4h1v12h-1zM13.5 4h1.5v12h-1.5zM16.5 4H18v12h-1.5z" /></svg>
-                    <BaseInput ref="scanEl" v-model="scan.text" size="lg" class="w-80 shrink-0" placeholder="바코드 · QR 을 찍으세요" :select-on-focus="true" @keydown.enter.prevent="onScanEnter" />
+                    <BaseInput ref="scanEl" v-scan-input v-model="scan.text" size="lg" class="w-80 shrink-0" placeholder="바코드 · QR 을 찍으세요" :select-on-focus="true" @keydown.enter.prevent="onScanEnter" />
                     <span v-if="scan.msg" class="text-sm min-w-0 truncate" :class="scan.error ? 'text-red-600 font-semibold' : 'text-green-700'" :title="scan.msg">{{ scan.msg }}</span>
                     <span v-else class="text-xs text-gray-500 min-w-0 truncate">자재 라벨을 찍을 때마다 그 LOT 의 수량이 1 씩 오릅니다 · LOT 번호를 직접 넣고 Enter 도 됩니다</span>
                 </div>
@@ -273,6 +273,7 @@
 import { ref, reactive, computed, watch, h, nextTick, onBeforeUnmount } from 'vue';
 import { route } from 'ziggy-js';
 import BaseButton from '@core/Components/Base/BaseButton.vue';
+import { vScanInput } from '@core/Composables/scanInput';   // 스캔 칸 : 한글 → 영문 ( 11-26 )
 import BaseInput from '@core/Components/Base/BaseInput.vue';
 import BaseDatePicker from '@core/Components/Base/BaseDatePicker.vue';
 import ItemPicker from '@core/Components/Common/ItemPicker.vue';

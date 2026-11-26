@@ -1,5 +1,6 @@
 <!-- 공정실적 ( PRD-06 ) / 생산관리 > 공정실적관리 — 11-25 개편 ( MES_1125 #6 ~ #10 · 임시 메뉴에서 시안 확인 뒤 옮김 )
      - 화면 = 작업지시 목록만 ( 전체 폭 · 착수일 · 기한 · 비고 열 ) · ?wo=번호 로 들어오면 그 지시 창을 연다
+       ?op=공정 · run=1 ( 11-26 · 공정 QR 스캔 ) : 그 공정을 고르고 실적 등록 창까지 · 읽은 뒤 주소에서 뺀다
      - 줄을 누르면 작업지시 창 ( OpResultWoModal — 왼쪽 공정 목록 · 오른쪽 공정 종류별 화면 : 원자재출고 · 생산 · 외주 · 검사 )
        실적 등록 = 따로 창 ( OpRunFormModal — 시작 시간 자동 · 오류는 토스트 + 칸 표시 · 양품 수량 )
        외주 = [외주 출고 / 입고] 하나 ( SubconOpModal ) · 아래에 외주 이력
@@ -66,6 +67,11 @@ const SEARCH_FIELDS = [
 ];
 const blankFilters = () => ({ status: 'ALL' });
 const search = reactive({ keyword: '', ...blankFilters() });
+// ?kw=지시서 번호 ( 11-26 · 작업지시서 바코드 스캔 — 줄이 여럿 ) : 지시 번호로 걸러 연다
+{
+    const kw = new URLSearchParams(window.location.search).get('kw');
+    if (kw) Object.assign(search, { keyword: kw, search_field: 'wo_no' });
+}
 
 // 열 ( 11-25 · MES_1125 #6 ) — 착수일 · 기한 · 비고 추가
 const columns = [
@@ -76,8 +82,8 @@ const columns = [
     { header: '재질', name: 'item_material', width: 90, sortable: true, className: 'cursor-pointer', escapeHTML: true, hidden: true },
     { header: '지시 수량', name: 'target_qty', width: 90, align: 'right', className: 'cursor-pointer', formatter: ({ row }) => `${fmtNum(row.target_qty)} ${row.spec_unit ?? ''}` },
     { header: 'LOT', name: 'lot_no', width: 150, className: 'cursor-pointer', escapeHTML: true },
-    { header: '착수일', name: 'start_date', width: 100, align: 'center', className: 'cursor-pointer' },
-    { header: '기한', name: 'due_date', width: 100, align: 'center', className: 'cursor-pointer' },
+    { header: '착수일', name: 'start_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
+    { header: '기한', name: 'due_date', width: 100, align: 'center', sortable: true, className: 'cursor-pointer' },
     { header: '공정', name: 'ops_count', width: 70, align: 'center', className: 'cursor-pointer', formatter: ({ row }) => `${row.done_ops_count} / ${row.ops_count}` },
     { header: '상태', name: 'status', width: 70, align: 'center', className: 'cursor-pointer',
       formatter: ({ value }) => `<span style="color:${woStatusColor(value)};font-weight:600">${woStatusLabel(value)}</span>` },
@@ -121,11 +127,12 @@ function onSort({ key, dir }) { sort.key = key; sort.dir = dir; loadFirstPage();
 // ---- 작업지시 모달 ----
 const modalStore = useModalStore();
 const ctx = ref(null);   // 선택지 ( formData — 한 번 )
-async function openWo(row) {
+async function openWo(row, focus = {}) {
     activeWo.value = row.work_order_idx;
     modalStore.open(OpResultWoModal, {
         modalTitle: row.wo_no ? `공정 실적 [ ${row.wo_no} · ${row.item_label} ]` : '공정 실적',   // ?wo= 로 들어오면 번호를 아직 모른다
         woIdx: row.work_order_idx, ctx: ctx.value ?? {}, canWrite: canWrite.value, canDelete: canDelete.value,
+        focusOpIdx: focus.op ?? null, openRun: !!focus.run,   // 공정 QR 스캔 ( 11-26 )
         onChanged: load,
     }, { size: 'full', closeOnClickOutside: false });
 }
@@ -137,7 +144,13 @@ onMounted(async () => {
     } catch (e) {
         showFlash('선택지를 불러오지 못했습니다.', true);
     }
-    const wo = new URLSearchParams(window.location.search).get('wo');
-    if (wo) openWo({ work_order_idx: Number(wo), wo_no: '', item_label: '' });
+    const qs = new URLSearchParams(window.location.search);
+    const wo = qs.get('wo');
+    if (wo) {
+        openWo({ work_order_idx: Number(wo), wo_no: '', item_label: '' }, { op: qs.get('op') ? Number(qs.get('op')) : null, run: qs.get('run') === '1' });
+        try { window.history.replaceState(window.history.state, '', window.location.pathname); } catch (e) { /* 새로고침해도 다시 열리지 않게 */ }
+    } else if (qs.get('kw')) {
+        try { window.history.replaceState(window.history.state, '', window.location.pathname); } catch (e) { /* 무시 */ }
+    }
 });
 </script>

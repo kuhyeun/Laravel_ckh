@@ -12,6 +12,15 @@
             <span v-if="page.props.readOnly && page.props.auth?.user?.user_level === 0" class="ml-2 align-middle text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-normal">조회 전용</span>
         </h2>
         <div class="flex-1"></div>
+        <!-- 스캔 ( 11-26 ) — 스캐너는 어디서 찍어도 된다( 전역 감지 · 포커스를 뺏지 않음 ) · 이 칸은 번호를 손으로 넣을 때 -->
+        <div v-if="scanOn" class="mr-4 flex items-center font-normal">
+            <span class="relative flex items-center">
+                <QrCodeIcon class="absolute left-2 h-4 w-4 text-gray-400 pointer-events-none" />
+                <input v-model="scanText" v-scan-input type="text" class="h-8 w-52 rounded border border-gray-300 bg-white pl-7 pr-2 text-sm placeholder:text-gray-400 focus:border-blue-500 focus:outline-none"
+                    :class="scanState.busy ? 'opacity-60' : ''" placeholder="스캔 · 작업지시 번호" title="바코드 · QR 은 아무 데서나 찍으면 됩니다. 번호를 손으로 넣을 때 여기에 넣고 Enter"
+                    @keydown.enter.prevent="onScanEnter" />
+            </span>
+        </div>
         <div class="flex items-center">
             <button id="user-info" class="mr-3" @click="openUserInfo">
                 <InformationCircleIcon class="h-6 w-6 fill-gray-700 hover:fill-blue-500"/>
@@ -32,6 +41,19 @@ import { useModalStore } from '@core/Stores/modalStore';
 import { Link, usePage } from '@inertiajs/vue3';
 import { Bars3BottomLeftIcon, InformationCircleIcon } from '@heroicons/vue/24/solid';
 import NotificationBell from '@core/Components/Layout/NotificationBell.vue';
+import { QrCodeIcon } from '@heroicons/vue/24/outline';
+import { installScanner, dispatchScan, scanState } from '@core/Composables/useScanner';
+import { vScanInput } from '@core/Composables/scanInput';
+
+// 스캔 ( 11-26 ) — 전역 감지 설치 · 손으로 넣는 칸
+const scanOn   = route().has('production.scan.resolve');
+const scanText = ref('');
+if (scanOn) installScanner();
+function onScanEnter() {
+    const code = scanText.value.trim();
+    scanText.value = '';
+    if (code) dispatchScan(code);
+}
 
 // 로그아웃은 POST ( 11-09 코드 검사 A-4 — GET 이면 다른 사이트의 링크 · 이미지 하나로 강제 로그아웃됐다 ) · axios 가 XSRF 토큰을 붙인다
 async function logout() {

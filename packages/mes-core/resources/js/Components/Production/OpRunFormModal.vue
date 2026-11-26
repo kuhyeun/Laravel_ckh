@@ -71,7 +71,7 @@
         </div>
 
         <p v-if="op.ifl_fail > 0" class="mt-3 px-2.5 py-1.5 rounded border border-amber-200 bg-amber-50 text-xs text-amber-800">
-            ⚠ 이 공정에 초 · 중 · 종 검사 불량 <b>{{ fmtNum(op.ifl_fail) }}</b>개가 기록돼 있습니다. 양품 수량에는 불량을 빼고 넣으세요.
+            ⚠ 이 공정에 초 · 중 · 종 검사 불량 <b>{{ fmtNum(op.ifl_fail) }}</b>개가 기록돼 있습니다.
         </p>
         <p v-if="op.receives_on_run" class="mt-2 text-xs text-blue-700">마지막 공정이라 저장하면 이 수량만큼 바로 제품을 입고합니다.</p>
         <p v-if="runLot && line.lot_input_auto" class="mt-2 text-xs text-blue-700">투입 LOT 는 저장할 때 먼저 들어온 LOT 부터 자동으로 연결됩니다.</p>

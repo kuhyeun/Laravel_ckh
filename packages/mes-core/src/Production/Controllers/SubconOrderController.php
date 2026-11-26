@@ -167,6 +167,7 @@ class SubconOrderController extends Controller {
             'docs'     => $docs,
             'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
             'template' => DocTemplate::forPrint('SUBCON_ORDER'),
+            'templates' => DocTemplate::choices('SUBCON_ORDER'),   // 미리보기에서 양식 고르기 ( 11-26 )
         ]);
     }
 }

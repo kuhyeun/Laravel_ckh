@@ -119,6 +119,7 @@ class InspectionSpecController extends Controller {
             'docs'     => $docs,
             'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
             'template' => \MesCore\Config\Models\DocTemplate::forPrint('INSPECTION_SPEC'),
+            'templates' => \MesCore\Config\Models\DocTemplate::choices('INSPECTION_SPEC'),   // 미리보기에서 양식 고르기 ( 11-26 )
         ]);
     }
 

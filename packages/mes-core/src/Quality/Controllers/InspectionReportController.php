@@ -55,6 +55,7 @@ class InspectionReportController extends Controller {
             'docs'     => $docs,
             'images'   => ['seal' => $site->imageDataUri('seal'), 'logo' => $site->imageDataUri('logo')],
             'template' => DocTemplate::forPrint('INSPECTION_REPORT'),
+            'templates' => DocTemplate::choices('INSPECTION_REPORT'),   // 미리보기에서 양식 고르기 ( 11-26 )
         ]);
     }
 

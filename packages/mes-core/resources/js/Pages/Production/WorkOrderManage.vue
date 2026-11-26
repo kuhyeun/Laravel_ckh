@@ -10,6 +10,8 @@
             <BaseButton v-if="canWrite" size="sm" variant="primary" @click="openModal(null)">+ 등록</BaseButton>
             <BaseButton v-if="canDelete" size="sm" variant="danger" :disabled="!checkedRows.length || busy" @click="cancelChecked">취소</BaseButton>
             <BaseButton v-if="planSheetOn" size="sm" variant="secondary" @click="openPlanSheet">생산계획표</BaseButton>
+            <!-- 공정흐름표 ( 11-26 ) — 고른 작업지시서의 작업지시마다 한 장 · 작업지시 · 공정 QR / 바코드 -->
+            <BaseButton size="sm" variant="secondary" :disabled="!checkedRows.length" @click="openFlowSheet">공정흐름표</BaseButton>
         </div>
 
         <SearchBar
@@ -67,6 +69,7 @@ import BaseButton from '@core/Components/Base/BaseButton.vue';
 import BaseSelect from '@core/Components/Base/BaseSelect.vue';
 import WorkOrderForm from '@core/Components/Production/WorkOrderForm.vue';
 import ProductionPlanSheet from '@core/Components/Production/ProductionPlanSheet.vue';
+import DocPreview from '@core/Components/Doc/DocPreview.vue';
 import { useModalStore } from '@core/Stores/modalStore';
 import { showAlert } from '@core/Utils/message';
 import { WO_SOURCES, WO_STATUS_FILTER, woSourceLabel, woStatusLabel, woStatusColor } from '@core/Components/Production/productionCodes';
@@ -78,6 +81,11 @@ defineOptions({ layout: AppLayout });
 const mainGrid = ref(null);   // 메인 그리드 — 열 설정( 사용자별 ) · 엑셀이 그 설정을 따른다
 
 const modalStore = useModalStore();
+// 공정흐름표 ( 11-26 ) — 문서 양식 「공정흐름표」의 기본 양식 ( 없으면 처음 배치 )
+function openFlowSheet() {
+    const ids = checkedRows.value.map(r => r.sheet_idx);
+    modalStore.open(DocPreview, { modalTitle: `공정흐름표 ( 작업지시서 ${ids.length}건 )`, docType: 'WO_FLOW', routeName: 'production.workOrder.flowSheets', ids }, { size: 'xl' });
+}
 const page      = usePage();
 const menuCode  = page.props.menuCode;
 const myPerm    = computed(() => page.props.permissions?.[menuCode] ?? {});

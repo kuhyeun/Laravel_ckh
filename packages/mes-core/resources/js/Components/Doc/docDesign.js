@@ -2,7 +2,8 @@
 //   design : { margin_mm, head : 격자, table : { rows_per_page, row_h_mm, head_h_mm, size, sum, columns: [ { field, label, width, align, wrap } ] }, foot : 격자, stamps }
 //   열 wrap ( 11-24 ) : 칸 폭을 넘으면 아랫줄로 · 그 행만 높아진다 → 장은 줄 수가 아니라 높이로 나눈다( paginate · measureLines )
 //   격자   : { height_mm, cols, rows, col_w[], row_h[], border, cells: [ { r, c, rs, cs, type, field, text, size, bold, align, wrap, bg } ] }
-//            type = FIELD( 항목 ) · TEXT( 글자 ) · null( 빈 칸 ) — 예전 그림 칸( IMAGE )은 없앴다 ( 11-25 · 빈 칸으로 그린다 )
+//            type = FIELD( 항목 ) · TEXT( 글자 ) · CODE( QR · 바코드 — 11-26 · field = CODE_FIELDS · code = QR | BARCODE · show_no ) · null( 빈 칸 ) — 예전 그림 칸( IMAGE )은 없앴다 ( 11-25 · 빈 칸으로 그린다 )
+//   표 열 code ( 11-26 ) : CODE_COLUMNS 열( 공정 코드 )은 QR · 바코드로 그린다 ( code · show_no )
 //   stamps ( 11-25 ) : 장 위에 떠 있는 도장 [ { id, src, x_mm, y_mm, w_mm, h_mm } ] — 장 왼쪽 위( 여백 포함 ) 기준 · Common/stamps.js · StampLayer
 //   항목 · 열 키는 서버 DocTemplateController::FIELDS · COLUMNS 와 같게
 import { fmtNum, withSpec, koreanAmount } from '@core/Utils/format';
@@ -17,7 +18,15 @@ export const DOC_TYPES = [
     { value: 'INSPECTION_SPEC', label: '검사기준서' },   // 기준정보관리 > 검사기준서관리 [인쇄] ( 11-18 )
     { value: 'INSPECTION_REPORT', label: '검사성적서' },
     { value: 'SUBCON_ORDER', label: '외주 발주서' },   // 생산관리 > 외주관리 > 외주 발주 [인쇄] ( 11-23 )   // 입고 · 공정 · 출하 검사 창 [성적서] [인쇄] ( 11-23 — 저장된 측정값 )
+    { value: 'WO_FLOW', label: '공정흐름표' },   // 작업지시관리 · 공정실적 창 [공정흐름표] ( 11-26 — 작업지시 · 공정 QR / 바코드 )
 ];
+// QR · 바코드 칸에 넣는 코드 ( 11-26 ) — 값 : 항목키_qr( 주소 ) · 항목키_bar( 번호 )
+export const CODE_FIELDS = {
+    WO_FLOW: [{ key: 'wo_code', label: '작업지시 코드' }],
+};
+// QR · 바코드로 그리는 표 열 — 줄의 op_url( QR ) · op_code( 바코드 )
+export const CODE_COLUMNS = ['op_code'];
+export const codeOfLine = (l, code) => !l ? '' : code === 'BARCODE' ? (l.op_code ?? '') : (l.op_url ?? l.op_code ?? '');
 export const docTypeLabel = (v) => DOC_TYPES.find(t => t.value === v)?.label ?? v;
 
 const OURS = [
@@ -61,6 +70,15 @@ export const FIELDS = {
         { key: 'partner_fax', label: '외주처 · 팩스' }, { key: 'partner_email', label: '외주처 · 이메일' },
         ...OURS, ...PRINT,
     ],
+    // 공정흐름표 ( 11-26 ) : 작업지시 · 품목 ( 작업지시 QR · 바코드는 「코드」 칸 )
+    WO_FLOW: [
+        { key: 'wo_no', label: '작업지시 번호' }, { key: 'sheet_no', label: '작업지시서 번호' },
+        { key: 'item_code', label: '품번' }, { key: 'item_name', label: '품명' }, { key: 'item_spec', label: '규격' }, { key: 'name_spec', label: '품명 / 규격' },
+        { key: 'item_material', label: '재질' }, { key: 'unit', label: '단위' }, { key: 'qty', label: '지시 수량' },
+        { key: 'start_date', label: '착수일' }, { key: 'due_date', label: '기한' }, { key: 'lot_no', label: 'LOT' }, { key: 'order_no', label: '수주번호' },
+        { key: 'remark', label: '비고' },
+        ...OURS, ...PRINT,
+    ],
     // 검사성적서 ( 11-23 ) : 저장된 검사 기록 — 문서 번호 = 입고번호 / 작업지시 · 공정 / 출하번호 · 거래처 = 구매처 / 고객사 ( 공정은 빈 칸 )
     INSPECTION_REPORT: [
         { key: 'insp_type_name', label: '검사 종류' }, { key: 'doc_no', label: '문서 번호' }, { key: 'spec_name', label: '기준서 이름' },
@@ -94,6 +112,11 @@ export const COLUMNS = {
         C('no', 'No.', 'center'), C('wo_no', '작업지시'), C('item_code', '품번'), C('item_name', '품명'), C('item_spec', '규격'), C('name_spec', '품명 / 규격'),
         C('process_name', '외주 공정'), C('unit', '단위', 'center'), C('qty', '수량', 'right', true), C('unit_price', '단가', 'right'), C('amount', '금액', 'right', true),
         C('due_date', '납기', 'center'), C('remark', '비고'), C('blank', '빈 칸 ( 손으로 적는 칸 )'),
+    ],
+    // 공정흐름표 ( 11-26 ) : 공정 줄 · 공정 코드( QR · 바코드 — 찍으면 그 공정 실적 등록 )
+    WO_FLOW: [
+        C('no', 'No.', 'center'), C('seq', '순서', 'center'), C('process_name', '공정'), C('process_type', '구분', 'center'),
+        C('equipment', '설비'), C('worker', '작업자'), C('due_date', '공정 기한', 'center'), C('op_code', '공정 코드 ( QR · 바코드 )', 'center'), C('blank', '빈 칸 ( 손으로 적는 칸 )'),
     ],
     // 검사성적서 ( 11-23 ) : 기준서 열 + 시료 1 ~ 10 · 측정값( 합침 ) · 판정
     INSPECTION_REPORT: [
@@ -134,6 +157,14 @@ export function fieldValues(type, doc, ctx = {}) {
             insp_qty: `${fmtNum(doc.insp_qty)}${unit}`, pass_qty: `${fmtNum(doc.pass_qty)}${unit}`, fail_qty: `${fmtNum(doc.fail_qty)}${unit}`,
             result_name: doc.result_name, inspected_at: doc.inspected_at, inspector_name: doc.inspector_name };
     }
+    if (type === 'WO_FLOW') {
+        const unit = doc.unit ? ` ${doc.unit}` : '';
+        return { ...base, wo_no: doc.wo_no, sheet_no: doc.sheet_no ?? '', item_code: doc.item_code, item_name: doc.item_name, item_spec: doc.item_spec ?? '',
+            name_spec: withSpec(doc.item_name, doc.item_spec), item_material: doc.item_material ?? '', unit: doc.unit ?? '',
+            qty: doc.qty === null || doc.qty === undefined ? '' : `${fmtNum(doc.qty)}${unit}`, start_date: doc.start_date ?? '', due_date: doc.due_date ?? '',
+            lot_no: doc.lot_no ?? '', order_no: doc.order_no ?? '',
+            wo_code_qr: doc.wo_url ?? doc.wo_no ?? '', wo_code_bar: doc.wo_no ?? '' };   // 코드 칸 ( 11-26 )
+    }
     if (type === 'SUBCON_ORDER') {
         return { ...base, order_no: doc.order_no, order_date: doc.order_date, due_date: doc.due_date ?? '', manager_name: doc.manager_name ?? '',
             total: `₩ ${won(doc.total)}`, ...totalKor(doc.total), total_qty: fmtNum(doc.total_qty) };
@@ -154,6 +185,7 @@ export function lineValue(type, l, key) {
         case 'unit_price': return won(l.unit_price);
         case 'amount':     return won(l.amount);
         case 'blank':      return '';
+        case 'op_code':    return '';   // QR · 바코드로 그린다 ( DocSheet · 11-26 )
         // 검사기준서
         case 'limit':        return l.lower_limit === null && l.upper_limit === null ? '' : `${l.lower_limit ?? ''} ~ ${l.upper_limit ?? ''}`;
         // 검사성적서 ( 11-23 ) — 시료 n · 합침 · 판정
@@ -227,6 +259,32 @@ const col  = (type, field, width, more = {}) => { const d = columnDef(type, fiel
 // 처음 배치 = 격자 · 표 + 도장 없음
 export const starterDesign = (type) => ({ ...starterLayout(type), stamps: [] });
 function starterLayout(type) {
+    if (type === 'WO_FLOW') {
+        const T = 'WO_FLOW';
+        return {
+            margin_mm: 8,
+            // 머리 : 제목 · 작업지시 · 품목 + 오른쪽 작업지시 QR ( 6행 높이 )
+            head: { height_mm: 60, cols: 5, rows: 6, col_w: [0.8, 1.5, 0.8, 1.5, 1.4], row_h: [1.5, 1, 1, 1, 1, 1], border: 'Y', cells: [
+                cell(0, 0, 4, 1, { type: 'TEXT', text: '공 정 흐 름 표', size: 20, bold: true, align: 'center' }),
+                cell(0, 4, 1, 6, { type: 'CODE', field: 'wo_code', code: 'QR', show_no: true, align: 'center' }),
+                cap(1, 0, '지시 번호'), val(1, 1, 'wo_no', 1, { bold: true, size: 11 }), cap(1, 2, '지 시 서'), val(1, 3, 'sheet_no'),
+                cap(2, 0, '품 번'), val(2, 1, 'item_code', 1, { bold: true }), cap(2, 2, '품 명'), val(2, 3, 'item_name', 1, { wrap: true }),
+                cap(3, 0, '규 격'), val(3, 1, 'item_spec', 1, { wrap: true }), cap(3, 2, '재 질'), val(3, 3, 'item_material'),
+                cap(4, 0, '지시 수량'), val(4, 1, 'qty', 1, { bold: true, size: 11 }), cap(4, 2, 'L O T'), val(4, 3, 'lot_no'),
+                cap(5, 0, '착 수 일'), val(5, 1, 'start_date'), cap(5, 2, '기 한'), val(5, 3, 'due_date', 1, { bold: true }),
+            ] },
+            // 표 : 공정 줄 — 공정 코드( QR )를 찍으면 그 공정 실적 등록
+            table: { rows_per_page: 10, row_h_mm: 20, head_h_mm: 8, size: 10, sum: 'N', columns: [
+                col(T, 'seq', 0.6), col(T, 'process_name', 1.6), col(T, 'process_type', 0.9), col(T, 'equipment', 1.2), col(T, 'worker', 1.1),
+                { field: 'blank', label: '작업 수량', width: 1, align: 'center', wrap: false }, { field: 'blank', label: '확인', width: 0.8, align: 'center', wrap: false },
+                col(T, 'op_code', 1.1, { label: '공정 QR', code: 'QR', show_no: true }),
+            ] },
+            foot: { height_mm: 12, cols: 3, rows: 1, col_w: [0.6, 5, 1], row_h: [1], border: 'Y', cells: [
+                cap(0, 0, '비 고'), val(0, 1, 'remark', 1, { wrap: true }),
+                cell(0, 2, 1, 1, { type: 'FIELD', field: 'page_no', size: 8, align: 'center' }),
+            ] },
+        };
+    }
     if (type === 'SUBCON_ORDER') {
         const T = 'SUBCON_ORDER';
         return {
@@ -352,6 +410,19 @@ const SPEC_SAMPLE = {
 };
 export const SAMPLE = {
     INSPECTION_SPEC: SPEC_SAMPLE,
+    // 공정흐름표 ( 11-26 )
+    WO_FLOW: {
+        wo_no: 'WO-261126-001-01', sheet_no: 'WO-261126-001', item_code: 'PD-01', item_name: '완제품 예시', item_spec: '100 × 50 × 10', item_material: 'SUS304',
+        unit: 'EA', qty: 120, start_date: '2026-11-26', due_date: '2026-11-30', lot_no: 'PD-01_2611_003', order_no: 'SO-261120-004', remark: '도면 Rev.B',
+        wo_url: 'https://mes.example.com/go/wo/WO-261126-001-01', supplier: OUR, receiver: {},
+        lines: [
+            { no: 1, seq: '010', process_name: '원자재출고', process_type: '자재 출고', equipment: '', worker: '', due_date: '', op_code: 'OP-101', op_url: 'https://mes.example.com/go/op/101' },
+            { no: 2, seq: '020', process_name: '절단', process_type: '생산', equipment: '절단기-1', worker: '김작업', due_date: '2026-11-27', op_code: 'OP-102', op_url: 'https://mes.example.com/go/op/102' },
+            { no: 3, seq: '030', process_name: '가공', process_type: '생산', equipment: 'CNC-2', worker: '이작업', due_date: '2026-11-28', op_code: 'OP-103', op_url: 'https://mes.example.com/go/op/103' },
+            { no: 4, seq: '040', process_name: '도금', process_type: '외주', equipment: '', worker: '', due_date: '2026-11-29', op_code: 'OP-104', op_url: 'https://mes.example.com/go/op/104' },
+            { no: 5, seq: '050', process_name: '출하검사', process_type: '검사', equipment: '', worker: '', due_date: '2026-11-30', op_code: 'OP-105', op_url: 'https://mes.example.com/go/op/105' },
+        ],
+    },
     SUBCON_ORDER: {
         order_no: 'SCO-261123-001', order_date: '2026-11-23', due_date: '2026-11-30', manager_name: '이생산', remark: '도금 두께 8㎛ 이상', total: 640000, total_qty: 320,
         supplier: OUR, receiver: { name: '예시 도금', biz_no: '333-44-55555', ceo_name: '박외주', address: '경기도 안산시 예시로 9', tel: '031-555-6666', contact: '김담당', fax: '031-555-6667', email: 'order@example-plating.co.kr' },

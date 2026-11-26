@@ -19,7 +19,15 @@
                 </tr>
                 <tr v-for="(l, r) in page.rows" :key="r" :style="{ height: `${page.heights?.[r] ?? design.table.row_h_mm}mm` }">
                     <td v-for="(c, i) in design.table.columns" :key="i" :style="{ textAlign: c.align }">
-                        <div v-if="c.wrap" class="ds-wrap" :style="{ maxHeight: `${page.heights?.[r] ?? design.table.row_h_mm}mm` }">{{ lineValue(docType, l, c.field) }}</div>
+                        <!-- 코드 열 ( 11-26 · 공정 코드 ) : QR · 바코드 -->
+                        <div v-if="c.code" class="ds-code" :style="{ height: `${page.heights?.[r] ?? design.table.row_h_mm}mm` }">
+                            <template v-if="l">
+                                <div v-if="c.code !== 'BARCODE'" class="ds-qr"><QrCode v-if="codeOfLine(l, 'QR')" :value="codeOfLine(l, 'QR')" /></div>
+                                <Barcode v-else-if="codeOfLine(l, 'BARCODE')" :value="codeOfLine(l, 'BARCODE')" height="100%" class="ds-bar" />
+                                <span v-if="c.show_no" class="ds-code-no">{{ codeOfLine(l, 'BARCODE') }}</span>
+                            </template>
+                        </div>
+                        <div v-else-if="c.wrap" class="ds-wrap" :style="{ maxHeight: `${page.heights?.[r] ?? design.table.row_h_mm}mm` }">{{ lineValue(docType, l, c.field) }}</div>
                         <div v-else class="ds-clip">{{ lineValue(docType, l, c.field) }}</div>
                     </td>
                 </tr>
@@ -41,7 +49,9 @@
 import { computed } from 'vue';
 import DocGrid from '@core/Components/Doc/DocGrid.vue';
 import StampLayer from '@core/Components/Common/StampLayer.vue';
-import { PAGE, lineValue, sumValue } from '@core/Components/Doc/docDesign';
+import { PAGE, lineValue, sumValue, codeOfLine } from '@core/Components/Doc/docDesign';
+import QrCode from '@core/Components/Label/QrCode.vue';
+import Barcode from '@core/Components/Label/Barcode.vue';
 import { columnWidths } from '@core/Components/Doc/measureLines';
 
 const props = defineProps({
@@ -77,6 +87,10 @@ const zoneH = computed(() => {
 .ds-table td { border: 0.25mm solid #222; padding: 0 1.2mm; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ds-head td { text-align: center; font-weight: 600; background: #f3f4f6; }
 .ds-sum td { font-weight: 700; border-top-width: 0.5mm; }
+.ds-code { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5mm; padding: 1mm 0; box-sizing: border-box; overflow: hidden; }
+.ds-qr { flex: 1 1 auto; min-height: 0; aspect-ratio: 1 / 1; max-width: 100%; }
+.ds-bar { flex: 1 1 auto; min-height: 0; width: 100%; }
+.ds-code-no { flex: none; font-size: 7pt; font-weight: 600; line-height: 1; }
 .ds-clip { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .ds-wrap { overflow: hidden; white-space: pre-line; overflow-wrap: anywhere; word-break: keep-all; padding: 0.8mm 0; box-sizing: border-box; }   /* measureLines 와 같게 */
 
